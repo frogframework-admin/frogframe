@@ -1,0 +1,304 @@
+@page "/app/{DocType}/import"
+@using Framework.Imports
+@using Framework.Reports
+@using Microsoft.AspNetCore.Components.Forms
+@inject DataImportService Importer
+@inject IMetadataProvider Metadata
+@inject CurrentUser Current
+@inject ToastService Toasts
+
+<PageTitle>Impor @(meta?.Title ?? DocType) · DocFrame</PageTitle>
+
+<BbBreadcrumb Class="crumbs">
+    <BbBreadcrumbList>
+        <BbBreadcrumbItem><BbBreadcrumbLink Href="@($"/app/{DocType}")">@(meta?.Title ?? DocType)</BbBreadcrumbLink></BbBreadcrumbItem>
+        <BbBreadcrumbSeparator />
+        <BbBreadcrumbItem><BbBreadcrumbPage>Impor</BbBreadcrumbPage></BbBreadcrumbItem>
+    </BbBreadcrumbList>
+</BbBreadcrumb>
+
+@if (meta is null || !Importer.CanImport(Current.Required, DocType))
+{
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>Impor tidak tersedia untuk DocType ini, atau Anda tidak memiliki izin membuat dokumennya.</BbAlertDescription></BbAlert>
+}
+else
+{
+    <header class="page-head">
+        <div>
+            <h1>Impor @meta.Title</h1>
+            <p>Setiap baris diperiksa dengan aturan yang sama seperti mengisi form. Tidak ada yang disimpan sebelum Anda menekan <strong>Impor</strong>.</p>
+        </div>
+    </header>
+
+    <ol class="wizard-steps" aria-label="Langkah">
+        @foreach (var (n, title) in Steps)
+        {
+            var num = n;
+            <li class="@(step == num ? "current" : num < step ? "done" : "")">
+                <button type="button" disabled="@(num > maxStep || step == 4)" @onclick="() => GoTo(num)" aria-current="@(step == num ? "step" : null)">
+                    <span class="step-num">@(num < step ? "✓" : num.ToString())</span><span>@title</span>
+                </button>
+            </li>
+        }
+    </ol>
+
+    @if (error is not null)
+    {
+        <BbAlert Variant="AlertVariant.Danger" Class="props-block"><BbAlertTitle>@errorTitle</BbAlertTitle><BbAlertDescription>@error</BbAlertDescription></BbAlert>
+    }
+
+    @switch (step)
+    {
+        case 1:
+            <div class="builder-grid">
+                <BbCard>
+                    <BbCardHeader><BbCardTitle Class="card-title">1. Siapkan file</BbCardTitle></BbCardHeader>
+                    <BbCardContent>
+                        <div class="stack">
+                            <div>
+                                <a class="bb-like-button" href="@TemplateUrl" download="@($"template-impor-{DocType}.xlsx")"><LucideIcon Name="file-spreadsheet" Size="16" /> Unduh template Excel</a>
+                                <p class="muted small" style="margin:.4rem 0 0">Berisi kolom yang boleh Anda isi (bertanda * wajib), pilihan dropdown, @(Importer.Tables(Current.Required, meta).Count > 0 ? "sheet untuk baris tabel, " : "")dan sheet Petunjuk.</p>
+                            </div>
+                            <div>
+                                <div class="props-sub" style="margin-bottom:.35rem">Unggah file (.xlsx atau .csv, maks. @(Importer.Limits.MaxFileBytes / 1024 / 1024) MB, @Importer.Limits.MaxRows.ToString("N0") baris)</div>
+                                <label class="image-pick">
+                                    <InputFile id="import-file" accept=".xlsx,.csv" OnChange="Upload" />
+                                    <LucideIcon Name="upload" Size="15" /> Pilih file
+                                </label>
+                                <p class="muted small" style="margin:.4rem 0 0">File Excel Anda sendiri juga bisa; kolomnya dicocokkan di langkah berikut.</p>
+                            </div>
+                        </div>
+                    </BbCardContent>
+                </BbCard>
+                <BbCard>
+                    <BbCardHeader><BbCardTitle Class="card-title">Riwayat impor</BbCardTitle></BbCardHeader>
+                    <BbCardContent>
+                        @if (history.Count == 0) { <p class="muted small">Belum ada impor untuk @meta.Title.</p> }
+                        else
+                        {
+                            <table class="data">
+                                <thead><tr><th>Waktu</th><th>File</th><th>Oleh</th><th class="num">Berhasil</th><th class="num">Gagal</th></tr></thead>
+                                <tbody>@foreach (var h in history) { <tr><td class="nowrap muted">@Fmt.When(h.At)</td><td>@h.FileName @if (h.Atomic) { <span class="muted small">(atomik)</span> }</td><td>@h.UserName</td><td class="num">@h.Succeeded</td><td class="num">@h.Failed</td></tr> }</tbody>
+                            </table>
+                        }
+                    </BbCardContent>
+                </BbCard>
+            </div>
+            break;
+
+        case 2 when session is not null:
+            <BbCard>
+                <BbCardHeader>
+                    <BbCardTitle Class="card-title">2. Pencocokan kolom — @session.FileName</BbCardTitle>
+                    <BbCardDescription>@session.RowCount.ToString("N0") baris data. Kolom yang dipetakan "(abaikan)" tidak diimpor.</BbCardDescription>
+                </BbCardHeader>
+                <BbCardContent>
+                    @foreach (var w in session.Warnings) { <BbAlert Class="props-block"><BbAlertDescription>@w</BbAlertDescription></BbAlert> }
+                    @if (Missing.Count > 0)
+                    {
+                        <BbAlert Variant="AlertVariant.Danger" Class="props-block"><BbAlertTitle>Kolom wajib belum dipetakan</BbAlertTitle><BbAlertDescription>@string.Join(", ", Missing)</BbAlertDescription></BbAlert>
+                    }
+                    @MappingTable(session.Main, meta, "Sheet " + session.Main.Data.Name, false)
+                    @foreach (var (t, child) in Importer.Tables(Current.Required, meta))
+                    {
+                        @if (session.Children.TryGetValue(t.Name, out var cs)) { @MappingTable(cs, child, $"{t.Label} (sheet {cs.Data.Name})", true) }
+                    }
+                    <div class="row" style="margin-top:1rem">
+                        <BbButton Variant="ButtonVariant.Ghost" OnClick="() => GoTo(1)">Ganti file</BbButton>
+                        <span class="spacer"></span>
+                        <BbButton Disabled="@(busy || Missing.Count > 0)" OnClick="Simulate"><LucideIcon Name="scan-search" Size="16" /> @(busy ? $"Memeriksa… {progress:N0}/{session.RowCount:N0}" : "Lanjut: simulasi")</BbButton>
+                    </div>
+                </BbCardContent>
+            </BbCard>
+            break;
+
+        case 3 when session is not null && preview is not null:
+            <BbCard>
+                <BbCardHeader>
+                    <BbCardTitle Class="card-title">3. Simulasi</BbCardTitle>
+                    <BbCardDescription>Semua aturan sudah dijalankan; belum ada yang disimpan.</BbCardDescription>
+                </BbCardHeader>
+                <BbCardContent>
+                    <div class="import-summary">
+                        <div class="ok"><strong>@preview.Ok.ToString("N0")</strong><span>siap diimpor</span></div>
+                        <div class="bad"><strong>@preview.Failed.ToString("N0")</strong><span>bermasalah</span></div>
+                    </div>
+                    @foreach (var w in preview.Warnings) { <BbAlert Class="props-block"><BbAlertDescription>@w</BbAlertDescription></BbAlert> }
+                    @if (preview.Failed > 0)
+                    {
+                        <div class="result-grid" style="max-height:20rem">
+                            <table class="data">
+                                <thead><tr><th class="num">Baris</th>@if (session.Main.KeyColumn >= 0) { <th>Kunci</th> }<th>Masalah</th></tr></thead>
+                                <tbody>
+                                    @foreach (var r in preview.Rows.Where(r => !r.Ok).Take(300))
+                                    {
+                                        <tr><td class="num">@r.RowNumber</td>@if (session.Main.KeyColumn >= 0) { <td>@r.Key</td> }<td class="wrap"><ul class="error-list">@foreach (var e in r.Errors) { <li>@e</li> }</ul></td></tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                        @if (preview.Failed > 300) { <p class="muted small">Menampilkan 300 baris pertama; semua baris bermasalah ada di file baris gagal setelah impor.</p> }
+                    }
+                    <div style="margin-top:1rem">
+                        <div class="props-sub" style="margin-bottom:.35rem">Jika ada baris bermasalah</div>
+                        <div class="label-row"><input type="radio" id="m-skip" name="mode" checked="@(!atomic)" @onchange="() => atomic = false" /><label for="m-skip">Lewati baris yang gagal — baris lain tetap disimpan</label></div>
+                        <div class="label-row"><input type="radio" id="m-atomic" name="mode" checked="@atomic" @onchange="() => atomic = true" /><label for="m-atomic">Semua atau tidak sama sekali — satu baris gagal, tidak ada yang disimpan</label></div>
+                    </div>
+                    <div class="row" style="margin-top:1rem">
+                        <BbButton Variant="ButtonVariant.Ghost" OnClick="() => GoTo(2)">Kembali</BbButton>
+                        <span class="spacer"></span>
+                        <BbButton Disabled="@(busy || preview.Ok == 0 || atomic && preview.Failed > 0)" OnClick="Execute">
+                            <LucideIcon Name="file-up" Size="16" /> @(busy ? $"Mengimpor… {progress:N0}/{preview.Rows.Count:N0}" : $"Impor {preview.Ok:N0} baris")
+                        </BbButton>
+                    </div>
+                    @if (atomic && preview.Failed > 0) { <p class="muted small" style="text-align:right;margin:.35rem 0 0">Mode semua-atau-tidak: perbaiki @preview.Failed baris bermasalah dulu.</p> }
+                </BbCardContent>
+            </BbCard>
+            break;
+
+        case 4 when session is not null && result is not null:
+            <BbCard>
+                <BbCardHeader><BbCardTitle Class="card-title">4. Hasil impor #@result.Log.Id</BbCardTitle></BbCardHeader>
+                <BbCardContent>
+                    <div class="import-summary">
+                        <div class="ok"><strong>@result.Log.Succeeded.ToString("N0")</strong><span>dibuat</span></div>
+                        <div class="bad"><strong>@result.Log.Failed.ToString("N0")</strong><span>gagal</span></div>
+                    </div>
+                    @if (result.Log.Succeeded > 0)
+                    {
+                        <div class="props-sub" style="margin:.75rem 0 .35rem">Dokumen yang dibuat</div>
+                        <p class="created-list">@foreach (var n in result.Rows.Where(r => r.Ok).Take(30)) { <a href="@($"/app/{DocType}/{n.CreatedName}")">@n.CreatedName</a> }@if (result.Log.Succeeded > 30) { <span class="muted">+@(result.Log.Succeeded - 30) lainnya</span> }</p>
+                    }
+                    <div class="row" style="margin-top:1rem">
+                        @if (result.Log.Failed > 0)
+                        {
+                            <a class="bb-like-button" href="@FailureUrl" download="@($"baris-gagal-{result.Log.Id}.xlsx")"><LucideIcon Name="file-down" Size="16" /> Unduh baris gagal (+ alasan)</a>
+                        }
+                        <span class="spacer"></span>
+                        <BbButton Variant="ButtonVariant.Outline" OnClick="Restart">Impor file lain</BbButton>
+                        <BbButton Href="@($"/app/{DocType}")">Ke daftar @meta.Title.ToLower()</BbButton>
+                    </div>
+                </BbCardContent>
+            </BbCard>
+            break;
+    }
+}
+
+@code {
+    [Parameter] public string DocType { get; set; } = "";
+    private static readonly (int, string)[] Steps = [(1, "File"), (2, "Pencocokan kolom"), (3, "Simulasi"), (4, "Hasil")];
+    private CompiledDocType? meta;
+    private int step = 1, maxStep = 1, progress;
+    private bool busy, atomic;
+    private string? error, errorTitle, templateUrl, loaded;
+    private ImportSession? session;
+    private ImportPreview? preview;
+    private ImportExecution? result;
+    private IReadOnlyList<ImportLog> history = [];
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (loaded == DocType) return;
+        loaded = DocType;
+        meta = Metadata.Current.DocTypes.TryGetValue(DocType, out var m) && !m.Def.IsChild ? m : null;
+        if (meta is null || !Importer.CanImport(Current.Required, DocType)) return;
+        templateUrl = null; step = maxStep = 1;
+        history = await Importer.HistoryAsync(Current.Required, DocType);
+    }
+
+    private string TemplateUrl => templateUrl ??= "data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64," +
+        Convert.ToBase64String(Importer.BuildTemplate(Current.Required, DocType));
+    private string FailureUrl => "data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64," +
+        Convert.ToBase64String(DataImportService.FailureReport(session!, result!.Rows));
+    private IReadOnlyList<string> Missing => session is null ? [] : Importer.MissingRequired(Current.Required, session);
+
+    private void GoTo(int n) { if (n <= maxStep) { step = n; error = null; } }
+
+    private async Task Upload(InputFileChangeEventArgs e)
+    {
+        error = null; session = null; preview = null; result = null;
+        try
+        {
+            if (e.File.Size > Importer.Limits.MaxFileBytes) throw new TemplateException($"File maksimal {Importer.Limits.MaxFileBytes / 1024 / 1024} MB");
+            await using var s = e.File.OpenReadStream(Importer.Limits.MaxFileBytes);
+            using var ms = new MemoryStream();
+            await s.CopyToAsync(ms);
+            session = Importer.Open(Current.Required, DocType, e.File.Name, ms.ToArray());
+            step = maxStep = 2;
+        }
+        catch (Exception ex) when (ex is TemplateException or PermissionDeniedException or IOException)
+        {
+            (errorTitle, error) = ("File tidak bisa dibaca", ex.Message);
+        }
+    }
+
+    private RenderFragment MappingTable(ImportSheet sheet, CompiledDocType target, string title, bool child) => __builder =>
+    {
+        var fields = Importer.Fields(Current.Required, target, child);
+        var options = new[] { new SelectOption<string>("", "(abaikan)") }.Concat(fields.Select(f => new SelectOption<string>(f.Name, f.Label + (DataImportService.IsRequired(f) ? " *" : "")))).ToList();
+        <div class="props-sub" style="margin:.75rem 0 .35rem">@title</div>
+        <div class="table-wrap">
+            <table class="perm-table">
+                <thead><tr><th>Kolom di file</th><th>Contoh nilai</th><th style="min-width:15rem">Diisi ke field</th></tr></thead>
+                <tbody>
+                    @foreach (var col in sheet.Columns)
+                    {
+                        var c = col;
+                        <tr>
+                            <td><strong>@c.Header</strong></td>
+                            <td class="muted small">@string.Join(" · ", c.Samples)</td>
+                            <td><BbSelect TValue="string" Value="@(c.Field ?? "")" ValueChanged="v => Map(sheet, c, v)" Options="options" AriaLabel="@($"Field untuk kolom {c.Header}")" /></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    };
+
+    private void Map(ImportSheet sheet, ImportColumn c, string? field)
+    {
+        field = string.IsNullOrEmpty(field) ? null : field;
+        if (field is not null) foreach (var other in sheet.Columns.Where(o => o != c && o.Field == field)) other.Field = null; // satu field satu kolom
+        c.Field = field;
+        preview = null; maxStep = 2;
+    }
+
+    private Progress<int> Reporter() => new(i => { progress = i; _ = InvokeAsync(StateHasChanged); });
+
+    private async Task Simulate()
+    {
+        error = null; busy = true; progress = 0;
+        try
+        {
+            await Task.Yield();
+            preview = await Importer.SimulateAsync(Current.Required, session!, Reporter());
+            atomic = false;
+            step = maxStep = 3;
+        }
+        catch (Exception ex) when (ex is TemplateException or PermissionDeniedException)
+        {
+            (errorTitle, error) = ("Simulasi tidak bisa dijalankan", ex.Message);
+        }
+        finally { busy = false; }
+    }
+
+    private async Task Execute()
+    {
+        error = null; busy = true; progress = 0;
+        try
+        {
+            await Task.Yield();
+            result = await Importer.ExecuteAsync(Current.Required, session!, atomic, Reporter());
+            step = maxStep = 4;
+            history = await Importer.HistoryAsync(Current.Required, DocType);
+            if (result.Log.Succeeded > 0) Toasts.Success($"{result.Log.Succeeded:N0} dokumen dibuat, {result.Log.Failed:N0} gagal.", $"Impor #{result.Log.Id} selesai");
+        }
+        catch (Exception ex) when (ex is TemplateException or PermissionDeniedException)
+        {
+            (errorTitle, error) = ("Impor gagal", ex.Message);
+        }
+        finally { busy = false; }
+    }
+
+    private void Restart() { session = null; preview = null; result = null; step = maxStep = 1; }
+}

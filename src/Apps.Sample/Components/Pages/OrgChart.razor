@@ -1,0 +1,91 @@
+@page "/hr/struktur-organisasi"
+@inject DocumentService Docs
+@inject CurrentUser Current
+
+<PageTitle>Struktur Organisasi · DocFrame</PageTitle>
+
+<header class="page-head">
+    <div>
+        <h1>Struktur Organisasi</h1>
+        <p>Disusun dari data Departemen (induk departemen, kepala) dan Karyawan (atasan langsung). Klik kotak untuk membuka datanya.</p>
+    </div>
+</header>
+
+@if (error is not null)
+{
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@error</BbAlertDescription></BbAlert>
+}
+else if (employees is null || departments is null)
+{
+    <div class="stack"><BbSkeleton Height="3rem" /><BbSkeleton Height="16rem" /></div>
+}
+else
+{
+    <div class="org-stats">
+        <div><strong>@departments.Count</strong><span class="muted small">departemen</span></div>
+        <div><strong>@ActiveEmployees.Count</strong><span class="muted small">karyawan aktif</span></div>
+        <div><strong>@WithoutManager.Count</strong><span class="muted small">tanpa atasan</span></div>
+    </div>
+
+    <BbTabs Value="@view" ValueChanged="v => view = v ?? view">
+        <BbTabsList>
+            <BbTabsTrigger Value="dept"><LucideIcon Name="building" Size="15" /> Per departemen</BbTabsTrigger>
+            <BbTabsTrigger Value="people"><LucideIcon Name="users-round" Size="15" /> Atasan – bawahan</BbTabsTrigger>
+        </BbTabsList>
+        <BbTabsContent Value="dept">
+            <BbCard Style="margin-top:.75rem"><BbCardContent><div style="padding-top:1rem">
+                <OrgTree Nodes="DeptNodes" AriaLabel="Bagan departemen" EmptyTitle="Belum ada departemen" EmptyText="Tambahkan data di menu HR → Departemen." />
+            </div></BbCardContent></BbCard>
+        </BbTabsContent>
+        <BbTabsContent Value="people">
+            <BbCard Style="margin-top:.75rem"><BbCardContent><div style="padding-top:1rem">
+                <OrgTree Nodes="PeopleNodes" AriaLabel="Bagan atasan dan bawahan" EmptyTitle="Belum ada karyawan" EmptyText="Tambahkan data di menu HR → Karyawan." />
+            </div></BbCardContent></BbCard>
+            @if (WithoutManager.Count > 1)
+            {
+                <p class="muted small" style="margin-top:.5rem">Karyawan tanpa atasan tampil sebagai puncak bagan: @string.Join(", ", WithoutManager.Select(e => Str(e, "employee_name")))</p>
+            }
+        </BbTabsContent>
+    </BbTabs>
+}
+
+@code {
+    private IReadOnlyList<Document>? departments, employees;
+    private string view = "dept";
+    private string? error;
+    private IReadOnlyList<OrgNode> DeptNodes = [], PeopleNodes = [];
+
+    private List<Document> ActiveEmployees => employees!.Where(e => e.Data.GetValueOrDefault("active") is true).ToList();
+    private List<Document> WithoutManager => ActiveEmployees.Where(e => e.Data.GetValueOrDefault("atasan_id") is not string boss
+        || ActiveEmployees.All(x => x.Name != boss)).ToList();
+
+    private static string? Str(Document d, string f) => d.Data.GetValueOrDefault(f) as string;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            // Lewat DocumentService: tenant, cakupan data, dan field terbatas tetap berlaku.
+            departments = await Docs.QueryForReportAsync(Current.Required, "Department", [], DocActions.Read);
+            employees = await Docs.QueryForReportAsync(Current.Required, "Employee", [], DocActions.Read);
+        }
+        catch (PermissionDeniedException ex) { error = ex.Message; return; }
+
+        var byId = employees.ToDictionary(e => e.Name);
+        var me = Current.Required.Attr("employee");
+        DeptNodes = departments.Select(d =>
+        {
+            var head = Str(d, "head") is { } h && byId.TryGetValue(h, out var e) ? e : null;
+            var count = ActiveEmployees.Count(x => Str(x, "department") == d.Name);
+            return new OrgNode(d.Name, Str(d, "parent_department"), Str(d, "department_name") ?? d.Name,
+                head is null ? "Kepala belum ditentukan" : $"{Str(head, "employee_name")} · {Str(head, "jabatan")}",
+                $"{d.Name} · {count} karyawan", head is null ? null : Str(head, "foto"), $"/app/Department/{d.Name}",
+                Highlight: me is not null && byId.TryGetValue(me, out var self) && Str(self, "department") == d.Name);
+        }).ToList();
+
+        var deptName = departments.ToDictionary(d => d.Name, d => Str(d, "department_name") ?? d.Name);
+        PeopleNodes = ActiveEmployees.Select(e => new OrgNode(e.Name, Str(e, "atasan_id"), Str(e, "employee_name") ?? e.Name,
+            Str(e, "jabatan"), Str(e, "department") is { } dc ? deptName.GetValueOrDefault(dc, dc) : null,
+            Str(e, "foto"), $"/app/Employee/{e.Name}", Highlight: e.Name == me)).ToList();
+    }
+}

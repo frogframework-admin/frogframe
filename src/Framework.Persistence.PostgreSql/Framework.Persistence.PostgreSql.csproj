@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Framework.Persistence.PostgreSql</RootNamespace>
+    <NpgsqlVersion>10.0.3</NpgsqlVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="..\Framework.Core\Framework.Core.csproj" />
+    <EmbeddedResource Include="Migrations\*.sql" />
+  </ItemGroup>
+
+  <!-- Default: paket NuGet resmi Npgsql. -->
+  <ItemGroup Condition="'$(NpgsqlSource)' == ''">
+    <PackageReference Include="Npgsql" Version="$(NpgsqlVersion)" />
+  </ItemGroup>
+
+  <!-- Opsional: build dari source Npgsql, mis. -p:NpgsqlSource=/path/ke/npgsql/src -->
+  <ItemGroup Condition="'$(NpgsqlSource)' != ''">
+    <ProjectReference Include="$(NpgsqlSource)/Npgsql/Npgsql.csproj" />
+  </ItemGroup>
+
+</Project>

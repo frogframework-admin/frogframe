@@ -1,0 +1,240 @@
+@page "/admin/api-keys"
+@using Framework.Api
+@using Microsoft.AspNetCore.Identity
+@inject ApiKeyService Keys
+@inject ApiMethodRegistry Methods
+@inject QueryApiService QueryApis
+@inject IUserAccountRepository Accounts
+@inject UserManager<UserAccount> Users
+@inject IMetadataProvider Metadata
+@inject CurrentUser Current
+@inject ToastService Toasts
+@inject DialogService Dialogs
+@inject NavigationManager Nav
+@inject TimeProvider Clock
+
+<PageTitle>Kunci API · DocFrame</PageTitle>
+
+@if (!Current.Required.Roles.Contains(UserContext.SystemManager))
+{
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>Halaman ini hanya untuk System Manager.</BbAlertDescription></BbAlert>
+}
+else
+{
+    <header class="page-head">
+        <div>
+            <h1>Kunci API</h1>
+            <p>Untuk integrasi sistem lain. Kunci bertindak sebagai akunnya: role, departemen, dan cakupan data akun itu yang berlaku — lewat aturan yang sama dengan layar aplikasi.</p>
+        </div>
+        @if (!creating) { <BbButton OnClick="StartCreate"><LucideIcon Name="key-round" Size="16" /> Buat kunci</BbButton> }
+    </header>
+
+    @if (token is not null)
+    {
+        <BbAlert Variant="AlertVariant.Warning" Class="props-block">
+            <BbAlertTitle>Simpan kunci ini sekarang — tidak akan ditampilkan lagi</BbAlertTitle>
+            <BbAlertDescription>
+                <code class="temp-password" id="new-token">@token</code>
+                <pre class="api-example">curl -H "Authorization: ApiKey @token" @(BaseUrl)api/data/PurchaseRequest</pre>
+            </BbAlertDescription>
+        </BbAlert>
+    }
+
+    @if (creating)
+    {
+        <BbCard Class="props-block">
+            <BbCardHeader><BbCardTitle Class="card-title">Kunci baru</BbCardTitle></BbCardHeader>
+            <BbCardContent>
+                <div class="stack" style="max-width:56rem">
+                    @if (error is not null) { <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@error</BbAlertDescription></BbAlert> }
+                    <BbField><BbFieldLabel For="k-name">Nama kunci</BbFieldLabel><FormTextInput Id="k-name" Value="@name" ValueChanged="v => name = v ?? string.Empty" Placeholder="mis. Integrasi ERP keuangan" /></BbField>
+
+                    <BbField>
+                        <BbFieldLabel>Akun pemilik kunci</BbFieldLabel>
+                        <BbSelect TValue="string" Value="@accountId" ValueChanged="v => accountId = v ?? NewAccount" AriaLabel="Akun pemilik kunci" Options="AccountOptions" />
+                        <BbFieldDescription>Disarankan akun integrasi khusus (tanpa password), bukan akun manusia.</BbFieldDescription>
+                    </BbField>
+                    @if (accountId == NewAccount)
+                    {
+                        <div class="props-row">
+                            <BbField><BbFieldLabel For="a-name">Nama akun integrasi</BbFieldLabel><FormTextInput Id="a-name" Value="@newName" ValueChanged="v => newName = v ?? string.Empty" Placeholder="mis. Sistem ERP" /></BbField>
+                            <BbField><BbFieldLabel For="a-user">Username</BbFieldLabel><FormTextInput Id="a-user" Value="@newUser" ValueChanged="v => newUser = (v ?? string.Empty).Trim().ToLowerInvariant()" Placeholder="mis. svc.erp" /></BbField>
+                        </div>
+                        <BbField><BbFieldLabel For="a-dept">Departemen (opsional)</BbFieldLabel><FormTextInput Id="a-dept" Value="@newDept" ValueChanged="v => newDept = v" /></BbField>
+                        <div>
+                            <div class="props-sub" style="margin-bottom:.35rem">Role akun integrasi</div>
+                            <div class="wf-roles">
+                                @foreach (var role in MetadataRoles.Known(Metadata.Current).Where(r => r != UserContext.SystemManager))
+                                {
+                                    var r = role;
+                                    <div class="label-row"><BbCheckbox Id="@($"ar-{r}")" Checked="newRoles.Contains(r)" CheckedChanged="v => { if (v) newRoles.Add(r); else newRoles.Remove(r); }" /><BbLabel For="@($"ar-{r}")">@r</BbLabel></div>
+                                }
+                            </div>
+                        </div>
+                    }
+
+                    <div>
+                        <div class="props-sub" style="margin-bottom:.35rem">Cakupan</div>
+                        <div class="label-row"><input type="radio" id="sc-all" name="scope" checked="@(!limited)" @onchange="() => limited = false" /><label for="sc-all">Semua yang diizinkan role akun</label></div>
+                        <div class="label-row"><input type="radio" id="sc-lim" name="scope" checked="@limited" @onchange="() => limited = true" /><label for="sc-lim">Terbatas pada pilihan berikut</label></div>
+                    </div>
+                    @if (limited)
+                    {
+                        <div class="table-wrap">
+                            <table class="perm-table">
+                                <thead><tr><th>DocType (API aktif)</th>@foreach (var op in ApiScopes.DocOperations) { <th class="c">@OpLabel(op)</th> }</tr></thead>
+                                <tbody>
+                                    @foreach (var dt in Metadata.Current.DocTypes.Values.Where(d => d.Def.Api.Enabled && !d.Def.IsChild).OrderBy(d => d.Title))
+                                    {
+                                        var doc = dt;
+                                        <tr>
+                                            <td>@doc.Title <span class="muted small">@doc.Name</span></td>
+                                            @foreach (var op in ApiScopes.DocOperations)
+                                            {
+                                                var scope = $"doc:{doc.Name}:{op}";
+                                                <td class="c"><BbCheckbox Checked="scopes.Contains(scope)" CheckedChanged="v => Toggle(scope, v)" AriaLabel="@scope" /></td>
+                                            }
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                        @if (Methods.Visible(Current.Required).Any())
+                        {
+                            <div class="props-sub">Method</div>
+                            <div class="wf-roles">
+                                @foreach (var m in Methods.Visible(Current.Required))
+                                {
+                                    var scope = $"method:{m.Name}";
+                                    <div class="label-row" title="@m.Description"><BbCheckbox Id="@($"m-{m.Name}")" Checked="scopes.Contains(scope)" CheckedChanged="v => Toggle(scope, v)" /><BbLabel For="@($"m-{m.Name}")"><code>@m.Name</code></BbLabel></div>
+                                }
+                            </div>
+                        }
+                    }
+                    @if (limited && queryApis.Count > 0)
+                    {
+                        <div class="props-sub">API Query</div>
+                        <div class="wf-roles">
+                            @foreach (var q in queryApis)
+                            {
+                                var scope = $"query:{q.Slug}";
+                                <div class="label-row" title="@q.Name"><BbCheckbox Id="@($"q-{q.Slug}")" Checked="scopes.Contains(scope)" CheckedChanged="v => Toggle(scope, v)" /><BbLabel For="@($"q-{q.Slug}")"><code>@q.Slug</code></BbLabel></div>
+                            }
+                        </div>
+                    }
+                    <div class="props-row">
+                        <BbField><BbFieldLabel For="k-exp">Berlaku sampai (opsional)</BbFieldLabel><FormTextInput Id="k-exp" Type="date" Value="@expires" ValueChanged="v => expires = v" /></BbField>
+                        <BbField><BbFieldLabel For="k-ip">IP yang diizinkan (opsional)</BbFieldLabel><FormTextInput Id="k-ip" Value="@ips" ValueChanged="v => ips = v" Placeholder="mis. 10.0.5.0/24, 203.0.113.7" /></BbField>
+                    </div>
+                    <div class="row">
+                        <BbButton Disabled="busy" OnClick="Create"><LucideIcon Name="key-round" Size="16" /> Buat kunci</BbButton>
+                        <BbButton Variant="ButtonVariant.Ghost" OnClick="() => creating = false">Batal</BbButton>
+                    </div>
+                </div>
+            </BbCardContent>
+        </BbCard>
+    }
+
+    <div class="table-wrap">
+        <table class="data">
+            <thead><tr><th>Kunci</th><th>Akun</th><th>Cakupan</th><th>Berlaku sampai</th><th>Terakhir dipakai</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var k in keys)
+                {
+                    var key = k;
+                    var status = key.Status(Clock.GetUtcNow());
+                    <tr>
+                        <td><strong>@key.Name</strong><div class="muted small"><code>dfk_@(key.Id).…</code></div></td>
+                        <td>@(names.GetValueOrDefault(key.UserId) ?? key.UserId)</td>
+                        <td class="small scope-cell">@(key.Scopes.Count == 0 ? "Semua sesuai role" : string.Join(", ", key.Scopes.Take(4)) + (key.Scopes.Count > 4 ? $" +{key.Scopes.Count - 4}" : ""))
+                            @if (key.AllowedIps.Count > 0) { <div class="muted">IP: @string.Join(", ", key.AllowedIps)</div> }</td>
+                        <td class="nowrap">@(key.ExpiresAt is { } e ? Fmt.When(e) : "—")</td>
+                        <td class="nowrap muted">@(key.LastUsedAt is { } u ? $"{Fmt.When(u)} · {key.LastUsedIp}" : "belum pernah")</td>
+                        <td><BbBadge Variant="@(status == "Aktif" ? BadgeVariant.SoftSuccess : BadgeVariant.Soft)">@status</BbBadge></td>
+                        <td>@if (status == "Aktif") { <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="() => Revoke(key)"><LucideIcon Name="ban" Size="15" /> Cabut</BbButton> }</td>
+                    </tr>
+                }
+                @if (keys.Count == 0) { <tr><td colspan="7" class="grid-empty">Belum ada kunci API.</td></tr> }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private const string NewAccount = "__new__";
+    private IReadOnlyList<ApiKey> keys = [];
+    private Dictionary<string, string> names = new();
+    private List<UserAccount> accounts = [];
+    private IReadOnlyList<QueryApiDef> queryApis = [];
+    private bool creating, limited, busy;
+    private string name = "", accountId = NewAccount, newName = "", newUser = "";
+    private string? newDept, expires, ips, error, token;
+    private readonly HashSet<string> newRoles = ["Employee"];
+    private readonly HashSet<string> scopes = new();
+
+    private string BaseUrl => Nav.BaseUri;
+    private IEnumerable<SelectOption<string>> AccountOptions =>
+        new[] { new SelectOption<string>(NewAccount, "＋ Akun integrasi baru") }
+        .Concat(accounts.Where(a => a.IsActive).Select(a => new SelectOption<string>(a.Id, $"{a.FullName} ({a.UserName}){(a.PasswordHash is null ? " · integrasi" : "")}")));
+
+    protected override async Task OnInitializedAsync() => await Reload();
+
+    private async Task Reload()
+    {
+        if (!Current.Required.Roles.Contains(UserContext.SystemManager)) return;
+        keys = await Keys.ListAsync(Current.Required);
+        accounts = (await Accounts.ListAsync(Current.Required.TenantId)).ToList();
+        names = accounts.ToDictionary(a => a.Id, a => a.FullName);
+        if (QueryApis.IsAvailable) queryApis = (await QueryApis.ListAsync(Current.Required)).Where(q => q.Config.Enabled).ToList();
+    }
+
+    private void StartCreate()
+    {
+        creating = true; token = null; error = null; limited = false; scopes.Clear();
+        name = ""; accountId = NewAccount; newName = ""; newUser = ""; newDept = null; expires = null; ips = null;
+    }
+
+    private void Toggle(string scope, bool on) { if (on) scopes.Add(scope); else scopes.Remove(scope); }
+
+    private async Task Create()
+    {
+        error = null; busy = true;
+        try
+        {
+            var owner = accountId;
+            if (accountId == NewAccount)
+            {
+                if (string.IsNullOrWhiteSpace(newName) || !System.Text.RegularExpressions.Regex.IsMatch(newUser, "^[a-z0-9._]{3,40}$"))
+                { error = "Isi nama akun dan username (3–40 karakter: huruf kecil, angka, titik, garis bawah)."; return; }
+                if (newRoles.Count == 0) { error = "Pilih minimal satu role untuk akun integrasi."; return; }
+                // Akun integrasi dibuat TANPA password: tidak bisa login lewat layar, hanya lewat kunci API.
+                var acc = new UserAccount { UserName = newUser, FullName = newName.Trim(), TenantId = Current.Required.TenantId,
+                    Department = string.IsNullOrWhiteSpace(newDept) ? null : newDept.Trim(), Roles = newRoles.ToList() };
+                var result = await Users.CreateAsync(acc);
+                if (!result.Succeeded) { error = string.Join(" ", result.Errors.Select(e => e.Description)); return; }
+                owner = acc.Id;
+            }
+            if (limited && scopes.Count == 0) { error = "Pilih minimal satu cakupan, atau pilih \"Semua yang diizinkan role akun\"."; return; }
+            DateTimeOffset? exp = DateOnly.TryParse(expires, out var d) ? new DateTimeOffset(d.ToDateTime(new TimeOnly(23, 59, 59)), TimeZoneInfo.Local.GetUtcOffset(DateTime.Now)) : null;
+            var (key, t) = await Keys.CreateAsync(Current.Required, new CreateApiKeyRequest(name, owner,
+                limited ? scopes.ToList() : [], (ips ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries), exp));
+            token = t; creating = false;
+            Toasts.Success("Salin kunci sekarang; setelah halaman ditutup kunci tidak bisa dilihat lagi.", $"Kunci \"{key.Name}\" dibuat");
+            await Reload();
+        }
+        catch (Exception ex) when (ex is ApiKeyException or PermissionDeniedException) { error = ex.Message; }
+        finally { busy = false; }
+    }
+
+    private async Task Revoke(ApiKey k)
+    {
+        var ok = await Dialogs.ConfirmAsync($"Cabut kunci \"{k.Name}\"?", "Sistem yang memakai kunci ini langsung ditolak (HTTP 401). Tindakan ini tidak bisa dibatalkan.",
+            new ConfirmDialogOptions { Destructive = true, ConfirmText = "Cabut kunci", CancelText = "Batal" });
+        if (!ok.Confirmed) return;
+        await Keys.RevokeAsync(Current.Required, k.Id);
+        Toasts.Success("Permintaan dengan kunci ini kini ditolak.", "Kunci dicabut");
+        await Reload();
+    }
+
+    private static string OpLabel(string op) => op switch { "list" => "Daftar", "read" => "Baca", "create" => "Buat", "update" => "Ubah", "delete" => "Hapus", _ => "Aksi" };
+}

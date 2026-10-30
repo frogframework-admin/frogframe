@@ -1,0 +1,107 @@
+@page "/report-templates/{TemplateId}"
+@using Framework.Dashboards
+@using Framework.Reports
+@inject ReportTemplateService Reports
+@inject ReportDownloads Downloads
+@inject CurrentUser Current
+
+<PageTitle>@(def?.Name ?? "Laporan") · DocFrame</PageTitle>
+
+<BbBreadcrumb Class="crumbs">
+    <BbBreadcrumbList>
+        <BbBreadcrumbItem><BbBreadcrumbLink Href="/report-templates">Laporan Excel/Word</BbBreadcrumbLink></BbBreadcrumbItem>
+        <BbBreadcrumbSeparator />
+        <BbBreadcrumbItem><BbBreadcrumbPage>@(def?.Name ?? "…")</BbBreadcrumbPage></BbBreadcrumbItem>
+    </BbBreadcrumbList>
+</BbBreadcrumb>
+
+@if (!Reports.IsAvailable)
+{
+    <UnavailableNotice />
+}
+else if (notFound)
+{
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>Laporan tidak ditemukan atau Anda tidak memiliki akses.</BbAlertDescription></BbAlert>
+}
+else if (def is not null)
+{
+    <header class="page-head">
+        <div>
+            <h1><LucideIcon Name="@(def.Config.Format == ReportFormats.Xlsx ? "file-spreadsheet" : "file-text")" Size="22" /> @def.Name</h1>
+            <p>@(def.Description ?? (def.Config.Format == ReportFormats.Xlsx ? "Laporan Excel" : "Dokumen Word"))</p>
+        </div>
+    </header>
+
+    <BbCard Style="max-width:40rem">
+        <BbCardContent>
+            <div class="stack" style="padding-top:1.1rem">
+                @foreach (var prm in Inputs)
+                {
+                    var p = prm;
+                    <BbField>
+                        <BbFieldLabel For="@($"in-{p.Name}")">@p.Label</BbFieldLabel>
+                        @if (p.Type == ParamTypes.Boolean)
+                        {
+                            <BbSelect TValue="string" Value="@(values.GetValueOrDefault(p.Name) ?? "")" ValueChanged="v => values[p.Name] = string.IsNullOrEmpty(v) ? null : v" AriaLabel="@p.Label"
+                                      Options="@(new[] { new SelectOption<string>("", "(semua)"), new SelectOption<string>("true", "Ya"), new SelectOption<string>("false", "Tidak") })" />
+                        }
+                        else
+                        {
+                            <FormTextInput Id="@($"in-{p.Name}")" Type="@(p.Type == ParamTypes.Date ? "date" : p.Type == ParamTypes.Number ? "number" : "text")"
+                                           Value="@values.GetValueOrDefault(p.Name)" ValueChanged="v => values[p.Name] = string.IsNullOrWhiteSpace(v) ? null : v" />
+                        }
+                    </BbField>
+                }
+                @if (Inputs.Count == 0) { <p class="muted small" style="margin:0">Laporan ini tidak membutuhkan isian.</p> }
+                @if (error is not null) { <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@error</BbAlertDescription></BbAlert> }
+                @if (download is not null)
+                {
+                    <BbAlert Variant="AlertVariant.Success">
+                        <BbAlertTitle>Laporan siap (@rows baris)</BbAlertTitle>
+                        <BbAlertDescription><a class="bb-like-button" href="@($"/report-downloads/{download}")" download="@fileName"><LucideIcon Name="download" Size="16" /> Unduh @fileName</a>
+                            <span class="muted small" style="margin-left:.5rem">Tautan berlaku 10 menit, satu kali unduh.</span></BbAlertDescription>
+                    </BbAlert>
+                }
+                <div class="row"><BbButton Disabled="busy" OnClick="Generate"><LucideIcon Name="file-down" Size="16" /> @(busy ? "Membuat laporan…" : "Buat laporan")</BbButton></div>
+            </div>
+        </BbCardContent>
+    </BbCard>
+}
+
+@code {
+    [Parameter] public string TemplateId { get; set; } = "";
+    private ReportTemplateDef? def;
+    private bool notFound, busy;
+    private string? error, download, fileName, loadedKey;
+    private int rows;
+    private readonly Dictionary<string, string?> values = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Parameter yang diisi pengguna; yang bersumber dari akun (ID/departemen) diisi otomatis di server.</summary>
+    private List<WidgetParameter> Inputs => def?.Config.Parameters.Where(p => p.Binding is not (ParamBindings.UserId or ParamBindings.UserDepartment)).ToList() ?? [];
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (TemplateId == loadedKey || !Reports.IsAvailable) return;
+        loadedKey = TemplateId;
+        def = await Reports.GetAsync(Current.Required, TemplateId);
+        notFound = def is null;
+        values.Clear();
+        foreach (var p in Inputs) values[p.Name] = p.DefaultValue;
+    }
+
+    private async Task Generate()
+    {
+        error = null; download = null; busy = true;
+        try
+        {
+            var output = await Reports.GenerateAsync(Current.Required, TemplateId, values);
+            download = Downloads.Put(Current.Required.TenantId, Current.Required.Id, output);
+            (fileName, rows) = (output.FileName, output.Rows);
+        }
+        catch (Exception ex) when (ex is TemplateException or QueryRejectedException or ReportingUnavailableException or PermissionDeniedException)
+        {
+            error = ex.Message;
+        }
+        finally { busy = false; }
+    }
+}

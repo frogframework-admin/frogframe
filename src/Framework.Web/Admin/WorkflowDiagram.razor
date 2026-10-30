@@ -1,0 +1,155 @@
+@* Diagram state machine dari WorkflowDef (SVG). Tata letak otomatis: kolom = jarak terpendek dari state awal. *@
+
+<div class="wf-diagram" role="img" aria-label="@($"Diagram workflow {Workflow.Name}: {Workflow.States.Count} state, {Workflow.Transitions.Count} transisi")">
+    <svg viewBox="0 0 @width @height" width="100%" style="max-width:@(width)px" preserveAspectRatio="xMinYMin meet" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+            <marker id="wf-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" class="wf-arrowhead" />
+            </marker>
+            <marker id="wf-arrow-sel" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" class="wf-arrowhead selected" />
+            </marker>
+        </defs>
+        @for (var i = 0; i < edges.Count; i++)
+        {
+            var e = edges[i]; var idx = e.Index;
+            <g class="wf-edge @(idx == SelectedTransition ? "selected" : "")" @onclick="() => OnSelectTransition.InvokeAsync(idx)">
+                <path d="@e.Path" marker-end="@(idx == SelectedTransition ? "url(#wf-arrow-sel)" : "url(#wf-arrow)")" />
+                <rect x="@F(e.LabelX - e.LabelW / 2)" y="@F(e.LabelY - 9)" width="@F(e.LabelW)" height="18" rx="4" class="wf-label-bg" />
+                <text x="@F(e.LabelX)" y="@F(e.LabelY + 4)" text-anchor="middle" class="wf-label">@e.Label</text>
+            </g>
+        }
+        @foreach (var n in nodes.Values)
+        {
+            <g class="wf-node tone-@n.Tone @(n.Name == Workflow.InitialState ? "initial" : "")">
+                <rect x="@n.X" y="@n.Y" width="@NodeW" height="@NodeH" rx="8" />
+                <text x="@(n.X + NodeW / 2)" y="@(n.Y + 19)" text-anchor="middle" class="wf-node-name">@Trim(n.Name, 18)</text>
+                <text x="@(n.X + NodeW / 2)" y="@(n.Y + 34)" text-anchor="middle" class="wf-node-meta">@StatusLabel(n.DocStatus)@(n.Name == Workflow.InitialState ? " · awal" : "")</text>
+            </g>
+        }
+    </svg>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public WorkflowDef Workflow { get; set; } = default!;
+    [Parameter] public int? SelectedTransition { get; set; }
+    [Parameter] public EventCallback<int> OnSelectTransition { get; set; }
+
+    private const int NodeW = 140, NodeH = 44, ColGap = 120, RowGap = 34, Pad = 20;
+    private sealed record Node(string Name, int DocStatus, string Tone, int X, int Y);
+    private sealed record Edge(int Index, string Path, string Label, double LabelX, double LabelY, double LabelW);
+    private Dictionary<string, Node> nodes = new();
+    private List<Edge> edges = [];
+    private int width = 400, height = 120;
+
+    protected override void OnParametersSet() => Layout();
+
+    private void Layout()
+    {
+        var states = Workflow.States.Where(s => !string.IsNullOrWhiteSpace(s.Name)).GroupBy(s => s.Name).Select(g => g.First()).ToList();
+        // Kolom = jalur TERPANJANG dari state awal (panah balik/siklus diabaikan), sehingga alur selalu mengalir ke kanan
+        // dan state yang dicapai lewat beberapa tahap (mis. setelah Finance) berada di kolom sesudahnya.
+        var names = states.Select(s => s.Name).ToHashSet();
+        var forward = Workflow.Transitions.Where(t => names.Contains(t.From) && names.Contains(t.To) && t.From != t.To).ToList();
+        var start = names.Contains(Workflow.InitialState) ? Workflow.InitialState : states.FirstOrDefault()?.Name;
+        var dag = new HashSet<(string, string)>();
+        var color = new Dictionary<string, int>();
+        void Dfs(string n)
+        {
+            color[n] = 1;
+            foreach (var t in forward.Where(t => t.From == n))
+            {
+                var c = color.GetValueOrDefault(t.To);
+                if (c == 1) continue;              // panah balik → bukan bagian DAG
+                dag.Add((t.From, t.To));
+                if (c == 0) Dfs(t.To);
+            }
+            color[n] = 2;
+        }
+        if (start is not null) Dfs(start);
+        foreach (var n in names.Where(n => !color.ContainsKey(n))) Dfs(n);
+        var level = new Dictionary<string, int>();
+        int Level(string n) => level.TryGetValue(n, out var v) ? v
+            : level[n] = dag.Where(e => e.Item2 == n).Select(e => Level(e.Item1) + 1).DefaultIfEmpty(0).Max();
+        foreach (var n in names) Level(n);
+        if (start is not null && level[start] != 0) level[start] = 0;
+
+        // Urutan dalam kolom: rata-rata baris pendahulu (barycenter) untuk mengurangi persilangan.
+        nodes = new();
+        var rowOf = new Dictionary<string, double>();
+        foreach (var col in states.GroupBy(s => level[s.Name]).OrderBy(g => g.Key))
+        {
+            var ordered = col.Select((s, i) =>
+            {
+                var preds = dag.Where(e => e.Item2 == s.Name && rowOf.ContainsKey(e.Item1)).Select(e => rowOf[e.Item1]).ToList();
+                return (State: s, Key: preds.Count > 0 ? preds.Average() : i);
+            }).OrderBy(x => x.Key).ToList();
+            for (var row = 0; row < ordered.Count; row++)
+            {
+                var st = ordered[row].State;
+                rowOf[st.Name] = row;
+                nodes[st.Name] = new Node(st.Name, st.DocStatus, st.Tone, Pad + col.Key * (NodeW + ColGap), Pad + row * (NodeH + RowGap) + 14);
+            }
+        }
+        // Ruang di atas untuk transisi yang melompati kolom (digambar melengkung di atas node).
+        bool SameRowSkip(Node fa, Node fb) => fb.X - fa.X > NodeW + ColGap && Math.Abs(fa.Y - fb.Y) < 1;
+        var arcsPerSource = Workflow.Transitions.Where(t => nodes.TryGetValue(t.From, out var fa) && nodes.TryGetValue(t.To, out var fb) && SameRowSkip(fa, fb))
+            .GroupBy(t => t.From).Select(g => g.Count()).DefaultIfEmpty(0).Max();
+        var skipTop = arcsPerSource > 0;
+        var topRoom = 18 + arcsPerSource * 18;
+        if (skipTop) nodes = nodes.ToDictionary(kv => kv.Key, kv => kv.Value with { Y = kv.Value.Y + topRoom });
+        var maxRows = nodes.Count == 0 ? 1 : states.GroupBy(s => level[s.Name]).Max(g => g.Count());
+        var cols = nodes.Count == 0 ? 1 : level.Values.Max() + 1;
+        width = Pad * 2 + cols * NodeW + (cols - 1) * ColGap;
+        height = Pad * 2 + maxRows * NodeH + (maxRows - 1) * RowGap + 50 + (skipTop ? topRoom : 0);
+
+        edges = [];
+        var pairCount = new Dictionary<(string, string), int>();
+        var arcCount = new Dictionary<string, int>();
+        for (var i = 0; i < Workflow.Transitions.Count; i++)
+        {
+            var t = Workflow.Transitions[i];
+            if (!nodes.TryGetValue(t.From, out var a) || !nodes.TryGetValue(t.To, out var b)) continue;
+            var k = pairCount[(t.From, t.To)] = pairCount.GetValueOrDefault((t.From, t.To)) + 1;
+            var offset = (k - 1) * 20;
+            string path; double lx, ly;
+            if (b.X - a.X > NodeW + ColGap && Math.Abs(a.Y - b.Y) < 1)
+            {
+                // Melompati kolom di baris yang sama: lengkung di atas node agar tidak tertutup node di antaranya.
+                // Beberapa lengkung dari state yang sama dibuat bertingkat agar label tidak bertumpuk.
+                var arc = arcCount[t.From] = arcCount.GetValueOrDefault(t.From) + 1;
+                double x1 = a.X + NodeW * 0.75, y1 = a.Y, x2 = b.X + NodeW * 0.25, y2 = b.Y;
+                var top = Math.Min(y1, y2) - 18 - arc * 18;
+                path = $"M {F(x1)} {F(y1)} C {F(x1)} {F(top)}, {F(x2)} {F(top)}, {F(x2)} {F(y2 - 2)}";
+                lx = (x1 + x2) / 2; ly = top + 8;
+            }
+            else if (b.X > a.X)
+            {
+                double x1 = a.X + NodeW, y1 = a.Y + NodeH / 2.0 + offset / 2.0, x2 = b.X, y2 = b.Y + NodeH / 2.0 + offset / 2.0;
+                var dx = (x2 - x1) / 2;
+                path = $"M {F(x1)} {F(y1)} C {F(x1 + dx)} {F(y1)}, {F(x2 - dx)} {F(y2)}, {F(x2 - 2)} {F(y2)}";
+                lx = (x1 + x2) / 2; ly = (y1 + y2) / 2 - 2;
+            }
+            else if (a.Name == b.Name)
+            {
+                double x = a.X + NodeW - 24, y = a.Y;
+                path = $"M {F(x)} {F(y)} C {F(x + 10)} {F(y - 34)}, {F(x + 40)} {F(y - 34)}, {F(x + 22)} {F(y)}";
+                lx = x + 20; ly = y - 28;
+            }
+            else
+            {
+                // kembali ke kolom yang sama/sebelumnya: melengkung di bawah node
+                double x1 = a.X + NodeW / 2.0 + 18, y1 = a.Y + NodeH, x2 = b.X + NodeW / 2.0 - 18, y2 = b.Y + NodeH;
+                var depth = 46 + offset;
+                path = $"M {F(x1)} {F(y1)} C {F(x1)} {F(y1 + depth)}, {F(x2)} {F(y2 + depth)}, {F(x2)} {F(y2 + 2)}";
+                lx = (x1 + x2) / 2; ly = Math.Max(y1, y2) + depth * 0.75;
+            }
+            var label = Trim(string.IsNullOrWhiteSpace(t.Action) ? "(tanpa nama)" : t.Action, 19);
+            edges.Add(new Edge(i, path, label, lx, ly, label.Length * 6.2 + 12));
+        }
+    }
+
+    private static string F(double v) => v.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
+    private static string Trim(string s, int max) => s.Length <= max ? s : s[..(max - 1)] + "…";
+    private static string StatusLabel(int docStatus) => docStatus switch { 0 => "dapat diubah", 1 => "terkunci", _ => "dibatalkan" };
+}

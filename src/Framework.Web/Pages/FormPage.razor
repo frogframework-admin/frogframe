@@ -1,0 +1,420 @@
+@page "/app/{DocType}/{Name}"
+@using System.Text.Json
+@inject DocumentService Docs
+@inject CurrentUser Current
+@inject IMetadataProvider Metadata
+@inject IPermissionService Perms
+@inject DocumentEvaluator Evaluator
+@inject NavigationManager Nav
+@inject DialogService Dialogs
+@inject ToastService Toasts
+
+<PageTitle>@(IsNew ? $"{meta?.Title} baru" : Name) · DocFrame</PageTitle>
+
+@if (fatal is not null)
+{
+    <BbBreadcrumb Class="crumbs"><BbBreadcrumbList><BbBreadcrumbItem><BbBreadcrumbLink Href="@($"/app/{DocType}")">@(meta?.Title ?? DocType)</BbBreadcrumbLink></BbBreadcrumbItem></BbBreadcrumbList></BbBreadcrumb>
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertTitle>Tidak dapat dibuka</BbAlertTitle><BbAlertDescription>@fatal</BbAlertDescription></BbAlert>
+}
+else if (meta is not null && doc is not null)
+{
+    <BbBreadcrumb Class="crumbs">
+        <BbBreadcrumbList>
+            <BbBreadcrumbItem><BbBreadcrumbLink Href="@($"/app/{meta.Name}")">@meta.Title</BbBreadcrumbLink></BbBreadcrumbItem>
+            <BbBreadcrumbSeparator />
+            <BbBreadcrumbItem><BbBreadcrumbPage>@(IsNew ? "Baru" : doc.Name)</BbBreadcrumbPage></BbBreadcrumbItem>
+        </BbBreadcrumbList>
+    </BbBreadcrumb>
+
+    <header class="doc-head">
+        <div>
+            <h1>@(IsNew ? $"{meta.Title} baru" : doc.Name)</h1>
+            <p>
+                @if (!IsNew)
+                {
+                    <span>Dibuat oleh @doc.Owner · diubah @Fmt.When(doc.Modified) · versi @doc.Version</span>
+                    @if (doc.AmendedFrom is not null) { <span> · amandemen dari <a href="/app/@meta.Name/@doc.AmendedFrom">@doc.AmendedFrom</a></span> }
+                }
+                else { <span>Belum disimpan</span> }
+            </p>
+        </div>
+        @if (!IsNew || meta.Workflow is not null)
+        {
+            <StatusStamp Label="@Fmt.StateLabel(doc.WorkflowState, doc.DocStatus)" Tone="@Fmt.Tone(meta, doc)" />
+        }
+    </header>
+
+    <div class="toolbar" role="toolbar" aria-label="Aksi dokumen">
+        @if (Editable)
+        {
+            <BbButton Disabled="@(busy || (!IsNew && !dirty))" Loading="@(busy && savingNow)" LoadingText="Menyimpan…" OnClick="Save">
+                <LucideIcon Name="check" Size="16" /> @(IsNew ? "Simpan draft" : dirty ? "Simpan perubahan" : "Tersimpan")
+            </BbButton>
+        }
+        @foreach (var a in actions)
+        {
+            var act = a;
+            <BbButton Variant="@Fmt.ButtonFor(act.Tone)" Disabled="@(busy || dirty)" OnClick="() => RunAction(act)"
+                      AdditionalAttributes="@(new Dictionary<string, object> { ["title"] = dirty ? "Simpan perubahan dulu" : $"Pindahkan ke {act.ToState}" })">
+                <LucideIcon Name="@IconFor(act)" Size="16" /> @ActionLabel(act.Action)
+            </BbButton>
+        }
+        @if (!IsNew)
+        {
+            <BbButton Variant="ButtonVariant.Outline" Href="@($"/print/{DocType}/{Name}")" Disabled="@dirty"
+                      AdditionalAttributes="@(new Dictionary<string, object> { ["target"] = "_blank", ["title"] = "Pratinjau cetak A4" })">
+                <LucideIcon Name="printer" Size="16" /> Cetak
+            </BbButton>
+            <BbButton Variant="ButtonVariant.Ghost" Href="@($"/api/print/{DocType}/{Name}/pdf")" Disabled="@dirty"
+                      AdditionalAttributes="@(new Dictionary<string, object> { ["title"] = "Unduh PDF" })">
+                <LucideIcon Name="file-down" Size="16" /> PDF
+            </BbButton>
+        }
+        @if (!IsNew && doc.DocStatus == DocStatus.Draft && meta.Def.Document.AllowDelete && Perms.Can(User, meta, DocActions.Delete))
+        {
+            <BbButton Variant="ButtonVariant.Ghost" Disabled="@busy" OnClick="Delete">
+                <LucideIcon Name="trash-2" Size="16" /> Hapus draft
+            </BbButton>
+        }
+        @if (!Editable && !IsNew && doc.DocStatus != DocStatus.Draft)
+        {
+            <span class="muted small">Dokumen terkunci karena berstatus @Fmt.StateLabel(doc.WorkflowState, doc.DocStatus).</span>
+        }
+    </div>
+
+    @if (conflict is not null)
+    {
+        <BbAlert Variant="AlertVariant.Warning" Class="crumbs">
+            <ChildContent>
+                <BbAlertTitle>Konflik versi</BbAlertTitle>
+                <BbAlertDescription>@conflict</BbAlertDescription>
+            </ChildContent>
+            <Actions><BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick="Load">Muat ulang versi terbaru</BbButton></Actions>
+        </BbAlert>
+    }
+    @if (banner is not null)
+    {
+        <BbAlert Variant="AlertVariant.Danger" Class="crumbs"><BbAlertDescription>@banner</BbAlertDescription></BbAlert>
+    }
+    @if (errors.Count > 0)
+    {
+        <BbAlert Variant="AlertVariant.Danger" Class="crumbs">
+            <BbAlertTitle>Periksa @errors.Count isian berikut sebelum menyimpan</BbAlertTitle>
+            <BbAlertDescription>
+                <ul class="error-list">@foreach (var e in errors) { <li><a href="#@Anchor(e.Key)">@e.Value</a></li> }</ul>
+            </BbAlertDescription>
+        </BbAlert>
+    }
+
+    <BbTabs Value="@activeTab" ValueChanged="v => activeTab = v ?? activeTab">
+        <BbTabsList>
+            @foreach (var t in meta.Layout.Where(TabVisible))
+            {
+                <BbTabsTrigger Value="@t.Title">@t.Title@if (TabErrorCount(t) is > 0 and var n) { <span class="tab-count">@n</span> }</BbTabsTrigger>
+            }
+            @if (!IsNew) { <BbTabsTrigger Value="@HistoryTab">Riwayat</BbTabsTrigger> }
+        </BbTabsList>
+
+        @foreach (var tab in meta.Layout.Where(TabVisible))
+        {
+            <BbTabsContent Value="@tab.Title">
+                <div class="stack" style="margin-top:.75rem">
+                    @foreach (var sec in tab.Sections.Where(SectionVisible))
+                    {
+                        <BbCard>
+                            @if (sec.Title is not null) { <BbCardHeader><BbCardTitle Class="card-title">@sec.Title</BbCardTitle></BbCardHeader> }
+                            <BbCardContent>
+                                <div class="form-cols cols-@sec.Columns.Count">
+                                    @foreach (var col in sec.Columns)
+                                    {
+                                        <div class="form-col">
+                                            @foreach (var f in col.Fields.Where(Readable))
+                                            {
+                                                var st = State(f);
+                                                if (!st.Visible) continue;
+                                                var err = errors.GetValueOrDefault(f.Name);
+                                                var ro = FieldReadOnly(f, st);
+                                                <div id="@Anchor(f.Name)" class="@(f.Def.PermLevel > 0 ? "restricted" : "")">
+                                                    <BbField IsInvalid="@(err is not null)">
+                                                        @if (f.Type.Editor != "check" && !(f.Def.Type == "Table" && f.Label == sec.Title))
+                                                        {
+                                                            <BbFieldLabel For="@f.Name">
+                                                                <span class="label-row">
+                                                                    @f.Label@if (st.Required && !ro) { <span class="req" aria-label="wajib">*</span> }
+                                                                    @if (f.IsDerived) { <BbBadge Variant="BadgeVariant.Soft">@(f.Compute is not null ? "otomatis" : $"dari {f.FetchFrom!.Value.LinkField}")</BbBadge> }
+                                                                    @if (f.Def.PermLevel > 0) { <BbBadge Variant="BadgeVariant.Outline">terbatas</BbBadge> }
+                                                                </span>
+                                                            </BbFieldLabel>
+                                                        }
+                                                        @if (f.Def.Type == "Table")
+                                                        {
+                                                            <ChildTable Table="f" ChildMeta="Metadata.Current.Get(f.Def.ChildDocType!)" Rows="Rows(f)" Parent="Scope"
+                                                                        ReadOnly="ro" Errors="errors" OnChanged="Changed" />
+                                                        }
+                                                        else
+                                                        {
+                                                            <FieldInput Field="f" Id="@f.Name" DocType="@meta.Name" Value="model.GetValueOrDefault(f.Name)" ReadOnly="ro" Invalid="@(err is not null)"
+                                                                        ValueChanged="v => SetValue(f, v)" />
+                                                        }
+                                                        @if (err is not null) { <BbFieldError Errors="@(new[] { err })" /> }
+                                                        else if (f.Def.Description is not null && !ro) { <BbFieldDescription>@f.Def.Description</BbFieldDescription> }
+                                                    </BbField>
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            </BbCardContent>
+                        </BbCard>
+                    }
+                </div>
+            </BbTabsContent>
+        }
+        @if (!IsNew)
+        {
+            <BbTabsContent Value="@HistoryTab">
+                <BbCard Class="crumbs" Style="margin-top:.75rem"><BbCardContent><div style="padding-top:1.25rem"><AuditTimeline Entries="audit" /></div></BbCardContent></BbCard>
+            </BbTabsContent>
+        }
+    </BbTabs>
+}
+
+@code {
+    [Parameter] public string DocType { get; set; } = "";
+    [Parameter] public string Name { get; set; } = "";
+
+    private const string HistoryTab = "__history";
+    private CompiledDocType? meta;
+    private Document? doc;
+    private Dictionary<string, object?> model = new();
+    private string original = "";
+    private Dictionary<string, string> errors = new();
+    private Dictionary<string, string> errorSnapshot = new();
+    private IReadOnlyList<ActionView> actions = [];
+    private IReadOnlyList<AuditEntry> audit = [];
+    private string activeTab = "";
+    private string? fatal, banner, conflict;
+    private bool busy, savingNow, dirty;
+
+    private bool IsNew => Name == "new";
+    private UserContext User => Current.Required;
+
+    private bool Editable => doc is not null && doc.DocStatus == DocStatus.Draft &&
+        (IsNew ? Perms.Can(User, meta!, DocActions.Create)
+               : Perms.Can(User, meta!, DocActions.Write) && Perms.InScope(User, meta!, DocActions.Write, doc.Owner, doc.Data));
+
+    private Dictionary<string, object?> Scope
+    {
+        get { var tmp = doc!.Clone(); tmp.Data = model; return DocumentService.ScopeData(tmp); }
+    }
+
+    private FieldState State(CompiledField f) => Evaluator.StateOf(f, Scope, User);
+    private bool Readable(CompiledField f) => Perms.CanReadField(User, meta!, f);
+    private bool FieldReadOnly(CompiledField f, FieldState st) => !Editable || st.ReadOnly || !Perms.CanWriteField(User, meta!, f)
+        || (!IsNew && meta!.Def.Naming.Pattern == $"field:{f.Name}"); // kode = nomor dokumen, tetap setelah disimpan
+    private bool SectionVisible(LayoutSection s) => s.Columns.SelectMany(c => c.Fields).Any(f => Readable(f) && State(f).Visible);
+    private bool TabVisible(LayoutTab t) => t.Sections.Any(SectionVisible);
+    private static string Anchor(string path) => "f-" + path.Replace("[", "-").Replace("].", "-").Replace("]", "");
+
+    private int TabErrorCount(LayoutTab t)
+    {
+        var names = t.Sections.SelectMany(s => s.Columns).SelectMany(c => c.Fields).Select(f => f.Name).ToHashSet();
+        return errors.Keys.Count(k => names.Contains(k.Split('[', '.')[0]));
+    }
+
+    private List<Dictionary<string, object?>> Rows(CompiledField f)
+    {
+        if (model.GetValueOrDefault(f.Name) is not List<Dictionary<string, object?>> rows)
+            model[f.Name] = rows = new List<Dictionary<string, object?>>();
+        return rows;
+    }
+
+    private static string ActionLabel(string action) => action switch
+    {
+        DocActions.Submit => "Submit", DocActions.Cancel => "Batalkan", DocActions.Amend => "Amend (buat revisi)", _ => action
+    };
+
+    private static string IconFor(ActionView a) => a.Tone switch
+    {
+        "negative" => "ban", "positive" => "check", _ when a.Action == DocActions.Amend => "rotate-ccw", _ => "send"
+    };
+
+    // Blazor memanggil OnParametersSet setiap kali layout induk dirender ulang (mis. jumlah notifikasi berubah).
+    // Muat ulang hanya bila parameter rute benar-benar berubah, agar isian/draft pengguna tidak hilang.
+    private string? loadedKey;
+    protected override async Task OnParametersSetAsync()
+    {
+        var key = $"{DocType}/{Name}";
+        if (key == loadedKey) return;
+        loadedKey = key;
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        fatal = null; banner = null; conflict = null; errors.Clear();
+        if (!Metadata.Current.TryGet(DocType, out var m) || m.Def.IsChild) { fatal = $"DocType '{DocType}' tidak ditemukan."; return; }
+        meta = m;
+        try
+        {
+            doc = IsNew ? Docs.New(User, DocType) : await Docs.GetAsync(User, DocType, Name);
+            model = Document.DeepCopy(doc.Data);
+            // Pilih tab aktif SEBELUM await berikutnya: dengan database sungguhan Blazor bisa merender di tengah Load,
+            // dan BbTabs memakai nilai awal Value. Tab kosong pada render pertama membuat isi form tersembunyi.
+            if (activeTab == "" || (activeTab != HistoryTab && meta.Layout.All(t => t.Title != activeTab)))
+                activeTab = meta.Layout.FirstOrDefault(TabVisible)?.Title ?? "";
+            if (IsNew)
+                foreach (var link in meta.Fields.Where(f => f.Def.Type == "Link" && model.GetValueOrDefault(f.Name) is not null).ToList())
+                    await SetValue(link, model[link.Name]);
+            original = Snapshot();
+            dirty = false;
+            actions = IsNew ? [] : await Docs.AvailableActionsAsync(User, doc);
+            audit = IsNew ? [] : await Docs.GetAuditAsync(User, DocType, Name);
+        }
+        catch (Exception ex) when (ex is PermissionDeniedException or DocumentNotFoundException)
+        {
+            fatal = ex.Message;
+        }
+    }
+
+    private string Snapshot() => JsonSerializer.Serialize(model);
+
+    private async Task SetValue(CompiledField f, object? value)
+    {
+        model[f.Name] = value;
+        // Pratinjau fetchFrom dengan hak akses user (server tetap menghitung ulang saat simpan).
+        foreach (var dep in meta!.Fields.Where(x => x.FetchFrom?.LinkField == f.Name))
+        {
+            object? fetched = null;
+            if (value is string link)
+            {
+                try { fetched = (await Docs.GetAsync(User, f.Def.LinkTo!, link)).Data.GetValueOrDefault(dep.FetchFrom!.Value.TargetField); }
+                catch (Exception ex) when (ex is DocumentNotFoundException or PermissionDeniedException) { }
+            }
+            model[dep.Name] = fetched;
+        }
+        await Changed();
+    }
+
+    private Task Changed()
+    {
+        // Pratinjau compute di UI memakai engine ekspresi yang sama dengan server.
+        Evaluator.ApplyCompute(meta!, model, User, Metadata.Current.Get);
+        // Hapus error yang sudah tidak relevan: field-nya berubah sejak error muncul, atau syaratnya tidak lagi berlaku.
+        foreach (var key in errors.Keys.ToList())
+        {
+            var root = key.Split('[', '.')[0];
+            var changed = JsonSerializer.Serialize(model.GetValueOrDefault(root)) != (errorSnapshot.GetValueOrDefault(root) ?? "null");
+            var noLongerRequired = meta!.ByName.TryGetValue(root, out var f) && errors[key].Contains("wajib") && !State(f).Required;
+            if (changed || noLongerRequired) errors.Remove(key);
+        }
+        dirty = Snapshot() != original;
+        banner = null;
+        return Task.CompletedTask;
+    }
+
+    private Dictionary<string, object?> BuildPayload()
+    {
+        var before = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(original)!;
+        var payload = new Dictionary<string, object?>();
+        foreach (var f in meta!.Fields.Where(f => !f.IsDerived && Readable(f) && Perms.CanWriteField(User, meta, f)))
+        {
+            var now = model.GetValueOrDefault(f.Name);
+            var was = before.TryGetValue(f.Name, out var w) ? w.GetRawText() : "null";
+            if (IsNew || JsonSerializer.Serialize(now) != was)
+                payload[f.Name] = f.Def.Type == "Table"
+                    ? Rows(f).Select(r => r.Where(kv => kv.Key != "idx").ToDictionary(kv => kv.Key, kv => kv.Value)).ToList()
+                    : now;
+        }
+        return payload;
+    }
+
+    private async Task Save()
+    {
+        busy = savingNow = true; errors.Clear(); banner = null; conflict = null;
+        try
+        {
+            var payload = BuildPayload();
+            if (IsNew)
+            {
+                var saved = await Docs.InsertAsync(User, DocType, payload);
+                Toasts.Success($"{saved.Name} tersimpan sebagai draft.", "Tersimpan");
+                Nav.NavigateTo($"/app/{DocType}/{saved.Name}");
+                return;
+            }
+            if (payload.Count == 0) return;
+            await Docs.UpdateAsync(User, DocType, Name, doc!.Version, payload);
+            await Load();
+            Toasts.Success("Perubahan tersimpan.", Name);
+        }
+        catch (Exception ex) { HandleError(ex); }
+        finally { busy = savingNow = false; }
+    }
+
+    private async Task RunAction(ActionView a)
+    {
+        string? comment = null;
+        if (a.RequireComment)
+        {
+            // Validasi komentar dilakukan di sini (bukan Required pada prompt): BbInput meng-commit nilai saat blur,
+            // sehingga Required membuat tombol konfirmasi tetap nonaktif selama pengguna masih mengetik.
+            var prompt = await Dialogs.PromptAsync($"{a.Action} {doc!.Name}?", "Tulis alasan atau catatan. Komentar ini dikirim ke pemohon dan tercatat di riwayat.",
+                new PromptDialogOptions { Placeholder = "Alasan…", ConfirmText = a.Action, CancelText = "Batal", MaxLength = 1000 });
+            if (prompt.Cancelled) return;
+            if (string.IsNullOrWhiteSpace(prompt.Value))
+            {
+                Toasts.Error($"Aksi “{a.Action}” wajib disertai alasan. Tidak ada yang diubah.", "Komentar kosong");
+                return;
+            }
+            comment = prompt.Value.Trim();
+        }
+        busy = true; errors.Clear(); banner = null; conflict = null;
+        try
+        {
+            var result = await Docs.RunActionAsync(User, DocType, Name, a.Action, doc!.Version, comment);
+            if (result.Name != Name)
+            {
+                Toasts.Success($"Draft revisi {result.Name} dibuat.", "Amend");
+                Nav.NavigateTo($"/app/{DocType}/{result.Name}");
+                return;
+            }
+            await Load();
+            Toasts.Success($"Status sekarang {Fmt.StateLabel(result.WorkflowState, result.DocStatus)}.", $"{ActionLabel(a.Action)} berhasil");
+        }
+        catch (Exception ex) { HandleError(ex); }
+        finally { busy = false; }
+    }
+
+    private async Task Delete()
+    {
+        var confirm = await Dialogs.ConfirmAsync($"Hapus {Name}?", "Draft ini akan dihapus. Riwayat penghapusan tetap tercatat.",
+            new ConfirmDialogOptions { Destructive = true, ConfirmText = "Hapus draft", CancelText = "Batal" });
+        if (!confirm.Confirmed) return;
+        busy = true;
+        try
+        {
+            await Docs.DeleteAsync(User, DocType, Name, doc!.Version);
+            Toasts.Success($"{Name} dihapus.", "Dihapus");
+            Nav.NavigateTo($"/app/{DocType}");
+        }
+        catch (Exception ex) { HandleError(ex); }
+        finally { busy = false; }
+    }
+
+    private void HandleError(Exception ex)
+    {
+        switch (ex)
+        {
+            case ValidationFailedException v:
+                foreach (var e in v.Errors) errors.TryAdd(e.Path, e.Message);
+                errorSnapshot = model.ToDictionary(kv => kv.Key, kv => JsonSerializer.Serialize(kv.Value));
+                if (errors.Remove("_comment", out var c)) banner = c;
+                if (errors.Remove("_doc", out var d)) banner = d;
+                break;
+            case ConcurrencyException: conflict = ex.Message; break;
+            case PermissionDeniedException or InvalidStateException or InvalidPayloadException or DocumentNotFoundException:
+                banner = ex.Message; break;
+            default: System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex).Throw(); break;
+        }
+    }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "Vendor",
+  "version": 1,
+  "title": "Pemasok",
+  "module": "Pengadaan",
+  "naming": { "pattern": "VND-{####}" },
+  "fields": [
+    { "name": "vendor_name", "type": "Data", "label": "Nama pemasok", "requiredWhen": "true", "inListView": true },
+    { "name": "category", "type": "Select", "label": "Kategori", "options": ["Perangkat keras", "Perangkat lunak", "ATK", "Jasa"], "inListView": true, "column": 2 },
+    { "name": "npwp", "type": "Data", "label": "NPWP", "validators": ["npwp"], "description": "15 atau 16 digit, tanpa titik" },
+    { "name": "email", "type": "Email", "label": "Email", "column": 2 },
+    { "name": "blacklisted", "type": "Check", "label": "Diblokir", "description": "Pemasok diblokir tidak dapat dipilih di pengajuan baru", "permLevel": 0 }
+  ],
+  "listView": {
+    "titleField": "vendor_name",
+    "searchFields": ["name", "vendor_name"],
+    "filters": ["category"],
+    "defaultSort": [{ "field": "name", "direction": "asc" }]
+  },
+  "permissions": [
+    { "role": "Employee", "actions": ["read"], "scope": "all" },
+    { "role": "Procurement", "actions": ["read", "create", "write"], "scope": "all" }
+  ],
+  "api": { "enabled": true, "operations": ["list", "read", "create", "update"] }
+}

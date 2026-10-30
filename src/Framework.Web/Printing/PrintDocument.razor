@@ -1,0 +1,139 @@
+@* Isi dokumen cetak. Murni tampilan dari PrintModel — tidak mengakses service — sehingga sama persis
+   di halaman cetak (browser) maupun saat dirender ke HTML mandiri untuk PDF. *@
+
+@* Kaki halaman di setiap halaman: teks disisipkan ke margin box @page (didukung Chrome/Edge). *@
+<style>@((MarkupString)$"@page {{ @bottom-left {{ content: \"{CssString(FooterText)}\"; font: 7.5pt 'Public Sans', 'Segoe UI', Arial, 'Liberation Sans', 'DejaVu Sans', sans-serif; color: #6b7280; }} }}")</style>
+
+<div class="pf">
+    <div class="sheet">
+        @if (Model.Watermark is not null)
+        {
+            <div class="watermark" aria-hidden="true"><span style="font-size:@(WatermarkSize)pt">@Model.Watermark</span></div>
+        }
+        <div class="content">
+            <header class="lh">
+                <div class="lh-logo">
+                    @if (Model.Letterhead.LogoSvg is { } svg) { @((MarkupString)svg) }
+                    else
+                    {
+                        <svg viewBox="0 0 44 44" aria-hidden="true"><rect x="3" y="3" width="38" height="38" rx="6" fill="none" stroke="#111827" stroke-width="3" transform="rotate(-6 22 22)" /><text x="22" y="29" text-anchor="middle" font-size="20" font-weight="800" font-family="Arial, sans-serif" fill="#111827">@Initial</text></svg>
+                    }
+                </div>
+                <div>
+                    <div class="lh-name">@Model.Letterhead.CompanyName</div>
+                    @if (Model.Letterhead.Address is not null) { <div class="lh-meta">@Model.Letterhead.Address</div> }
+                    <div class="lh-meta">@string.Join(" · ", new[] { Model.Letterhead.Contact, Model.Letterhead.TaxId }.Where(x => !string.IsNullOrEmpty(x)))</div>
+                </div>
+            </header>
+
+            <div class="head">
+                <div>
+                    <h1 class="title">@Model.Title</h1>
+                    <div class="docno">No. @Model.DocName</div>
+                    <div class="docmeta">Dibuat @Model.Created.ToLocalTime().ToString("d MMMM yyyy", Fmt.Id) · versi @Model.Version</div>
+                </div>
+                <span class="stamp tone-@Model.StateTone">@Model.StateLabel</span>
+            </div>
+
+            @foreach (var s in Model.Sections)
+            {
+                <section class="sec">
+                    @if (s.Title is not null) { <h2 class="sec-title">@s.Title</h2> }
+                    <div class="kv">
+                        @foreach (var f in s.Fields)
+                        {
+                            <div class="row @(f.Wide ? "wide" : "")"><span class="k">@f.Label</span><span class="v">@f.Value</span></div>
+                        }
+                    </div>
+                </section>
+            }
+
+            @foreach (var t in Model.Tables)
+            {
+                <section class="sec">
+                    <h2 class="sec-title">@t.Title</h2>
+                    <table class="items">
+                        <thead>
+                            <tr>
+                                <th class="no">No</th>
+                                @foreach (var c in t.Columns) { <th class="@(c.Numeric ? "num" : "")">@c.Label</th> }
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (var i = 0; i < t.Rows.Count; i++)
+                            {
+                                <tr>
+                                    <td class="no">@(i + 1)</td>
+                                    @for (var c = 0; c < t.Columns.Count; c++) { <td class="@(t.Columns[c].Numeric ? "num" : "")">@t.Rows[i][c]</td> }
+                                </tr>
+                            }
+                            @if (t.Rows.Count == 0) { <tr><td colspan="@(t.Columns.Count + 1)">Tidak ada baris.</td></tr> }
+                        </tbody>
+                    </table>
+                </section>
+            }
+
+            @if (Model.Totals.Count > 0)
+            {
+                <div class="totals">
+                    <table>@foreach (var t in Model.Totals) { <tr><td>@t.Label</td><td>@t.Value</td></tr> }</table>
+                </div>
+            }
+            @if (Model.AmountInWords is not null)
+            {
+                <div class="words">Terbilang: @Model.AmountInWords</div>
+            }
+
+            @if (Model.Signatures.Count > 0)
+            {
+                <div class="signs" style="grid-template-columns: repeat(@Math.Min(Model.Signatures.Count, 3), 1fr)">
+                    @foreach (var sg in Model.Signatures)
+                    {
+                        <div class="sign @(sg.Name is null ? "empty" : "")">
+                            <div class="sign-label">@sg.Label</div>
+                            @if (sg.Name is not null)
+                            {
+                                <div class="sign-mark">✓ Disetujui elektronik</div>
+                                <div class="sign-name">@sg.Name</div>
+                                <div class="sign-meta">@sg.At!.Value.ToLocalTime().ToString("d MMM yyyy HH:mm", Fmt.Id) · @sg.Code</div>
+                            }
+                            else
+                            {
+                                <div class="sign-name">Belum ditandatangani</div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+
+            @if (Model.FooterNote is not null) { <p class="note">@Model.FooterNote</p> }
+
+            <div class="running">@FooterText</div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public PrintModel Model { get; set; } = default!;
+
+    /// <summary>Ukuran tanda air menyesuaikan panjang teks agar muat diagonal di A4.</summary>
+    private int WatermarkSize => (int)Math.Clamp(560 / ((Model.Watermark?.Length ?? 1) * 0.68), 36, 96);
+
+    private string FooterText =>
+        $"{Model.DocName} · Kode verifikasi {Model.VerificationCode} · Dicetak oleh {Model.PrintedBy}, {Model.PrintedAt.ToLocalTime().ToString("d MMM yyyy HH:mm", Fmt.Id)}";
+
+    /// <summary>Huruf logo default: huruf pertama nama perusahaan setelah bentuk badan usaha (PT, CV, …).</summary>
+    private string Initial
+    {
+        get
+        {
+            var words = Model.Letterhead.CompanyName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            var word = words.FirstOrDefault(w => w.TrimEnd('.').ToUpperInvariant() is not ("PT" or "CV" or "UD" or "PD" or "TBK")) ?? words.FirstOrDefault() ?? "?";
+            return word[..1].ToUpperInvariant();
+        }
+    }
+
+    /// <summary>Escape untuk string CSS (mencegah teks dokumen keluar dari deklarasi content).</summary>
+    private static string CssString(string s) =>
+        string.Concat(s.Select(c => c is '"' or '\\' or '<' or '>' or '\n' or '\r' ? $"\\{(int)c:X} " : c.ToString()));
+}

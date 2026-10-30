@@ -1,0 +1,16 @@
+@* Dokumen HTML mandiri untuk PDF: gaya disisipkan langsung, tanpa sumber eksternal. *@
+<html lang="id">
+<head>
+    <meta charset="utf-8" />
+    <title>@Model.DocName</title>
+    <style>@((MarkupString)PrintStyles.Css)</style>
+    <style>html, body { margin: 0; background: #fff; }</style>
+</head>
+<body>
+    <PrintDocument Model="Model" />
+</body>
+</html>
+
+@code {
+    [Parameter, EditorRequired] public PrintModel Model { get; set; } = default!;
+}

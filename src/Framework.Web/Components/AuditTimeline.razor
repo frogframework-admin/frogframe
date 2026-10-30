@@ -1,0 +1,52 @@
+@if (Entries.Count == 0)
+{
+    <BbEmpty Title="Belum ada riwayat" Description="Perubahan dan transisi status akan tercatat di sini." Size="EmptySize.Small" />
+}
+else
+{
+    <BbTimeline Align="TimelineAlign.Left">
+        @for (var i = 0; i < Entries.Count; i++)
+        {
+            var e = Entries[i];
+            <BbTimelineItem Status="TimelineStatus.Completed" IconColor="@Color(e)" ShowConnector="@(i < Entries.Count - 1)">
+                <BbTimelineContent>
+                    <BbTimelineHeader>
+                        <BbTimelineTitle><strong>@e.Actor</strong> @Describe(e)</BbTimelineTitle>
+                        <BbTimelineTime>@Fmt.When(e.At)</BbTimelineTime>
+                    </BbTimelineHeader>
+                    @if (!string.IsNullOrWhiteSpace(e.Comment))
+                    {
+                        <p class="comment">@e.Comment</p>
+                    }
+                    @if (e.Changes.Count > 0)
+                    {
+                        <ul class="changes">
+                            @foreach (var c in e.Changes)
+                            {
+                                <li><span class="f">@c.Field</span>
+                                    @if (c.Old is not null) { <del>@c.Old</del> <span aria-hidden="true"> › </span> }
+                                    <ins>@(c.New ?? "kosong")</ins></li>
+                            }
+                        </ul>
+                    }
+                    <BbTimelineDescription>skema v@(e.SchemaVersion)@(e.WorkflowVersion is { } wv ? $" · workflow v{wv}" : "")</BbTimelineDescription>
+                </BbTimelineContent>
+            </BbTimelineItem>
+        }
+    </BbTimeline>
+}
+
+@code {
+    [Parameter] public IReadOnlyList<AuditEntry> Entries { get; set; } = [];
+
+    private static TimelineColor Color(AuditEntry e) => e.ToState switch
+    {
+        "Ditolak" or "Dibatalkan" or "Cancelled" => TimelineColor.Destructive,
+        null => TimelineColor.Muted,
+        _ => TimelineColor.Primary
+    };
+
+    private static string Describe(AuditEntry e) => e.ToState is not null
+        ? $"menjalankan “{e.Action}”: {e.FromState} → {e.ToState}"
+        : e.Action.ToLowerInvariant() switch { "dibuat" => "membuat dokumen", "diubah" => "mengubah dokumen", "amend" => "membuat amandemen", "dihapus" => "menghapus dokumen", "dicetak" => "mencetak dokumen", var a => a };
+}

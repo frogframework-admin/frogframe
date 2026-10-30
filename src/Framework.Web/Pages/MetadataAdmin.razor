@@ -1,0 +1,204 @@
+@page "/admin/metadata"
+@page "/admin/metadata/{Selected}"
+@using System.Text.Json
+@inject MetadataRegistry Registry
+@inject CurrentUser Current
+@inject ToastService Toasts
+
+<PageTitle>Metadata · DocFrame</PageTitle>
+
+@if (!Current.Required.Roles.Contains(UserContext.SystemManager))
+{
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>Halaman ini hanya untuk System Manager.</BbAlertDescription></BbAlert>
+}
+else
+{
+    <header class="page-head">
+        <div>
+            <h1>Metadata DocType</h1>
+            <p>Draft → periksa (validasi + diff) → publish sebagai versi immutable. Dokumen lama tetap mencatat versi skemanya.</p>
+        </div>
+        <BbButton Href="/admin/metadata/new"><LucideIcon Name="plus" Size="16" /> Buat DocType</BbButton>
+    </header>
+
+    <div class="admin-grid">
+        <BbCard>
+            <nav class="admin-nav" aria-label="Daftar DocType">
+                @foreach (var d in Registry.Current.DocTypes.Values.OrderBy(d => d.Name))
+                {
+                    <a class="@(d.Name == Selected ? "active" : "")" href="/admin/metadata/@d.Name">
+                        <span>@d.Name</span><span class="muted small">v@(d.Version)@(d.Def.IsChild ? " · child" : "")</span>
+                    </a>
+                }
+            </nav>
+        </BbCard>
+
+        @if (Selected is not null && Registry.Current.TryGet(Selected, out var meta))
+        {
+            <div class="stack">
+                <BbCard>
+                    <BbCardHeader><BbCardTitle Class="card-title">Riwayat versi</BbCardTitle></BbCardHeader>
+                    <BbCardContent>
+                        <div class="table-wrap">
+                            <table class="data">
+                                <thead><tr><th>Versi</th><th>Status</th><th>Dipublikasikan</th><th>Perubahan</th></tr></thead>
+                                <tbody>
+                                    @foreach (var v in Registry.History(Selected).OrderByDescending(v => v.Version))
+                                    {
+                                        <tr>
+                                            <td>v@(v.Version)</td>
+                                            <td>@if (v.Status == MetadataStatus.Published) { <BbBadge Variant="BadgeVariant.SoftSuccess">Aktif</BbBadge> } else { <BbBadge Variant="BadgeVariant.Outline">Usang</BbBadge> }</td>
+                                            <td class="nowrap">@v.PublishedBy, @Fmt.When(v.PublishedAt)</td>
+                                            <td>@string.Join("; ", v.Changes.Select(c => c.Description).Take(3))@(v.Changes.Count > 3 ? $" (+{v.Changes.Count - 3})" : "")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </BbCardContent>
+                </BbCard>
+
+                @if (!meta.Def.IsChild)
+                {
+                    var wfName = meta.Def.Workflow;
+                    <BbCard>
+                        <BbCardHeader>
+                            <BbCardTitle Class="card-title">Workflow</BbCardTitle>
+                            <BbCardDescription>@(wfName is null ? "Belum memakai workflow." : $"Memakai {wfName} v{meta.Workflow?.Def.Version}.")</BbCardDescription>
+                        </BbCardHeader>
+                        <BbCardContent>
+                            @if (meta.Workflow is { } cw)
+                            {
+                                <WorkflowDiagram Workflow="cw.Def" />
+                                <div class="row" style="margin-top:.75rem"><BbButton Variant="ButtonVariant.Outline" Href="@($"/admin/workflows/{cw.Def.Name}/editor")"><LucideIcon Name="git-branch" Size="16" /> Edit workflow</BbButton></div>
+                            }
+                            else
+                            {
+                                <BbButton Variant="ButtonVariant.Outline" Href="@($"/admin/workflows/new?doctype={meta.Name}")"><LucideIcon Name="git-branch-plus" Size="16" /> Buat workflow</BbButton>
+                            }
+                        </BbCardContent>
+                    </BbCard>
+                }
+
+                <BbCard>
+                    <BbCardHeader>
+                        <BbCardTitle Class="card-title">Editor visual</BbCardTitle>
+                        <BbCardDescription>Susun field dengan drag-drop, atur tab dan section, lalu coba form di pratinjau sebelum publish.</BbCardDescription>
+                    </BbCardHeader>
+                    <BbCardContent>
+                        <BbButton Href="@($"/admin/metadata/{Selected}/editor")"><LucideIcon Name="pencil-ruler" Size="16" /> Buka editor visual</BbButton>
+                    </BbCardContent>
+                </BbCard>
+
+                <BbCard>
+                    <BbCardHeader>
+                        <BbCardTitle Class="card-title">Draft v@(meta.Version + 1) (JSON)</BbCardTitle>
+                        <BbCardDescription>Coba ubah label (aman), tambah opsi Select, ubah <code>requiredWhen</code>, atau hapus field (berisiko), lalu periksa diff-nya.</BbCardDescription>
+                    </BbCardHeader>
+                    <BbCardContent>
+                        <div class="stack">
+                            <div class="code"><BbTextarea Value="@draft" ValueChanged="SetDraft" UpdateTiming="UpdateTiming.OnChange"
+                                        AriaLabel="JSON metadata" AdditionalAttributes="@(new Dictionary<string, object> { ["rows"] = 22, ["spellcheck"] = "false" })" /></div>
+                            <div class="row">
+                                <BbButton Variant="ButtonVariant.Outline" OnClick="Check"><LucideIcon Name="search" Size="16" /> Periksa draft</BbButton>
+                                <BbButton Disabled="@(preview is not { Valid: true } || (preview.Risk == ChangeRisk.Risky && !ack))" OnClick="Publish">
+                                    Publikasikan v@(meta.Version + 1)
+                                </BbButton>
+                                @if (preview is { Risk: ChangeRisk.Risky, Valid: true })
+                                {
+                                    <div class="label-row"><BbCheckbox Id="ack" @bind-Checked="ack" /><BbLabel For="ack">Saya sudah meninjau perubahan berisiko</BbLabel></div>
+                                }
+                            </div>
+                            @if (message is not null) { <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@message</BbAlertDescription></BbAlert> }
+                            @if (preview is not null)
+                            {
+                                @if (preview.Errors.Count > 0)
+                                {
+                                    <BbAlert Variant="AlertVariant.Danger">
+                                        <BbAlertTitle>Draft tidak lolos validasi</BbAlertTitle>
+                                        <BbAlertDescription><ul class="error-list">@foreach (var e in preview.Errors) { <li><code>@e.Path</code> @e.Message</li> }</ul></BbAlertDescription>
+                                    </BbAlert>
+                                }
+                                @if (preview.Changes.Count > 0)
+                                {
+                                    <ul class="diff">
+                                        @foreach (var c in preview.Changes.OrderByDescending(c => c.Risk))
+                                        {
+                                            <li><BbBadge Variant="@RiskVariant(c.Risk)">@RiskLabel(c.Risk)</BbBadge> <code>@c.Path</code> <span>@c.Description</span></li>
+                                        }
+                                    </ul>
+                                }
+                                else if (preview.Valid) { <p class="muted small">Tidak ada perubahan dibanding versi aktif.</p> }
+                            }
+                        </div>
+                    </BbCardContent>
+                </BbCard>
+            </div>
+        }
+        else
+        {
+            <BbEmpty Title="Pilih DocType" Description="Pilih DocType di kiri untuk melihat riwayat versi dan membuat draft." />
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public string? Selected { get; set; }
+    private string draft = "";
+    private PublishPreview? preview;
+    private bool ack;
+    private string? message;
+
+    // Blazor memanggil OnParametersSet setiap kali layout induk dirender ulang (mis. jumlah notifikasi berubah).
+    // Muat ulang hanya bila parameter rute benar-benar berubah, agar isian/draft pengguna tidak hilang.
+    private string? loadedKey = "\0";
+    protected override void OnParametersSet()
+    {
+        if (Selected == loadedKey) return;
+        loadedKey = Selected;
+        ResetDraft();
+    }
+
+    private void ResetDraft()
+    {
+        preview = null; message = null; ack = false;
+        if (Selected is not null && Registry.Current.TryGet(Selected, out var meta))
+        {
+            var copy = JsonSerializer.Deserialize<DocTypeDef>(MetadataJson.Serialize(meta.Def), MetadataJson.Options)!;
+            copy.Version = meta.Version + 1;
+            draft = MetadataJson.Serialize(copy);
+        }
+    }
+
+    private void SetDraft(string? v) { draft = v ?? ""; preview = null; }
+
+    private static string RiskLabel(ChangeRisk r) => r switch { ChangeRisk.Safe => "Aman", ChangeRisk.NeedsTransform => "Perlu transformasi", _ => "Berisiko" };
+    private static BadgeVariant RiskVariant(ChangeRisk r) => r switch { ChangeRisk.Safe => BadgeVariant.SoftSuccess, ChangeRisk.NeedsTransform => BadgeVariant.Warning, _ => BadgeVariant.SoftDestructive };
+
+    private DocTypeDef? Parse()
+    {
+        try { return MetadataJson.ParseDocType(draft); }
+        catch (JsonException ex) { message = $"JSON tidak valid: {ex.Message}"; preview = null; return null; }
+    }
+
+    private void Check()
+    {
+        message = null;
+        if (Parse() is { } def) preview = Registry.Preview(def);
+    }
+
+    private void Publish()
+    {
+        if (Parse() is not { } def) return;
+        try
+        {
+            var v = Registry.Publish(def, Current.Required.Id, ack);
+            Toasts.Success("Form dan list langsung memakai versi ini.", $"{v.DocType} v{v.Version} dipublikasikan");
+            ResetDraft();
+        }
+        catch (Exception ex) when (ex is MetadataCompilationException or InvalidOperationException)
+        {
+            message = ex.Message;
+        }
+    }
+}

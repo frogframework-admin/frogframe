@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
+    <ResourcePreloader />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    @* Urutan sesuai panduan tema BlazorBlueprint: tema dulu, lalu blazorblueprint.css, lalu gaya aplikasi. *@
+    <link rel="stylesheet" href="@Assets["_content/Framework.Web/theme.css"]" />
+    <link rel="stylesheet" href="@Assets["_content/BlazorBlueprint.Components/blazorblueprint.css"]" />
+    <link rel="stylesheet" href="@Assets["_content/Framework.Web/desk.css"]" />
+    <ImportMap />
+    <HeadOutlet @rendermode="PageRenderMode" />
+    <script src="_content/BlazorBlueprint.Components/js/theme-init.js"></script>
+</head>
+<body>
+    <Routes @rendermode="PageRenderMode" />
+
+    <div id="components-reconnect-modal">
+        <div class="bb-reconnect-dialog" role="alertdialog" aria-modal="true" aria-live="assertive" aria-labelledby="bb-reconnect-heading">
+            <div class="bb-reconnect-spinner" aria-hidden="true"></div>
+            <h2 id="bb-reconnect-heading" class="bb-reconnect-heading">
+                <span data-when="show retrying">Menyambung ulang</span>
+                <span data-when="paused">Koneksi dijeda</span>
+                <span data-when="failed">Gagal tersambung</span>
+                <span data-when="resume-failed">Sesi tidak dapat dilanjutkan</span>
+                <span data-when="rejected">Sesi berakhir</span>
+            </h2>
+            <p class="bb-reconnect-text">
+                <span data-when="show">Koneksi ke server terputus. Sedang mencoba memulihkan.</span>
+                <span data-when="retrying">Percobaan berikutnya dalam <span id="components-seconds-to-next-attempt">0</span> detik.</span>
+                <span data-when="paused">Koneksi dijeda dan akan dilanjutkan otomatis.</span>
+                <span data-when="failed">Server tidak merespons. Isian Anda masih ada.</span>
+                <span data-when="resume-failed">Sesi yang dijeda tidak dapat dilanjutkan.</span>
+                <span data-when="rejected">Server tidak dapat memulihkan sesi ini. Muat ulang untuk memulai sesi baru.</span>
+            </p>
+            <div class="bb-reconnect-actions">
+                <button type="button" class="bb-reconnect-button" data-when="failed resume-failed" onclick="Blazor.reconnect()">Coba lagi</button>
+                <button type="button" class="bb-reconnect-button" data-variant="secondary" data-when="failed resume-failed" onclick="location.reload()">Muat ulang</button>
+                <button type="button" class="bb-reconnect-button" data-when="rejected" onclick="location.reload()">Muat ulang</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="@Assets["_framework/blazor.web.js"]"></script>
+</body>
+</html>
+
+@code {
+    [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
+
+    // Halaman login/logout dirender statis (perlu HttpContext untuk menulis cookie); halaman lain interaktif.
+    // Prerender dimatikan agar inisialisasi halaman (query database) tidak berjalan dua kali.
+    private static readonly IComponentRenderMode InteractiveNoPrerender = new InteractiveServerRenderMode(prerender: false);
+    private IComponentRenderMode? PageRenderMode => HttpContext.AcceptsInteractiveRouting() ? InteractiveNoPrerender : null;
+}

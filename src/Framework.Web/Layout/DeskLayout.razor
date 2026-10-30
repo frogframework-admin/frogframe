@@ -1,0 +1,235 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject CurrentUser Current
+@inject IMetadataProvider Metadata
+@inject IPermissionService Perms
+@inject INotificationStore Notifications
+@inject ReportService Reports
+@inject NavigationManager Nav
+@inject IEnumerable<DeskMenuItem> MenuItems
+
+<BbSidebarProvider DefaultOpen="true">
+    <BbSidebar Collapsible="true">
+        <BbSidebarHeader>
+            <BbSidebarMenu>
+                <BbSidebarMenuItem>
+                    <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="" Size="SidebarMenuButtonSize.Large">
+                        <span class="brand"><span class="brand-mark" aria-hidden="true">D</span><span>DocFrame</span></span>
+                    </BbSidebarMenuButton>
+                </BbSidebarMenuItem>
+            </BbSidebarMenu>
+        </BbSidebarHeader>
+
+        <BbSidebarContent>
+            @if (Current.User is { } u)
+            {
+                <BbSidebarGroup>
+                    <BbSidebarMenu>
+                        <BbSidebarMenuItem>
+                            <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="" Match="NavLinkMatch.All" Tooltip="Beranda">
+                                <LucideIcon Name="house" Size="18" /><span>Beranda</span>
+                            </BbSidebarMenuButton>
+                        </BbSidebarMenuItem>
+                                <BbSidebarMenuItem>
+                                    <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="dashboard" Tooltip="Dashboard">
+                                        <LucideIcon Name="layout-dashboard" Size="18" /><span>Dashboard</span>
+                                    </BbSidebarMenuButton>
+                                </BbSidebarMenuItem>
+                                <BbSidebarMenuItem>
+                                    <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="report-templates" Tooltip="Laporan Excel/Word">
+                                        <LucideIcon Name="file-spreadsheet" Size="18" /><span>Laporan Excel/Word</span>
+                                    </BbSidebarMenuButton>
+                                </BbSidebarMenuItem>
+                        <BbSidebarMenuItem>
+                            <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="inbox" Tooltip="Kotak masuk">
+                                <LucideIcon Name="inbox" Size="18" /><span>Kotak masuk</span>
+                            </BbSidebarMenuButton>
+                            @if (unread > 0) { <BbSidebarMenuBadge>@unread</BbSidebarMenuBadge> }
+                        </BbSidebarMenuItem>
+                    </BbSidebarMenu>
+                </BbSidebarGroup>
+
+                @foreach (var groupName in MenuGroups(u))
+                {
+                    <BbSidebarGroup>
+                        <BbSidebarGroupLabel>@groupName</BbSidebarGroupLabel>
+                        <BbSidebarGroupContent>
+                            <BbSidebarMenu>
+                                @foreach (var d in ReadableDocTypes(u).Where(d => (d.Def.Module ?? "Umum") == groupName))
+                                {
+                                    <BbSidebarMenuItem>
+                                        <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="@($"app/{d.Name}")" Tooltip="@d.Title">
+                                            <LucideIcon Name="@IconFor(d)" Size="18" /><span>@d.Title</span>
+                                        </BbSidebarMenuButton>
+                                    </BbSidebarMenuItem>
+                                }
+                                @foreach (var item in VisibleMenuItems(u).Where(i => i.Group == groupName))
+                                {
+                                    <BbSidebarMenuItem>
+                                        <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="@item.Href.TrimStart('/')" Tooltip="@item.Title">
+                                            <LucideIcon Name="@item.Icon" Size="18" /><span>@item.Title</span>
+                                        </BbSidebarMenuButton>
+                                    </BbSidebarMenuItem>
+                                }
+                            </BbSidebarMenu>
+                        </BbSidebarGroupContent>
+                    </BbSidebarGroup>
+                }
+
+                @if (Reports.AvailableFor(u).Any() || u.Roles.Contains(UserContext.SystemManager))
+                {
+                    <BbSidebarGroup>
+                        <BbSidebarGroupLabel>Lainnya</BbSidebarGroupLabel>
+                        <BbSidebarGroupContent>
+                            <BbSidebarMenu>
+                                @if (Reports.AvailableFor(u).Any())
+                                {
+                                    <BbSidebarMenuItem>
+                                        <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="reports" Tooltip="Laporan">
+                                            <LucideIcon Name="chart-column" Size="18" /><span>Laporan</span>
+                                        </BbSidebarMenuButton>
+                                    </BbSidebarMenuItem>
+                                }
+                                @if (u.Roles.Contains(UserContext.SystemManager))
+                                {
+                                    <BbSidebarMenuItem>
+                                        <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="admin/users" Tooltip="Pengguna">
+                                            <LucideIcon Name="users" Size="18" /><span>Pengguna</span>
+                                        </BbSidebarMenuButton>
+                                    </BbSidebarMenuItem>
+                                    <BbSidebarMenuItem>
+                                        <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="admin/api-keys" Tooltip="Kunci API">
+                                            <LucideIcon Name="key-round" Size="18" /><span>Kunci API</span>
+                                        </BbSidebarMenuButton>
+                                    </BbSidebarMenuItem>
+                                    <BbSidebarMenuItem>
+                                        <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="query-apis" Tooltip="API Query">
+                                            <LucideIcon Name="braces" Size="18" /><span>API Query</span>
+                                        </BbSidebarMenuButton>
+                                    </BbSidebarMenuItem>
+                                    <BbSidebarMenuItem>
+                                        <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="admin/metadata" Tooltip="Metadata DocType">
+                                            <LucideIcon Name="settings-2" Size="18" /><span>Metadata DocType</span>
+                                        </BbSidebarMenuButton>
+                                    </BbSidebarMenuItem>
+                                }
+                            </BbSidebarMenu>
+                        </BbSidebarGroupContent>
+                    </BbSidebarGroup>
+                }
+            }
+        </BbSidebarContent>
+
+        @if (Current.User is { } me)
+        {
+            <BbSidebarFooter>
+                <div class="sidebar-user">
+                    <BbAvatar><BbAvatarFallback>@Initials(me.FullName)</BbAvatarFallback></BbAvatar>
+                    <div class="who"><span style="font-weight:600;font-size:.85rem">@me.FullName</span>
+                        <span class="muted small">@string.Join(", ", me.Roles.Where(r => r != "Employee").DefaultIfEmpty("Employee"))</span></div>
+                </div>
+            </BbSidebarFooter>
+        }
+    </BbSidebar>
+
+    <BbSidebarInset Class="app-inset">
+        <header class="app-header">
+            <BbSidebarTrigger />
+            <BbSeparator Orientation="SeparatorOrientation.Vertical" Style="height:1.25rem" />
+            <span class="tenant">@(Current.User is { } cu ? $"Tenant {cu.TenantId}" : "Prototipe")</span>
+            <span class="spacer"></span>
+            @if (Current.User is { } who)
+            {
+                <button type="button" class="who-chip" title="@($"{string.Join(", ", who.Roles)} · klik untuk ganti password")" @onclick="ChangePassword">@who.FullName</button>
+            }
+            <span class="theme-toggle"><BbDarkModeToggle Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" /></span>
+            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="Logout"><LucideIcon Name="log-out" Size="16" /> Keluar</BbButton>
+        </header>
+        <main class="app-main" id="content">
+            @if (Current.User is null)
+            {
+                <div class="stack"><BbSkeleton Height="2rem" /><BbSkeleton Height="12rem" /></div>
+            }
+            else
+            {
+                @Body
+            }
+        </main>
+    </BbSidebarInset>
+</BbSidebarProvider>
+
+<BbToastProvider Position="ToastPosition.BottomRight" />
+<BbDialogProvider />
+<BbPortalHost />
+
+@code {
+    private int unread;
+    private PeriodicTimer? timer;
+
+    protected override void OnInitialized()
+    {
+        Current.Changed += OnUserChanged;
+        if (Current.User is null) { RedirectToLogin(); return; }
+        RefreshUnread();
+        timer = new PeriodicTimer(TimeSpan.FromSeconds(2));
+        _ = Poll();
+    }
+
+    /// <summary>Tanpa sesi (belum login, atau sesi dicabut saat validasi ulang) → ke halaman login.</summary>
+    private void OnUserChanged()
+    {
+        if (Current.User is null) InvokeAsync(RedirectToLogin);
+    }
+
+    private void RedirectToLogin()
+    {
+        var back = "/" + Nav.ToBaseRelativePath(Nav.Uri);
+        Nav.NavigateTo($"/account/login?returnUrl={Uri.EscapeDataString(back)}", forceLoad: true);
+    }
+
+    private void ChangePassword() => Nav.NavigateTo("/account/password", forceLoad: true);
+
+    private void Logout() => Nav.NavigateTo("/account/logout", forceLoad: true);
+
+    private async Task Poll()
+    {
+        try
+        {
+            while (await timer!.WaitForNextTickAsync())
+            {
+                var before = unread;
+                RefreshUnread();
+                if (before != unread) await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (ObjectDisposedException) { }
+    }
+
+    private void RefreshUnread() =>
+        unread = Current.User is { } u ? Notifications.ForUser(u.TenantId, u.Id).Count(n => !n.Read) : 0;
+
+    private IEnumerable<CompiledDocType> ReadableDocTypes(UserContext u) =>
+        Metadata.Current.DocTypes.Values.Where(d => !d.Def.IsChild && Perms.Can(u, d, DocActions.Read)).OrderBy(d => d.Def.Module).ThenBy(d => d.Title);
+
+    private static string IconFor(CompiledDocType d) => d.Name switch
+    {
+        "Employee" => "users", "Department" => "building", "Vendor" => "building-2", "Product" => "package",
+        "PurchaseRequest" => "shopping-cart", _ => "file-text"
+    };
+
+    /// <summary>Item menu tambahan dari aplikasi (AddDeskMenuItem), ditampilkan bila pengguna boleh membaca DocType syaratnya.</summary>
+    private IEnumerable<DeskMenuItem> VisibleMenuItems(UserContext u) => MenuItems
+        .Where(i => i.RequiresReadOf is null || (Metadata.Current.TryGet(i.RequiresReadOf, out var m) && Perms.Can(u, m, DocActions.Read)))
+        .OrderBy(i => i.Order);
+
+    private IEnumerable<string> MenuGroups(UserContext u) =>
+        ReadableDocTypes(u).Select(d => d.Def.Module ?? "Umum").Concat(VisibleMenuItems(u).Select(i => i.Group)).Distinct().Order();
+
+    private static string Initials(string name) => string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(p => p[0]));
+
+    public void Dispose()
+    {
+        Current.Changed -= OnUserChanged;
+        timer?.Dispose();
+    }
+}

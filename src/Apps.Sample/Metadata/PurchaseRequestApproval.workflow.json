@@ -1,0 +1,23 @@
+{
+  "name": "PurchaseRequestApproval",
+  "docType": "PurchaseRequest",
+  "version": 1,
+  "initialState": "Draft",
+  "states": [
+    { "name": "Draft", "docStatus": 0, "tone": "neutral" },
+    { "name": "Menunggu Atasan", "docStatus": 1, "tone": "pending" },
+    { "name": "Menunggu Finance", "docStatus": 1, "tone": "pending" },
+    { "name": "Disetujui", "docStatus": 1, "tone": "positive" },
+    { "name": "Ditolak", "docStatus": 2, "tone": "negative" },
+    { "name": "Dibatalkan", "docStatus": 2, "tone": "negative" }
+  ],
+  "transitions": [
+    { "from": "Draft", "to": "Menunggu Atasan", "action": "Ajukan", "allowedRoles": ["Employee"], "condition": "owner == user.id" },
+    { "from": "Menunggu Atasan", "to": "Disetujui", "action": "Setujui", "allowedRoles": ["Manager"], "condition": "department == user.department && owner != user.id && total <= 10000000" },
+    { "from": "Menunggu Atasan", "to": "Menunggu Finance", "action": "Setujui & teruskan ke Finance", "allowedRoles": ["Manager"], "condition": "department == user.department && owner != user.id && total > 10000000" },
+    { "from": "Menunggu Atasan", "to": "Ditolak", "action": "Tolak", "allowedRoles": ["Manager"], "condition": "department == user.department && owner != user.id", "requireComment": true },
+    { "from": "Menunggu Finance", "to": "Disetujui", "action": "Setujui", "allowedRoles": ["Finance"], "condition": "owner != user.id" },
+    { "from": "Menunggu Finance", "to": "Ditolak", "action": "Tolak", "allowedRoles": ["Finance"], "requireComment": true },
+    { "from": "Disetujui", "to": "Dibatalkan", "action": "Batalkan", "allowedRoles": ["Procurement"], "requireComment": true }
+  ]
+}

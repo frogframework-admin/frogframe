@@ -1,0 +1,55 @@
+{
+  "name": "PurchaseRequestItem",
+  "version": 1,
+  "title": "Item Pengajuan",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "product",
+      "type": "Link",
+      "label": "Produk",
+      "linkTo": "Product",
+      "lookupDialog": true
+    },
+    {
+      "name": "item_name",
+      "type": "Data",
+      "label": "Barang/jasa",
+      "requiredWhen": "true"
+    },
+    {
+      "name": "qty",
+      "type": "Float",
+      "label": "Qty",
+      "requiredWhen": "true",
+      "min": 0.01,
+      "default": 1
+    },
+    {
+      "name": "uom",
+      "type": "Select",
+      "label": "Satuan",
+      "options": [
+        "pcs",
+        "unit",
+        "box",
+        "lisensi",
+        "bulan"
+      ],
+      "default": "pcs"
+    },
+    {
+      "name": "rate",
+      "type": "Currency",
+      "label": "Harga satuan",
+      "requiredWhen": "true",
+      "min": 0
+    },
+    {
+      "name": "amount",
+      "type": "Currency",
+      "label": "Jumlah",
+      "compute": "qty * rate"
+    }
+  ]
+}

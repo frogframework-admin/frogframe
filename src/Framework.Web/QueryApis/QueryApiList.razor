@@ -1,0 +1,87 @@
+@page "/query-apis"
+@using Framework.Api
+@inject QueryApiService Apis
+@inject CurrentUser Current
+@inject ToastService Toasts
+@inject DialogService Dialogs
+
+<PageTitle>API Query · DocFrame</PageTitle>
+
+<header class="page-head">
+    <div><h1>API Query</h1><p>Query tersimpan yang diterbitkan sebagai endpoint <code>GET /api/query/{slug}</code> — dibuat di sini, atau sebagai opsi dari widget dashboard dan template laporan.</p></div>
+    @if (designer) { <BbButton Href="/query-apis/new"><LucideIcon Name="plus" Size="16" /> API baru</BbButton> }
+</header>
+
+@if (!Apis.IsAvailable)
+{
+    <Framework.Web.Dashboards.UnavailableNotice />
+}
+else if (!designer)
+{
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>Halaman ini hanya untuk System Manager. Daftar API yang bisa Anda panggil: <code>GET /api/query</code>.</BbAlertDescription></BbAlert>
+}
+else if (items is null)
+{
+    <BbSkeleton Height="10rem" />
+}
+else if (items.Count == 0)
+{
+    <BbEmpty Title="Belum ada API query" Description="Buat langsung, atau centang &quot;Terbitkan juga sebagai API&quot; saat menyimpan widget dashboard / template laporan." />
+}
+else
+{
+    <div class="table-wrap">
+        <table class="data">
+            <thead><tr><th>API</th><th>Endpoint</th><th>Keluaran</th><th>Parameter</th><th>Boleh dipanggil</th><th>Sumber</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var d in items)
+                {
+                    var item = d;
+                    <tr>
+                        <td><strong>@item.Name</strong>@if (item.Description is not null) { <div class="muted small">@item.Description</div> }</td>
+                        <td class="nowrap"><code>/api/query/@item.Slug</code></td>
+                        <td>@OutputLabel(item.Config.Output)@(item.Config.CacheSeconds > 0 ? $" · cache {item.Config.CacheSeconds} dtk" : "")</td>
+                        <td>@(item.Config.Parameters.Count == 0 ? "—" : string.Join(", ", item.Config.Parameters.Select(p => QueryApiService.IsUserBound(p) ? $"{p.Name} (akun)" : p.Name)))</td>
+                        <td>@(item.Config.Roles.Count == 0 ? "Semua" : string.Join(", ", item.Config.Roles))</td>
+                        <td class="small">@SourceLabel(item.SourceRef)</td>
+                        <td><BbBadge Variant="@(item.Config.Enabled ? BadgeVariant.SoftSuccess : BadgeVariant.Soft)">@(item.Config.Enabled ? "Aktif" : "Nonaktif")</BbBadge></td>
+                        <td class="nowrap">
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" Href="@($"/query-apis/{item.Id}/edit")"><LucideIcon Name="pencil" Size="15" /> Edit</BbButton>
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@($"Hapus {item.Name}")" OnClick="() => Delete(item)"><LucideIcon Name="trash-2" Size="15" /></BbButton>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private IReadOnlyList<QueryApiDef>? items;
+    private bool designer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        designer = QueryApiService.CanDesign(Current.Required);
+        if (designer && Apis.IsAvailable) items = await Apis.ListAsync(Current.Required);
+    }
+
+    private async Task Delete(QueryApiDef d)
+    {
+        var ok = await Dialogs.ConfirmAsync($"Hapus API {d.Name}?", $"Pemanggil /api/query/{d.Slug} akan mendapat 404.",
+            new ConfirmDialogOptions { Destructive = true, ConfirmText = "Hapus", CancelText = "Batal" });
+        if (!ok.Confirmed) return;
+        await Apis.DeleteAsync(Current.Required, d.Id);
+        Toasts.Success("API dihapus.", d.Name);
+        items = await Apis.ListAsync(Current.Required);
+    }
+
+    internal static string OutputLabel(string o) => o switch { QueryApiOutputs.Object => "Satu objek", QueryApiOutputs.Csv => "CSV", _ => "Daftar baris" };
+    private static string SourceLabel(string? s) => s switch
+    {
+        null => "Dibuat langsung",
+        _ when s.StartsWith("widget:") => "Widget dashboard",
+        _ when s.StartsWith("report:") => "Template laporan",
+        _ => s,
+    };
+}

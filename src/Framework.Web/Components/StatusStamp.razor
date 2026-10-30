@@ -1,0 +1,7 @@
+@* Status dokumen pada kepala form: cap stempel seperti pada berkas fisik. Di daftar memakai StatusBadge. *@
+<span class="stamp tone-@Tone">@Label</span>
+
+@code {
+    [Parameter] public string Label { get; set; } = "";
+    [Parameter] public string Tone { get; set; } = "neutral";
+}

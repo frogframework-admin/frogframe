@@ -1,0 +1,43 @@
+@using Microsoft.AspNetCore.Components.Authorization
+@using Framework.Web.Identity
+@inject CurrentUser Current
+@inject AuthenticationStateProvider Auth
+@implements IDisposable
+
+@if (ready)
+{
+    <Router AppAssembly="typeof(Program).Assembly" AdditionalAssemblies="new[] { typeof(DeskLayout).Assembly }">
+        <Found Context="routeData">
+            <RouteView RouteData="routeData" DefaultLayout="typeof(DeskLayout)" />
+            <FocusOnNavigate RouteData="routeData" Selector="h1" />
+        </Found>
+        <NotFound>
+            <LayoutView Layout="typeof(DeskLayout)">
+                <div class="empty-state"><h1>Halaman tidak ditemukan</h1><p><a href="/">Kembali ke beranda</a></p></div>
+            </LayoutView>
+        </NotFound>
+    </Router>
+}
+
+@code {
+    private bool ready;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // UserContext diambil dari klaim login yang sudah divalidasi (cookie Identity), bukan dari input client.
+        Apply(await Auth.GetAuthenticationStateAsync());
+        Auth.AuthenticationStateChanged += OnAuthChanged;
+        ready = true;
+    }
+
+    private void Apply(AuthenticationState state) => Current.Set(ClaimsUserMapper.ToUserContext(state.User));
+
+    // Dipicu oleh validasi ulang berkala: akun dinonaktifkan / password atau role berubah → sesi berakhir.
+    private async void OnAuthChanged(Task<AuthenticationState> task)
+    {
+        var state = await task;
+        await InvokeAsync(() => { Apply(state); StateHasChanged(); });
+    }
+
+    public void Dispose() => Auth.AuthenticationStateChanged -= OnAuthChanged;
+}

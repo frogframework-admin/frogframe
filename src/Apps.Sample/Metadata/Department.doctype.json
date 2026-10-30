@@ -1,0 +1,28 @@
+{
+  "name": "Department",
+  "version": 1,
+  "title": "Departemen",
+  "module": "HR",
+  "description": "Struktur organisasi: setiap departemen bisa punya induk departemen.",
+  "naming": { "pattern": "field:code" },
+  "fields": [
+    { "name": "code", "type": "Data", "label": "Kode", "requiredWhen": "true", "inListView": true, "maxLength": 40,
+      "description": "Dipakai sebagai nomor dokumen dan nilai departemen karyawan/pengguna (mis. IT). Tidak bisa diubah setelah disimpan." },
+    { "name": "department_name", "type": "Data", "label": "Nama departemen", "requiredWhen": "true", "inListView": true, "column": 2 },
+    { "name": "parent_department", "type": "Link", "label": "Induk departemen", "linkTo": "Department", "lookupDialog": true, "inListView": true,
+      "description": "Kosongkan untuk departemen paling atas." },
+    { "name": "head", "type": "Link", "label": "Kepala departemen", "linkTo": "Employee", "lookupDialog": true, "column": 2 },
+    { "name": "head_name", "type": "Data", "label": "Nama kepala", "fetchFrom": "head.employee_name", "inListView": true, "column": 2 },
+    { "name": "description", "type": "Text", "label": "Keterangan" }
+  ],
+  "listView": {
+    "titleField": "department_name",
+    "searchFields": ["name", "department_name"],
+    "filters": ["parent_department"],
+    "defaultSort": [{ "field": "name", "direction": "asc" }]
+  },
+  "permissions": [
+    { "role": "Employee", "actions": ["read"], "scope": "all" }
+  ],
+  "api": { "enabled": true, "operations": ["list", "read"] }
+}

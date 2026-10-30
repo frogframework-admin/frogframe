@@ -1,0 +1,130 @@
+@page "/reports"
+@page "/reports/{ReportName}"
+@inject ReportService Reports
+@inject CurrentUser Current
+@inject IPermissionService Perms
+@inject IMetadataProvider Metadata
+
+<PageTitle>Laporan · DocFrame</PageTitle>
+
+@if (ReportName is null)
+{
+    <header class="page-head"><div><h1>Laporan</h1><p>Report provider C# terdaftar; scope tenant dan baris sama dengan list view.</p></div></header>
+    <div class="shortcuts">
+        @foreach (var r in Reports.AvailableFor(Current.Required))
+        {
+            <BbCard>
+                <BbCardHeader><BbCardTitle Class="card-title">@r.Title</BbCardTitle><BbCardDescription>@r.Description</BbCardDescription></BbCardHeader>
+                <BbCardFooter><BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Href="@($"/reports/{r.Name}")">Buka laporan</BbButton></BbCardFooter>
+            </BbCard>
+        }
+    </div>
+}
+else if (report is not null)
+{
+    <BbBreadcrumb Class="crumbs">
+        <BbBreadcrumbList>
+            <BbBreadcrumbItem><BbBreadcrumbLink Href="/reports">Laporan</BbBreadcrumbLink></BbBreadcrumbItem>
+            <BbBreadcrumbSeparator />
+            <BbBreadcrumbItem><BbBreadcrumbPage>@report.Title</BbBreadcrumbPage></BbBreadcrumbItem>
+        </BbBreadcrumbList>
+    </BbBreadcrumb>
+    <header class="page-head">
+        <div><h1>@report.Title</h1><p>@report.Description</p></div>
+        @if (canExport)
+        {
+            <BbButton Variant="ButtonVariant.Outline" Href="@ExportUrl" AdditionalAttributes="@(new Dictionary<string, object> { ["download"] = "" })">
+                <LucideIcon Name="download" Size="16" /> Ekspor CSV
+            </BbButton>
+        }
+    </header>
+    <div class="filters">
+        @foreach (var f in report.Filters)
+        {
+            var key = f.Key;
+            <div class="filter">
+                <span>@f.Label</span>
+                @if (f.Options is { } opts)
+                {
+                    <BbSelect TValue="string" Value="@(filters.GetValueOrDefault(key) ?? "")" ValueChanged="v => Set(key, v)" AriaLabel="@f.Label"
+                              Options="@(opts.Select(o => new SelectOption<string>(o, o)).Prepend(new SelectOption<string>("", "Semua")))" />
+                }
+                else
+                {
+                    <BbDatePicker Value="@(filters.GetValueOrDefault(key) is { } d ? DateTime.Parse(d) : null)" DateFormat="d MMM yyyy" Placeholder="Semua"
+                                  ValueChanged="v => Set(key, v?.ToString(DateFmt))" AriaLabel="@f.Label" />
+                }
+            </div>
+        }
+    </div>
+    @if (error is not null) { <BbAlert Variant="AlertVariant.Danger" Class="crumbs"><BbAlertDescription>@error</BbAlertDescription></BbAlert> }
+    @if (result is not null)
+    {
+        @if (result.Rows.Count == 0)
+        {
+            <BbEmpty Title="Tidak ada data untuk filter ini" Description="Perlebar rentang tanggal atau kosongkan filter prioritas." />
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table class="data">
+                    <thead><tr>@foreach (var c in result.Columns) { <th class="@(IsNum(c) ? "num" : "")">@c.Label</th> }</tr></thead>
+                    <tbody>
+                        @foreach (var row in result.Rows)
+                        {
+                            <tr>@foreach (var c in result.Columns)
+                                {
+                                    var v = row.GetValueOrDefault(c.Key);
+                                    <td class="@(IsNum(c) ? "num" : "")">@(c.Type == "Currency" ? "Rp" + Convert.ToDecimal(v ?? 0m).ToString("#,0", Fmt.Id) : Fmt.Value(null, v))</td>
+                                }</tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <p class="muted small" style="margin-top:.75rem">Angka hanya mencakup dokumen yang boleh Anda lihat.</p>
+        }
+    }
+}
+else if (error is not null)
+{
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@error</BbAlertDescription></BbAlert>
+}
+
+@code {
+    [Parameter] public string? ReportName { get; set; }
+    private const string DateFmt = "yyyy-MM-dd";
+    private IReportProvider? report;
+    private ReportResult? result;
+    private string? error;
+    private bool canExport;
+    private readonly Dictionary<string, string?> filters = new();
+
+    private static bool IsNum(ReportColumn c) => c.Type is "Currency" or "Int";
+    private string ExportUrl => $"/api/reports/{ReportName}/export.csv?" + string.Join("&", filters.Where(f => !string.IsNullOrEmpty(f.Value)).Select(f => $"{f.Key}={Uri.EscapeDataString(f.Value!)}"));
+
+    // Blazor memanggil OnParametersSet setiap kali layout induk dirender ulang (mis. jumlah notifikasi berubah).
+    // Muat ulang hanya bila parameter rute benar-benar berubah, agar isian/draft pengguna tidak hilang.
+    private string? loadedKey = "\0";
+    protected override async Task OnParametersSetAsync()
+    {
+        var key = ReportName;
+        if (key == loadedKey) return;
+        loadedKey = key;
+        if (ReportName is null) return;
+        try
+        {
+            report = Reports.Get(ReportName);
+            canExport = Perms.Can(Current.Required, Metadata.Current.Get(report.DocType), DocActions.Export);
+            await Run();
+        }
+        catch (Exception ex) when (ex is DocumentNotFoundException or PermissionDeniedException) { error = ex.Message; report = null; }
+    }
+
+    private Task Set(string key, string? value) { filters[key] = string.IsNullOrEmpty(value) ? null : value; return Run(); }
+
+    private async Task Run()
+    {
+        try { error = null; result = await Reports.RunAsync(Current.Required, ReportName!, filters); }
+        catch (Exception ex) when (ex is PermissionDeniedException or InvalidPayloadException) { error = ex.Message; result = null; }
+    }
+}

@@ -1,0 +1,31 @@
+@using Framework.Api
+@inject QueryApiService Apis
+
+@if (Apis.IsAvailable)
+{
+    <div class="api-option">
+        <div class="label-row">
+            <BbCheckbox Id="pub-api" Checked="Option.On" CheckedChanged="Toggle" />
+            <BbLabel For="pub-api">Terbitkan juga sebagai API (JSON) — query &amp; parameter yang sama</BbLabel>
+        </div>
+        @if (Option.On)
+        {
+            <div class="api-slug">
+                <span class="muted small">/api/query/</span>
+                <FormTextInput Id="pub-slug" Value="@Option.Slug" ValueChanged="v => Option.Slug = (v ?? string.Empty).Trim().ToLowerInvariant()" AriaLabel="Slug API" Placeholder="rekap-pengajuan" />
+            </div>
+            <p class="muted small" style="margin:.35rem 0 0">Ikut diperbarui setiap kali disimpan. Role sama dengan pengaturan di atas. Bentuk keluaran, batas baris, dan cache diatur di menu <a href="/query-apis">API Query</a>.</p>
+        }
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public ApiPublishOption Option { get; set; } = default!;
+    [Parameter] public string DefaultName { get; set; } = "";
+
+    private void Toggle(bool on)
+    {
+        Option.On = on;
+        if (on && string.IsNullOrWhiteSpace(Option.Slug)) Option.Slug = QueryApiService.Slugify(DefaultName);
+    }
+}

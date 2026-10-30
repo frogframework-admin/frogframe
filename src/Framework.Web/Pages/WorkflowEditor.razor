@@ -1,0 +1,366 @@
+@page "/admin/workflows/{WorkflowName}/editor"
+@page "/admin/workflows/new"
+@using System.Text.Json
+@inject MetadataRegistry Registry
+@inject CurrentUser Current
+@inject ToastService Toasts
+@inject DialogService Dialogs
+@inject NavigationManager Nav
+
+<PageTitle>Workflow @(wf?.Name) · DocFrame</PageTitle>
+
+@if (!Current.Required.Roles.Contains(UserContext.SystemManager))
+{
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>Editor workflow hanya untuk System Manager.</BbAlertDescription></BbAlert>
+}
+else if (wf is null)
+{
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@(loadError ?? "Workflow tidak ditemukan.")</BbAlertDescription></BbAlert>
+}
+else
+{
+    <BbBreadcrumb Class="crumbs">
+        <BbBreadcrumbList>
+            <BbBreadcrumbItem><BbBreadcrumbLink Href="/admin/metadata">Metadata</BbBreadcrumbLink></BbBreadcrumbItem>
+            <BbBreadcrumbSeparator />
+            <BbBreadcrumbItem><BbBreadcrumbLink Href="@($"/admin/metadata/{wf.DocType}")">@wf.DocType</BbBreadcrumbLink></BbBreadcrumbItem>
+            <BbBreadcrumbSeparator />
+            <BbBreadcrumbItem><BbBreadcrumbPage>Workflow</BbBreadcrumbPage></BbBreadcrumbItem>
+        </BbBreadcrumbList>
+    </BbBreadcrumb>
+
+    <header class="page-head">
+        <div>
+            <h1>@(isNew ? "Workflow baru" : wf.Name) <span class="muted" style="font-weight:500">· @(isNew ? "v1" : $"draft v{wf.Version}")</span></h1>
+            <p>
+                Alur persetujuan untuk <strong>@DocTitle</strong>.
+                @if (errors.Count > 0) { <BbBadge Variant="BadgeVariant.SoftDestructive">@errors.Count masalah</BbBadge> }
+                else { <BbBadge Variant="BadgeVariant.SoftSuccess">Draft valid</BbBadge> }
+                @if (dirty) { <BbBadge Variant="BadgeVariant.Warning">Belum dipublikasikan</BbBadge> }
+            </p>
+        </div>
+        <div class="row">
+            @if (!isNew) { <BbButton Variant="ButtonVariant.Ghost" Disabled="@(!dirty)" OnClick="Discard"><LucideIcon Name="rotate-ccw" Size="16" /> Buang perubahan</BbButton> }
+            <BbButton Variant="ButtonVariant.Outline" Disabled="@(errors.Count > 0)" OnClick="Check"><LucideIcon Name="search" Size="16" /> Periksa perubahan</BbButton>
+            <BbButton Disabled="@(preview is not { Valid: true } || preview.Changes.Count == 0 || (preview.Risk == ChangeRisk.Risky && !ack))" OnClick="Publish">
+                <LucideIcon Name="upload" Size="16" /> Publikasikan
+            </BbButton>
+        </div>
+    </header>
+
+    @if (NeedsAttach)
+    {
+        <div class="label-row props-block">
+            <BbCheckbox Id="attach" Checked="attach" CheckedChanged="v => { attach = v; Recompile(); }" />
+            <BbLabel For="attach">Pasang ke DocType @wf.DocType saat dipublikasikan@(OwnerWorkflow is { } ow ? $" (menggantikan workflow {ow})" : "")</BbLabel>
+        </div>
+    }
+
+    @if (isNew)
+    {
+        <BbCard Class="props-block">
+            <BbCardContent>
+                <div style="padding-top:1.1rem; max-width:26rem">
+                    <BbField IsInvalid="@errors.Any(e => e.Path == "name")">
+                        <BbFieldLabel For="wf-name">Nama workflow</BbFieldLabel>
+                        <BbInput Id="wf-name" Value="@wf.Name" ValueChanged="v => Mutate(() => wf.Name = (v ?? string.Empty).Trim())" />
+                        <BbFieldDescription>Huruf dan angka tanpa spasi; tidak bisa diubah setelah dipublikasikan.</BbFieldDescription>
+                    </BbField>
+                </div>
+            </BbCardContent>
+        </BbCard>
+    }
+
+    @if (preview is not null)
+    {
+        <BbCard Class="props-block">
+            <BbCardHeader>
+                <BbCardTitle Class="card-title">Perubahan @(isNew ? "" : $"dibanding v{wf.Version - 1}")</BbCardTitle>
+                <BbCardDescription>@(preview.Changes.Count == 0 ? "Tidak ada perubahan." : $"{preview.Changes.Count} perubahan, risiko tertinggi: {RiskLabel(preview.Risk)}.")</BbCardDescription>
+            </BbCardHeader>
+            <BbCardContent>
+                @if (preview.Errors.Count > 0)
+                {
+                    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription><ul class="error-list">@foreach (var e in preview.Errors) { <li><code>@e.Path</code> @e.Message</li> }</ul></BbAlertDescription></BbAlert>
+                }
+                <ul class="diff">
+                    @foreach (var c in preview.Changes.OrderByDescending(c => c.Risk))
+                    {
+                        <li><BbBadge Variant="@RiskVariant(c.Risk)">@RiskLabel(c.Risk)</BbBadge> <span>@c.Description</span></li>
+                    }
+                </ul>
+                @if (preview is { Risk: ChangeRisk.Risky, Valid: true })
+                {
+                    <div class="label-row" style="margin-top:.75rem"><BbCheckbox Id="ack" @bind-Checked="ack" /><BbLabel For="ack">Saya sudah meninjau perubahan berisiko</BbLabel></div>
+                }
+            </BbCardContent>
+        </BbCard>
+    }
+
+    @if (errors.Count > 0)
+    {
+        <BbAlert Variant="AlertVariant.Danger" Class="props-block">
+            <BbAlertTitle>Draft belum valid</BbAlertTitle>
+            <BbAlertDescription><ul class="error-list">@foreach (var e in errors) { <li>@e.Message</li> }</ul></BbAlertDescription>
+        </BbAlert>
+    }
+
+    <BbCard>
+        <BbCardHeader>
+            <BbCardTitle Class="card-title">Diagram alur</BbCardTitle>
+            <BbCardDescription>Klik panah untuk mengedit transisinya. Garis tebal = state awal.</BbCardDescription>
+        </BbCardHeader>
+        <BbCardContent><WorkflowDiagram Workflow="wf" SelectedTransition="selected" OnSelectTransition="i => selected = i" /></BbCardContent>
+    </BbCard>
+
+    <div class="wf-grid">
+        <BbCard>
+            <BbCardHeader>
+                <BbCardTitle Class="card-title">State</BbCardTitle>
+                <BbCardDescription>"Dapat diubah" = draft; "terkunci" = sudah diajukan/disetujui; "dibatalkan" = bisa di-amend.</BbCardDescription>
+            </BbCardHeader>
+            <BbCardContent>
+                <table class="wf-states">
+                    <thead><tr><th>Nama</th><th>Status dokumen</th><th>Warna</th><th class="narrow">Awal</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var state in wf.States)
+                        {
+                            var st = state;
+                            <tr>
+                                <td><BbInput Value="@st.Name" ValueChanged="v => RenameState(st, v)" AriaLabel="Nama state" /></td>
+                                <td><BbSelect TValue="string" Value="@st.DocStatus.ToString()" ValueChanged="v => Mutate(() => st.DocStatus = int.Parse(v!))" Options="DocStatusOptions" AriaLabel="Status dokumen" /></td>
+                                <td><BbSelect TValue="string" Value="@st.Tone" ValueChanged="v => SetTone(st, v)" Options="ToneOptions" AriaLabel="Warna" /></td>
+                                <td class="narrow"><input type="radio" name="initial" checked="@(wf.InitialState == st.Name)" aria-label="State awal" @onchange="() => Mutate(() => wf.InitialState = st.Name)" /></td>
+                                <td class="narrow"><BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@($"Hapus state {st.Name}")" OnClick="() => RemoveState(st)"><LucideIcon Name="trash-2" Size="15" /></BbButton></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+                <div style="margin-top:.6rem"><BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick="AddState"><LucideIcon Name="plus" Size="15" /> Tambah state</BbButton></div>
+            </BbCardContent>
+        </BbCard>
+
+        <BbCard>
+            <BbCardHeader>
+                <BbCardTitle Class="card-title">Transisi (aksi)</BbCardTitle>
+                <BbCardDescription>Aksi muncul sebagai tombol di dokumen bagi role yang diizinkan, bila kondisi terpenuhi. Variabel kondisi: field @wf.DocType, <code>owner</code>, <code>user.id</code>, <code>user.department</code>.</BbCardDescription>
+            </BbCardHeader>
+            <BbCardContent>
+                <div class="stack">
+                    @for (var i = 0; i < wf.Transitions.Count; i++)
+                    {
+                        var idx = i; var t = wf.Transitions[i];
+                        var condErr = errors.FirstOrDefault(e => e.Path.StartsWith($"transitions.{t.From}->{t.To}") && e.Path.EndsWith(".condition"));
+                        <div class="wf-transition @(selected == idx ? "selected" : "")" @onclick="() => selected = idx">
+                            <div class="wf-transition-head">
+                                <BbSelect TValue="string" Value="@t.From" ValueChanged="v => Mutate(() => t.From = v ?? string.Empty)" Options="StateOptions" AriaLabel="Dari state" />
+                                <LucideIcon Name="arrow-right" Size="16" />
+                                <BbSelect TValue="string" Value="@t.To" ValueChanged="v => Mutate(() => t.To = v ?? string.Empty)" Options="StateOptions" AriaLabel="Ke state" />
+                                <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Hapus transisi" OnClick="() => Mutate(() => { wf.Transitions.RemoveAt(idx); selected = null; })"><LucideIcon Name="trash-2" Size="15" /></BbButton>
+                            </div>
+                            <BbField>
+                                <BbFieldLabel>Nama aksi (label tombol)</BbFieldLabel>
+                                <BbInput Value="@t.Action" ValueChanged="v => Mutate(() => t.Action = (v ?? string.Empty).Trim())" AriaLabel="Nama aksi" Placeholder="mis. Setujui" />
+                            </BbField>
+                            <div>
+                                <div class="props-sub" style="margin-bottom:.35rem">Role yang boleh menjalankan</div>
+                                <div class="wf-roles">
+                                    @foreach (var role in Roles)
+                                    {
+                                        var r = role;
+                                        <div class="label-row"><BbCheckbox Id="@($"t{idx}-{r}")" Checked="t.AllowedRoles.Contains(r)" CheckedChanged="v => Mutate(() => ToggleRole(t, r, v))" /><BbLabel For="@($"t{idx}-{r}")">@r</BbLabel></div>
+                                    }
+                                </div>
+                            </div>
+                            <BbField IsInvalid="@(condErr is not null)">
+                                <BbFieldLabel>Kondisi (opsional)</BbFieldLabel>
+                                <BbInput Class="code-input" Value="@t.Condition" ValueChanged="v => Mutate(() => t.Condition = string.IsNullOrWhiteSpace(v) ? null : v.Trim())" AriaLabel="Kondisi" Placeholder="mis. department == user.department &amp;&amp; owner != user.id" />
+                                @if (condErr is not null) { <BbFieldError Errors="@(new[] { condErr.Message })" /> }
+                            </BbField>
+                            <div class="label-row"><BbCheckbox Id="@($"t{idx}-comment")" Checked="t.RequireComment" CheckedChanged="v => Mutate(() => t.RequireComment = v)" /><BbLabel For="@($"t{idx}-comment")">Wajib disertai komentar (mis. untuk penolakan)</BbLabel></div>
+                        </div>
+                    }
+                    <div><BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick="AddTransition"><LucideIcon Name="plus" Size="15" /> Tambah transisi</BbButton></div>
+                </div>
+            </BbCardContent>
+        </BbCard>
+    </div>
+
+    <details class="props-block" style="margin-top:1rem">
+        <summary class="muted small">Lihat JSON</summary>
+        <pre class="code" style="white-space:pre-wrap;font-size:.75rem">@MetadataJson.Serialize(wf)</pre>
+    </details>
+}
+
+@code {
+    [Parameter] public string? WorkflowName { get; set; }
+    [SupplyParameterFromQuery(Name = "doctype")] public string? ForDocType { get; set; }
+
+    private WorkflowDef? wf;
+    private string originalJson = "";
+    private bool isNew, attach, dirty, ack;
+    private int? selected;
+    private string? loadError;
+    private IReadOnlyList<MetadataError> errors = [];
+    private PublishPreview? preview;
+
+    private static readonly IEnumerable<SelectOption<string>> DocStatusOptions =
+        [new("0", "Draft"), new("1", "Terkunci"), new("2", "Dibatalkan")];
+    private static readonly IEnumerable<SelectOption<string>> ToneOptions =
+        [new("neutral", "Netral"), new("pending", "Menunggu"), new("positive", "Berhasil"), new("negative", "Gagal")];
+
+    private IEnumerable<SelectOption<string>> StateOptions => wf!.States.Where(s => !string.IsNullOrWhiteSpace(s.Name)).Select(s => new SelectOption<string>(s.Name, s.Name));
+    private IReadOnlyList<string> Roles => MetadataRoles.Known(Registry.Current, wf!.Transitions.SelectMany(t => t.AllowedRoles));
+    private string DocTitle => Registry.Current.TryGet(wf!.DocType, out var d) ? d.Title : wf!.DocType;
+    private string? OwnerWorkflow => Registry.Current.TryGet(wf!.DocType, out var d) && d.Def.Workflow is { } w && w != wf.Name ? w : null;
+    private bool NeedsAttach => Registry.Current.TryGet(wf!.DocType, out var d) && d.Def.Workflow != wf.Name;
+
+    // Blazor memanggil OnParametersSet setiap kali layout induk dirender ulang (mis. jumlah notifikasi berubah).
+    // Muat ulang hanya bila parameter rute benar-benar berubah, agar isian/draft pengguna tidak hilang.
+    private string? loadedKey;
+    protected override void OnParametersSet()
+    {
+        var key = $"{WorkflowName}|{ForDocType}";
+        if (key == loadedKey) return;
+        loadedKey = key;
+        Init();
+    }
+
+    private void Init()
+    {
+        loadError = null; preview = null; ack = false; selected = null;
+        if (WorkflowName is not null)
+        {
+            var active = Registry.Workflows.FirstOrDefault(w => w.Name == WorkflowName);
+            if (active is null) { wf = null; return; }
+            wf = Clone(active); wf.Version = active.Version + 1; isNew = false;
+            attach = NeedsAttach;
+        }
+        else
+        {
+            if (ForDocType is null || !Registry.Current.TryGet(ForDocType, out var doc) || doc.Def.IsChild)
+            { wf = null; loadError = "Pilih DocType (bukan child table) untuk membuat workflow."; return; }
+            wf = Template(doc); isNew = true; attach = true;
+        }
+        originalJson = MetadataJson.Serialize(wf);
+        Recompile();
+    }
+
+    /// <summary>Template awal yang langsung valid: Draft → Diajukan → Disetujui / Ditolak.</summary>
+    private WorkflowDef Template(CompiledDocType doc)
+    {
+        var name = doc.Name + "Approval";
+        for (var i = 2; Registry.Workflows.Any(w => w.Name == name); i++) name = $"{doc.Name}Approval{i}";
+        return new WorkflowDef
+        {
+            Name = name, DocType = doc.Name, Version = 1, InitialState = "Draft",
+            States =
+            [
+                new() { Name = "Draft", DocStatus = 0, Tone = "neutral" },
+                new() { Name = "Diajukan", DocStatus = 1, Tone = "pending" },
+                new() { Name = "Disetujui", DocStatus = 1, Tone = "positive" },
+                new() { Name = "Ditolak", DocStatus = 2, Tone = "negative" },
+            ],
+            Transitions =
+            [
+                new() { From = "Draft", To = "Diajukan", Action = "Ajukan", AllowedRoles = ["Employee"], Condition = "owner == user.id" },
+                new() { From = "Diajukan", To = "Disetujui", Action = "Setujui", AllowedRoles = ["Manager"], Condition = "owner != user.id" },
+                new() { From = "Diajukan", To = "Ditolak", Action = "Tolak", AllowedRoles = ["Manager"], Condition = "owner != user.id", RequireComment = true },
+            ],
+        };
+    }
+
+    private static WorkflowDef Clone(WorkflowDef w) => MetadataJson.ParseWorkflow(MetadataJson.Serialize(w));
+
+    private void Recompile()
+    {
+        (_, errors) = Registry.CompileWorkflowDraft(wf!, attach);
+        dirty = isNew || MetadataJson.Serialize(wf) != originalJson;
+        preview = null; ack = false;
+    }
+
+    private void Mutate(Action change) { change(); Recompile(); }
+
+    private void RenameState(WorkflowStateDef st, string? value)
+    {
+        var newName = (value ?? string.Empty).Trim();
+        if (newName == st.Name) return;
+        Mutate(() =>
+        {
+            // Rujukan ikut diganti agar transisi dan state awal tetap tersambung.
+            foreach (var t in wf!.Transitions)
+            {
+                if (t.From == st.Name) t.From = newName;
+                if (t.To == st.Name) t.To = newName;
+            }
+            if (wf.InitialState == st.Name) wf.InitialState = newName;
+            st.Name = newName;
+        });
+    }
+
+    private void SetTone(WorkflowStateDef st, string? v) => Mutate(() => st.Tone = v ?? "neutral");
+
+    private void AddState()
+    {
+        var name = "State baru";
+        for (var i = 2; wf!.States.Any(s => s.Name == name); i++) name = $"State baru {i}";
+        Mutate(() => wf!.States.Add(new WorkflowStateDef { Name = name, DocStatus = 1, Tone = "pending" }));
+    }
+
+    private async Task RemoveState(WorkflowStateDef st)
+    {
+        var used = wf!.Transitions.Count(t => t.From == st.Name || t.To == st.Name);
+        if (used > 0)
+        {
+            var ok = await Dialogs.ConfirmAsync($"Hapus state {st.Name}?", $"{used} transisi yang memakai state ini ikut dihapus.",
+                new ConfirmDialogOptions { Destructive = true, ConfirmText = "Hapus", CancelText = "Batal" });
+            if (!ok.Confirmed) return;
+        }
+        Mutate(() =>
+        {
+            wf.Transitions.RemoveAll(t => t.From == st.Name || t.To == st.Name);
+            wf.States.Remove(st);
+            if (wf.InitialState == st.Name) wf.InitialState = wf.States.FirstOrDefault(s => s.DocStatus == 0)?.Name ?? "";
+            selected = null;
+        });
+    }
+
+    private void AddTransition()
+    {
+        var from = wf!.States.FirstOrDefault()?.Name ?? "";
+        var to = wf.States.Skip(1).FirstOrDefault()?.Name ?? from;
+        Mutate(() => { wf.Transitions.Add(new WorkflowTransitionDef { From = from, To = to, Action = "Aksi baru", AllowedRoles = ["Manager"] }); selected = wf.Transitions.Count - 1; });
+    }
+
+    private static void ToggleRole(WorkflowTransitionDef t, string role, bool on)
+    {
+        if (on && !t.AllowedRoles.Contains(role)) t.AllowedRoles.Add(role);
+        if (!on) t.AllowedRoles.Remove(role);
+    }
+
+    private void Check() => preview = Registry.PreviewWorkflow(wf!, attach);
+
+    private void Publish()
+    {
+        try
+        {
+            var v = Registry.PublishWorkflow(wf!, Current.Required.Id, ack, attach);
+            Toasts.Success(attach ? $"Dipasang ke {wf!.DocType}; dokumen langsung memakai alur ini." : "Versi baru aktif.", $"Workflow {v.Name} v{v.Version} dipublikasikan");
+            if (isNew) Nav.NavigateTo($"/admin/workflows/{v.Name}/editor");
+            else Init();
+        }
+        catch (Exception ex) when (ex is MetadataCompilationException or InvalidOperationException)
+        {
+            Toasts.Error(ex.Message, "Gagal mempublikasikan");
+        }
+    }
+
+    private async Task Discard()
+    {
+        var ok = await Dialogs.ConfirmAsync("Buang semua perubahan?", "Draft dikembalikan ke versi aktif.", new ConfirmDialogOptions { ConfirmText = "Buang perubahan", CancelText = "Batal" });
+        if (ok.Confirmed) Init();
+    }
+
+    private static string RiskLabel(ChangeRisk r) => r switch { ChangeRisk.Safe => "Aman", ChangeRisk.NeedsTransform => "Perlu transformasi", _ => "Berisiko" };
+    private static BadgeVariant RiskVariant(ChangeRisk r) => r switch { ChangeRisk.Safe => BadgeVariant.SoftSuccess, ChangeRisk.NeedsTransform => BadgeVariant.Warning, _ => BadgeVariant.SoftDestructive };
+}

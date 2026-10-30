@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <PropertyGroup>
+    <RootNamespace>Framework.Web</RootNamespace>
+    <BlazorBlueprintVersion>4.1.0</BlazorBlueprintVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="..\Framework.Core\Framework.Core.csproj" />
+  </ItemGroup>
+
+  <!-- Default: paket NuGet resmi (membawa BlazorBlueprint.Primitives dan Icons.Lucide secara transitif). -->
+  <ItemGroup Condition="'$(BlazorBlueprintSource)' == ''">
+    <PackageReference Include="BlazorBlueprint.Components" Version="$(BlazorBlueprintVersion)" />
+  </ItemGroup>
+
+  <!-- Opsional: build dari source BlazorBlueprint, mis. -p:BlazorBlueprintSource=/path/ke/ui/src -->
+  <ItemGroup Condition="'$(BlazorBlueprintSource)' != ''">
+    <ProjectReference Include="$(BlazorBlueprintSource)/BlazorBlueprint.Components/BlazorBlueprint.Components.csproj" />
+  </ItemGroup>
+
+</Project>

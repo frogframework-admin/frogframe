@@ -1,0 +1,213 @@
+@* Grafik SVG dari hasil query widget (tanpa JavaScript, mengikuti tema terang/gelap). *@
+@using System.Globalization
+@using Framework.Dashboards
+
+@if (Result is null || Result.Rows.Count == 0)
+{
+    <div class="chart-empty"><LucideIcon Name="chart-no-axes-column" Size="22" /><span>Tidak ada data untuk ditampilkan</span></div>
+}
+else if (Visual.Type == ChartTypes.Table)
+{
+    <ResultGrid Result="Result" MaxHeight="@($"{Height}px")" />
+}
+else if (Visual.Type == ChartTypes.Number)
+{
+    var col = ColIndex(Visual.YColumns.FirstOrDefault());
+    var value = col >= 0 ? Num(Result.Rows[0][col]) : null;
+    <div class="chart-number" style="min-height:@(Math.Min(Height, 160))px">
+        <div class="chart-number-value">@(value is { } v ? Full(v) : "—")</div>
+        <div class="chart-number-label">@(Visual.YColumns.FirstOrDefault())</div>
+    </div>
+}
+else if (Visual.Type is ChartTypes.Pie or ChartTypes.Doughnut)
+{
+    var slices = Slices();
+    var total = slices.Sum(s => s.Value);
+    <div class="chart-pie">
+        <svg viewBox="0 0 200 200" role="img" aria-label="@($"Grafik {(Visual.Type == ChartTypes.Pie ? "pie" : "doughnut")} {Visual.YColumns.FirstOrDefault()} per {Visual.XColumn}")">
+            @if (total <= 0)
+            {
+                <circle cx="100" cy="100" r="90" class="chart-track" />
+            }
+            else if (slices.Count(s => s.Value > 0) == 1)
+            {
+                var only = slices.First(s => s.Value > 0);
+                <circle cx="100" cy="100" r="90" style="fill:@Color(only.Index)"><title>@only.Label: @Full(only.Value) (100%)</title></circle>
+            }
+            else
+            {
+                var angle = -Math.PI / 2;
+                @foreach (var s in slices.Where(s => s.Value > 0))
+                {
+                    var sweep = (double)(s.Value / total) * Math.PI * 2;
+                    <path d="@Arc(100, 100, 90, angle, angle + sweep)" style="fill:@Color(s.Index)" class="chart-slice">
+                        <title>@s.Label: @Full(s.Value) (@Pct(s.Value, total))</title>
+                    </path>
+                    angle += sweep;
+                }
+            }
+            @if (Visual.Type == ChartTypes.Doughnut)
+            {
+                <circle cx="100" cy="100" r="52" class="chart-hole" />
+                <g><text x="100" y="98" text-anchor="middle" class="chart-center-value">@Short(total)</text></g>
+                <g><text x="100" y="116" text-anchor="middle" class="chart-center-label">total</text></g>
+            }
+        </svg>
+        <ul class="chart-legend vertical">
+            @foreach (var s in slices)
+            {
+                <li><span class="dot" style="background:@Color(s.Index)"></span><span class="lg-label">@s.Label</span><span class="lg-value">@Short(s.Value) · @Pct(s.Value, total)</span></li>
+            }
+        </ul>
+    </div>
+}
+else
+{
+    var cats = Categories();
+    var series = Visual.YColumns.Select((c, i) => (Name: c, Index: i, Col: ColIndex(c))).Where(s => s.Col >= 0).ToList();
+    var values = series.Select(s => Result.Rows.Select(r => Num(r[s.Col]) ?? 0m).ToList()).ToList();
+    var max = values.SelectMany(v => v).DefaultIfEmpty(0).Max();
+    var min = Math.Min(0, values.SelectMany(v => v).DefaultIfEmpty(0).Min());
+    var (top, step) = NiceScale(max, min);
+    double W = Width, padL = 52, padR = 10, padT = 12;
+    // Label dimiringkan bila banyak kategori atau teksnya tidak muat di lebar kolomnya.
+    var rotate = cats.Count > 6 || cats.Select(c => Math.Min(c.Length, 16)).DefaultIfEmpty(0).Max() * 6.2 > (Width - 62.0) / Math.Max(cats.Count, 1);
+    var padB = rotate ? 62.0 : 34.0;
+    var H = (double)Height;
+    var plotW = W - padL - padR; var plotH = H - padT - padB;
+    double Y(decimal v) => padT + plotH - (double)((v - min) / (top - min == 0 ? 1 : top - min)) * plotH;
+    var band = plotW / Math.Max(cats.Count, 1);
+    <svg viewBox="0 0 @F(W) @F(H)" class="chart-svg" role="img" aria-label="@($"Grafik {(Visual.Type == ChartTypes.Bar ? "batang" : "garis")} {string.Join(", ", Visual.YColumns)} per {Visual.XColumn}")">
+        @for (var t = min; t <= top + step / 1000; t += step)
+        {
+            var y = Y(t);
+            <line x1="@F(padL)" x2="@F(W - padR)" y1="@F(y)" y2="@F(y)" class="@(t == 0 ? "chart-axis" : "chart-grid")" />
+            <g><text x="@F(padL - 6)" y="@F(y + 3.5)" text-anchor="end" class="chart-tick">@Short(t)</text></g>
+        }
+        @for (var i = 0; i < cats.Count; i++)
+        {
+            var cx = padL + band * i + band / 2;
+            var every = (int)Math.Ceiling(cats.Count / Math.Max(Width / 40.0, 4));
+            if (i % every == 0)
+            {
+                @if (rotate)
+                {
+                    <g><text transform="@($"translate({F(cx)},{F(padT + plotH + 10)}) rotate(-35)")" text-anchor="end" class="chart-tick">@Trim(cats[i], 14)</text></g>
+                }
+                else
+                {
+                    <g><text x="@F(cx)" y="@F(padT + plotH + 18)" text-anchor="middle" class="chart-tick">@Trim(cats[i], 16)</text></g>
+                }
+            }
+        }
+        @if (Visual.Type == ChartTypes.Bar)
+        {
+            var groupW = band * 0.72; var barW = groupW / Math.Max(series.Count, 1);
+            @for (var s = 0; s < series.Count; s++)
+            {
+                @for (var i = 0; i < cats.Count; i++)
+                {
+                    var v = values[s][i];
+                    var x = padL + band * i + (band - groupW) / 2 + barW * s;
+                    var y0 = Y(0); var y1 = Y(v);
+                    <rect x="@F(x + 1)" y="@F(Math.Min(y0, y1))" width="@F(Math.Max(barW - 2, 1))" height="@F(Math.Max(Math.Abs(y0 - y1), 0.5))" rx="3" style="fill:@Color(s)" class="chart-bar">
+                        <title>@cats[i] · @series[s].Name: @Full(v)</title>
+                    </rect>
+                }
+            }
+        }
+        else
+        {
+            @for (var s = 0; s < series.Count; s++)
+            {
+                var pts = Enumerable.Range(0, cats.Count).Select(i => (X: padL + band * i + band / 2, Y: Y(values[s][i]), V: values[s][i], C: cats[i])).ToList();
+                var line = string.Join(" ", pts.Select(p => $"{F(p.X)},{F(p.Y)}"));
+                if (series.Count == 1 && pts.Count > 1)
+                {
+                    <polygon points="@($"{F(pts[0].X)},{F(Y(0))} {line} {F(pts[^1].X)},{F(Y(0))}")" style="fill:@Color(s)" class="chart-area" />
+                }
+                <polyline points="@line" style="stroke:@Color(s)" class="chart-line" />
+                @foreach (var p in pts)
+                {
+                    <circle cx="@F(p.X)" cy="@F(p.Y)" r="3.5" style="fill:@Color(s)" class="chart-point"><title>@p.C · @series[s].Name: @Full(p.V)</title></circle>
+                }
+            }
+        }
+    </svg>
+    @if (series.Count > 1)
+    {
+        <ul class="chart-legend">
+            @foreach (var s in series) { <li><span class="dot" style="background:@Color(s.Index)"></span>@s.Name</li> }
+        </ul>
+    }
+}
+
+@code {
+    [Parameter, EditorRequired] public QueryResultSet? Result { get; set; }
+    [Parameter, EditorRequired] public VisualConfig Visual { get; set; } = new();
+    [Parameter] public int Height { get; set; } = 260;
+    /// <summary>Lebar gambar (unit SVG). Samakan kira-kira dengan lebar kartu agar ukuran teks tetap terbaca.</summary>
+    [Parameter] public int Width { get; set; } = 640;
+
+    private static readonly CultureInfo Id = CultureInfo.GetCultureInfo("id-ID");
+    private int ColIndex(string? name) => name is null || Result is null ? -1
+        : Result.Columns.Select((c, i) => (c, i)).FirstOrDefault(x => x.c.Name.Equals(name, StringComparison.OrdinalIgnoreCase), (null!, -1)).Item2;
+
+    private static decimal? Num(object? v) => v switch { decimal d => d, int i => i, long l => l, double d => (decimal)d, string s when decimal.TryParse(s, NumberStyles.Number, CultureInfo.InvariantCulture, out var x) => x, _ => null };
+
+    private List<string> Categories()
+    {
+        var xi = ColIndex(Visual.XColumn);
+        return Result!.Rows.Select(r => xi >= 0 ? Label(r[xi]) : "").ToList();
+    }
+
+    private static string Label(object? v) => v switch { null => "(kosong)", decimal d => d.ToString("#,0.##", Id), bool b => b ? "Ya" : "Tidak", _ => v.ToString()! };
+
+    private sealed record Slice(int Index, string Label, decimal Value);
+    private List<Slice> Slices()
+    {
+        var xi = ColIndex(Visual.XColumn); var yi = ColIndex(Visual.YColumns.FirstOrDefault());
+        var list = Result!.Rows.Select((r, i) => new Slice(i, xi >= 0 ? Label(r[xi]) : $"#{i + 1}", Math.Max(yi >= 0 ? Num(r[yi]) ?? 0 : 0, 0))).ToList();
+        if (list.Count <= 8) return list;
+        var top = list.OrderByDescending(s => s.Value).Take(7).ToList();
+        top.Add(new Slice(7, "Lainnya", list.Except(top).Sum(s => s.Value)));
+        return top.Select((s, i) => s with { Index = i }).ToList();
+    }
+
+    private static string Color(int i) => $"var(--chart-{i % 5 + 1})";
+    private static string F(double v) => v.ToString("0.##", CultureInfo.InvariantCulture);
+    private static string Trim(string s, int max) => s.Length <= max ? s : s[..(max - 1)] + "…";
+    private static string Pct(decimal v, decimal total) => total <= 0 ? "0%" : (v / total).ToString("0.#%", Id);
+    private static string Full(decimal v) => v.ToString(v == Math.Round(v) ? "#,0" : "#,0.##", Id);
+
+    /// <summary>Singkatan angka gaya Indonesia: 1,2 rb · 3,5 jt · 1,1 M · 2 T.</summary>
+    public static string Short(decimal v)
+    {
+        var a = Math.Abs(v);
+        return a >= 1_000_000_000_000m ? (v / 1_000_000_000_000m).ToString("0.#", Id) + " T"
+             : a >= 1_000_000_000m ? (v / 1_000_000_000m).ToString("0.#", Id) + " M"
+             : a >= 1_000_000m ? (v / 1_000_000m).ToString("0.#", Id) + " jt"
+             : a >= 10_000m ? (v / 1_000m).ToString("0.#", Id) + " rb"
+             : v.ToString("#,0.##", Id);
+    }
+
+    private static (decimal Top, decimal Step) NiceScale(decimal max, decimal min)
+    {
+        var range = max - min;
+        if (range <= 0) return (max <= 0 ? 1 : max * 1.2m, max <= 0 ? 0.25m : max * 0.3m);
+        var rough = (double)range / 4;
+        var mag = Math.Pow(10, Math.Floor(Math.Log10(rough)));
+        var norm = rough / mag;
+        var nice = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 2.5 ? 2.5 : norm <= 5 ? 5 : 10;
+        var step = (decimal)(nice * mag);
+        var top = Math.Ceiling(max / step) * step;
+        return (top == max ? top + step * 0 : top, step);
+    }
+
+    private static string Arc(double cx, double cy, double r, double a0, double a1)
+    {
+        double X(double a) => cx + r * Math.Cos(a); double Yp(double a) => cy + r * Math.Sin(a);
+        var large = a1 - a0 > Math.PI ? 1 : 0;
+        return $"M {F(cx)} {F(cy)} L {F(X(a0))} {F(Yp(a0))} A {F(r)} {F(r)} 0 {large} 1 {F(X(a1))} {F(Yp(a1))} Z";
+    }
+}

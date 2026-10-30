@@ -1,0 +1,89 @@
+@* Renderer field: memetakan kategori editor IFieldType ke komponen BlazorBlueprint.
+   Tipe kustom dengan editor yang tidak dikenal jatuh ke input teks. *@
+
+@if (Field.Type.Editor == "image")
+{
+    <ImageUpload Field="Field" DocType="@(DocType ?? string.Empty)" Value="@(Value as string)" ValueChanged="ValueChanged" ReadOnly="@(ReadOnly || DocType is null)" Compact="Compact" Id="@Id" />
+}
+else if (ReadOnly && Field.Type.Editor is not "check")
+{
+    <div class="field-static @(Field.Type.Editor == "number" ? "num" : "")" id="@Id" aria-readonly="true">@Fmt.Value(Field, Value)</div>
+}
+else
+{
+    switch (Field.Type.Editor)
+    {
+        case "textarea":
+            <FormTextArea Id="@Id" Value="@Fmt.Raw(Value)" ValueChanged="Emit" Invalid="@Invalid" MaxLength="@Field.Def.MaxLength"
+                          AriaLabel="@(Compact ? Field.Label : null)" Rows="@(Compact ? 1 : 3)" />
+            break;
+        case "number":
+            <FormTextInput Id="@Id" Value="@Fmt.Raw(Value)" ValueChanged="v => Emit(CleanNumber(v))" Invalid="@Invalid"
+                           Placeholder="@(Field.Def.Type == "Currency" ? "0" : null)" AriaLabel="@(Compact ? Field.Label : null)"
+                           AdditionalAttributes="NumericAttrs" />
+            break;
+        case "check":
+            <div class="label-row">
+                <BbCheckbox Id="@Id" Checked="@(Value is true)" CheckedChanged="v => Emit(v)" Disabled="@ReadOnly" AriaLabel="@Field.Label" />
+                @if (!Compact) { <BbLabel For="@Id">@Field.Label</BbLabel> }
+            </div>
+            break;
+        case "date":
+            <div class="fill-trigger">
+                <BbDatePicker Value="@AsDate(Value)" ValueChanged="SetDate" DateFormat="d MMM yyyy"
+                              IsInvalid="@Invalid" AriaLabel="@Field.Label" AdditionalAttributes="IdAttr" />
+            </div>
+            break;
+        case "select":
+            <BbSelect TValue="string" Value="@(Value as string)" ValueChanged="v => Emit(v)" AriaLabel="@Field.Label"
+                      Options="@(Field.Def.Options!.Select(o => new SelectOption<string>(o, o)))" Placeholder="Pilih…"
+                      AdditionalAttributes="IdAttr" />
+            break;
+        case "link":
+            <div class="fill-trigger">
+                <LinkInput Id="@Id" Target="@(Field.Def.LinkTo!)" Value="@(Value as string)" Label="@Field.Label" ShowLookup="@Field.Def.LookupDialog" ValueChanged="v => Emit(v)" />
+            </div>
+            break;
+        default:
+            <FormTextInput Id="@Id" Type="@(Field.Def.Type == "Email" ? "email" : "text")" Value="@Fmt.Raw(Value)" ValueChanged="Emit"
+                           Invalid="@Invalid" AriaLabel="@(Compact ? Field.Label : null)"
+                           AdditionalAttributes="@(new Dictionary<string, object> { ["maxlength"] = Field.Def.MaxLength ?? 140 })" />
+            break;
+    }
+}
+
+@code {
+    [Parameter, EditorRequired] public CompiledField Field { get; set; } = default!;
+    [Parameter] public object? Value { get; set; }
+    [Parameter] public EventCallback<object?> ValueChanged { get; set; }
+    [Parameter] public bool ReadOnly { get; set; }
+    [Parameter] public bool Invalid { get; set; }
+    [Parameter] public bool Compact { get; set; }
+    [Parameter] public string? Id { get; set; }
+    /// <summary>DocType pemilik field (dibutuhkan untuk unggah gambar).</summary>
+    [Parameter] public string? DocType { get; set; }
+
+    private Dictionary<string, object> IdAttr => Id is null ? new() : new() { ["id"] = Id };
+    private static readonly Dictionary<string, object> NumericAttrs = new() { ["inputmode"] = "decimal", ["style"] = "text-align:right" };
+
+    private static DateTime? AsDate(object? v) =>
+        v is string s && DateTime.TryParseExact(s, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) ? d : null;
+
+    private string? CleanNumber(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+        var s = raw.Replace(" ", "").Replace("Rp", "");
+        // Currency/Int: titik = pemisah ribuan (format Indonesia). Float: koma diterima sebagai desimal.
+        if (Field.Def.Type is "Currency" or "Int") s = s.Replace(".", "");
+        return s.Replace(',', '.');
+    }
+
+    private Task Emit(object? raw)
+    {
+        var n = Field.Type.Normalize(raw);
+        return ValueChanged.InvokeAsync(n.Ok ? n.Value : raw);
+    }
+
+    private Task Emit(string? raw) => Emit((object?)raw);
+    private Task SetDate(DateTime? d) => Emit(d?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+}

@@ -1,0 +1,219 @@
+@page "/app/{DocType}"
+@inject DocumentService Docs
+@inject CurrentUser Current
+@inject IMetadataProvider Metadata
+@inject IPermissionService Perms
+@inject NavigationManager Nav
+@inject Framework.Imports.DataImportService Importer
+
+<PageTitle>@(meta?.Title ?? DocType) · DocFrame</PageTitle>
+
+@if (fatal is not null)
+{
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertTitle>Tidak dapat dibuka</BbAlertTitle><BbAlertDescription>@fatal</BbAlertDescription></BbAlert>
+}
+else if (meta is not null)
+{
+    <header class="page-head">
+        <div>
+            <h1>@meta.Title</h1>
+            <p>@(result is null ? "Memuat…" : $"{TotalText} dokumen dalam cakupan akses Anda")</p>
+        </div>
+        @if (Perms.Can(Current.Required, meta, DocActions.Create))
+        {
+            @if (Importer.CanImport(Current.Required, meta.Name))
+            {
+                <BbButton Variant="ButtonVariant.Outline" Href="@($"/app/{meta.Name}/import")"><LucideIcon Name="file-up" Size="16" /> Impor</BbButton>
+            }
+            <BbButton Href="@($"/app/{meta.Name}/new")"><LucideIcon Name="plus" Size="16" /> Buat @meta.Title.ToLower()</BbButton>
+        }
+    </header>
+
+    <div class="filters" role="search">
+        <div class="filter search">
+            <span>Cari</span>
+            <BbInput Value="@search" ValueChanged="OnSearch" UpdateTiming="UpdateTiming.Debounced" DebounceInterval="300"
+                     Placeholder="@($"{string.Join(" / ", meta.Def.ListView.SearchFields.Select(LabelOf))}…")" AriaLabel="Cari" />
+        </div>
+        @foreach (var fName in meta.Def.ListView.Filters)
+        {
+            var f = fName;
+            <div class="filter">
+                <span>@LabelOf(f)</span>
+                @if (FilterOptions(f) is { } opts)
+                {
+                    <BbSelect TValue="string" Value="@(filters.TryGetValue(f, out var cur) ? cur.Value as string : "")" ValueChanged="v => SetFilter(f, v)"
+                              Options="opts" AriaLabel="@LabelOf(f)" />
+                }
+                else if (meta.ByName.TryGetValue(f, out var cf) && cf.Def.Type == "Date")
+                {
+                    <BbDatePicker Value="@(filters.TryGetValue(f, out var dc) ? DateTime.Parse((string)dc.Value!) : null)"
+                                  ValueChanged="d => SetFilter(f, d?.ToString(DateFmt))" Placeholder="Sejak tanggal" DateFormat="d MMM yyyy" AriaLabel="@LabelOf(f)" />
+                }
+                else
+                {
+                    <BbInput ValueChanged="v => SetFilter(f, v)" UpdateTiming="UpdateTiming.OnChange" AriaLabel="@LabelOf(f)" />
+                }
+            </div>
+        }
+    </div>
+
+    @if (error is not null)
+    {
+        <BbAlert Variant="AlertVariant.Danger" Class="crumbs"><BbAlertDescription>@error</BbAlertDescription></BbAlert>
+    }
+
+    @if (result is null)
+    {
+        <div class="stack"><BbSkeleton Height="2.5rem" /><BbSkeleton Height="2.5rem" /><BbSkeleton Height="2.5rem" /></div>
+    }
+    else if (result.Items.Count == 0)
+    {
+        <BbEmpty Title="@($"Belum ada {meta.Title.ToLower()} yang cocok")"
+                 Description="@(filters.Count > 0 || !string.IsNullOrEmpty(search) ? "Ubah atau kosongkan filter untuk melihat dokumen lain." : "Dokumen yang Anda buat atau yang dibagikan ke peran Anda akan muncul di sini.")">
+            <Icon><LucideIcon Name="search" Size="28" /></Icon>
+        </BbEmpty>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="data">
+                <thead>
+                    <tr>
+                        @SortHeader("name", "Nomor")
+                        @foreach (var c in result.Columns) { @SortHeader(c, LabelOf(c)) }
+                        @if (HasStatus) { <th scope="col">Status</th> }
+                        @SortHeader("modified", "Diubah")
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in result.Items)
+                    {
+                        var name = (string)row["name"]!;
+                        <tr class="clickable" @onclick="@(() => Go(name))">
+                            <td><a class="doc-link" href="/app/@meta.Name/@name">@name</a></td>
+                            @foreach (var c in result.Columns)
+                            {
+                                var cf = meta.ByName.GetValueOrDefault(c);
+                                @if (cf?.Type.Editor == "image")
+                                {
+                                    <td class="thumb-cell">@if (row.GetValueOrDefault(c) is string img) { <img class="thumb" src="@($"/files/{img}")" alt="" loading="lazy" /> } else { <span class="thumb thumb-empty"></span> }</td>
+                                }
+                                else
+                                {
+                                    <td class="@(cf?.Type.Editor == "number" ? "num" : "")">@Fmt.Value(cf, row.GetValueOrDefault(c))</td>
+                                }
+                            }
+                            @if (HasStatus)
+                            {
+                                var st = row["workflow_state"] as string; var ds = (int)row["docstatus"]!;
+                                <td><StatusBadge Label="@Fmt.StateLabel(st, ds)" Tone="@Fmt.Tone(meta, st, ds)" /></td>
+                            }
+                            <td class="muted nowrap">@Fmt.When((DateTimeOffset)row["modified"]!)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="list-foot">
+            <span class="muted small">@((result.Page - 1) * result.PageSize + 1)–@(Math.Min(result.Page * result.PageSize, result.Total)) dari @TotalText</span>
+            @if (TotalPages > 1)
+            {
+                <BbPagination TotalPages="TotalPages" CurrentPage="result.Page" CurrentPageChanged="Reload" />
+            }
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public string DocType { get; set; } = "";
+    private const string DateFmt = "yyyy-MM-dd";
+
+    private CompiledDocType? meta;
+    private ListResponse? result;
+    private string? search, sortField, sortDir, error, fatal;
+    private readonly Dictionary<string, FilterClause> filters = new();
+
+    private bool HasStatus => meta!.Workflow is not null || meta.Def.Document.AllowSubmit;
+    private string TotalText => result is null ? "" : result.TotalCapped ? $"{result.Total:N0}+" : $"{result.Total:N0}";
+    private int TotalPages => result is null ? 0 : (int)Math.Ceiling(result.Total / (double)result.PageSize);
+
+    // Blazor memanggil OnParametersSet setiap kali layout induk dirender ulang (mis. jumlah notifikasi berubah).
+    // Muat ulang hanya bila parameter rute benar-benar berubah, agar isian/draft pengguna tidak hilang.
+    private string? loadedKey;
+    protected override async Task OnParametersSetAsync()
+    {
+        if (DocType == loadedKey) return;
+        loadedKey = DocType;
+        fatal = null; error = null; filters.Clear(); search = null; sortField = null; result = null;
+        if (!Metadata.Current.TryGet(DocType, out var m) || m.Def.IsChild) { fatal = $"DocType '{DocType}' tidak ditemukan."; return; }
+        meta = m;
+        if (!Perms.Can(Current.Required, meta, DocActions.Read)) { fatal = $"Anda tidak memiliki akses untuk melihat {meta.Title}."; return; }
+        await Reload(1);
+    }
+
+    private void Go(string name) => Nav.NavigateTo($"/app/{DocType}/{name}");
+
+    private string LabelOf(string field) => field switch
+    {
+        "name" => "Nomor",
+        StandardFields.WorkflowState => "Status",
+        StandardFields.Modified => "Diubah",
+        _ => meta!.ByName.TryGetValue(field, out var f) ? f.Label : field
+    };
+
+    private IEnumerable<SelectOption<string>>? FilterOptions(string field)
+    {
+        IEnumerable<SelectOption<string>>? opts = null;
+        if (field == StandardFields.WorkflowState && meta!.Workflow is not null)
+            opts = meta.Workflow.Def.States.Select(s => new SelectOption<string>(s.Name, s.Name));
+        else if (meta!.ByName.TryGetValue(field, out var f) && f.Type.Editor == "select")
+            opts = (f.Def.Options ?? []).Select(o => new SelectOption<string>(o, o));
+        else if (f is not null && f.Type.Editor == "check")
+            opts = [new("true", "Ya"), new("false", "Tidak")];
+        return opts?.Prepend(new SelectOption<string>("", "Semua")).ToList();
+    }
+
+    private Task OnSearch(string? v) { search = v; return Reload(1); }
+
+    private Task SetFilter(string field, string? value)
+    {
+        if (string.IsNullOrEmpty(value)) filters.Remove(field);
+        else
+        {
+            var op = meta!.ByName.TryGetValue(field, out var f) && f.Def.Type == "Date" ? ">=" : "=";
+            filters[field] = new FilterClause(field, op, value);
+        }
+        return Reload(1);
+    }
+
+    private Task Sort(string field)
+    {
+        sortDir = sortField == field && sortDir == "asc" ? "desc" : "asc";
+        sortField = field;
+        return Reload(1);
+    }
+
+    private RenderFragment SortHeader(string field, string label) => __builder =>
+    {
+        var dir = sortField == field ? (sortDir == "asc" ? "ascending" : "descending") : "none";
+        <th scope="col" aria-sort="@dir" class="@(meta!.ByName.GetValueOrDefault(field)?.Type.Editor == "number" ? "num" : "")">
+            <button class="sort-btn" @onclick="() => Sort(field)">@label
+                @if (dir != "none") { <LucideIcon Name="@(dir == "ascending" ? "arrow-up" : "arrow-down")" Size="14" /> }
+            </button>
+        </th>
+    };
+
+    private async Task Reload(int page)
+    {
+        try
+        {
+            error = null;
+            result = await Docs.ListAsync(Current.Required, DocType, new ListRequest(filters.Values.ToList(), search, sortField, sortDir, page));
+        }
+        catch (Exception ex) when (ex is InvalidPayloadException or PermissionDeniedException)
+        {
+            error = ex.Message;
+        }
+    }
+}

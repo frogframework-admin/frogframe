@@ -1,0 +1,83 @@
+@* Field Link: BbCombobox dengan pencarian sisi server (tenant- & permission-aware lewat DocumentService). *@
+@inject DocumentService Docs
+@inject CurrentUser Current
+@implements IDisposable
+
+<div class="link-row">
+    <BbCombobox TValue="string" Value="@Value" ValueChanged="Pick" Options="options" SearchQuery="@query" SearchQueryChanged="Search"
+                Placeholder="@($"Pilih {Label.ToLowerInvariant()}…")" SearchPlaceholder="@($"Cari {Target}…")"
+                EmptyMessage="@(loading ? "Mencari…" : $"Tidak ada {Target} yang cocok")" SelectedItemText="@SelectedText"
+                IsLoading="loading" AriaLabel="@Label" MatchTriggerWidth="true" AdditionalAttributes="IdAttr" />
+    @if (ShowLookup)
+    {
+        <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Icon" AriaLabel="@($"Pilih {Label} dari daftar")" OnClick="() => lookupOpen = true">
+            <LucideIcon Name="list" Size="16" />
+        </BbButton>
+        <LookupDialog Target="@Target" @bind-Open="lookupOpen" Title="@($"Pilih {Label.ToLowerInvariant()}")" Filters="LookupFilters"
+                      OnSelected="PickFirst" />
+    }
+</div>
+
+@code {
+    [Parameter] public string? Id { get; set; }
+    [Parameter, EditorRequired] public string Target { get; set; } = "";
+    [Parameter] public string Label { get; set; } = "";
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public EventCallback<string?> ValueChanged { get; set; }
+    /// <summary>Tampilkan tombol yang membuka LookupDialog (metadata: "lookupDialog": true).</summary>
+    [Parameter] public bool ShowLookup { get; set; }
+    [Parameter] public IReadOnlyList<FilterClause>? LookupFilters { get; set; }
+
+    private bool lookupOpen;
+
+    private List<SelectOption<string>> options = [];
+    private readonly Dictionary<string, string> titles = new();
+    private string query = "";
+    private bool loading;
+    private CancellationTokenSource? cts;
+
+    private Dictionary<string, object> IdAttr => Id is null ? new() : new() { ["id"] = Id };
+    private string? SelectedText => Value is null ? null : titles.TryGetValue(Value, out var t) ? $"{Value} · {t}" : Value;
+
+    protected override async Task OnInitializedAsync() => await Load("");
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Pastikan judul nilai terpilih tersedia meski tidak ada di hasil pencarian terakhir.
+        if (Value is not null && !titles.ContainsKey(Value)) await Load(Value);
+    }
+
+    private async Task Search(string q)
+    {
+        query = q;
+        cts?.Cancel();
+        cts = new CancellationTokenSource();
+        var token = cts.Token;
+        try
+        {
+            await Task.Delay(200, token);
+            await Load(q, token);
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private async Task Load(string q, CancellationToken ct = default)
+    {
+        loading = true;
+        try
+        {
+            var found = await Docs.SearchLinkAsync(Current.Required, Target, q, ct);
+            foreach (var f in found) titles[f.Name] = f.Title ?? "";
+            options = found.Select(f => new SelectOption<string>(f.Name, string.IsNullOrEmpty(f.Title) ? f.Name : $"{f.Name} · {f.Title}")).ToList();
+        }
+        catch (PermissionDeniedException) { options = []; }
+        finally { loading = false; }
+    }
+
+    private Task Pick(string? v) => ValueChanged.InvokeAsync(v);
+
+    private Task PickFirst(IReadOnlyList<Dictionary<string, object?>> rows) =>
+        rows.Count > 0 ? Pick(rows[0]["name"] as string) : Task.CompletedTask;
+
+    public void Dispose() => cts?.Cancel();
+}

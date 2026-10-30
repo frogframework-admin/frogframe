@@ -1,0 +1,16 @@
+**/.git
+**/.gitignore
+**/.vs
+**/.vscode
+**/.idea
+**/bin/
+**/obj/
+**/out/
+tests/
+deploy/
+docs/
+*.md
+*.log
+.DS_Store
+Thumbs.db
+

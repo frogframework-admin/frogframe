@@ -1,0 +1,77 @@
+@page "/report-templates"
+@using Framework.Dashboards
+@using Framework.Reports
+@inject ReportTemplateService Reports
+@inject CurrentUser Current
+@inject ToastService Toasts
+@inject DialogService Dialogs
+
+<PageTitle>Laporan Excel/Word · DocFrame</PageTitle>
+
+<header class="page-head">
+    <div><h1>Laporan Excel/Word</h1><p>Laporan dari query yang diisi ke template Excel atau Word milik Anda.</p></div>
+    @if (designer) { <BbButton Href="/report-templates/new"><LucideIcon Name="plus" Size="16" /> Template baru</BbButton> }
+</header>
+
+@if (!Reports.IsAvailable)
+{
+    <UnavailableNotice />
+}
+else if (items is null)
+{
+    <BbSkeleton Height="10rem" />
+}
+else if (items.Count == 0)
+{
+    <BbEmpty Title="Belum ada template laporan" Description="@(designer ? "Buat template: tulis query, unggah file Excel/Word bertag, simpan." : "Hubungi administrator untuk menambahkan laporan.")" />
+}
+else
+{
+    <div class="table-wrap">
+        <table class="data">
+            <thead><tr><th>Laporan</th><th>Format</th><th>Parameter</th><th>Dibuat oleh</th><th>Diubah</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var d in items)
+                {
+                    var item = d;
+                    <tr>
+                        <td><a href="@($"/report-templates/{item.Id}")"><strong>@item.Name</strong></a>@if (item.Description is not null) { <div class="muted small">@item.Description</div> }</td>
+                        <td class="nowrap"><LucideIcon Name="@(item.Config.Format == ReportFormats.Xlsx ? "file-spreadsheet" : "file-text")" Size="16" /> @(item.Config.Format == ReportFormats.Xlsx ? "Excel" : "Word")</td>
+                        <td>@(item.Config.Parameters.Count == 0 ? "—" : string.Join(", ", item.Config.Parameters.Select(p => p.Label)))</td>
+                        <td>@(item.Config.Roles.Count == 0 ? "Semua" : string.Join(", ", item.Config.Roles))</td>
+                        <td class="muted nowrap">v@(item.Version) · @Fmt.When(item.UpdatedAt)</td>
+                        <td class="nowrap">
+                            <BbButton Size="ButtonSize.Small" Href="@($"/report-templates/{item.Id}")"><LucideIcon Name="file-down" Size="15" /> Buat</BbButton>
+                            @if (designer)
+                            {
+                                <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" Href="@($"/report-templates/{item.Id}/edit")"><LucideIcon Name="pencil" Size="15" /> Edit</BbButton>
+                                <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@($"Hapus {item.Name}")" OnClick="() => Delete(item)"><LucideIcon Name="trash-2" Size="15" /></BbButton>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private IReadOnlyList<ReportTemplateDef>? items;
+    private bool designer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        designer = ReportTemplateService.CanDesign(Current.Required);
+        if (Reports.IsAvailable) items = await Reports.ListAsync(Current.Required);
+    }
+
+    private async Task Delete(ReportTemplateDef d)
+    {
+        var ok = await Dialogs.ConfirmAsync($"Hapus laporan {d.Name}?", "Template dan file-nya dihapus. Tindakan ini tidak bisa dibatalkan.",
+            new ConfirmDialogOptions { Destructive = true, ConfirmText = "Hapus", CancelText = "Batal" });
+        if (!ok.Confirmed) return;
+        await Reports.DeleteAsync(Current.Required, d.Id);
+        Toasts.Success("Template laporan dihapus.", d.Name);
+        items = await Reports.ListAsync(Current.Required);
+    }
+}

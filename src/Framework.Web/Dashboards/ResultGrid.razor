@@ -1,0 +1,37 @@
+@* Data grid hasil query (pratinjau dan widget tipe Tabel). *@
+@using System.Globalization
+@using Framework.Dashboards
+
+<div class="result-grid" style="max-height:@MaxHeight">
+    <table class="data">
+        <thead><tr>@foreach (var c in Result.Columns) { <th class="@(c.Kind == "number" ? "num" : "")">@c.Name<span class="col-kind">@KindLabel(c.Kind)</span></th> }</tr></thead>
+        <tbody>
+            @foreach (var row in Result.Rows)
+            {
+                <tr>
+                    @for (var i = 0; i < Result.Columns.Count; i++)
+                    {
+                        var v = row[i];
+                        <td class="@(Result.Columns[i].Kind == "number" ? "num" : "")">@(v switch { null => "—", decimal d => d.ToString("#,0.##", Id), bool b => b ? "Ya" : "Tidak", _ => v.ToString() })</td>
+                    }
+                </tr>
+            }
+            @if (Result.Rows.Count == 0) { <tr><td colspan="@Math.Max(Result.Columns.Count, 1)" class="grid-empty">Query berhasil, tidak ada baris.</td></tr> }
+        </tbody>
+    </table>
+</div>
+@if (ShowFooter)
+{
+    <div class="result-footer muted small">
+        @Result.Rows.Count baris · @Result.Columns.Count kolom · @Result.ElapsedMs ms
+        @if (Result.Truncated) { <BbBadge Variant="BadgeVariant.Warning">dibatasi @Result.Rows.Count baris pertama</BbBadge> }
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public QueryResultSet Result { get; set; } = default!;
+    [Parameter] public string MaxHeight { get; set; } = "24rem";
+    [Parameter] public bool ShowFooter { get; set; }
+    private static readonly CultureInfo Id = CultureInfo.GetCultureInfo("id-ID");
+    private static string KindLabel(string k) => k switch { "number" => "angka", "date" => "tanggal", "boolean" => "ya/tidak", _ => "teks" };
+}

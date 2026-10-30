@@ -1,0 +1,136 @@
+@inject DocumentEvaluator Evaluator
+@inject CurrentUser Current
+@inject DocumentService Docs
+@inject IMetadataProvider Metadata
+
+<div class="grid-wrap">
+    <table class="grid">
+        <thead>
+            <tr>
+                <th class="idx" scope="col">#</th>
+                @foreach (var f in ChildMeta.Fields)
+                {
+                    <th scope="col" class="@(f.Type.Editor == "number" ? "num" : "")">
+                        @f.Label@if (f.Def.RequiredWhen is "true" && !ReadOnly) { <span class="req" aria-hidden="true"> *</span> }
+                    </th>
+                }
+                @if (!ReadOnly) { <th class="row-act"><span class="sr-only">Aksi</span></th> }
+            </tr>
+        </thead>
+        <tbody>
+            @for (var i = 0; i < Rows.Count; i++)
+            {
+                var row = Rows[i]; var idx = i;
+                <tr>
+                    <td class="idx">@(i + 1)</td>
+                    @foreach (var f in ChildMeta.Fields)
+                    {
+                        var path = $"{Table.Name}[{idx}].{f.Name}";
+                        var state = Evaluator.StateOf(f, row, Current.Required, Parent);
+                        var err = Errors.GetValueOrDefault(path);
+                        <td class="@(f.Type.Editor == "text" ? "wide" : "")">
+                            <FieldInput Field="f" DocType="@ChildMeta.Name" Value="row.GetValueOrDefault(f.Name)" Compact="true"
+                                        ReadOnly="@(ReadOnly || state.ReadOnly)" Invalid="@(err is not null)"
+                                        Id="@($"{Table.Name}-{idx}-{f.Name}")"
+                                        ValueChanged="v => SetCell(row, f.Name, v)" />
+                            @if (err is not null) { <span class="cell-error">@err</span> }
+                        </td>
+                    }
+                    @if (!ReadOnly)
+                    {
+                        <td class="row-act">
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@($"Hapus baris {i + 1}")" OnClick="() => Remove(idx)">
+                                <LucideIcon Name="trash-2" Size="16" />
+                            </BbButton>
+                        </td>
+                    }
+                </tr>
+            }
+            @if (Rows.Count == 0)
+            {
+                <tr><td colspan="@(ChildMeta.Fields.Count + 2)" class="grid-empty">Belum ada baris.@(ReadOnly ? "" : " Tambahkan item pertama.")</td></tr>
+            }
+        </tbody>
+    </table>
+</div>
+@if (!ReadOnly)
+{
+    <div class="row" style="margin-top:.6rem">
+        @if (Lookup is not null)
+        {
+            <BbButton Size="ButtonSize.Small" OnClick="() => lookupOpen = true">
+                <LucideIcon Name="list-plus" Size="16" /> @(Lookup.ButtonLabel ?? $"Tambah dari daftar {LookupTarget}")
+            </BbButton>
+        }
+        <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick="Add">
+            <LucideIcon Name="plus" Size="16" /> Tambah baris
+        </BbButton>
+    </div>
+    @if (Lookup is not null && LookupTarget is not null)
+    {
+        <LookupDialog Target="@LookupTarget" @bind-Open="lookupOpen" Multiple="@Lookup.Multiple"
+                      Exclude="ExistingLinks" OnSelected="AddFromLookup" />
+    }
+}
+
+@code {
+    [Parameter, EditorRequired] public CompiledField Table { get; set; } = default!;
+    [Parameter, EditorRequired] public CompiledDocType ChildMeta { get; set; } = default!;
+    [Parameter, EditorRequired] public List<Dictionary<string, object?>> Rows { get; set; } = default!;
+    [Parameter] public IReadOnlyDictionary<string, object?>? Parent { get; set; }
+    [Parameter] public bool ReadOnly { get; set; }
+    [Parameter] public IReadOnlyDictionary<string, string> Errors { get; set; } = new Dictionary<string, string>();
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private bool lookupOpen;
+    private LookupAddDef? Lookup => Table.Def.AddFromLookup;
+    private string? LookupTarget => Lookup is null ? null : ChildMeta.ByName.GetValueOrDefault(Lookup.LinkField)?.Def.LinkTo;
+
+    /// <summary>Dokumen yang sudah ada di tabel tidak bisa dipilih lagi.</summary>
+    private IReadOnlySet<string> ExistingLinks =>
+        Rows.Select(r => r.GetValueOrDefault(Lookup!.LinkField) as string).OfType<string>().ToHashSet();
+
+    /// <summary>Satu baris baru per dokumen terpilih: isi field Link, lalu salin field sesuai addFromLookup.map.</summary>
+    private async Task AddFromLookup(IReadOnlyList<Dictionary<string, object?>> picked)
+    {
+        foreach (var p in picked)
+        {
+            var name = (string)p["name"]!;
+            if (ExistingLinks.Contains(name)) continue;
+            // Muat dokumen lengkap lewat DocumentService (permission & tenant tetap dicek), karena kolom list view
+            // belum tentu memuat semua field yang dipetakan.
+            var source = await Docs.GetAsync(Current.Required, LookupTarget!, name);
+            var row = new Dictionary<string, object?>();
+            foreach (var f in ChildMeta.Fields) row[f.Name] = Evaluator.DefaultFor(f, Current.Required);
+            row[Lookup!.LinkField] = name;
+            foreach (var (childField, sourceField) in Lookup.Map)
+                if (ChildMeta.ByName.TryGetValue(childField, out var cf))
+                {
+                    var n = cf.Type.Normalize(source.Data.GetValueOrDefault(sourceField));
+                    if (n.Ok && n.Value is not null) row[childField] = n.Value;
+                }
+            Rows.Add(row);
+        }
+        await OnChanged.InvokeAsync();
+    }
+
+    private Task SetCell(Dictionary<string, object?> row, string field, object? value)
+    {
+        row[field] = value;
+        return OnChanged.InvokeAsync();
+    }
+
+    private Task Add()
+    {
+        var row = new Dictionary<string, object?>();
+        foreach (var f in ChildMeta.Fields) row[f.Name] = Evaluator.DefaultFor(f, Current.Required);
+        Rows.Add(row);
+        return OnChanged.InvokeAsync();
+    }
+
+    private Task Remove(int i)
+    {
+        Rows.RemoveAt(i);
+        return OnChanged.InvokeAsync();
+    }
+}

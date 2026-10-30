@@ -1,0 +1,201 @@
+@page "/admin/metadata/new"
+@using System.Text.RegularExpressions
+@using System.Text.Json
+@inject MetadataRegistry Registry
+@inject CurrentUser Current
+@inject ToastService Toasts
+@inject NavigationManager Nav
+
+<PageTitle>Buat DocType · DocFrame</PageTitle>
+
+@if (!Current.Required.Roles.Contains(UserContext.SystemManager))
+{
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>Halaman ini hanya untuk System Manager.</BbAlertDescription></BbAlert>
+}
+else
+{
+    <BbBreadcrumb Class="crumbs">
+        <BbBreadcrumbList>
+            <BbBreadcrumbItem><BbBreadcrumbLink Href="/admin/metadata">Metadata</BbBreadcrumbLink></BbBreadcrumbItem>
+            <BbBreadcrumbSeparator />
+            <BbBreadcrumbItem><BbBreadcrumbPage>DocType baru</BbBreadcrumbPage></BbBreadcrumbItem>
+        </BbBreadcrumbList>
+    </BbBreadcrumb>
+    <header class="page-head">
+        <div><h1>Buat DocType</h1><p>Setelah dibuat, DocType langsung muncul di menu dan bisa disusun lebih lanjut di editor visual.</p></div>
+    </header>
+
+    <div class="new-doctype">
+        <BbCard>
+            <BbCardContent>
+                <div class="stack" style="padding-top:1.25rem">
+                    <BbField>
+                        <BbFieldLabel For="nd-title">Judul</BbFieldLabel>
+                        <BbInput Id="nd-title" Value="@title" ValueChanged="SetTitle" Placeholder="mis. Pengajuan Cuti" />
+                        <BbFieldDescription>Nama yang dilihat pengguna di menu dan judul halaman.</BbFieldDescription>
+                    </BbField>
+                    <BbField IsInvalid="@(NameError is not null)">
+                        <BbFieldLabel For="nd-name">Nama teknis</BbFieldLabel>
+                        <BbInput Id="nd-name" Class="code-input" Value="@name" ValueChanged="v => { name = (v ?? string.Empty).Trim(); nameTouched = true; }" />
+                        @if (NameError is not null) { <BbFieldError Errors="@(new[] { NameError })" /> }
+                        else { <BbFieldDescription>PascalCase tanpa spasi; dipakai di URL, API, dan relasi. Tidak bisa diubah.</BbFieldDescription> }
+                    </BbField>
+                    <BbField>
+                        <BbFieldLabel>Jenis</BbFieldLabel>
+                        <BbSelect TValue="string" Value="@kind" ValueChanged="v => kind = v ?? kind" AriaLabel="Jenis DocType"
+                                  Options="@(new[] { new SelectOption<string>("document", "Dokumen (punya daftar, form, dan nomor)"), new SelectOption<string>("child", "Baris child table (dipakai di dalam dokumen lain)") })" />
+                    </BbField>
+                    @if (kind == "document")
+                    {
+                        <BbField>
+                            <BbFieldLabel For="nd-module">Modul (grup menu)</BbFieldLabel>
+                            <BbInput Id="nd-module" @bind-Value="module" Placeholder="mis. HR" />
+                        </BbField>
+                        <BbField>
+                            <BbFieldLabel For="nd-naming">Pola nomor dokumen</BbFieldLabel>
+                            <BbInput Id="nd-naming" Class="code-input" Value="@Naming" ValueChanged="v => { naming = v; namingTouched = true; }" />
+                            <BbFieldDescription>Contoh nomor berikutnya: <code>@SampleName</code></BbFieldDescription>
+                        </BbField>
+                        <BbField>
+                            <BbFieldLabel>Template awal</BbFieldLabel>
+                            <BbSelect TValue="string" Value="@template" ValueChanged="v => template = v ?? template" AriaLabel="Template"
+                                      Options="@(new[] { new SelectOption<string>("approval", "Dokumen dengan persetujuan (field dasar + permission + workflow)"), new SelectOption<string>("basic", "Dokumen sederhana (field dasar + permission, tanpa workflow)"), new SelectOption<string>("empty", "Kosong (satu field judul)") })" />
+                        </BbField>
+                    }
+                    @if (error is not null) { <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@error</BbAlertDescription></BbAlert> }
+                    <div class="row">
+                        <BbButton Disabled="@(busy || NameError is not null || string.IsNullOrWhiteSpace(title))" OnClick="Create"><LucideIcon Name="plus" Size="16" /> Buat DocType</BbButton>
+                        <BbButton Variant="ButtonVariant.Ghost" Href="/admin/metadata">Batal</BbButton>
+                    </div>
+                </div>
+            </BbCardContent>
+        </BbCard>
+
+        <BbCard>
+            <BbCardHeader><BbCardTitle Class="card-title">Yang akan dibuat</BbCardTitle></BbCardHeader>
+            <BbCardContent>
+                <ul class="checklist">
+                    @foreach (var line in Summary) { <li><LucideIcon Name="check" Size="15" /> @line</li> }
+                </ul>
+                <p class="muted small">Semua bisa diubah setelahnya di editor visual (field, layout, akses) dan editor workflow.</p>
+            </BbCardContent>
+        </BbCard>
+    </div>
+}
+
+@code {
+    private string title = "", name = "", kind = "document", template = "approval";
+    private string? module, naming, error;
+    private bool nameTouched, namingTouched, busy;
+
+    private string Naming => namingTouched && naming is not null ? naming : $"{Prefix(name)}-{{YYYY}}-{{#####}}";
+    private string SampleName => Naming.Replace("{YYYY}", DateTime.Now.Year.ToString()).Replace("{MM}", DateTime.Now.ToString("MM"))
+        .Replace("{#####}", "00001").Replace("{####}", "0001").Replace("{###}", "001");
+
+    private string? NameError =>
+        name.Length == 0 ? (title.Length == 0 ? null : "Nama teknis wajib diisi")
+        : !Regex.IsMatch(name, "^[A-Z][A-Za-z0-9]{1,63}$") ? "Harus diawali huruf besar, hanya huruf dan angka (PascalCase)"
+        : Registry.Current.TryGet(name, out _) ? $"DocType '{name}' sudah ada"
+        : null;
+
+    private IEnumerable<string> Summary
+    {
+        get
+        {
+            if (kind == "child") { yield return "DocType baris (isChild) dengan field Keterangan"; yield return "Pakai lewat field Child table di DocType lain"; yield break; }
+            yield return template == "empty" ? "Field: Judul" : "Field: Judul, Tanggal, Keterangan";
+            yield return $"Nomor dokumen: {SampleName}";
+            if (template != "empty") yield return "Akses: karyawan membuat & mengelola dokumennya sendiri; System Manager semua";
+            else yield return "Akses: hanya System Manager (atur di tab Akses & alur)";
+            if (template == "approval") { yield return $"Workflow {name}Approval: Draft → Diajukan → Disetujui / Ditolak"; yield return "Atasan (role Manager) menyetujui atau menolak dengan komentar"; }
+            yield return $"Menu: {(string.IsNullOrWhiteSpace(module) ? "Umum" : module)} → {(string.IsNullOrWhiteSpace(title) ? "…" : title)}";
+        }
+    }
+
+    private void SetTitle(string? v)
+    {
+        title = v ?? string.Empty;
+        if (!nameTouched) name = ToPascal(title);
+    }
+
+    private static string ToPascal(string s) =>
+        string.Concat(Regex.Split(s, "[^A-Za-z0-9]+").Where(w => w.Length > 0).Select(w => char.ToUpperInvariant(w[0]) + w[1..]));
+
+    /// <summary>Prefix nomor dari huruf besar nama teknis, mis. PengajuanCuti → PC; satu kata → 3 huruf pertama.</summary>
+    private static string Prefix(string n)
+    {
+        var caps = new string(n.Where(char.IsUpper).ToArray());
+        return caps.Length >= 2 ? caps : n.Length >= 3 ? n[..3].ToUpperInvariant() : "DOC";
+    }
+
+    private DocTypeDef BuildDef()
+    {
+        var def = new DocTypeDef { Name = name, Version = 1, Title = title.Trim(), IsChild = kind == "child" };
+        if (def.IsChild)
+        {
+            def.Fields = [new FieldDef { Name = "keterangan", Type = "Data", Label = "Keterangan", RequiredWhen = "true" }];
+            return def;
+        }
+        def.Module = string.IsNullOrWhiteSpace(module) ? null : module.Trim();
+        def.Naming = new NamingDef { Pattern = Naming };
+        def.Document = new DocumentDef { AllowAmend = template == "approval", AllowDelete = true };
+        def.Fields = [new FieldDef { Name = "judul", Type = "Data", Label = "Judul", RequiredWhen = "true", InListView = true }];
+        if (template != "empty")
+        {
+            def.Fields.Add(new FieldDef { Name = "tanggal", Type = "Date", Label = "Tanggal", RequiredWhen = "true", InListView = true, Column = 2, Default = JsonSerializer.SerializeToElement("$today") });
+            def.Fields.Add(new FieldDef { Name = "keterangan", Type = "Text", Label = "Keterangan" });
+            def.Permissions =
+            [
+                new PermissionDef { Role = "Employee", Actions = ["read", "create", "write", "delete"], Scope = "owner" },
+            ];
+        }
+        def.ListView = new ListViewDef { TitleField = "judul", SearchFields = ["name", "judul"], Filters = template == "empty" ? [] : ["tanggal"] };
+        return def;
+    }
+
+    private void Create()
+    {
+        error = null; busy = true;
+        try
+        {
+            var def = BuildDef();
+            var preview = Registry.Preview(def);
+            if (!preview.Valid) { error = string.Join(" ", preview.Errors.Select(e => e.Message)); return; }
+            Registry.Publish(def, Current.Required.Id, acknowledgeRisk: false);
+            if (kind == "document" && template == "approval")
+            {
+                // Approval: permission Manager membaca semua (untuk menyetujui) + workflow dipasang sekaligus.
+                var withManager = MetadataJson.ParseDocType(MetadataJson.Serialize(Registry.Current.Get(name).Def));
+                withManager.Version = 2;
+                withManager.Permissions.Add(new PermissionDef { Role = "Manager", Actions = ["read", "report"], Scope = "all" });
+                Registry.Publish(withManager, Current.Required.Id, acknowledgeRisk: true);
+                Registry.PublishWorkflow(ApprovalWorkflow(), Current.Required.Id, acknowledgeRisk: true, attach: true);
+            }
+            Toasts.Success("Susun field dan akses di editor visual.", $"DocType {name} dibuat");
+            Nav.NavigateTo($"/admin/metadata/{name}/editor");
+        }
+        catch (Exception ex) when (ex is MetadataCompilationException or InvalidOperationException)
+        {
+            error = ex.Message;
+        }
+        finally { busy = false; }
+    }
+
+    private WorkflowDef ApprovalWorkflow() => new()
+    {
+        Name = $"{name}Approval", DocType = name, Version = 1, InitialState = "Draft",
+        States =
+        [
+            new() { Name = "Draft", DocStatus = 0, Tone = "neutral" },
+            new() { Name = "Diajukan", DocStatus = 1, Tone = "pending" },
+            new() { Name = "Disetujui", DocStatus = 1, Tone = "positive" },
+            new() { Name = "Ditolak", DocStatus = 2, Tone = "negative" },
+        ],
+        Transitions =
+        [
+            new() { From = "Draft", To = "Diajukan", Action = "Ajukan", AllowedRoles = ["Employee"], Condition = "owner == user.id" },
+            new() { From = "Diajukan", To = "Disetujui", Action = "Setujui", AllowedRoles = ["Manager"], Condition = "owner != user.id" },
+            new() { From = "Diajukan", To = "Ditolak", Action = "Tolak", AllowedRoles = ["Manager"], Condition = "owner != user.id", RequireComment = true },
+        ],
+    };
+}

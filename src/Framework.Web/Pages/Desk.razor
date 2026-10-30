@@ -1,0 +1,84 @@
+@page "/"
+@inject DocumentService Docs
+@inject CurrentUser Current
+@inject IMetadataProvider Metadata
+@inject IPermissionService Perms
+@inject NavigationManager Nav
+
+<PageTitle>Beranda · DocFrame</PageTitle>
+
+<header class="page-head">
+    <div>
+        <h1>Halo, @Current.Required.FullName.Split(' ')[0]</h1>
+        <p>@string.Join(", ", Current.Required.Roles)@(Current.Required.Attr("department") is { } d ? $" · Departemen {d}" : "")</p>
+    </div>
+</header>
+
+<div class="stack">
+    <BbCard>
+        <BbCardHeader>
+            <BbCardTitle Class="card-title">Menunggu tindakan Anda</BbCardTitle>
+            <BbCardDescription>Dokumen yang saat ini bisa Anda proses sesuai role dan cakupan data.</BbCardDescription>
+        </BbCardHeader>
+        <BbCardContent>
+            @if (pending is null)
+            {
+                <div class="stack"><BbSkeleton Height="2rem" /><BbSkeleton Height="2rem" /></div>
+            }
+            else if (pending.Count == 0)
+            {
+                <BbEmpty Title="Tidak ada yang menunggu" Description="Semua dokumen yang melibatkan Anda sudah diproses." Size="EmptySize.Small">
+                    <Icon><LucideIcon Name="check" Size="24" /></Icon>
+                </BbEmpty>
+            }
+            else
+            {
+                <div class="table-wrap">
+                    <table class="data">
+                        <thead><tr><th>Dokumen</th><th>Pemohon / judul</th><th class="num">Total</th><th>Status</th><th>Aksi tersedia</th></tr></thead>
+                        <tbody>
+                            @foreach (var (meta, doc, actions) in pending)
+                            {
+                                <tr class="clickable" @onclick="@(() => Nav.NavigateTo($"/app/{meta.Name}/{doc.Name}"))">
+                                    <td><a class="doc-link" href="/app/@meta.Name/@doc.Name">@doc.Name</a><div class="muted small">@meta.Title</div></td>
+                                    <td>@Fmt.Value(null, meta.Def.ListView.TitleField is { } tf ? doc.Get(tf) : null)</td>
+                                    <td class="num">@(meta.ByName.TryGetValue("total", out var tf2) ? Fmt.Value(tf2, doc.Get("total")) : "")</td>
+                                    <td><StatusBadge Label="@Fmt.StateLabel(doc.WorkflowState, doc.DocStatus)" Tone="@Fmt.Tone(meta, doc)" /></td>
+                                    <td class="muted">@string.Join(" · ", actions)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </BbCardContent>
+    </BbCard>
+
+    <div class="shortcuts">
+        @foreach (var m in Metadata.Current.DocTypes.Values.Where(m => !m.Def.IsChild && Perms.Can(Current.Required, m, DocActions.Read)))
+        {
+            <BbCard>
+                <BbCardHeader>
+                    <BbCardTitle Class="card-title"><a href="/app/@m.Name" style="color:inherit;text-decoration:none">@m.Title</a></BbCardTitle>
+                    <BbCardDescription>@(m.Def.Description ?? $"Modul {m.Def.Module}")</BbCardDescription>
+                </BbCardHeader>
+                <BbCardFooter>
+                    <div class="row">
+                        <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Href="@($"/app/{m.Name}")">Lihat daftar</BbButton>
+                        @if (Perms.Can(Current.Required, m, DocActions.Create))
+                        {
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" Href="@($"/app/{m.Name}/new")"><LucideIcon Name="plus" Size="16" /> Buat baru</BbButton>
+                        }
+                    </div>
+                </BbCardFooter>
+            </BbCard>
+        }
+    </div>
+</div>
+
+@code {
+    private IReadOnlyList<(CompiledDocType, Document, IReadOnlyList<string>)>? pending;
+
+    protected override async Task OnInitializedAsync() =>
+        pending = await Docs.PendingActionsAsync(Current.Required);
+}

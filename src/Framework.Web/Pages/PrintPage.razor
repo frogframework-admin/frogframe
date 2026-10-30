@@ -1,0 +1,71 @@
+@page "/print/{DocType}/{Name}"
+@layout PrintLayout
+@inject PrintService Printer
+@inject DocumentService Docs
+@inject CurrentUser Current
+@inject IJSRuntime JS
+
+<PageTitle>Cetak @Name · DocFrame</PageTitle>
+
+<style>
+    body { background: var(--muted); }
+    .print-toolbar { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: .5rem; flex-wrap: wrap;
+        padding: .6rem 1rem; background: var(--background); border-bottom: 1px solid var(--border); margin-bottom: 24px; }
+    .print-toolbar .t { font-weight: 600; margin-right: auto; }
+    .print-stage { padding: 0 1rem 2rem; overflow-x: auto; }
+    @@media print {
+        body { background: #fff !important; }
+        .print-toolbar, #components-reconnect-modal { display: none !important; }
+        .print-stage { padding: 0; overflow: visible; }
+    }
+</style>
+<style>@((MarkupString)PrintStyles.Css)</style>
+
+@if (Current.User is null)
+{
+    <div class="print-stage"><BbAlert Variant="AlertVariant.Warning"><BbAlertDescription>Masuk terlebih dahulu untuk mencetak dokumen.</BbAlertDescription></BbAlert></div>
+}
+else if (error is not null)
+{
+    <div class="print-stage"><BbAlert Variant="AlertVariant.Danger"><BbAlertTitle>Tidak dapat dicetak</BbAlertTitle><BbAlertDescription>@error</BbAlertDescription></BbAlert></div>
+}
+else if (model is not null)
+{
+    <div class="print-toolbar">
+        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" Href="@($"/app/{DocType}/{Name}")"><LucideIcon Name="arrow-left" Size="16" /> Kembali</BbButton>
+        <span class="t">@model.Title @model.DocName</span>
+        <BbButton OnClick="PrintNow"><LucideIcon Name="printer" Size="16" /> Cetak</BbButton>
+        <BbButton Variant="ButtonVariant.Outline" Href="@($"/api/print/{DocType}/{Name}/pdf")"><LucideIcon Name="file-down" Size="16" /> Unduh PDF</BbButton>
+    </div>
+    <div class="print-stage"><PrintDocument Model="model" /></div>
+}
+else
+{
+    <div class="print-stage"><BbSkeleton Height="40rem" /></div>
+}
+
+@code {
+    [Parameter] public string DocType { get; set; } = "";
+    [Parameter] public string Name { get; set; } = "";
+    private PrintModel? model;
+    private string? error;
+
+    // Blazor memanggil OnParametersSet setiap kali layout induk dirender ulang (mis. jumlah notifikasi berubah).
+    // Muat ulang hanya bila parameter rute benar-benar berubah, agar isian/draft pengguna tidak hilang.
+    private string? loadedKey = "\0";
+    protected override async Task OnParametersSetAsync()
+    {
+        var key = $"{DocType}/{Name}";
+        if (key == loadedKey) return;
+        loadedKey = key;
+        if (Current.User is null) return;
+        try { model = await Printer.BuildAsync(Current.User, DocType, Name); }
+        catch (Exception ex) when (ex is DocumentNotFoundException or PermissionDeniedException or KeyNotFoundException) { error = ex.Message; }
+    }
+
+    private async Task PrintNow()
+    {
+        await Docs.LogPrintAsync(Current.Required, DocType, Name, "Cetak browser");
+        await JS.InvokeVoidAsync("print");
+    }
+}

@@ -1,0 +1,111 @@
+/* DocFrame — tema BlazorBlueprint (variabel shadcn/ui, ruang warna OKLCH).
+ * Dimuat SEBELUM blazorblueprint.css. Dapat diganti dengan tema dari tweakcn.com. */
+@layer base {
+  :root {
+    --background: oklch(0.985 0.002 260);
+    --foreground: oklch(0.21 0.02 260);
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.21 0.02 260);
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0.21 0.02 260);
+    --primary: oklch(0.43 0.15 278);            /* tinta stempel ungu-biru */
+    --primary-foreground: oklch(0.985 0 0);
+    --secondary: oklch(0.955 0.006 270);
+    --secondary-foreground: oklch(0.27 0.03 270);
+    --muted: oklch(0.955 0.004 260);
+    --muted-foreground: oklch(0.52 0.02 260);
+    --accent: oklch(0.945 0.02 278);
+    --accent-foreground: oklch(0.32 0.11 278);
+    --destructive: oklch(0.55 0.2 27);
+    --destructive-foreground: oklch(0.985 0 0);
+    --border: oklch(0.905 0.006 260);
+    --input: oklch(0.89 0.008 260);
+    --ring: oklch(0.6 0.12 278);
+    --chart-1: oklch(0.43 0.15 278);
+    --chart-2: oklch(0.6 0.13 160);
+    --chart-3: oklch(0.7 0.14 70);
+    --chart-4: oklch(0.55 0.2 27);
+    --chart-5: oklch(0.6 0.08 230);
+    --sidebar: oklch(0.975 0.003 260);
+    --sidebar-foreground: oklch(0.27 0.02 260);
+    --sidebar-primary: oklch(0.43 0.15 278);
+    --sidebar-primary-foreground: oklch(0.985 0 0);
+    --sidebar-accent: oklch(0.935 0.018 278);
+    --sidebar-accent-foreground: oklch(0.3 0.11 278);
+    --sidebar-border: oklch(0.91 0.006 260);
+    --sidebar-ring: oklch(0.6 0.12 278);
+    --alert-success: oklch(0.55 0.15 155);
+    --alert-success-foreground: oklch(0.32 0.08 155);
+    --alert-success-bg: oklch(0.985 0.012 155);
+    --alert-info: oklch(0.5 0.15 260);
+    --alert-info-foreground: oklch(0.3 0.08 260);
+    --alert-info-bg: oklch(0.985 0.01 260);
+    --alert-warning: oklch(0.66 0.15 65);
+    --alert-warning-foreground: oklch(0.38 0.09 60);
+    --alert-warning-bg: oklch(0.99 0.015 75);
+    --alert-danger: oklch(0.55 0.2 27);
+    --alert-danger-foreground: oklch(0.36 0.12 27);
+    --alert-danger-bg: oklch(0.985 0.012 27);
+    --font-sans: "Public Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --radius: 0.5rem;
+    --shadow-sm: 0 1px 2px 0 oklch(0.2 0.02 260 / 0.06);
+    --shadow: 0 1px 3px 0 oklch(0.2 0.02 260 / 0.08), 0 1px 2px -1px oklch(0.2 0.02 260 / 0.08);
+    --shadow-md: 0 4px 10px -2px oklch(0.2 0.02 260 / 0.1);
+    --shadow-lg: 0 10px 24px -6px oklch(0.2 0.02 260 / 0.14);
+    --spacing: 0.25rem;
+
+    /* Warna status dokumen (cap stempel) */
+    --tone-neutral: var(--primary);
+    --tone-pending: oklch(0.58 0.13 65);
+    --tone-positive: oklch(0.5 0.13 155);
+    --tone-negative: oklch(0.52 0.19 27);
+  }
+
+  .dark {
+    --background: oklch(0.17 0.012 265);
+    --foreground: oklch(0.95 0.005 260);
+    --card: oklch(0.205 0.014 265);
+    --card-foreground: oklch(0.95 0.005 260);
+    --popover: oklch(0.225 0.014 265);
+    --popover-foreground: oklch(0.95 0.005 260);
+    --primary: oklch(0.72 0.12 280);
+    --primary-foreground: oklch(0.18 0.03 280);
+    --secondary: oklch(0.27 0.014 265);
+    --secondary-foreground: oklch(0.93 0.005 260);
+    --muted: oklch(0.255 0.012 265);
+    --muted-foreground: oklch(0.7 0.015 260);
+    --accent: oklch(0.29 0.04 280);
+    --accent-foreground: oklch(0.9 0.04 280);
+    --destructive: oklch(0.66 0.19 25);
+    --destructive-foreground: oklch(0.98 0 0);
+    --border: oklch(0.3 0.012 265);
+    --input: oklch(0.34 0.014 265);
+    --ring: oklch(0.62 0.12 280);
+    --sidebar: oklch(0.19 0.013 265);
+    --sidebar-foreground: oklch(0.9 0.006 260);
+    --sidebar-primary: oklch(0.72 0.12 280);
+    --sidebar-primary-foreground: oklch(0.18 0.03 280);
+    --sidebar-accent: oklch(0.27 0.03 280);
+    --sidebar-accent-foreground: oklch(0.93 0.03 280);
+    --sidebar-border: oklch(0.28 0.012 265);
+    --sidebar-ring: oklch(0.62 0.12 280);
+    --alert-success: oklch(0.65 0.14 155);
+    --alert-success-foreground: oklch(0.9 0.05 155);
+    --alert-success-bg: oklch(0.21 0.02 155);
+    --alert-info: oklch(0.65 0.12 260);
+    --alert-info-foreground: oklch(0.9 0.04 260);
+    --alert-info-bg: oklch(0.21 0.02 260);
+    --alert-warning: oklch(0.72 0.13 70);
+    --alert-warning-foreground: oklch(0.92 0.06 75);
+    --alert-warning-bg: oklch(0.22 0.025 70);
+    --alert-danger: oklch(0.66 0.17 25);
+    --alert-danger-foreground: oklch(0.9 0.05 25);
+    --alert-danger-bg: oklch(0.21 0.025 25);
+    --tone-pending: oklch(0.78 0.13 75);
+    --tone-positive: oklch(0.74 0.13 155);
+    --tone-negative: oklch(0.72 0.16 25);
+  }
+
+  *, ::after, ::before, ::backdrop, ::file-selector-button { border-color: var(--border); }
+}

@@ -1,0 +1,29 @@
+{
+  "name": "Employee",
+  "version": 2,
+  "title": "Karyawan",
+  "module": "HR",
+  "naming": { "pattern": "EMP-{####}" },
+  "fields": [
+    { "name": "foto", "type": "Image", "label": "Foto", "inListView": true, "section": "Data karyawan" },
+    { "name": "employee_name", "type": "Data", "label": "Nama lengkap", "requiredWhen": "true", "inListView": true, "maxLength": 100, "section": "Data karyawan" },
+    { "name": "jabatan", "type": "Data", "label": "Jabatan", "inListView": true, "section": "Data karyawan" },
+    { "name": "email", "type": "Email", "label": "Email kantor", "section": "Data karyawan" },
+    { "name": "department", "type": "Link", "label": "Departemen", "linkTo": "Department", "lookupDialog": true, "requiredWhen": "true", "inListView": true, "section": "Data karyawan", "column": 2 },
+    { "name": "atasan_id", "type": "Link", "label": "Atasan", "linkTo": "Employee", "lookupDialog": true, "section": "Data karyawan", "column": 2,
+      "description": "Atasan langsung; dipakai di bagan organisasi." },
+    { "name": "atasan_name", "type": "Data", "label": "Nama atasan", "fetchFrom": "atasan_id.employee_name", "inListView": true, "section": "Data karyawan", "column": 2 },
+    { "name": "user_id", "type": "Data", "label": "ID pengguna", "description": "Akun yang terhubung dengan karyawan ini", "section": "Akun" },
+    { "name": "active", "type": "Check", "label": "Aktif", "default": true, "inListView": true, "section": "Akun", "column": 2 }
+  ],
+  "listView": {
+    "titleField": "employee_name",
+    "searchFields": ["name", "employee_name", "jabatan"],
+    "filters": ["department", "active"],
+    "defaultSort": [{ "field": "name", "direction": "asc" }]
+  },
+  "permissions": [
+    { "role": "Employee", "actions": ["read"], "scope": "all" }
+  ],
+  "api": { "enabled": true, "operations": ["list", "read"] }
+}

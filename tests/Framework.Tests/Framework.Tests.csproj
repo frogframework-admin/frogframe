@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Harness test tanpa paket NuGet (sandbox offline). Dapat dipindah ke xUnit: setiap [Test] = satu [Fact]. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="..\..\src\Framework.Core\Framework.Core.csproj" />
+    <ProjectReference Include="..\..\src\Framework.Web\Framework.Web.csproj" />
+    <ProjectReference Include="..\..\src\Apps.Sample\Apps.Sample.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\src\Apps.Sample\Metadata\*.json" Link="Metadata\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Framework.Persistence.PostgreSql\Framework.Persistence.PostgreSql.csproj" />
+  </ItemGroup>
+
+</Project>

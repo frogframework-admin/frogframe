@@ -1,0 +1,397 @@
+@page "/report-templates/new"
+@page "/report-templates/{TemplateId}/edit"
+@using Framework.Dashboards
+@using Framework.Reports
+@using Microsoft.AspNetCore.Components.Forms
+@inject ReportTemplateService Reports
+@inject IMetadataProvider Metadata
+@inject CurrentUser Current
+@inject ToastService Toasts
+@inject NavigationManager Nav
+
+<PageTitle>@(isEdit ? "Edit template laporan" : "Template laporan baru") · DocFrame</PageTitle>
+
+<BbBreadcrumb Class="crumbs">
+    <BbBreadcrumbList>
+        <BbBreadcrumbItem><BbBreadcrumbLink Href="/report-templates">Laporan Excel/Word</BbBreadcrumbLink></BbBreadcrumbItem>
+        <BbBreadcrumbSeparator />
+        <BbBreadcrumbItem><BbBreadcrumbPage>@(isEdit ? def.Name : "Baru")</BbBreadcrumbPage></BbBreadcrumbItem>
+    </BbBreadcrumbList>
+</BbBreadcrumb>
+
+@if (!ReportTemplateService.CanDesign(Current.Required))
+{
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>Merancang template laporan hanya untuk System Manager.</BbAlertDescription></BbAlert>
+}
+else if (!Reports.IsAvailable)
+{
+    <UnavailableNotice />
+}
+else
+{
+    <header class="page-head">
+        <div>
+            <h1>@(isEdit ? $"Edit: {def.Name}" : "Template laporan baru")</h1>
+            <p>Query SQL (read-only, terbatas tenant Anda) → parameter → template Excel/Word bertag → file laporan.</p>
+        </div>
+    </header>
+
+    <ol class="wizard-steps" aria-label="Langkah">
+        @foreach (var (n, title) in Steps)
+        {
+            var num = n;
+            <li class="@(step == num ? "current" : num < step ? "done" : "")">
+                <button type="button" disabled="@(num > maxStep)" @onclick="() => GoTo(num)" aria-current="@(step == num ? "step" : null)">
+                    <span class="step-num">@(num < step ? "✓" : num.ToString())</span><span>@title</span>
+                </button>
+            </li>
+        }
+    </ol>
+
+    @if (error is not null)
+    {
+        <BbAlert Variant="AlertVariant.Danger" Class="props-block"><BbAlertTitle>@errorTitle</BbAlertTitle><BbAlertDescription><span class="pre">@error</span></BbAlertDescription></BbAlert>
+    }
+
+    @switch (step)
+    {
+        case 1:
+            <div class="builder-grid">
+                <BbCard>
+                    <BbCardHeader>
+                        <BbCardTitle Class="card-title">1. Query data</BbCardTitle>
+                        <BbCardDescription>Satu perintah SELECT per query. Parameter ditulis <code>@@Nama</code>. Filter opsional: <code>(@@Dept IS NULL OR department = @@Dept)</code>.</BbCardDescription>
+                    </BbCardHeader>
+                    <BbCardContent>
+                        <div class="stack">
+                            <BbField>
+                                <BbFieldLabel For="sql">Query detail — baris-barisnya mengisi tag <code>[[Kolom]]</code></BbFieldLabel>
+                                <FormTextArea Id="sql" Value="@def.Config.Sql" ValueChanged="v => def.Config.Sql = v ?? string.Empty" Rows="10" />
+                            </BbField>
+                            <BbField>
+                                <BbFieldLabel For="header-sql">Query header (opsional, satu baris) — mengisi tag <code>{{Kolom}}</code></BbFieldLabel>
+                                <FormTextArea Id="header-sql" Value="@def.Config.HeaderSql" ValueChanged="v => def.Config.HeaderSql = string.IsNullOrWhiteSpace(v) ? null : v" Rows="4" />
+                                <BbFieldDescription>Untuk nama perusahaan, periode, atau total yang tampil sekali. Tanpa query header, {{Kolom}} diambil dari baris pertama query detail.</BbFieldDescription>
+                            </BbField>
+                            <div class="row"><BbButton OnClick="Detect"><LucideIcon Name="scan-search" Size="16" /> Lanjut: deteksi parameter</BbButton></div>
+                        </div>
+                    </BbCardContent>
+                </BbCard>
+                <BbCard>
+                    <BbCardHeader><BbCardTitle Class="card-title">View yang tersedia</BbCardTitle><BbCardDescription>Klik untuk menyisipkan ke query detail.</BbCardDescription></BbCardHeader>
+                    <BbCardContent>
+                        <div class="catalog">
+                            @foreach (var v in ReportingCatalog.Describe(Metadata.Current))
+                            {
+                                var view = v;
+                                <details>
+                                    <summary><button type="button" class="catalog-insert" @onclick="() => Insert(view.Name)" @onclick:stopPropagation="true"><code>@view.Name</code></button><span class="muted small">@view.Title</span></summary>
+                                    <ul>@foreach (var (col, type) in view.Columns) { var c = col; <li><button type="button" class="catalog-insert" @onclick="() => Insert(c)"><code>@c</code></button><span class="muted small">@type</span></li> }</ul>
+                                </details>
+                            }
+                        </div>
+                    </BbCardContent>
+                </BbCard>
+            </div>
+            break;
+
+        case 2:
+            <BbCard>
+                <BbCardHeader>
+                    <BbCardTitle Class="card-title">2. Parameter &amp; pratinjau data</BbCardTitle>
+                    <BbCardDescription>@(def.Config.Parameters.Count == 0 ? "Query tidak memakai parameter." : "Nilai default dipakai untuk pratinjau dan menjadi isian awal saat pengguna membuat laporan.")</BbCardDescription>
+                </BbCardHeader>
+                <BbCardContent>
+                    @if (def.Config.Parameters.Count > 0)
+                    {
+                        <div class="table-wrap">
+                            <table class="perm-table">
+                                <thead><tr><th>Parameter</th><th>Label</th><th>Tipe</th><th>Nilai default</th><th>Sumber nilai</th></tr></thead>
+                                <tbody>
+                                    @foreach (var prm in def.Config.Parameters)
+                                    {
+                                        var p = prm;
+                                        <tr>
+                                            <td><code>@@@p.Name</code></td>
+                                            <td style="min-width:9rem"><FormTextInput Value="@p.Label" ValueChanged="v => p.Label = v ?? p.Name" AriaLabel="@($"Label {p.Name}")" /></td>
+                                            <td style="min-width:8rem"><BbSelect TValue="string" Value="@p.Type" ValueChanged="v => { p.Type = v ?? ParamTypes.Text; p.DefaultValue = null; }" Options="TypeOptions" AriaLabel="@($"Tipe {p.Name}")" /></td>
+                                            <td style="min-width:11rem">
+                                                <FormTextInput Id="@($"pv-{p.Name}")" Type="@(p.Type == ParamTypes.Date ? "date" : p.Type == ParamTypes.Number ? "number" : "text")" Value="@p.DefaultValue"
+                                                               ValueChanged="v => p.DefaultValue = string.IsNullOrWhiteSpace(v) ? null : v" AriaLabel="@($"Nilai {p.Name}")" Placeholder="@(p.Type == ParamTypes.Boolean ? "true / false" : null)" />
+                                            </td>
+                                            <td style="min-width:14rem"><BbSelect TValue="string" Value="@p.Binding" ValueChanged="v => p.Binding = v ?? ParamBindings.Default" Options="BindingOptions(p)" AriaLabel="@($"Sumber {p.Name}")" /></td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    <div class="row" style="margin:.75rem 0">
+                        <BbButton Disabled="busy" OnClick="RunPreview"><LucideIcon Name="play" Size="16" /> @(busy ? "Menjalankan…" : "Jalankan pratinjau")</BbButton>
+                        <BbButton Variant="ButtonVariant.Ghost" OnClick="() => GoTo(1)">Kembali ke query</BbButton>
+                        <span class="spacer"></span>
+                        <BbButton Disabled="@(preview is null)" OnClick="() => GoTo(3)">Lanjut: template <LucideIcon Name="arrow-right" Size="16" /></BbButton>
+                    </div>
+                    @if (preview?.Header is { } h)
+                    {
+                        <div class="props-sub" style="margin-bottom:.35rem">Query header</div>
+                        <ResultGrid Result="h" MaxHeight="8rem" />
+                        <div class="props-sub" style="margin:.75rem 0 .35rem">Query detail</div>
+                    }
+                    @if (preview is not null) { <ResultGrid Result="preview.Detail" ShowFooter="true" /> }
+                </BbCardContent>
+            </BbCard>
+            break;
+
+        case 3:
+            <div class="builder-grid">
+                <BbCard>
+                    <BbCardHeader>
+                        <BbCardTitle Class="card-title">3. Template</BbCardTitle>
+                        <BbCardDescription>Tag <code>{{Nama}}</code> = data tunggal · <code>[[Kolom]]</code> = baris diulang per data · <code>[[No]]</code> nomor urut · <code>{{Sum:Kolom}}</code> total · <code>|format</code> opsional, mis. <code>{{Tanggal|dd MMMM yyyy}}</code>.</BbCardDescription>
+                    </BbCardHeader>
+                    <BbCardContent>
+                        <div class="chart-types" role="radiogroup" aria-label="Format file" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+                            @foreach (var (fmt, label, icon) in new[] { (ReportFormats.Xlsx, "Excel (.xlsx)", "file-spreadsheet"), (ReportFormats.Docx, "Word (.docx)", "file-text") })
+                            {
+                                var f = fmt;
+                                <button type="button" role="radio" aria-checked="@(def.Config.Format == f)" class="chart-type @(def.Config.Format == f ? "selected" : "")" @onclick="() => SetFormat(f)">
+                                    <LucideIcon Name="@icon" Size="28" /><span>@label</span>
+                                </button>
+                            }
+                        </div>
+                        <div class="stack" style="margin-top:1rem">
+                            <div>
+                                <div class="props-sub" style="margin-bottom:.35rem">Belum punya template?</div>
+                                <a class="bb-like-button" href="@StarterUrl" download="@($"template-{Slug(def.Name)}.{def.Config.Format}")"><LucideIcon Name="wand-sparkles" Size="16" /> Unduh template contoh berisi semua tag</a>
+                                <p class="muted small" style="margin:.35rem 0 0">Buka di Excel/Word, atur tampilan (logo, warna, kolom), simpan, lalu unggah di bawah.</p>
+                            </div>
+                            <div>
+                                <div class="props-sub" style="margin-bottom:.35rem">Unggah template (.@def.Config.Format, maks. 5 MB)</div>
+                                <label class="image-pick">
+                                    <InputFile id="template-file" accept="@($".{def.Config.Format}")" OnChange="Upload" />
+                                    <LucideIcon Name="upload" Size="15" /> @(templateName is null ? "Pilih file" : "Ganti file")
+                                </label>
+                                @if (templateName is not null) { <span class="muted small" style="margin-left:.5rem">@templateName</span> }
+                            </div>
+                        </div>
+                    </BbCardContent>
+                </BbCard>
+                <BbCard>
+                    <BbCardHeader><BbCardTitle Class="card-title">Pemeriksaan tag</BbCardTitle><BbCardDescription>Setiap tag dicocokkan dengan parameter, kolom query, dan tag sistem.</BbCardDescription></BbCardHeader>
+                    <BbCardContent>
+                        @if (check is null)
+                        {
+                            <div class="chart-empty"><span>Unggah template untuk diperiksa</span></div>
+                        }
+                        else
+                        {
+                            @if (check.Problems.Count > 0)
+                            {
+                                <BbAlert Variant="AlertVariant.Danger" Class="props-block"><BbAlertTitle>@check.Problems.Count masalah</BbAlertTitle><BbAlertDescription><ul class="error-list">@foreach (var p in check.Problems) { <li>@p</li> }</ul></BbAlertDescription></BbAlert>
+                            }
+                            else
+                            {
+                                <BbAlert Variant="AlertVariant.Success" Class="props-block"><BbAlertDescription>Semua @check.Tags.Count tag cocok.</BbAlertDescription></BbAlert>
+                            }
+                            <div class="result-grid" style="max-height:16rem">
+                                <table class="data">
+                                    <thead><tr><th>Tag</th><th>Jenis</th><th>Lokasi</th></tr></thead>
+                                    <tbody>@foreach (var t in check.Tags.Take(200)) { <tr><td><code>@t.Raw</code></td><td>@KindLabel(t.Kind)</td><td class="muted">@t.Location</td></tr> }</tbody>
+                                </table>
+                            </div>
+                            <div class="row" style="margin-top:.75rem">
+                                <BbButton Variant="ButtonVariant.Outline" Disabled="@(busy || check.Problems.Count > 0)" OnClick="TryRender"><LucideIcon Name="file-down" Size="16" /> Coba buat file (data pratinjau)</BbButton>
+                                @if (tryUrl is not null) { <a href="@tryUrl" download="@tryName" class="small">Unduh hasil uji: @tryName</a> }
+                            </div>
+                        }
+                        <div class="row" style="margin-top:1rem">
+                            <BbButton Variant="ButtonVariant.Ghost" OnClick="() => GoTo(2)">Kembali</BbButton>
+                            <span class="spacer"></span>
+                            <BbButton Disabled="@(check is not { Problems.Count: 0 })" OnClick="() => GoTo(4)">Lanjut: simpan <LucideIcon Name="arrow-right" Size="16" /></BbButton>
+                        </div>
+                    </BbCardContent>
+                </BbCard>
+            </div>
+            break;
+
+        case 4:
+            <BbCard>
+                <BbCardHeader><BbCardTitle Class="card-title">4. Simpan</BbCardTitle></BbCardHeader>
+                <BbCardContent>
+                    <div class="stack" style="max-width:40rem">
+                        <BbField><BbFieldLabel For="r-name">Nama laporan</BbFieldLabel><FormTextInput Id="r-name" Value="@def.Name" ValueChanged="v => def.Name = v ?? string.Empty" /></BbField>
+                        <BbField><BbFieldLabel For="r-desc">Deskripsi</BbFieldLabel><FormTextArea Id="r-desc" Value="@def.Description" ValueChanged="v => def.Description = string.IsNullOrWhiteSpace(v) ? null : v" Rows="2" /></BbField>
+                        <BbField>
+                            <BbFieldLabel For="r-file">Pola nama file</BbFieldLabel>
+                            <FormTextInput Id="r-file" Value="@def.Config.FileNamePattern" ValueChanged="v => def.Config.FileNamePattern = v ?? string.Empty" Placeholder="mis. Rekap Gaji {{Periode}}" />
+                            <BbFieldDescription>Boleh memakai tag tunggal. Ekstensi .@def.Config.Format ditambahkan otomatis.</BbFieldDescription>
+                        </BbField>
+                        <div>
+                            <div class="props-sub" style="margin-bottom:.4rem">Boleh dibuat oleh (kosong = semua pengguna)</div>
+                            <div class="wf-roles">
+                                @foreach (var role in MetadataRoles.Known(Metadata.Current, def.Config.Roles))
+                                {
+                                    var r = role;
+                                    <div class="label-row"><BbCheckbox Id="@($"r-{r}")" Checked="def.Config.Roles.Contains(r)" CheckedChanged="v => ToggleRole(r, v)" /><BbLabel For="@($"r-{r}")">@r</BbLabel></div>
+                                }
+                            </div>
+                            <p class="muted small" style="margin-top:.4rem">Laporan berisi data seluruh tenant (aturan "milik sendiri" tidak berlaku di SQL). Batasi role untuk data sensitif.</p>
+                        </div>
+                        <Framework.Web.QueryApis.PublishAsApiOption Option="apiOption" DefaultName="@def.Name" />
+                        <div class="row">
+                            <BbButton Variant="ButtonVariant.Ghost" OnClick="() => GoTo(3)">Kembali</BbButton>
+                            <span class="spacer"></span>
+                            <BbButton Disabled="@(busy || string.IsNullOrWhiteSpace(def.Name))" OnClick="Save"><LucideIcon Name="save" Size="16" /> @(busy ? "Menyimpan…" : "Simpan template")</BbButton>
+                        </div>
+                    </div>
+                </BbCardContent>
+            </BbCard>
+            break;
+    }
+}
+
+@code {
+    [Parameter] public string? TemplateId { get; set; }
+
+    private static readonly (int, string)[] Steps = [(1, "Query"), (2, "Parameter & pratinjau"), (3, "Template"), (4, "Simpan")];
+    private ReportTemplateDef def = new();
+    private readonly Framework.Web.QueryApis.ApiPublishOption apiOption = new();
+    [Inject] private Framework.Api.QueryApiService QueryApis { get; set; } = default!;
+    private int step = 1, maxStep = 1;
+    private bool isEdit, busy;
+    private string? error, errorTitle, loadedKey;
+    private ReportPreview? preview;
+    private byte[]? template;        // template aktif (unggahan baru atau milik template yang diedit)
+    private bool templateIsNew;
+    private string? templateName;
+    private TemplateCheck? check;
+    private string? tryUrl, tryName;
+
+    private static readonly IEnumerable<SelectOption<string>> TypeOptions =
+        [new(ParamTypes.Text, "Teks"), new(ParamTypes.Number, "Angka"), new(ParamTypes.Date, "Tanggal"), new(ParamTypes.Boolean, "Boolean")];
+
+    private static IEnumerable<SelectOption<string>> BindingOptions(WidgetParameter p)
+    {
+        yield return new(ParamBindings.Default, "Diisi saat membuat laporan");
+        if (p.Type == ParamTypes.Text) { yield return new(ParamBindings.UserDepartment, "Departemen pengguna"); yield return new(ParamBindings.UserId, "ID pengguna"); }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (TemplateId == loadedKey && loadedKey is not null) return;
+        loadedKey = TemplateId ?? "";
+        if (TemplateId is null || !ReportTemplateService.CanDesign(Current.Required)) return;
+        if (await Reports.GetAsync(Current.Required, TemplateId) is not { } d) { (errorTitle, error) = ("Tidak ditemukan", "Template laporan tidak ditemukan."); return; }
+        def = d; isEdit = true; maxStep = 2;
+        template = await Reports.GetTemplateFileAsync(Current.Required, d.Id);
+        templateName = d.TemplateFileName;
+        await apiOption.LoadAsync(QueryApis, Current.Required, $"report:{d.Id}");
+    }
+
+    private void GoTo(int n) { if (n <= maxStep) { step = n; error = null; } }
+
+    private void Insert(string text)
+    {
+        var sql = def.Config.Sql.TrimEnd();
+        def.Config.Sql = sql + (sql.Length == 0 ? "" : " ") + text;
+    }
+
+    private void Detect()
+    {
+        error = null;
+        var (err, ps) = ReportTemplateService.DetectParameters(def.Config.Sql, def.Config.HeaderSql, def.Config.Parameters);
+        if (err is not null) { (errorTitle, error) = ("Query belum bisa dipakai", err); return; }
+        def.Config.Parameters = ps;
+        preview = null; check = null;
+        step = maxStep = 2;
+    }
+
+    private async Task RunPreview()
+    {
+        error = null; busy = true;
+        try
+        {
+            preview = await Reports.PreviewAsync(Current.Required, def.Config);
+            maxStep = Math.Max(maxStep, 3);
+            Recheck();
+        }
+        catch (Exception ex) when (ex is QueryRejectedException or ReportingUnavailableException)
+        {
+            preview = null; maxStep = 2;
+            (errorTitle, error) = ("Query gagal dijalankan", ex.Message);
+        }
+        finally { busy = false; }
+    }
+
+    private string StarterUrl => preview is null ? "#"
+        : $"data:{ReportFormats.ContentType(def.Config.Format)};base64,{Convert.ToBase64String(ReportTemplateService.Starter(def.Config, string.IsNullOrWhiteSpace(def.Name) ? "Laporan" : def.Name, preview))}";
+
+    private void SetFormat(string f)
+    {
+        if (def.Config.Format == f) return;
+        def.Config.Format = f;
+        if (template is not null) { template = null; templateName = null; templateIsNew = false; check = null; tryUrl = null; }
+    }
+
+    private async Task Upload(InputFileChangeEventArgs e)
+    {
+        error = null; tryUrl = null;
+        if (e.File.Size > OoxmlPackage.MaxTemplateBytes) { (errorTitle, error) = ("File terlalu besar", "Template maksimal 5 MB."); return; }
+        await using var s = e.File.OpenReadStream(OoxmlPackage.MaxTemplateBytes);
+        using var ms = new MemoryStream();
+        await s.CopyToAsync(ms);
+        template = ms.ToArray(); templateIsNew = true; templateName = e.File.Name;
+        Recheck();
+    }
+
+    private void Recheck()
+    {
+        check = template is null || preview is null ? null : ReportTemplateService.CheckTemplate(def.Config, template, preview);
+        if (check is { Problems.Count: 0 }) maxStep = Math.Max(maxStep, 4);
+    }
+
+    private async Task TryRender()
+    {
+        error = null; busy = true;
+        try
+        {
+            var output = await Reports.TryRenderAsync(Current.Required, string.IsNullOrWhiteSpace(def.Name) ? "uji" : def.Name, def.Config, template!);
+            (tryUrl, tryName) = ($"data:{output.ContentType};base64,{Convert.ToBase64String(output.Content)}", output.FileName);
+        }
+        catch (Exception ex) when (ex is TemplateException or QueryRejectedException or ReportingUnavailableException)
+        {
+            (errorTitle, error) = ("Uji coba gagal", ex.Message);
+        }
+        finally { busy = false; }
+    }
+
+    private void ToggleRole(string role, bool on)
+    {
+        if (on && !def.Config.Roles.Contains(role)) def.Config.Roles.Add(role);
+        if (!on) def.Config.Roles.Remove(role);
+    }
+
+    private async Task Save()
+    {
+        error = null; busy = true;
+        try
+        {
+            if (templateIsNew) def.TemplateFileName = templateName ?? "template." + def.Config.Format;
+            var saved = await Reports.SaveAsync(Current.Required, def, templateIsNew ? template : null);
+            // Opsi: query detail yang sama diterbitkan sebagai API JSON.
+            var apiNote = await apiOption.ApplyAsync(QueryApis, Current.Required, $"report:{saved.Id}", saved.Name, saved.Description,
+                saved.Config.Sql, saved.Config.Parameters, saved.Config.Roles);
+            Toasts.Success("Pengguna dengan akses kini bisa membuat laporan ini." + (apiNote is null ? "" : " " + apiNote), $"{saved.Name} v{saved.Version} tersimpan");
+            Nav.NavigateTo("/report-templates");
+        }
+        catch (Exception ex) when (ex is TemplateException or QueryRejectedException or ReportingUnavailableException or PermissionDeniedException or Framework.Api.ApiMethodException)
+        {
+            (errorTitle, error) = (ex is Framework.Api.ApiMethodException ? "Template tersimpan, tetapi API belum bisa diterbitkan" : "Template belum bisa disimpan", ex.Message);
+        }
+        finally { busy = false; }
+    }
+
+    private static string KindLabel(TagKind k) => k switch { TagKind.Loop => "baris berulang", TagKind.Aggregate => "agregat", _ => "data tunggal" };
+    private static string Slug(string s) => string.IsNullOrWhiteSpace(s) ? "laporan" : System.Text.RegularExpressions.Regex.Replace(s.ToLowerInvariant(), "[^a-z0-9]+", "-").Trim('-');
+}

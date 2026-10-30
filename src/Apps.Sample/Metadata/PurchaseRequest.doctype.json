@@ -1,0 +1,311 @@
+{
+  "name": "PurchaseRequest",
+  "version": 1,
+  "title": "Pengajuan Pembelian",
+  "module": "Pengadaan",
+  "description": "Pilot RFC §18: field dasar, Link, child table, total terhitung, permission berlapis, dan workflow persetujuan.",
+  "storage": {
+    "strategy": "document",
+    "table": "purchase_requests"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "naming": {
+    "pattern": "PR-{YYYY}-{#####}"
+  },
+  "workflow": "PurchaseRequestApproval",
+  "fields": [
+    {
+      "name": "requester",
+      "type": "Link",
+      "label": "Pemohon",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "default": "$employee",
+      "inListView": true,
+      "tab": "Pengajuan",
+      "section": "Pemohon",
+      "lookupDialog": true
+    },
+    {
+      "name": "requester_name",
+      "type": "Data",
+      "label": "Nama pemohon",
+      "fetchFrom": "requester.employee_name",
+      "inListView": true,
+      "tab": "Pengajuan",
+      "section": "Pemohon"
+    },
+    {
+      "name": "department",
+      "type": "Data",
+      "label": "Departemen",
+      "fetchFrom": "requester.department",
+      "inListView": true,
+      "tab": "Pengajuan",
+      "section": "Pemohon",
+      "column": 2
+    },
+    {
+      "name": "request_date",
+      "type": "Date",
+      "label": "Tanggal pengajuan",
+      "requiredWhen": "true",
+      "default": "$today",
+      "inListView": true,
+      "tab": "Pengajuan",
+      "section": "Pemohon",
+      "column": 2
+    },
+    {
+      "name": "required_by",
+      "type": "Date",
+      "label": "Dibutuhkan paling lambat",
+      "tab": "Pengajuan",
+      "section": "Pemohon",
+      "column": 2
+    },
+    {
+      "name": "vendor",
+      "type": "Link",
+      "label": "Pemasok usulan",
+      "linkTo": "Vendor",
+      "tab": "Pengajuan",
+      "section": "Kebutuhan"
+    },
+    {
+      "name": "priority",
+      "type": "Select",
+      "label": "Prioritas",
+      "options": [
+        "Rendah",
+        "Normal",
+        "Tinggi"
+      ],
+      "default": "Normal",
+      "requiredWhen": "true",
+      "inListView": true,
+      "tab": "Pengajuan",
+      "section": "Kebutuhan",
+      "column": 2
+    },
+    {
+      "name": "justification",
+      "type": "Text",
+      "label": "Justifikasi",
+      "description": "Wajib bila prioritas Tinggi atau total di atas Rp10 juta",
+      "requiredWhen": "priority == 'Tinggi' || total > 10000000",
+      "tab": "Pengajuan",
+      "section": "Kebutuhan"
+    },
+    {
+      "name": "items",
+      "type": "Table",
+      "label": "Item",
+      "childDocType": "PurchaseRequestItem",
+      "requiredWhen": "true",
+      "tab": "Pengajuan",
+      "section": "Item",
+      "addFromLookup": {
+        "linkField": "product",
+        "map": {
+          "item_name": "product_name",
+          "uom": "uom",
+          "rate": "price"
+        },
+        "multiple": true,
+        "buttonLabel": "Tambah produk"
+      }
+    },
+    {
+      "name": "total",
+      "type": "Currency",
+      "label": "Total",
+      "compute": "sum(items.amount)",
+      "inListView": true,
+      "tab": "Pengajuan",
+      "section": "Item"
+    },
+    {
+      "name": "budget_code",
+      "type": "Data",
+      "label": "Kode anggaran",
+      "pattern": "^[A-Z]{2}-\\d{4}$",
+      "patternMessage": "Kode anggaran berformat XX-0000, mis. IT-2026",
+      "permLevel": 1,
+      "tab": "Pengadaan",
+      "section": "Catatan pengadaan"
+    },
+    {
+      "name": "procurement_notes",
+      "type": "Text",
+      "label": "Catatan internal pengadaan",
+      "permLevel": 1,
+      "tab": "Pengadaan",
+      "section": "Catatan pengadaan"
+    }
+  ],
+  "rules": [
+    {
+      "name": "required_by_after_request",
+      "expr": "empty(required_by) || empty(request_date) || required_by >= request_date",
+      "message": "Tanggal dibutuhkan tidak boleh sebelum tanggal pengajuan",
+      "field": "required_by"
+    },
+    {
+      "name": "total_limit",
+      "expr": "total <= 500000000",
+      "message": "Total di atas Rp500 juta harus melalui proses tender, bukan pengajuan pembelian",
+      "field": "total"
+    }
+  ],
+  "listView": {
+    "titleField": "requester_name",
+    "searchFields": [
+      "name",
+      "requester_name"
+    ],
+    "filters": [
+      "department",
+      "priority",
+      "request_date",
+      "workflow_state"
+    ],
+    "defaultSort": [
+      {
+        "field": "modified",
+        "direction": "desc"
+      }
+    ]
+  },
+  "permissions": [
+    {
+      "role": "Employee",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete"
+      ],
+      "scope": "owner"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "match:department=department"
+    },
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Procurement",
+      "actions": [
+        "read",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Procurement",
+      "actions": [
+        "read",
+        "write"
+      ],
+      "permLevel": 1
+    },
+    {
+      "role": "Finance",
+      "actions": [
+        "read"
+      ],
+      "permLevel": 1
+    }
+  ],
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "delete",
+      "action"
+    ]
+  },
+  "printFormat": {
+    "title": "Pengajuan Pembelian",
+    "sections": [
+      {
+        "title": "Pemohon",
+        "fields": [
+          "requester_name",
+          "department",
+          "request_date",
+          "required_by"
+        ]
+      },
+      {
+        "title": "Kebutuhan",
+        "fields": [
+          "vendor",
+          "priority",
+          "justification"
+        ]
+      }
+    ],
+    "tableColumns": {
+      "items": [
+        "item_name",
+        "qty",
+        "uom",
+        "rate",
+        "amount"
+      ]
+    },
+    "totalFields": [
+      "total"
+    ],
+    "amountInWordsField": "total",
+    "signatures": [
+      {
+        "label": "Diajukan oleh",
+        "toStates": [
+          "Menunggu Atasan"
+        ]
+      },
+      {
+        "label": "Disetujui atasan",
+        "fromState": "Menunggu Atasan",
+        "toStates": [
+          "Disetujui",
+          "Menunggu Finance"
+        ]
+      },
+      {
+        "label": "Disetujui Finance",
+        "fromState": "Menunggu Finance",
+        "toStates": [
+          "Disetujui"
+        ],
+        "optional": true
+      }
+    ],
+    "footerNote": "Dokumen ini disetujui secara elektronik melalui DocFrame dan sah tanpa tanda tangan basah. Keaslian dapat diperiksa dengan kode verifikasi di bagian bawah halaman."
+  }
+}

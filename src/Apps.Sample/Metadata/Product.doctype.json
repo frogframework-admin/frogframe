@@ -1,0 +1,108 @@
+{
+  "name": "Product",
+  "version": 2,
+  "title": "Produk",
+  "module": "Pengadaan",
+  "description": "Katalog barang/jasa standar untuk pengajuan pembelian.",
+  "naming": {
+    "pattern": "PRD-{####}"
+  },
+  "fields": [
+    {
+      "name": "gambar",
+      "type": "Image",
+      "label": "Gambar produk",
+      "inListView": true
+    },
+    {
+      "name": "product_name",
+      "type": "Data",
+      "label": "Nama produk",
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "category",
+      "type": "Select",
+      "label": "Kategori",
+      "options": [
+        "Perangkat keras",
+        "Perangkat lunak",
+        "ATK",
+        "Jasa"
+      ],
+      "inListView": true,
+      "column": 2
+    },
+    {
+      "name": "uom",
+      "type": "Select",
+      "label": "Satuan",
+      "options": [
+        "pcs",
+        "unit",
+        "box",
+        "lisensi",
+        "bulan"
+      ],
+      "default": "pcs",
+      "inListView": true
+    },
+    {
+      "name": "price",
+      "type": "Currency",
+      "label": "Harga standar",
+      "min": 0,
+      "inListView": true,
+      "column": 2
+    },
+    {
+      "name": "active",
+      "type": "Check",
+      "label": "Aktif",
+      "default": true
+    }
+  ],
+  "listView": {
+    "titleField": "product_name",
+    "searchFields": [
+      "name",
+      "product_name"
+    ],
+    "filters": [
+      "category",
+      "active"
+    ],
+    "defaultSort": [
+      {
+        "field": "product_name",
+        "direction": "asc"
+      }
+    ]
+  },
+  "permissions": [
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Procurement",
+      "actions": [
+        "read",
+        "create",
+        "write"
+      ],
+      "scope": "all"
+    }
+  ],
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read"
+    ]
+  }
+}

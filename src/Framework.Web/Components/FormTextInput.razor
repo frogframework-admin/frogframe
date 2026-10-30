@@ -1,0 +1,25 @@
+@* Input teks untuk field dokumen. Tampilan sama dengan BbInput (class shadcn/Blazor Blueprint), tetapi perubahan
+   dikirim lewat event @onchange bawaan Blazor yang aktif sejak render pertama. BbInput mengirim perubahan lewat
+   modul JavaScript yang baru terpasang setelah render (OnAfterRenderAsync); ketikan sebelum modul siap — mis.
+   di jaringan lambat — tidak sampai ke server walau terlihat di layar. *@
+
+<input id="@Id" type="@Type" class="@Css" value="@Value" placeholder="@Placeholder" disabled="@Disabled"
+       aria-invalid="@(Invalid ? "true" : null)" aria-label="@AriaLabel" @attributes="AdditionalAttributes"
+       @onchange="e => ValueChanged.InvokeAsync(e.Value as string)" />
+
+@code {
+    [Parameter] public string? Id { get; set; }
+    [Parameter] public string Type { get; set; } = "text";
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public EventCallback<string?> ValueChanged { get; set; }
+    [Parameter] public string? Placeholder { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public bool Invalid { get; set; }
+    [Parameter] public string? AriaLabel { get; set; }
+    [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private const string Css =
+        "bb:flex bb:h-10 bb:w-full bb:rounded-md bb:border bb:border-input bb:bg-background bb:px-3 bb:py-2 bb:text-base " +
+        "bb:placeholder:text-muted-foreground bb:focus-visible:outline-none bb:focus-visible:ring-2 bb:focus-visible:ring-ring " +
+        "bb:disabled:cursor-not-allowed bb:disabled:opacity-50 bb:aria-[invalid=true]:border-destructive bb:transition-colors bb:md:text-sm";
+}

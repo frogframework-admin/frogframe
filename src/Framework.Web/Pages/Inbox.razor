@@ -1,0 +1,89 @@
+@page "/inbox"
+@inject INotificationStore Notifications
+@inject CurrentUser Current
+@inject IOutboxStore Outbox
+@inject NavigationManager Nav
+@implements IDisposable
+
+<PageTitle>Kotak masuk · DocFrame</PageTitle>
+
+<header class="page-head">
+    <div><h1>Kotak masuk</h1><p>Notifikasi dikirim worker outbox setelah transaksi dokumen berhasil di-commit.</p></div>
+</header>
+
+<div class="stack">
+    @if (items.Count == 0)
+    {
+        <BbEmpty Title="Belum ada notifikasi" Description="Notifikasi muncul saat dokumen yang melibatkan Anda berpindah status.">
+            <Icon><LucideIcon Name="inbox" Size="28" /></Icon>
+        </BbEmpty>
+    }
+    else
+    {
+        <BbCard>
+            <BbCardContent Style="padding:0">
+                @foreach (var n in items)
+                {
+                    <div class="inbox-item @(n.Read ? "" : "unread")">
+                        <BbAvatar><BbAvatarFallback><LucideIcon Name="stamp" Size="16" /></BbAvatarFallback></BbAvatar>
+                        <div class="body">
+                            <a href="/app/@n.DocType/@n.DocName" @onclick="() => Notifications.MarkRead(n.TenantId, n.UserId, n.Id)">@n.Subject</a>
+                            <p>@n.Body</p>
+                        </div>
+                        <span class="muted small nowrap">@Fmt.When(n.At)</span>
+                    </div>
+                }
+            </BbCardContent>
+        </BbCard>
+    }
+
+    @if (Current.Required.Roles.Contains(UserContext.SystemManager))
+    {
+        <BbCard>
+            <BbCardHeader><BbCardTitle Class="card-title">Outbox</BbCardTitle><BbCardDescription>Diagnostik: event terbaru tenant ini dan status pengirimannya.</BbCardDescription></BbCardHeader>
+            <BbCardContent>
+                <div class="table-wrap">
+                    <table class="data">
+                        <thead><tr><th>Event</th><th>Dokumen</th><th class="num">Percobaan</th><th>Status</th></tr></thead>
+                        <tbody>
+                            @foreach (var m in Outbox.Snapshot().Where(m => m.TenantId == Current.Required.TenantId).OrderByDescending(m => m.CreatedAt).Take(15))
+                            {
+                                <tr>
+                                    <td><code>@m.Type</code></td>
+                                    <td>@m.Payload.GetValueOrDefault("name")</td>
+                                    <td class="num">@m.Attempts</td>
+                                    <td>
+                                        @if (m.DeadLettered) { <BbBadge Variant="BadgeVariant.SoftDestructive">dead-letter</BbBadge> }
+                                        else if (m.ProcessedAt is not null) { <BbBadge Variant="BadgeVariant.SoftSuccess">terkirim</BbBadge> }
+                                        else { <BbBadge Variant="BadgeVariant.Soft">antre</BbBadge> }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </BbCardContent>
+        </BbCard>
+    }
+</div>
+
+@code {
+    private IReadOnlyList<Notification> items = [];
+    private PeriodicTimer? timer;
+
+    protected override void OnInitialized()
+    {
+        Refresh();
+        timer = new PeriodicTimer(TimeSpan.FromSeconds(2));
+        _ = Loop();
+    }
+
+    private async Task Loop()
+    {
+        try { while (await timer!.WaitForNextTickAsync()) { Refresh(); await InvokeAsync(StateHasChanged); } }
+        catch (ObjectDisposedException) { }
+    }
+
+    private void Refresh() => items = Notifications.ForUser(Current.Required.TenantId, Current.Required.Id);
+    public void Dispose() => timer?.Dispose();
+}

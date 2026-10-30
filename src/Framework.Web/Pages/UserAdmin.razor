@@ -1,0 +1,249 @@
+@page "/admin/users"
+@using System.Security.Cryptography
+@using Microsoft.AspNetCore.Identity
+@inject UserManager<UserAccount> Users
+@inject IUserAccountRepository Accounts
+@inject IMetadataProvider Metadata
+@inject CurrentUser Current
+@inject ToastService Toasts
+@inject DialogService Dialogs
+@inject TimeProvider Clock
+
+<PageTitle>Pengguna · DocFrame</PageTitle>
+
+@if (!Current.Required.Roles.Contains(UserContext.SystemManager))
+{
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>Halaman ini hanya untuk System Manager.</BbAlertDescription></BbAlert>
+}
+else
+{
+    <header class="page-head">
+        <div>
+            <h1>Pengguna</h1>
+            <p>Akun tenant @Current.Required.TenantId. Role, departemen, dan karyawan menjadi klaim saat login dan menentukan izin serta cakupan data.</p>
+        </div>
+        <BbButton OnClick="StartCreate"><LucideIcon Name="user-plus" Size="16" /> Tambah pengguna</BbButton>
+    </header>
+
+    @if (tempPassword is not null)
+    {
+        <BbAlert Variant="AlertVariant.Warning" Class="props-block">
+            <BbAlertTitle>Password sementara untuk @tempFor</BbAlertTitle>
+            <BbAlertDescription>
+                <code class="temp-password">@tempPassword</code> — sampaikan lewat jalur aman. Password ini tidak akan ditampilkan lagi; minta pengguna menggantinya setelah login.
+            </BbAlertDescription>
+        </BbAlert>
+    }
+
+    <div class="users-grid">
+        <div class="table-wrap">
+            <table class="data">
+                <thead><tr><th>Nama</th><th>Username</th><th>Departemen</th><th>Role</th><th>Status</th><th>Login terakhir</th></tr></thead>
+                <tbody>
+                    @foreach (var a in accounts)
+                    {
+                        var acc = a;
+                        <tr class="clickable @(edit?.Id == acc.Id ? "selected" : "")" @onclick="() => StartEdit(acc)">
+                            <td><strong>@acc.FullName</strong>@if (acc.EmployeeId is not null) { <div class="muted small">@acc.EmployeeId</div> }</td>
+                            <td><code>@acc.UserName</code></td>
+                            <td>@(acc.Department ?? "—")</td>
+                            <td><div class="row" style="gap:.25rem">@foreach (var r in acc.Roles) { <BbBadge Variant="BadgeVariant.Soft">@r</BbBadge> }</div></td>
+                            <td>@Status(acc)</td>
+                            <td class="muted nowrap">@(acc.LastLoginAt is { } t ? Fmt.When(t) : "belum pernah")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (edit is not null)
+        {
+            <BbCard>
+                <BbCardHeader>
+                    <BbCardTitle Class="card-title">@(isNew ? "Pengguna baru" : edit.FullName)</BbCardTitle>
+                    <BbCardDescription>@(isNew ? "Password sementara dibuat otomatis." : $"Username {edit.UserName} · dibuat {Fmt.When(edit.CreatedAt)}")</BbCardDescription>
+                </BbCardHeader>
+                <BbCardContent>
+                    <div class="stack">
+                        @if (error is not null) { <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@error</BbAlertDescription></BbAlert> }
+                        <BbField><BbFieldLabel For="u-name">Nama lengkap</BbFieldLabel><BbInput Id="u-name" @bind-Value="edit.FullName" /></BbField>
+                        @if (isNew)
+                        {
+                            <BbField>
+                                <BbFieldLabel For="u-user">Username</BbFieldLabel>
+                                <BbInput Id="u-user" @bind-Value="edit.UserName" />
+                                <BbFieldDescription>Huruf kecil, angka, titik, atau garis bawah. Menjadi id tetap pengguna (dipakai sebagai pemilik dokumen).</BbFieldDescription>
+                            </BbField>
+                        }
+                        <BbField><BbFieldLabel For="u-email">Email</BbFieldLabel><BbInput Id="u-email" Type="InputType.Email" @bind-Value="edit.Email" /></BbField>
+                        <BbField>
+                            <BbFieldLabel For="u-dept">Departemen</BbFieldLabel>
+                            <BbInput Id="u-dept" @bind-Value="edit.Department" />
+                            <BbFieldDescription>Dipakai cakupan data "match:department", mis. atasan hanya melihat pengajuan departemennya.</BbFieldDescription>
+                        </BbField>
+                        @if (Metadata.Current.TryGet("Employee", out _))
+                        {
+                            <BbField>
+                                <BbFieldLabel>Karyawan</BbFieldLabel>
+                                <div class="fill-trigger"><LinkInput Target="Employee" Label="Karyawan" Value="@edit.EmployeeId" ValueChanged="v => edit.EmployeeId = v" ShowLookup="true" /></div>
+                            </BbField>
+                        }
+                        <div class="props-sub">Role</div>
+                        @foreach (var role in KnownRoles)
+                        {
+                            var r = role;
+                            var self = !isNew && edit.Id == Current.Required.Id && r == UserContext.SystemManager;
+                            <div class="label-row">
+                                <BbCheckbox Id="@($"r-{r}")" Checked="edit.Roles.Contains(r)" Disabled="self" CheckedChanged="v => ToggleRole(r, v)" />
+                                <BbLabel For="@($"r-{r}")">@r@(self ? " (tidak bisa dicabut dari akun sendiri)" : "")</BbLabel>
+                            </div>
+                        }
+                        @if (!isNew)
+                        {
+                            <div class="label-row">
+                                <BbCheckbox Id="u-active" Checked="edit.IsActive" Disabled="@(edit.Id == Current.Required.Id)" CheckedChanged="v => edit.IsActive = v" />
+                                <BbLabel For="u-active">Aktif (bisa login)</BbLabel>
+                            </div>
+                        }
+                        <div class="row">
+                            <BbButton Disabled="busy" OnClick="Save"><LucideIcon Name="check" Size="16" /> @(isNew ? "Buat pengguna" : "Simpan")</BbButton>
+                            <BbButton Variant="ButtonVariant.Ghost" OnClick="() => edit = null">Batal</BbButton>
+                        </div>
+                        @if (!isNew)
+                        {
+                            <div class="row" style="border-top:1px solid var(--border);padding-top:.75rem">
+                                <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Disabled="busy" OnClick="ResetPassword"><LucideIcon Name="key-round" Size="15" /> Reset password</BbButton>
+                                @if (edit.LockoutEnd > Clock.GetUtcNow())
+                                {
+                                    <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Disabled="busy" OnClick="Unlock"><LucideIcon Name="lock-open" Size="15" /> Buka kunci</BbButton>
+                                }
+                            </div>
+                        }
+                    </div>
+                </BbCardContent>
+            </BbCard>
+        }
+    </div>
+}
+
+@code {
+    private IReadOnlyList<UserAccount> accounts = [];
+    private UserAccount? edit;
+    private bool isNew, busy;
+    private string? error, tempPassword, tempFor;
+
+    /// <summary>Role yang dikenal: dari permission semua DocType, role workflow, dan System Manager.</summary>
+    private IEnumerable<string> KnownRoles => Metadata.Current.DocTypes.Values.SelectMany(d => d.Def.Permissions.Select(p => p.Role))
+        .Concat(Metadata.Current.Workflows.Values.SelectMany(w => w.Def.Transitions.SelectMany(t => t.AllowedRoles)))
+        .Append(UserContext.SystemManager).Concat(edit?.Roles ?? []).Distinct().Order();
+
+    protected override async Task OnInitializedAsync() => await Reload();
+
+    private async Task Reload() => accounts = await Accounts.ListAsync(Current.Required.TenantId);
+
+    private MarkupString Status(UserAccount a) => (MarkupString)(
+        !a.IsActive ? "<span class=\"muted\">Nonaktif</span>"
+        : a.LockoutEnd > Clock.GetUtcNow() ? "<span style=\"color:var(--destructive)\">Terkunci</span>"
+        : "Aktif");
+
+    private void StartCreate()
+    {
+        edit = new UserAccount { TenantId = Current.Required.TenantId, Roles = ["Employee"] };
+        isNew = true; error = null; tempPassword = null;
+    }
+
+    private async Task StartEdit(UserAccount a)
+    {
+        // Selalu muat ulang dari penyimpanan, dan pastikan akun milik tenant yang sama.
+        var fresh = await Accounts.FindByIdAsync(a.Id);
+        if (fresh is null || fresh.TenantId != Current.Required.TenantId) return;
+        edit = fresh; isNew = false; error = null; tempPassword = null;
+    }
+
+    private void ToggleRole(string role, bool on)
+    {
+        if (on && !edit!.Roles.Contains(role)) edit.Roles.Add(role);
+        if (!on) edit!.Roles.Remove(role);
+    }
+
+    private async Task Save()
+    {
+        if (edit is null) return;
+        error = null;
+        if (string.IsNullOrWhiteSpace(edit.FullName)) { error = "Nama lengkap wajib diisi."; return; }
+        if (edit.Roles.Count == 0) { error = "Pilih minimal satu role."; return; }
+        busy = true;
+        try
+        {
+            edit.TenantId = Current.Required.TenantId; // tenant tidak bisa diubah dari UI
+            edit.Department = string.IsNullOrWhiteSpace(edit.Department) ? null : edit.Department.Trim();
+            edit.Email = string.IsNullOrWhiteSpace(edit.Email) ? null : edit.Email.Trim();
+            if (isNew)
+            {
+                edit.UserName = (edit.UserName ?? "").Trim().ToLowerInvariant();
+                if (!System.Text.RegularExpressions.Regex.IsMatch(edit.UserName, "^[a-z0-9._]{3,40}$"))
+                { error = "Username 3–40 karakter: huruf kecil, angka, titik, atau garis bawah."; return; }
+                var password = NewTemporaryPassword();
+                var result = await Users.CreateAsync(edit, password);
+                if (!result.Succeeded) { error = string.Join(" ", result.Errors.Select(e => e.Description)); return; }
+                (tempPassword, tempFor) = (password, edit.UserName);
+                Toasts.Success($"Akun {edit.UserName} dibuat.", "Pengguna baru");
+            }
+            else
+            {
+                if (edit.Id == Current.Required.Id && (!edit.IsActive || !edit.Roles.Contains(UserContext.SystemManager)))
+                { error = "Anda tidak bisa menonaktifkan akun sendiri atau mencabut role System Manager dari diri sendiri."; return; }
+                var result = await Users.UpdateAsync(edit);
+                if (!result.Succeeded) { error = string.Join(" ", result.Errors.Select(e => e.Description)); return; }
+                // Role/departemen/status adalah klaim: ganti security stamp agar sesi yang sedang aktif memuat klaim baru
+                // (atau keluar bila dinonaktifkan) pada validasi berikutnya.
+                await Users.UpdateSecurityStampAsync(edit);
+                Toasts.Success("Perubahan berlaku setelah sesi pengguna diperbarui (maks. beberapa menit).", "Disimpan");
+            }
+            edit = null;
+            await Reload();
+        }
+        finally { busy = false; }
+    }
+
+    private async Task ResetPassword()
+    {
+        var target = edit!;
+        var ok = await Dialogs.ConfirmAsync($"Reset password {target.UserName}?", "Password lama tidak berlaku lagi dan sesi pengguna akan berakhir.",
+            new ConfirmDialogOptions { ConfirmText = "Reset password", CancelText = "Batal" });
+        if (!ok.Confirmed) return;
+        busy = true;
+        try
+        {
+            var user = (await Users.FindByIdAsync(target.Id))!;
+            var password = NewTemporaryPassword();
+            await Users.RemovePasswordAsync(user);
+            var result = await Users.AddPasswordAsync(user, password);
+            if (!result.Succeeded) { error = string.Join(" ", result.Errors.Select(e => e.Description)); return; }
+            (tempPassword, tempFor) = (password, user.UserName);
+            edit = null;
+            await Reload();
+        }
+        finally { busy = false; }
+    }
+
+    private async Task Unlock()
+    {
+        var user = (await Users.FindByIdAsync(edit!.Id))!;
+        await Users.SetLockoutEndDateAsync(user, null);
+        await Users.ResetAccessFailedCountAsync(user);
+        Toasts.Success($"{user.UserName} bisa login kembali.", "Kunci dibuka");
+        edit = null;
+        await Reload();
+    }
+
+    /// <summary>Password sementara acak yang memenuhi kebijakan (≥10 karakter, huruf besar, huruf kecil, angka).</summary>
+    private static string NewTemporaryPassword()
+    {
+        const string upper = "ABCDEFGHJKLMNPQRSTUVWXYZ", lower = "abcdefghijkmnpqrstuvwxyz", digits = "23456789";
+        var all = upper + lower + digits;
+        var chars = new List<char> { upper[RandomNumberGenerator.GetInt32(upper.Length)], lower[RandomNumberGenerator.GetInt32(lower.Length)], digits[RandomNumberGenerator.GetInt32(digits.Length)] };
+        while (chars.Count < 14) chars.Add(all[RandomNumberGenerator.GetInt32(all.Length)]);
+        return new string(chars.OrderBy(_ => RandomNumberGenerator.GetInt32(1000)).ToArray());
+    }
+}

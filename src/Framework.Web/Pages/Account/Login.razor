@@ -1,0 +1,92 @@
+@page "/account/login"
+@attribute [ExcludeFromInteractiveRouting]
+@layout AuthLayout
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.Authentication
+@using Microsoft.AspNetCore.Http
+@using Microsoft.Extensions.Configuration
+@inject SignInManager<UserAccount> SignIn
+@inject UserManager<UserAccount> Users
+@inject NavigationManager Nav
+@inject IConfiguration Config
+@inject TimeProvider Clock
+
+<PageTitle>Masuk · DocFrame</PageTitle>
+
+<h1 class="auth-title">Masuk</h1>
+<p class="auth-sub">Gunakan akun yang diberikan administrator.</p>
+
+@if (error is not null)
+{
+    <div class="auth-alert" role="alert">@error</div>
+}
+
+<EditForm Model="Input" method="post" OnValidSubmit="LoginAsync" FormName="login" class="auth-form">
+    <DataAnnotationsValidator />
+    <div class="auth-field">
+        <label for="username">Username</label>
+        <InputText id="username" class="auth-input" @bind-Value="Input.UserName" autocomplete="username" autofocus />
+        <ValidationMessage For="() => Input.UserName" class="auth-error" />
+    </div>
+    <div class="auth-field">
+        <label for="password">Password</label>
+        <InputText id="password" type="password" class="auth-input" @bind-Value="Input.Password" autocomplete="current-password" />
+        <ValidationMessage For="() => Input.Password" class="auth-error" />
+    </div>
+    <label class="auth-check"><InputCheckbox @bind-Value="Input.RememberMe" /> Tetap masuk di perangkat ini</label>
+    <button type="submit" class="auth-button">Masuk</button>
+</EditForm>
+
+@if (Config.GetValue<bool>("Demo:ShowAccounts"))
+{
+    <details class="auth-demo">
+        <summary>Akun demo (hanya lingkungan pengembangan)</summary>
+        <p>Password semua akun: <code>@Config["Demo:Password"]</code></p>
+        <p><code>andi</code> · <code>sari</code> pemohon · <code>budi</code> · <code>maya</code> atasan · <code>dewi</code> finance · <code>rina</code> pengadaan · <code>admin</code> System Manager · <code>tono</code> tenant globex</p>
+    </details>
+}
+
+@code {
+    [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
+    [SupplyParameterFromForm] private LoginModel Input { get; set; } = default!;
+    [SupplyParameterFromQuery] private string? ReturnUrl { get; set; }
+    private string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Input ??= new();
+        if (HttpMethods.IsGet(HttpContext.Request.Method))
+            await HttpContext.SignOutAsync(IdentityConstants.ExternalScheme);
+    }
+
+    private async Task LoginAsync()
+    {
+        var result = await SignIn.PasswordSignInAsync(Input.UserName.Trim(), Input.Password, Input.RememberMe, lockoutOnFailure: true);
+        if (result.Succeeded)
+        {
+            if (await Users.FindByNameAsync(Input.UserName.Trim()) is { } user)
+            {
+                user.LastLoginAt = Clock.GetUtcNow();
+                await Users.UpdateAsync(user);
+            }
+            Nav.NavigateTo(SafeReturnUrl, forceLoad: true);
+            return;
+        }
+        // Pesan sengaja tidak membedakan "username tidak ada" dan "password salah".
+        error = result.IsLockedOut ? "Akun terkunci sementara karena terlalu banyak percobaan gagal. Coba lagi dalam 15 menit."
+              : result.IsNotAllowed ? "Akun ini nonaktif. Hubungi administrator."
+              : "Username atau password salah.";
+    }
+
+    /// <summary>Hanya URL lokal (mencegah open redirect).</summary>
+    private string SafeReturnUrl =>
+        ReturnUrl is { Length: > 0 } u && u.StartsWith('/') && !u.StartsWith("//") && !u.StartsWith("/\\") && !u.StartsWith("/account/") ? u : "/";
+
+    private sealed class LoginModel
+    {
+        [Required(ErrorMessage = "Username wajib diisi")] public string UserName { get; set; } = "";
+        [Required(ErrorMessage = "Password wajib diisi")] public string Password { get; set; } = "";
+        public bool RememberMe { get; set; }
+    }
+}

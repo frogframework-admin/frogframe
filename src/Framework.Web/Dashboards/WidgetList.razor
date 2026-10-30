@@ -1,0 +1,91 @@
+@page "/dashboard/widgets"
+@using Framework.Dashboards
+@inject DashboardService Dashboards
+@inject CurrentUser Current
+@inject ToastService Toasts
+@inject DialogService Dialogs
+
+<PageTitle>Kelola widget · DocFrame</PageTitle>
+
+<BbBreadcrumb Class="crumbs">
+    <BbBreadcrumbList>
+        <BbBreadcrumbItem><BbBreadcrumbLink Href="/dashboard">Dashboard</BbBreadcrumbLink></BbBreadcrumbItem>
+        <BbBreadcrumbSeparator />
+        <BbBreadcrumbItem><BbBreadcrumbPage>Widget</BbBreadcrumbPage></BbBreadcrumbItem>
+    </BbBreadcrumbList>
+</BbBreadcrumb>
+<header class="page-head">
+    <div><h1>Widget</h1><p>Semua widget tenant ini. Tempel ke dashboard atau lepas tanpa menghapus.</p></div>
+    @if (designer) { <BbButton Href="/dashboard/widgets/new"><LucideIcon Name="plus" Size="16" /> Widget baru</BbButton> }
+</header>
+
+@if (!Dashboards.IsAvailable)
+{
+    <UnavailableNotice />
+}
+else
+{
+    <div class="table-wrap">
+        <table class="data">
+            <thead><tr><th>Widget</th><th>Jenis</th><th>Parameter</th><th>Dilihat oleh</th><th>Diubah</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var w in widgets)
+                {
+                    var widget = w;
+                    var pinned = layout.Items.Any(i => i.WidgetId == widget.Id);
+                    <tr>
+                        <td><strong>@widget.Name</strong>@if (widget.Description is not null) { <div class="muted small">@widget.Description</div> }</td>
+                        <td><div class="row" style="gap:.4rem;flex-wrap:nowrap"><ChartThumb Type="@widget.Config.Visual.Type" />@WidgetBuilder.ChartLabel(widget.Config.Visual.Type)</div></td>
+                        <td>@(widget.Config.Parameters.Count == 0 ? "—" : string.Join(", ", widget.Config.Parameters.Select(p => "@" + p.Name)))</td>
+                        <td>@(widget.Config.Roles.Count == 0 ? "Semua" : string.Join(", ", widget.Config.Roles))</td>
+                        <td class="muted nowrap">v@(widget.Version) · @Fmt.When(widget.UpdatedAt)</td>
+                        <td class="nowrap">
+                            @if (designer)
+                            {
+                                <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="() => TogglePin(widget, pinned)"><LucideIcon Name="@(pinned ? "pin-off" : "pin")" Size="15" /> @(pinned ? "Lepas" : "Tempel")</BbButton>
+                                <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" Href="@($"/dashboard/widgets/{widget.Id}")"><LucideIcon Name="pencil" Size="15" /> Edit</BbButton>
+                                <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@($"Hapus {widget.Name}")" OnClick="() => Delete(widget)"><LucideIcon Name="trash-2" Size="15" /></BbButton>
+                            }
+                        </td>
+                    </tr>
+                }
+                @if (widgets.Count == 0) { <tr><td colspan="6" class="grid-empty">Belum ada widget.</td></tr> }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private IReadOnlyList<WidgetDef> widgets = [];
+    private DashboardLayout layout = new();
+    private bool designer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        designer = DashboardService.CanDesign(Current.Required);
+        await Reload();
+    }
+
+    private async Task Reload()
+    {
+        widgets = await Dashboards.ListAsync(Current.Required);
+        layout = await Dashboards.GetLayoutAsync(Current.Required);
+    }
+
+    private async Task TogglePin(WidgetDef w, bool pinned)
+    {
+        if (pinned) await Dashboards.UnpinAsync(Current.Required, w.Id); else await Dashboards.PinAsync(Current.Required, w.Id);
+        Toasts.Success(pinned ? "Dilepas dari dashboard." : "Ditempel ke dashboard.", w.Name);
+        await Reload();
+    }
+
+    private async Task Delete(WidgetDef w)
+    {
+        var ok = await Dialogs.ConfirmAsync($"Hapus widget {w.Name}?", "Widget juga dilepas dari dashboard. Tindakan ini tidak bisa dibatalkan.",
+            new ConfirmDialogOptions { Destructive = true, ConfirmText = "Hapus", CancelText = "Batal" });
+        if (!ok.Confirmed) return;
+        await Dashboards.DeleteAsync(Current.Required, w.Id);
+        Toasts.Success("Widget dihapus.", w.Name);
+        await Reload();
+    }
+}

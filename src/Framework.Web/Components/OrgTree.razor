@@ -1,0 +1,90 @@
+@* Bagan organisasi generik (atas → bawah) dari daftar node berinduk. Dipakai untuk DocType pohon apa pun
+   (mis. departemen + induk, karyawan + atasan). Tahan data tidak rapi: induk yang tidak ada → jadi akar;
+   siklus diputus (node yang sudah tampil tidak diulang). *@
+
+@if (Nodes.Count == 0)
+{
+    <BbEmpty Title="@EmptyTitle" Description="@EmptyText" Size="EmptySize.Small" />
+}
+else
+{
+    <div class="org-toolbar">
+        <span class="muted small">@Nodes.Count node · @roots.Count akar</span>
+        <span class="spacer"></span>
+        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ExpandAll"><LucideIcon Name="chevron-down" Size="15" /> Buka semua</BbButton>
+        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="CollapseAll"><LucideIcon Name="chevron-right" Size="15" /> Tutup semua</BbButton>
+    </div>
+    <div class="org-tree" role="tree" aria-label="@AriaLabel">
+        <ul class="org-root">
+            @foreach (var r in roots) { @RenderNode(r, new HashSet<string>()) }
+        </ul>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<OrgNode> Nodes { get; set; } = [];
+    [Parameter] public string EmptyTitle { get; set; } = "Belum ada data";
+    [Parameter] public string EmptyText { get; set; } = "";
+    [Parameter] public string AriaLabel { get; set; } = "Bagan organisasi";
+
+    private Dictionary<string, List<OrgNode>> children = new();
+    private List<OrgNode> roots = [];
+    private readonly HashSet<string> collapsed = new();
+    private IReadOnlyList<OrgNode>? built;
+
+    protected override void OnParametersSet()
+    {
+        if (ReferenceEquals(built, Nodes)) return;
+        built = Nodes;
+        var ids = Nodes.Select(n => n.Id).ToHashSet();
+        children = Nodes.Where(n => n.ParentId is not null && ids.Contains(n.ParentId) && n.ParentId != n.Id)
+            .GroupBy(n => n.ParentId!).ToDictionary(g => g.Key, g => g.OrderBy(n => n.Title).ToList());
+        roots = Nodes.Where(n => n.ParentId is null || !ids.Contains(n.ParentId) || n.ParentId == n.Id).OrderBy(n => n.Title).ToList();
+        // Node dalam siklus tertutup tidak punya akar → jadikan akar agar tetap tampil.
+        var reachable = new HashSet<string>();
+        void Mark(string id) { if (!reachable.Add(id)) return; foreach (var c in children.GetValueOrDefault(id) ?? []) Mark(c.Id); }
+        foreach (var r in roots) Mark(r.Id);
+        foreach (var n in Nodes.Where(n => !reachable.Contains(n.Id)).OrderBy(n => n.Title)) { roots.Add(n); Mark(n.Id); }
+    }
+
+    private int Descendants(string id, HashSet<string> seen) =>
+        (children.GetValueOrDefault(id) ?? []).Where(c => seen.Add(c.Id)).Sum(c => 1 + Descendants(c.Id, seen));
+
+    private void Toggle(string id) { if (!collapsed.Remove(id)) collapsed.Add(id); }
+    private void ExpandAll() => collapsed.Clear();
+    private void CollapseAll() { collapsed.Clear(); foreach (var r in roots) foreach (var c in children.GetValueOrDefault(r.Id) ?? []) if (children.ContainsKey(c.Id)) collapsed.Add(c.Id); }
+
+    private static string Initials(string name) => string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(p => char.ToUpperInvariant(p[0])));
+
+    private RenderFragment RenderNode(OrgNode n, HashSet<string> path) => __builder =>
+    {
+        var kids = path.Contains(n.Id) ? [] : (children.GetValueOrDefault(n.Id) ?? []);
+        var open = !collapsed.Contains(n.Id);
+        var nextPath = new HashSet<string>(path) { n.Id };
+        <li role="treeitem" aria-expanded="@(kids.Count > 0 ? open.ToString().ToLowerInvariant() : null)">
+            <div class="org-card @(n.Highlight ? "highlight" : "")">
+                <a class="org-card-link" href="@n.Href">
+                    <span class="org-avatar">
+                        @if (n.ImageFileId is not null) { <img src="@($"/files/{n.ImageFileId}")" alt="" loading="lazy" /> }
+                        else { @Initials(n.Title) }
+                    </span>
+                    <span class="org-text">
+                        <span class="org-title">@n.Title</span>
+                        @if (!string.IsNullOrWhiteSpace(n.Subtitle)) { <span class="org-subtitle">@n.Subtitle</span> }
+                        @if (!string.IsNullOrWhiteSpace(n.Meta)) { <span class="org-meta">@n.Meta</span> }
+                    </span>
+                </a>
+                @if (kids.Count > 0)
+                {
+                    <button type="button" class="org-toggle" aria-label="@((open ? "Tutup" : "Buka") + $" cabang {n.Title}")" @onclick="() => Toggle(n.Id)">
+                        @(open ? "−" : $"+{Descendants(n.Id, new HashSet<string> { n.Id })}")
+                    </button>
+                }
+            </div>
+            @if (kids.Count > 0 && open)
+            {
+                <ul role="group">@foreach (var c in kids) { @RenderNode(c, nextPath) }</ul>
+            }
+        </li>
+    };
+}

@@ -1,0 +1,65 @@
+@* Field gambar: unggah (PNG/JPEG/WebP/GIF, maks. 2 MB, dicek dari isi file), pratinjau, ganti, hapus.
+   File disimpan lewat FileService; nilai field = id file. Tampilan lewat /files/{id} (cek tenant + izin dokumen). *@
+@using Framework.Files
+@using Microsoft.AspNetCore.Components.Forms
+@inject FileService Files
+@inject CurrentUser Current
+
+<div class="image-field @(Compact ? "compact" : "")">
+    <div class="image-frame">
+        @if (Value is not null)
+        {
+            <img src="@($"/files/{Value}")" alt="@Field.Label" loading="lazy" />
+        }
+        else
+        {
+            <LucideIcon Name="image" Size="@(Compact ? 18 : 28)" />
+        }
+    </div>
+    @if (!ReadOnly)
+    {
+        <div class="image-actions">
+            <label class="image-pick @(busy ? "busy" : "")">
+                <InputFile id="@Id" accept="image/png,image/jpeg,image/webp,image/gif" OnChange="Upload" disabled="@busy" />
+                <LucideIcon Name="image-plus" Size="15" /> @(busy ? "Mengunggah…" : Value is null ? "Unggah" : "Ganti")
+            </label>
+            @if (Value is not null && !busy)
+            {
+                <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="() => ValueChanged.InvokeAsync(null)">Hapus</BbButton>
+            }
+            @if (!Compact) { <span class="muted small">PNG, JPEG, WebP, atau GIF · maks. 2 MB</span> }
+            @if (error is not null) { <span class="image-error" role="alert">@error</span> }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public CompiledField Field { get; set; } = default!;
+    [Parameter, EditorRequired] public string DocType { get; set; } = "";
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public EventCallback<object?> ValueChanged { get; set; }
+    [Parameter] public bool ReadOnly { get; set; }
+    [Parameter] public bool Compact { get; set; }
+    [Parameter] public string? Id { get; set; }
+
+    private bool busy;
+    private string? error;
+
+    private async Task Upload(InputFileChangeEventArgs e)
+    {
+        error = null;
+        if (e.File.Size > FileService.MaxImageBytes) { error = "Ukuran gambar maksimal 2 MB."; return; }
+        busy = true;
+        try
+        {
+            await using var stream = e.File.OpenReadStream(FileService.MaxImageBytes + 1);
+            var id = await Files.UploadImageAsync(Current.Required, DocType, Field.Name, stream);
+            await ValueChanged.InvokeAsync(id);
+        }
+        catch (Exception ex) when (ex is FileRejectedException or PermissionDeniedException or IOException)
+        {
+            error = ex is IOException ? "Ukuran gambar maksimal 2 MB." : ex.Message;
+        }
+        finally { busy = false; }
+    }
+}

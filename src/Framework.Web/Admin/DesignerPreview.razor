@@ -1,0 +1,151 @@
+@* Pratinjau form dari draft yang sedang diedit. Memakai komponen form yang sama dengan aplikasi
+   (FieldInput, ChildTable) dan engine yang sama dengan server (kondisi, rumus, validasi). Data uji tidak disimpan. *@
+@inject DocumentEvaluator Evaluator
+@inject ValidationEngine Validation
+@inject IDocumentStore Store
+@inject CurrentUser Current
+
+<div class="preview-bar">
+    <span class="muted small">Isi form untuk mencoba kondisi tampil/wajib dan rumus. Data uji tidak disimpan.</span>
+    <span class="spacer"></span>
+    <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick="Validate"><LucideIcon Name="circle-check" Size="16" /> Uji validasi</BbButton>
+    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="Reset"><LucideIcon Name="rotate-ccw" Size="16" /> Reset data uji</BbButton>
+</div>
+
+@if (validated && errors.Count == 0)
+{
+    <BbAlert Variant="AlertVariant.Success" Class="props-block"><BbAlertDescription>Data uji lolos semua validasi.</BbAlertDescription></BbAlert>
+}
+else if (errors.Count > 0)
+{
+    <BbAlert Variant="AlertVariant.Danger" Class="props-block">
+        <BbAlertTitle>@errors.Count kesalahan validasi</BbAlertTitle>
+        <BbAlertDescription><ul class="error-list">@foreach (var e in errors) { <li>@e.Value</li> }</ul></BbAlertDescription>
+    </BbAlert>
+}
+
+<BbTabs Value="@tab" ValueChanged="v => tab = v ?? tab">
+    <BbTabsList>
+        @foreach (var t in Meta.Layout) { <BbTabsTrigger Value="@t.Title">@t.Title</BbTabsTrigger> }
+    </BbTabsList>
+    @foreach (var t in Meta.Layout)
+    {
+        <BbTabsContent Value="@t.Title">
+            <div class="stack" style="margin-top:.75rem">
+                @foreach (var sec in t.Sections)
+                {
+                    <BbCard>
+                        @if (sec.Title is not null) { <BbCardHeader><BbCardTitle Class="card-title">@sec.Title</BbCardTitle></BbCardHeader> }
+                        <BbCardContent>
+                            <div class="form-cols cols-@sec.Columns.Count">
+                                @foreach (var col in sec.Columns)
+                                {
+                                    <div class="form-col">
+                                        @foreach (var f in col.Fields)
+                                        {
+                                            var st = Evaluator.StateOf(f, model, User);
+                                            if (!st.Visible) continue;
+                                            var err = errors.GetValueOrDefault(f.Name);
+                                            <BbField IsInvalid="@(err is not null)">
+                                                @if (f.Type.Editor != "check" && !(f.Def.Type == "Table" && f.Label == sec.Title))
+                                                {
+                                                    <BbFieldLabel For="@($"pv-{f.Name}")">
+                                                        <span class="label-row">@f.Label@if (st.Required) { <span class="req">*</span> }
+                                                            @if (f.IsDerived) { <BbBadge Variant="BadgeVariant.Soft">otomatis</BbBadge> }
+                                                            @if (f.Def.PermLevel > 0) { <BbBadge Variant="BadgeVariant.Outline">level @f.Def.PermLevel</BbBadge> }
+                                                        </span>
+                                                    </BbFieldLabel>
+                                                }
+                                                @if (f.Def.Type == "Table" && Snapshot.TryGet(f.Def.ChildDocType!, out var child))
+                                                {
+                                                    <ChildTable Table="f" ChildMeta="child" Rows="Rows(f)" Parent="model" Errors="errors" OnChanged="Changed" />
+                                                }
+                                                else if (f.Def.Type != "Table")
+                                                {
+                                                    <FieldInput Field="f" Id="@($"pv-{f.Name}")" DocType="@Meta.Name" Value="model.GetValueOrDefault(f.Name)" ReadOnly="st.ReadOnly"
+                                                                Invalid="@(err is not null)" ValueChanged="v => SetValue(f, v)" />
+                                                }
+                                                @if (err is not null) { <BbFieldError Errors="@(new[] { err })" /> }
+                                                else if (f.Def.Description is not null) { <BbFieldDescription>@f.Def.Description</BbFieldDescription> }
+                                            </BbField>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        </BbCardContent>
+                    </BbCard>
+                }
+            </div>
+        </BbTabsContent>
+    }
+</BbTabs>
+
+@code {
+    /// <summary>DocType hasil kompilasi draft.</summary>
+    [Parameter, EditorRequired] public CompiledDocType Meta { get; set; } = default!;
+    /// <summary>Snapshot draft (untuk child table dan resolusi rumus).</summary>
+    [Parameter, EditorRequired] public MetadataSnapshot Snapshot { get; set; } = default!;
+
+    private UserContext User => Current.Required;
+    private Dictionary<string, object?> model = new();
+    private Dictionary<string, string> errors = new();
+    private CompiledDocType? shownMeta;
+    private string tab = "";
+    private bool validated;
+
+    protected override void OnParametersSet()
+    {
+        if (ReferenceEquals(shownMeta, Meta)) return;
+        // Draft berubah: pertahankan data uji untuk field yang masih ada, isi default untuk field baru.
+        var keep = model.Where(kv => Meta.ByName.ContainsKey(kv.Key)).ToDictionary(kv => kv.Key, kv => kv.Value);
+        model = keep;
+        Evaluator.ApplyDefaults(Meta, model, User);
+        Recompute();
+        shownMeta = Meta;
+        if (Meta.Layout.All(t => t.Title != tab)) tab = Meta.Layout.FirstOrDefault()?.Title ?? "";
+        errors.Clear(); validated = false;
+    }
+
+    private CompiledDocType Resolve(string name) => Snapshot.Get(name);
+    private void Recompute() => Evaluator.ApplyCompute(Meta, model, User, Resolve);
+
+    private List<Dictionary<string, object?>> Rows(CompiledField f)
+    {
+        if (model.GetValueOrDefault(f.Name) is not List<Dictionary<string, object?>> rows)
+            model[f.Name] = rows = [];
+        return rows;
+    }
+
+    private void SetValue(CompiledField f, object? v)
+    {
+        model[f.Name] = v;
+        Changed();
+    }
+
+    private void Changed()
+    {
+        Recompute();
+        if (validated) { errors.Clear(); validated = false; }
+    }
+
+    private void Reset()
+    {
+        model = new();
+        Evaluator.ApplyDefaults(Meta, model, User);
+        Recompute();
+        errors.Clear(); validated = false;
+    }
+
+    private async Task Validate()
+    {
+        Recompute();
+        var found = await Validation.ValidateAsync(Meta, model, User, Resolve, new TenantLookup(Store, User.TenantId), default);
+        errors = found.GroupBy(e => e.Path).ToDictionary(g => g.Key, g => g.First().Message);
+        validated = true;
+    }
+
+    private sealed class TenantLookup(IDocumentStore store, string tenantId) : IDocumentLookup
+    {
+        public Task<Document?> GetAsync(string docType, string name, CancellationToken ct = default) => store.GetAsync(tenantId, docType, name, ct);
+    }
+}

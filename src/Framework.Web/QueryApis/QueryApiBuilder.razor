@@ -1,0 +1,293 @@
+@page "/query-apis/new"
+@page "/query-apis/{ApiId}/edit"
+@using Framework.Api
+@using Framework.Dashboards
+@using System.Text.Json
+@inject QueryApiService Apis
+@inject IMetadataProvider Metadata
+@inject CurrentUser Current
+@inject ToastService Toasts
+@inject NavigationManager Nav
+
+<PageTitle>@(isEdit ? "Edit API query" : "API query baru") · DocFrame</PageTitle>
+
+<BbBreadcrumb Class="crumbs">
+    <BbBreadcrumbList>
+        <BbBreadcrumbItem><BbBreadcrumbLink Href="/query-apis">API Query</BbBreadcrumbLink></BbBreadcrumbItem>
+        <BbBreadcrumbSeparator />
+        <BbBreadcrumbItem><BbBreadcrumbPage>@(isEdit ? def.Name : "Baru")</BbBreadcrumbPage></BbBreadcrumbItem>
+    </BbBreadcrumbList>
+</BbBreadcrumb>
+
+@if (!QueryApiService.CanDesign(Current.Required))
+{
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>Menerbitkan API query hanya untuk System Manager.</BbAlertDescription></BbAlert>
+}
+else if (!Apis.IsAvailable)
+{
+    <UnavailableNotice />
+}
+else
+{
+    <header class="page-head">
+        <div>
+            <h1>@(isEdit ? $"Edit: {def.Name}" : "API query baru")</h1>
+            <p>Jalur yang sama dengan widget dashboard &amp; template laporan: query (read-only, terbatas tenant) → parameter → terbitkan sebagai <code>GET /api/query/{slug}</code>.</p>
+        </div>
+    </header>
+
+    @if (def.SourceRef is not null)
+    {
+        <BbAlert Class="props-block"><BbAlertDescription>API ini diterbitkan dari @(def.SourceRef.StartsWith("widget:") ? "widget dashboard" : "template laporan"). Query, parameter, dan role ikut diperbarui saat sumbernya disimpan; pengaturan di langkah 3 (keluaran, batas, cache, status) tetap milik API ini.</BbAlertDescription></BbAlert>
+    }
+
+    <ol class="wizard-steps" aria-label="Langkah" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+        @foreach (var (n, title) in Steps)
+        {
+            var num = n;
+            <li class="@(step == num ? "current" : num < step ? "done" : "")">
+                <button type="button" disabled="@(num > maxStep)" @onclick="() => GoTo(num)" aria-current="@(step == num ? "step" : null)">
+                    <span class="step-num">@(num < step ? "✓" : num.ToString())</span><span>@title</span>
+                </button>
+            </li>
+        }
+    </ol>
+
+    @if (error is not null)
+    {
+        <BbAlert Variant="AlertVariant.Danger" Class="props-block"><BbAlertTitle>@errorTitle</BbAlertTitle><BbAlertDescription><span class="pre">@error</span></BbAlertDescription></BbAlert>
+    }
+
+    @switch (step)
+    {
+        case 1:
+            <div class="builder-grid">
+                <BbCard>
+                    <BbCardHeader>
+                        <BbCardTitle Class="card-title">1. Query</BbCardTitle>
+                        <BbCardDescription>Satu SELECT. Parameter <code>@@Nama</code> menjadi query string: <code>/api/query/slug?Nama=nilai</code>.</BbCardDescription>
+                    </BbCardHeader>
+                    <BbCardContent>
+                        <div class="stack">
+                            <FormTextArea Id="sql" Value="@def.Config.Sql" ValueChanged="v => def.Config.Sql = v ?? string.Empty" Rows="12" AriaLabel="Query SQL" />
+                            <div class="row"><BbButton OnClick="Detect"><LucideIcon Name="scan-search" Size="16" /> Lanjut: deteksi parameter</BbButton></div>
+                        </div>
+                    </BbCardContent>
+                </BbCard>
+                <BbCard>
+                    <BbCardHeader><BbCardTitle Class="card-title">View yang tersedia</BbCardTitle><BbCardDescription>Klik untuk menyisipkan.</BbCardDescription></BbCardHeader>
+                    <BbCardContent>
+                        <div class="catalog">
+                            @foreach (var v in ReportingCatalog.Describe(Metadata.Current))
+                            {
+                                var view = v;
+                                <details>
+                                    <summary><button type="button" class="catalog-insert" @onclick="() => Insert(view.Name)" @onclick:stopPropagation="true"><code>@view.Name</code></button><span class="muted small">@view.Title</span></summary>
+                                    <ul>@foreach (var (col, type) in view.Columns) { var c = col; <li><button type="button" class="catalog-insert" @onclick="() => Insert(c)"><code>@c</code></button><span class="muted small">@type</span></li> }</ul>
+                                </details>
+                            }
+                        </div>
+                    </BbCardContent>
+                </BbCard>
+            </div>
+            break;
+
+        case 2:
+            <BbCard>
+                <BbCardHeader>
+                    <BbCardTitle Class="card-title">2. Parameter &amp; pratinjau</BbCardTitle>
+                    <BbCardDescription>@(def.Config.Parameters.Count == 0 ? "Query tidak memakai parameter." : "\"Dari pemanggil\" = dikirim lewat query string (default dipakai bila tidak dikirim). \"Dari akun\" = diisi otomatis dan tidak bisa ditimpa pemanggil.")</BbCardDescription>
+                </BbCardHeader>
+                <BbCardContent>
+                    @if (def.Config.Parameters.Count > 0)
+                    {
+                        <div class="table-wrap">
+                            <table class="perm-table">
+                                <thead><tr><th>Parameter</th><th>Label</th><th>Tipe</th><th>Nilai default</th><th>Sumber nilai</th></tr></thead>
+                                <tbody>
+                                    @foreach (var prm in def.Config.Parameters)
+                                    {
+                                        var p = prm;
+                                        <tr>
+                                            <td><code>@@@p.Name</code></td>
+                                            <td style="min-width:9rem"><FormTextInput Value="@p.Label" ValueChanged="v => p.Label = v ?? p.Name" AriaLabel="@($"Label {p.Name}")" /></td>
+                                            <td style="min-width:8rem"><BbSelect TValue="string" Value="@p.Type" ValueChanged="v => { p.Type = v ?? ParamTypes.Text; p.DefaultValue = null; }" Options="TypeOptions" AriaLabel="@($"Tipe {p.Name}")" /></td>
+                                            <td style="min-width:11rem">
+                                                <FormTextInput Id="@($"pv-{p.Name}")" Type="@(p.Type == ParamTypes.Date ? "date" : p.Type == ParamTypes.Number ? "number" : "text")" Value="@p.DefaultValue"
+                                                               ValueChanged="v => p.DefaultValue = string.IsNullOrWhiteSpace(v) ? null : v" AriaLabel="@($"Nilai {p.Name}")" Disabled="QueryApiService.IsUserBound(p)" />
+                                            </td>
+                                            <td style="min-width:14rem"><BbSelect TValue="string" Value="@p.Binding" ValueChanged="v => p.Binding = v ?? ParamBindings.Default" Options="BindingOptions(p)" AriaLabel="@($"Sumber {p.Name}")" /></td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    <div class="row" style="margin:.75rem 0">
+                        <BbButton Disabled="busy" OnClick="RunPreview"><LucideIcon Name="play" Size="16" /> @(busy ? "Menjalankan…" : "Jalankan pratinjau")</BbButton>
+                        <BbButton Variant="ButtonVariant.Ghost" OnClick="() => GoTo(1)">Kembali ke query</BbButton>
+                        <span class="spacer"></span>
+                        <BbButton Disabled="@(preview is null)" OnClick="() => GoTo(3)">Lanjut: terbitkan <LucideIcon Name="arrow-right" Size="16" /></BbButton>
+                    </div>
+                    @if (preview is not null) { <ResultGrid Result="preview" ShowFooter="true" /> }
+                </BbCardContent>
+            </BbCard>
+            break;
+
+        case 3:
+            <div class="builder-grid">
+                <BbCard>
+                    <BbCardHeader><BbCardTitle Class="card-title">3. Terbitkan</BbCardTitle></BbCardHeader>
+                    <BbCardContent>
+                        <div class="stack">
+                            <BbField><BbFieldLabel For="q-name">Nama</BbFieldLabel><FormTextInput Id="q-name" Value="@def.Name" ValueChanged="SetName" /></BbField>
+                            <BbField>
+                                <BbFieldLabel For="q-slug">Slug endpoint</BbFieldLabel>
+                                <div class="api-slug"><span class="muted small">/api/query/</span><FormTextInput Id="q-slug" Value="@def.Slug" ValueChanged="v => { def.Slug = (v ?? string.Empty).Trim().ToLowerInvariant(); slugTouched = true; }" /></div>
+                            </BbField>
+                            <BbField><BbFieldLabel For="q-desc">Deskripsi</BbFieldLabel><FormTextArea Id="q-desc" Value="@def.Description" ValueChanged="v => def.Description = string.IsNullOrWhiteSpace(v) ? null : v" Rows="2" /></BbField>
+                            <div>
+                                <div class="props-sub" style="margin-bottom:.35rem">Bentuk keluaran</div>
+                                @foreach (var (o, label, hint) in Outputs)
+                                {
+                                    var opt = o;
+                                    <div class="label-row"><input type="radio" id="@($"out-{opt}")" name="output" checked="@(def.Config.Output == opt)" @onchange="() => def.Config.Output = opt" /><label for="@($"out-{opt}")">@label <span class="muted small">— @hint</span></label></div>
+                                }
+                            </div>
+                            <div class="props-row">
+                                <BbField><BbFieldLabel For="q-max">Batas baris</BbFieldLabel><FormTextInput Id="q-max" Type="number" Value="@def.Config.MaxRows.ToString()" ValueChanged="v => def.Config.MaxRows = int.TryParse(v, out var n) ? n : def.Config.MaxRows" /><BbFieldDescription>Maks. @QueryApiService.MaxRowsCap.ToString("N0"). Melebihi → <code>truncated: true</code>.</BbFieldDescription></BbField>
+                                <BbField><BbFieldLabel For="q-cache">Cache (detik)</BbFieldLabel><FormTextInput Id="q-cache" Type="number" Value="@def.Config.CacheSeconds.ToString()" ValueChanged="v => def.Config.CacheSeconds = int.TryParse(v, out var n) ? n : 0" /><BbFieldDescription>0 = selalu data terbaru.</BbFieldDescription></BbField>
+                            </div>
+                            <div>
+                                <div class="props-sub" style="margin-bottom:.4rem">Boleh dipanggil oleh (kosong = semua pengguna)</div>
+                                <div class="wf-roles">
+                                    @foreach (var role in MetadataRoles.Known(Metadata.Current, def.Config.Roles))
+                                    {
+                                        var r = role;
+                                        <div class="label-row"><BbCheckbox Id="@($"qr-{r}")" Checked="def.Config.Roles.Contains(r)" CheckedChanged="v => { if (v) def.Config.Roles.Add(r); else def.Config.Roles.Remove(r); }" /><BbLabel For="@($"qr-{r}")">@r</BbLabel></div>
+                                    }
+                                </div>
+                            </div>
+                            <div class="label-row"><BbCheckbox Id="q-enabled" Checked="def.Config.Enabled" CheckedChanged="v => def.Config.Enabled = v" /><BbLabel For="q-enabled">Aktif (nonaktif → pemanggil mendapat 404)</BbLabel></div>
+                            <div class="row">
+                                <BbButton Variant="ButtonVariant.Ghost" OnClick="() => GoTo(2)">Kembali</BbButton>
+                                <span class="spacer"></span>
+                                <BbButton Disabled="@(busy || string.IsNullOrWhiteSpace(def.Name))" OnClick="Save"><LucideIcon Name="send" Size="16" /> @(busy ? "Menerbitkan…" : "Terbitkan API")</BbButton>
+                            </div>
+                        </div>
+                    </BbCardContent>
+                </BbCard>
+                <BbCard>
+                    <BbCardHeader><BbCardTitle Class="card-title">Contoh pemanggilan</BbCardTitle><BbCardDescription>Dengan kunci API (menu Kunci API, cakupan <code>query:@(def.Slug)</code>).</BbCardDescription></BbCardHeader>
+                    <BbCardContent>
+                        <pre class="api-example">curl -H "Authorization: ApiKey dfk_…" \
+  "@(Nav.BaseUri)api/query/@(def.Slug)@ExampleQuery"</pre>
+                        <div class="props-sub" style="margin:.75rem 0 .35rem">Contoh respons (data pratinjau)</div>
+                        <pre class="api-example">@ExampleResponse</pre>
+                    </BbCardContent>
+                </BbCard>
+            </div>
+            break;
+    }
+}
+
+@code {
+    [Parameter] public string? ApiId { get; set; }
+
+    private static readonly (int, string)[] Steps = [(1, "Query"), (2, "Parameter & pratinjau"), (3, "Terbitkan")];
+    private static readonly (string, string, string)[] Outputs =
+    [
+        (QueryApiOutputs.Rows, "Daftar baris", "{ data: [ {…}, … ], columns, count, truncated }"),
+        (QueryApiOutputs.Object, "Satu objek", "baris pertama, cocok untuk KPI: { data: {…} }"),
+        (QueryApiOutputs.Csv, "CSV", "file text/csv untuk spreadsheet / ETL"),
+    ];
+    private static readonly IEnumerable<SelectOption<string>> TypeOptions =
+        [new(ParamTypes.Text, "Teks"), new(ParamTypes.Number, "Angka"), new(ParamTypes.Date, "Tanggal"), new(ParamTypes.Boolean, "Boolean")];
+
+    private QueryApiDef def = new();
+    private int step = 1, maxStep = 1;
+    private bool isEdit, busy, slugTouched;
+    private string? error, errorTitle, loadedKey;
+    private QueryResultSet? preview;
+
+    private static IEnumerable<SelectOption<string>> BindingOptions(WidgetParameter p)
+    {
+        yield return new(ParamBindings.Default, "Dari pemanggil");
+        if (p.Type == ParamTypes.Text) { yield return new(ParamBindings.UserDepartment, "Dari akun: departemen"); yield return new(ParamBindings.UserId, "Dari akun: ID pengguna"); }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (ApiId == loadedKey && loadedKey is not null) return;
+        loadedKey = ApiId ?? "";
+        if (ApiId is null || !QueryApiService.CanDesign(Current.Required)) return;
+        if (await Apis.GetAsync(Current.Required, ApiId) is not { } d) { (errorTitle, error) = ("Tidak ditemukan", "API query tidak ditemukan."); return; }
+        def = d; isEdit = true; slugTouched = true; maxStep = 2;
+    }
+
+    private void GoTo(int n) { if (n <= maxStep) { step = n; error = null; } }
+    private void Insert(string text) { var s = def.Config.Sql.TrimEnd(); def.Config.Sql = s + (s.Length == 0 ? "" : " ") + text; }
+    private void SetName(string? v) { def.Name = v ?? string.Empty; if (!slugTouched) def.Slug = QueryApiService.Slugify(def.Name); }
+
+    private void Detect()
+    {
+        error = null;
+        var (err, ps) = QueryApiService.DetectParameters(def.Config.Sql, def.Config.Parameters);
+        if (err is not null) { (errorTitle, error) = ("Query belum bisa dipakai", err); return; }
+        def.Config.Parameters = ps; preview = null;
+        step = maxStep = 2;
+    }
+
+    private async Task RunPreview()
+    {
+        error = null; busy = true;
+        try { preview = await Apis.PreviewAsync(Current.Required, def.Config); maxStep = 3; }
+        catch (Exception ex) when (ex is QueryRejectedException or ReportingUnavailableException or ValidationFailedException)
+        {
+            preview = null; maxStep = 2;
+            (errorTitle, error) = ("Query gagal dijalankan", ex is ValidationFailedException v ? string.Join("; ", v.Errors.Select(e => $"{e.Path}: {e.Message}")) : ex.Message);
+        }
+        finally { busy = false; }
+    }
+
+    private string ExampleQuery
+    {
+        get
+        {
+            var ps = def.Config.Parameters.Where(p => !QueryApiService.IsUserBound(p)).Select(p => $"{p.Name}={Uri.EscapeDataString(p.DefaultValue ?? (p.Type == ParamTypes.Date ? "2026-01-31" : p.Type == ParamTypes.Number ? "0" : "nilai"))}");
+            return ps.Any() ? "?" + string.Join("&", ps) : "";
+        }
+    }
+
+    private string ExampleResponse
+    {
+        get
+        {
+            if (preview is null) return "—";
+            Dictionary<string, object?> Row(object?[] r) => preview.Columns.Select((c, i) => (c.Name, r[i])).ToDictionary(x => x.Name, x => x.Item2);
+            var opt = new JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
+            return def.Config.Output switch
+            {
+                QueryApiOutputs.Object => JsonSerializer.Serialize(new { data = preview.Rows.Count > 0 ? Row(preview.Rows[0]) : null }, opt),
+                QueryApiOutputs.Csv => string.Join(",", preview.Columns.Select(c => c.Name)) + "\n" + string.Join("\n", preview.Rows.Take(3).Select(r => string.Join(",", r.Select(v => Convert.ToString(v, System.Globalization.CultureInfo.InvariantCulture))))),
+                _ => JsonSerializer.Serialize(new { data = preview.Rows.Take(2).Select(Row), count = preview.Rows.Count, truncated = false }, opt),
+            };
+        }
+    }
+
+    private async Task Save()
+    {
+        error = null; busy = true;
+        try
+        {
+            var saved = await Apis.SaveAsync(Current.Required, def);
+            Toasts.Success($"GET /api/query/{saved.Slug}", $"{saved.Name} v{saved.Version} diterbitkan");
+            Nav.NavigateTo("/query-apis");
+        }
+        catch (Exception ex) when (ex is ApiMethodException or QueryRejectedException or ReportingUnavailableException or PermissionDeniedException or ValidationFailedException)
+        {
+            (errorTitle, error) = ("API belum bisa diterbitkan", ex is ValidationFailedException v ? string.Join("; ", v.Errors.Select(e => $"{e.Path}: {e.Message}")) : ex.Message);
+        }
+        finally { busy = false; }
+    }
+}

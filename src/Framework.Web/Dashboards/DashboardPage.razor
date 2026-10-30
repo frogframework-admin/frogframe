@@ -1,0 +1,174 @@
+@page "/dashboard"
+@using Framework.Dashboards
+@inject DashboardService Dashboards
+@inject DocumentService Docs
+@inject IMetadataProvider Metadata
+@inject CurrentUser Current
+@inject ToastService Toasts
+@inject NavigationManager Nav
+
+<PageTitle>Dashboard · DocFrame</PageTitle>
+
+<header class="page-head">
+    <div><h1>Dashboard</h1><p>Widget dari query pelaporan. Filter di bawah diterapkan ke widget yang parameternya diikat ke filter dashboard.</p></div>
+    @if (designer)
+    {
+        <div class="row">
+            <BbButton Variant="ButtonVariant.Outline" Href="/dashboard/widgets"><LucideIcon Name="layout-list" Size="16" /> Kelola widget</BbButton>
+            <BbButton Href="/dashboard/widgets/new"><LucideIcon Name="plus" Size="16" /> Widget baru</BbButton>
+        </div>
+    }
+</header>
+
+@if (!Dashboards.IsAvailable)
+{
+    <UnavailableNotice />
+}
+else
+{
+    <div class="dash-filters">
+        <BbField><BbFieldLabel For="f-start">Dari tanggal</BbFieldLabel><FormTextInput Id="f-start" Type="date" Value="@startText" ValueChanged="v => startText = v" /></BbField>
+        <BbField><BbFieldLabel For="f-end">Sampai tanggal</BbFieldLabel><FormTextInput Id="f-end" Type="date" Value="@endText" ValueChanged="v => endText = v" /></BbField>
+        @if (departments.Count > 0)
+        {
+            <BbField>
+                <BbFieldLabel>Departemen</BbFieldLabel>
+                <BbSelect TValue="string" Value="@department" ValueChanged="v => department = v ?? string.Empty" AriaLabel="Departemen"
+                          Options="@(departments.Prepend(new SelectOption<string>("", "Semua departemen")))" />
+            </BbField>
+        }
+        <BbButton Disabled="loading" OnClick="Load"><LucideIcon Name="refresh-cw" Size="16" /> @(loading ? "Memuat…" : "Terapkan")</BbButton>
+    </div>
+
+    @if (cards.Count == 0 && !loading)
+    {
+        <BbEmpty Title="Belum ada widget di dashboard" Description="@(designer ? "Buat widget baru lalu tempelkan ke dashboard." : "Hubungi administrator untuk menambahkan widget.")" />
+    }
+    <div class="dash-grid">
+        @foreach (var card in cards)
+        {
+            var c = card;
+            <section class="dash-card span-@c.Item.Span" aria-label="@c.Widget.Name">
+                <div class="dash-card-head">
+                    <div>
+                        <h2>@c.Widget.Name</h2>
+                        @if (c.Widget.Description is not null) { <p>@c.Widget.Description</p> }
+                    </div>
+                    @if (designer)
+                    {
+                        <div class="dash-card-actions">
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Geser ke kiri" OnClick="() => Move(c, -1)"><LucideIcon Name="arrow-left" Size="15" /></BbButton>
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Geser ke kanan" OnClick="() => Move(c, 1)"><LucideIcon Name="arrow-right" Size="15" /></BbButton>
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@(c.Item.Span < 3 ? "Perlebar" : "Persempit")" OnClick="() => Resize(c)"><LucideIcon Name="@(c.Item.Span < 3 ? "maximize-2" : "minimize-2")" Size="15" /></BbButton>
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Edit widget" OnClick="@(() => Nav.NavigateTo($"/dashboard/widgets/{c.Widget.Id}"))"><LucideIcon Name="pencil" Size="15" /></BbButton>
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Lepas dari dashboard" OnClick="() => Unpin(c)"><LucideIcon Name="pin-off" Size="15" /></BbButton>
+                        </div>
+                    }
+                </div>
+                @if (c.Run is null)
+                {
+                    <BbSkeleton Height="12rem" />
+                }
+                else if (c.Run.Error is not null)
+                {
+                    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@c.Run.Error</BbAlertDescription></BbAlert>
+                }
+                else
+                {
+                    <ChartView Result="c.Run.Result" Visual="c.Widget.Config.Visual" Width="@(c.Item.Span switch { 1 => 360, 2 => 720, _ => 1080 })" />
+                    @if (c.Run.Result!.Truncated) { <p class="muted small">Ditampilkan @c.Run.Result.Rows.Count baris pertama.</p> }
+                }
+            </section>
+        }
+    </div>
+}
+
+@code {
+    private sealed class Card(DashboardItem item, WidgetDef widget)
+    {
+        public DashboardItem Item { get; } = item;
+        public WidgetDef Widget { get; } = widget;
+        public WidgetRun? Run { get; set; }
+    }
+
+    private List<Card> cards = [];
+    private DashboardLayout layout = new();
+    private List<SelectOption<string>> departments = [];
+    private bool loading, designer;
+    private string? startText = new DateOnly(DateTime.Today.Year, 1, 1).ToString("yyyy-MM-dd");
+    private string? endText = DateTime.Today.ToString("yyyy-MM-dd");
+    private string department = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        designer = DashboardService.CanDesign(Current.Required);
+        if (!Dashboards.IsAvailable) return;
+        if (Metadata.Current.TryGet("Department", out _))
+        {
+            try
+            {
+                var depts = await Docs.QueryForReportAsync(Current.Required, "Department", [], DocActions.Read);
+                departments = depts.OrderBy(d => d.Name).Select(d => new SelectOption<string>(d.Name, d.Data.GetValueOrDefault("department_name") as string ?? d.Name)).ToList();
+            }
+            catch (PermissionDeniedException) { }
+        }
+        await Load();
+    }
+
+    private DashboardFilters Filters => new(
+        DateOnly.TryParse(startText, out var s) ? s : null,
+        DateOnly.TryParse(endText, out var e) ? e : null,
+        string.IsNullOrEmpty(department) ? null : department);
+
+    private async Task Load()
+    {
+        loading = true;
+        try
+        {
+            layout = await Dashboards.GetLayoutAsync(Current.Required);
+            var list = new List<Card>();
+            foreach (var item in layout.Items)
+                if (await Dashboards.GetAsync(Current.Required, item.WidgetId) is { } w) list.Add(new Card(item, w));
+            cards = list;
+            StateHasChanged();
+            var filters = Filters;
+            // Widget dijalankan paralel; masing-masing memakai koneksinya sendiri dan dibatasi statement_timeout.
+            // Kegagalan satu widget tampil sebagai pesan di kartunya, tidak menghentikan kartu lain.
+            await Task.WhenAll(cards.Select(async c =>
+            {
+                try { c.Run = await Dashboards.RunWidgetAsync(Current.Required, c.Widget, filters); }
+                catch (Exception ex) when (ex is not OperationCanceledException) { c.Run = new WidgetRun(c.Widget, null, ex.Message); }
+            }));
+        }
+        finally { loading = false; }
+    }
+
+    private async Task SaveLayout()
+    {
+        try { await Dashboards.SaveLayoutAsync(Current.Required, layout); }
+        catch (PermissionDeniedException ex) { Toasts.Error(ex.Message, "Gagal"); }
+    }
+
+    private async Task Move(Card c, int delta)
+    {
+        var i = layout.Items.IndexOf(c.Item); var j = i + delta;
+        if (i < 0 || j < 0 || j >= layout.Items.Count) return;
+        (layout.Items[i], layout.Items[j]) = (layout.Items[j], layout.Items[i]);
+        var ci = cards.IndexOf(c); var cj = ci + delta;
+        if (cj >= 0 && cj < cards.Count) (cards[ci], cards[cj]) = (cards[cj], cards[ci]);
+        await SaveLayout();
+    }
+
+    private async Task Resize(Card c)
+    {
+        c.Item.Span = c.Item.Span >= 3 ? 1 : c.Item.Span + 1;
+        await SaveLayout();
+    }
+
+    private async Task Unpin(Card c)
+    {
+        await Dashboards.UnpinAsync(Current.Required, c.Widget.Id);
+        layout.Items.Remove(c.Item); cards.Remove(c);
+        Toasts.Success("Widget masih tersimpan di Kelola widget.", $"{c.Widget.Name} dilepas");
+    }
+}
