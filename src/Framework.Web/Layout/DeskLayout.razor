@@ -1,5 +1,6 @@
 @inherits LayoutComponentBase
 @implements IDisposable
+@using Framework.Navigation
 @inject CurrentUser Current
 @inject IMetadataProvider Metadata
 @inject IPermissionService Perms
@@ -7,6 +8,7 @@
 @inject ReportService Reports
 @inject NavigationManager Nav
 @inject IEnumerable<DeskMenuItem> MenuItems
+@inject INavigationMenuStore MenuStore
 
 <BbSidebarProvider DefaultOpen="true">
     <BbSidebar Collapsible="true">
@@ -23,33 +25,36 @@
         <BbSidebarContent>
             @if (Current.User is { } u)
             {
-                <BbSidebarGroup>
-                    <BbSidebarMenu>
-                        <BbSidebarMenuItem>
-                            <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="" Match="NavLinkMatch.All" Tooltip="Beranda">
-                                <LucideIcon Name="house" Size="18" /><span>Beranda</span>
-                            </BbSidebarMenuButton>
-                        </BbSidebarMenuItem>
-                                <BbSidebarMenuItem>
-                                    <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="dashboard" Tooltip="Dashboard">
-                                        <LucideIcon Name="layout-dashboard" Size="18" /><span>Dashboard</span>
-                                    </BbSidebarMenuButton>
-                                </BbSidebarMenuItem>
-                                <BbSidebarMenuItem>
-                                    <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="report-templates" Tooltip="Laporan Excel/Word">
-                                        <LucideIcon Name="file-spreadsheet" Size="18" /><span>Laporan Excel/Word</span>
-                                    </BbSidebarMenuButton>
-                                </BbSidebarMenuItem>
-                        <BbSidebarMenuItem>
-                            <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="inbox" Tooltip="Kotak masuk">
-                                <LucideIcon Name="inbox" Size="18" /><span>Kotak masuk</span>
-                            </BbSidebarMenuButton>
-                            @if (unread > 0) { <BbSidebarMenuBadge>@unread</BbSidebarMenuBadge> }
-                        </BbSidebarMenuItem>
-                    </BbSidebarMenu>
-                </BbSidebarGroup>
+                var visibleMenus = navMenus.Where(m => m.IsVisibleFor(u)).ToList();
+                var topMenus = visibleMenus.Where(m => m.GroupName == "Utama").OrderBy(m => m.SortOrder).ToList();
+                var docTypeGroups = MenuGroups(u).ToList();
+                var otherGroups = visibleMenus
+                    .Where(m => m.GroupName != "Utama" && !docTypeGroups.Contains(m.GroupName))
+                    .GroupBy(m => m.GroupName)
+                    .OrderBy(g => g.Min(x => x.SortOrder))
+                    .ToList();
 
-                @foreach (var groupName in MenuGroups(u))
+                @if (topMenus.Count > 0)
+                {
+                    <BbSidebarGroup>
+                        <BbSidebarMenu>
+                            @foreach (var item in topMenus)
+                            {
+                                <BbSidebarMenuItem>
+                                    <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="@item.Href.TrimStart('/')" Match="@(string.IsNullOrEmpty(item.Href) ? NavLinkMatch.All : NavLinkMatch.Prefix)" Tooltip="@item.Title">
+                                        <LucideIcon Name="@item.Icon" Size="18" /><span>@item.Title</span>
+                                    </BbSidebarMenuButton>
+                                    @if (item.BadgeKey == NavigationMenuDefaults.BadgeInboxUnread && unread > 0)
+                                    {
+                                        <BbSidebarMenuBadge>@unread</BbSidebarMenuBadge>
+                                    }
+                                </BbSidebarMenuItem>
+                            }
+                        </BbSidebarMenu>
+                    </BbSidebarGroup>
+                }
+
+                @foreach (var groupName in docTypeGroups)
                 {
                     <BbSidebarGroup>
                         <BbSidebarGroupLabel>@groupName</BbSidebarGroupLabel>
@@ -71,46 +76,39 @@
                                         </BbSidebarMenuButton>
                                     </BbSidebarMenuItem>
                                 }
+                                @foreach (var item in visibleMenus.Where(m => m.GroupName == groupName).OrderBy(m => m.SortOrder))
+                                {
+                                    <BbSidebarMenuItem>
+                                        <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="@item.Href.TrimStart('/')" Tooltip="@item.Title">
+                                            <LucideIcon Name="@item.Icon" Size="18" /><span>@item.Title</span>
+                                        </BbSidebarMenuButton>
+                                        @if (item.BadgeKey == NavigationMenuDefaults.BadgeInboxUnread && unread > 0)
+                                        {
+                                            <BbSidebarMenuBadge>@unread</BbSidebarMenuBadge>
+                                        }
+                                    </BbSidebarMenuItem>
+                                }
                             </BbSidebarMenu>
                         </BbSidebarGroupContent>
                     </BbSidebarGroup>
                 }
 
-                @if (Reports.AvailableFor(u).Any() || u.Roles.Contains(UserContext.SystemManager))
+                @foreach (var group in otherGroups)
                 {
                     <BbSidebarGroup>
-                        <BbSidebarGroupLabel>Lainnya</BbSidebarGroupLabel>
+                        <BbSidebarGroupLabel>@group.Key</BbSidebarGroupLabel>
                         <BbSidebarGroupContent>
                             <BbSidebarMenu>
-                                @if (Reports.AvailableFor(u).Any())
+                                @foreach (var item in group.OrderBy(m => m.SortOrder))
                                 {
                                     <BbSidebarMenuItem>
-                                        <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="reports" Tooltip="Laporan">
-                                            <LucideIcon Name="chart-column" Size="18" /><span>Laporan</span>
+                                        <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="@item.Href.TrimStart('/')" Tooltip="@item.Title">
+                                            <LucideIcon Name="@item.Icon" Size="18" /><span>@item.Title</span>
                                         </BbSidebarMenuButton>
-                                    </BbSidebarMenuItem>
-                                }
-                                @if (u.Roles.Contains(UserContext.SystemManager))
-                                {
-                                    <BbSidebarMenuItem>
-                                        <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="admin/users" Tooltip="Pengguna">
-                                            <LucideIcon Name="users" Size="18" /><span>Pengguna</span>
-                                        </BbSidebarMenuButton>
-                                    </BbSidebarMenuItem>
-                                    <BbSidebarMenuItem>
-                                        <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="admin/api-keys" Tooltip="Kunci API">
-                                            <LucideIcon Name="key-round" Size="18" /><span>Kunci API</span>
-                                        </BbSidebarMenuButton>
-                                    </BbSidebarMenuItem>
-                                    <BbSidebarMenuItem>
-                                        <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="query-apis" Tooltip="API Query">
-                                            <LucideIcon Name="braces" Size="18" /><span>API Query</span>
-                                        </BbSidebarMenuButton>
-                                    </BbSidebarMenuItem>
-                                    <BbSidebarMenuItem>
-                                        <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="admin/metadata" Tooltip="Metadata DocType">
-                                            <LucideIcon Name="settings-2" Size="18" /><span>Metadata DocType</span>
-                                        </BbSidebarMenuButton>
+                                        @if (item.BadgeKey == NavigationMenuDefaults.BadgeInboxUnread && unread > 0)
+                                        {
+                                            <BbSidebarMenuBadge>@unread</BbSidebarMenuBadge>
+                                        }
                                     </BbSidebarMenuItem>
                                 }
                             </BbSidebarMenu>
@@ -165,20 +163,38 @@
 @code {
     private int unread;
     private PeriodicTimer? timer;
+    private IReadOnlyList<NavigationMenuItem> navMenus = [];
 
     protected override void OnInitialized()
     {
         Current.Changed += OnUserChanged;
+        MenuStore.Changed += OnMenusChanged;
         if (Current.User is null) { RedirectToLogin(); return; }
         RefreshUnread();
+        _ = LoadMenusAsync();
         timer = new PeriodicTimer(TimeSpan.FromSeconds(2));
         _ = Poll();
+    }
+
+    private async Task LoadMenusAsync()
+    {
+        if (Current.User is { } u)
+        {
+            navMenus = await MenuStore.ListAsync(u.TenantId, onlyActive: true);
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void OnMenusChanged()
+    {
+        _ = LoadMenusAsync();
     }
 
     /// <summary>Tanpa sesi (belum login, atau sesi dicabut saat validasi ulang) → ke halaman login.</summary>
     private void OnUserChanged()
     {
         if (Current.User is null) InvokeAsync(RedirectToLogin);
+        else _ = LoadMenusAsync();
     }
 
     private void RedirectToLogin()
@@ -230,6 +246,7 @@
     public void Dispose()
     {
         Current.Changed -= OnUserChanged;
+        MenuStore.Changed -= OnMenusChanged;
         timer?.Dispose();
     }
 }

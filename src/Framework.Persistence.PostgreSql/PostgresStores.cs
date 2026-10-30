@@ -399,6 +399,7 @@ public static class PostgreSqlServiceCollectionExtensions
         services.Replace(ServiceDescriptor.Singleton<Framework.Security.IApiKeyStore, PostgresApiKeyStore>());
         services.Replace(ServiceDescriptor.Singleton<Framework.Api.IQueryApiStore, PostgresQueryApiStore>());
         services.Replace(ServiceDescriptor.Singleton<Framework.Imports.IImportLogStore, PostgresImportLogStore>());
+        services.Replace(ServiceDescriptor.Singleton<Framework.Navigation.INavigationMenuStore, PostgresNavigationMenuStore>());
         services.AddSingleton<SchemaMigrator>();
         return services;
     }

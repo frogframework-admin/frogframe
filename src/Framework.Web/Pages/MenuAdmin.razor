@@ -1,0 +1,363 @@
+@page "/admin/menus"
+@using Framework.Navigation
+@using Framework.Web.Admin
+@inject INavigationMenuStore MenuStore
+@inject IMetadataProvider Metadata
+@inject CurrentUser Current
+@inject ToastService Toasts
+@inject DialogService Dialogs
+
+<PageTitle>Master Menu Navigasi · DocFrame</PageTitle>
+
+@if (!Current.Required.Roles.Contains(UserContext.SystemManager))
+{
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>Halaman ini hanya untuk System Manager.</BbAlertDescription></BbAlert>
+}
+else
+{
+    <header class="page-head">
+        <div>
+            <h1>Master Menu Navigasi</h1>
+            <p>Kelola menu sidebar aplikasi untuk tenant @Current.Required.TenantId. Atur grup, urutan, ikon, dan batasan hak akses per peran.</p>
+        </div>
+        <div class="row" style="gap:.5rem">
+            <BbButton Variant="ButtonVariant.Outline" OnClick="ResetDefaults"><LucideIcon Name="rotate-ccw" Size="16" /> Seed Default</BbButton>
+            <BbButton OnClick="StartCreate"><LucideIcon Name="plus" Size="16" /> Tambah menu</BbButton>
+        </div>
+    </header>
+
+    <div class="users-grid">
+        <div class="table-wrap">
+            <table class="data">
+                <thead>
+                    <tr>
+                        <th style="width:3rem">Urutan</th>
+                        <th>Menu</th>
+                        <th>URL</th>
+                        <th>Grup</th>
+                        <th>Hak Akses</th>
+                        <th>Status</th>
+                        <th style="width:5rem">Aksi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var m in menus)
+                    {
+                        var item = m;
+                        <tr class="clickable @(edit?.Id == item.Id ? "selected" : "")" @onclick="() => StartEdit(item)">
+                            <td><code>@item.SortOrder</code></td>
+                            <td>
+                                <div class="row" style="gap:.5rem;align-items:center">
+                                    <LucideIcon Name="@item.Icon" Size="16" />
+                                    <strong>@item.Title</strong>
+                                    @if (!string.IsNullOrEmpty(item.BadgeKey))
+                                    {
+                                        <span class="muted small" title="Badge: @item.BadgeKey">• badge</span>
+                                    }
+                                </div>
+                            </td>
+                            <td><code>@item.Href</code></td>
+                            <td><BbBadge Variant="BadgeVariant.Outline">@item.GroupName</BbBadge></td>
+                            <td>
+                                @if (item.AllowedRoles.Count == 0)
+                                {
+                                    <BbBadge Variant="BadgeVariant.SoftSuccess">Semua Karyawan</BbBadge>
+                                }
+                                else
+                                {
+                                    <div class="row" style="gap:.25rem;flex-wrap:wrap">
+                                        @foreach (var r in item.AllowedRoles)
+                                        {
+                                            <BbBadge Variant="BadgeVariant.Soft">@r</BbBadge>
+                                        }
+                                    </div>
+                                }
+                            </td>
+                            <td>
+                                <div class="row" style="gap:.25rem">
+                                    @if (item.IsSystem)
+                                    {
+                                        <BbBadge Variant="BadgeVariant.Soft">Sistem</BbBadge>
+                                    }
+                                    @if (item.IsActive)
+                                    {
+                                        <BbBadge Variant="BadgeVariant.SoftSuccess">Aktif</BbBadge>
+                                    }
+                                    else
+                                    {
+                                        <BbBadge Variant="BadgeVariant.Secondary">Nonaktif</BbBadge>
+                                    }
+                                </div>
+                            </td>
+                            <td>
+                                <div class="row" style="gap:.25rem">
+                                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Edit menu" OnClick="() => StartEdit(item)">
+                                        <LucideIcon Name="pencil" Size="15" />
+                                    </BbButton>
+                                    @if (!item.IsSystem)
+                                    {
+                                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Hapus menu" OnClick="() => ConfirmDelete(item)">
+                                            <LucideIcon Name="trash-2" Size="15" />
+                                        </BbButton>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (edit is not null)
+        {
+            <BbCard>
+                <BbCardHeader>
+                    <BbCardTitle Class="card-title">@(isNew ? "Menu baru" : $"Edit: {edit.Title}")</BbCardTitle>
+                    <BbCardDescription>
+                        @(edit.IsSystem ? "Menu bawaan sistem (tidak dapat dihapus, tapi dapat diatur judul, ikon, dan urutannya)." : "Menu kustom aplikasi.")
+                    </BbCardDescription>
+                </BbCardHeader>
+                <BbCardContent>
+                    <div class="stack">
+                        @if (error is not null)
+                        {
+                            <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@error</BbAlertDescription></BbAlert>
+                        }
+
+                        <BbField>
+                            <BbFieldLabel For="m-title">Judul Menu</BbFieldLabel>
+                            <BbInput Id="m-title" @bind-Value="edit.Title" Placeholder="mis. Beranda, Pengadaan" />
+                        </BbField>
+
+                        <BbField>
+                            <BbFieldLabel For="m-href">URL / Path</BbFieldLabel>
+                            <BbInput Id="m-href" @bind-Value="edit.Href" Placeholder="mis. dashboard, admin/users, atau kosongkan untuk Beranda" />
+                            <BbFieldDescription>Path relatif aplikasi, mis. "dashboard" atau "app/Employee". Kosongkan untuk halaman beranda.</BbFieldDescription>
+                        </BbField>
+
+                        <BbField>
+                            <BbFieldLabel For="m-icon">Ikon Lucide</BbFieldLabel>
+                            <div class="row" style="gap:.5rem;align-items:center">
+                                <BbInput Id="m-icon" @bind-Value="edit.Icon" Placeholder="mis. house, users, file-text" />
+                                <div style="display:flex;align-items:center;justify-content:center;width:2.5rem;height:2.5rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--muted)">
+                                    <LucideIcon Name="@(string.IsNullOrWhiteSpace(edit.Icon) ? "file-text" : edit.Icon)" Size="18" />
+                                </div>
+                            </div>
+                            <BbFieldDescription>Nama ikon dari Lucide Icons (mis. house, users, key-round, braces, settings-2, chart-column, inbox).</BbFieldDescription>
+                        </BbField>
+
+                        <BbField>
+                            <BbFieldLabel For="m-group">Grup Menu</BbFieldLabel>
+                            <BbInput Id="m-group" @bind-Value="edit.GroupName" Placeholder="mis. Utama, Sistem, Laporan, HR" />
+                            <BbFieldDescription>Menu dengan grup yang sama akan dikelompokkan di sidebar.</BbFieldDescription>
+                        </BbField>
+
+                        <BbField>
+                            <BbFieldLabel For="m-order">Urutan (Sort Order)</BbFieldLabel>
+                            <FormTextInput Id="m-order" Type="number" Value="@edit.SortOrder.ToString()" ValueChanged="v => edit.SortOrder = int.TryParse(v, out var n) ? n : edit.SortOrder" />
+                            <BbFieldDescription>Angka lebih kecil tampil lebih di atas (mis. 10, 20, 30, dst.).</BbFieldDescription>
+                        </BbField>
+
+                        <BbField>
+                            <BbFieldLabel For="m-badge">Kunci Badge (Opsional)</BbFieldLabel>
+                            <BbInput Id="m-badge" @bind-Value="edit.BadgeKey" Placeholder="mis. inbox_unread" />
+                            <BbFieldDescription>Isi "inbox_unread" bila ingin menampilkan badge jumlah notifikasi belum dibaca.</BbFieldDescription>
+                        </BbField>
+
+                        <div class="props-sub">Batasan Hak Akses (Role)</div>
+                        <p class="muted small">Jika tidak ada role yang dipilih, menu dapat dilihat oleh <strong>Semua Karyawan</strong>.</p>
+                        @foreach (var r in AvailableRoles)
+                        {
+                            var role = r;
+                            <div class="label-row">
+                                <BbCheckbox Id="@($"role-{role}")" Checked="edit.AllowedRoles.Contains(role)" CheckedChanged="v => ToggleRole(role, v)" />
+                                <BbLabel For="@($"role-{role}")">@role</BbLabel>
+                            </div>
+                        }
+
+                        <div class="label-row" style="margin-top:.5rem">
+                            <BbCheckbox Id="m-active" Checked="edit.IsActive" CheckedChanged="v => edit.IsActive = v" />
+                            <BbLabel For="m-active">Aktif (ditampilkan di sidebar)</BbLabel>
+                        </div>
+
+                        <div class="row" style="margin-top:1rem;gap:.5rem">
+                            <BbButton Disabled="busy" OnClick="Save"><LucideIcon Name="check" Size="16" /> Simpan</BbButton>
+                            <BbButton Variant="ButtonVariant.Ghost" OnClick="() => edit = null">Batal</BbButton>
+                            @if (!isNew && !edit.IsSystem)
+                            {
+                                <span style="margin-left:auto">
+                                    <BbButton Variant="ButtonVariant.Destructive" Size="ButtonSize.Small" Disabled="busy" OnClick="() => ConfirmDelete(edit)">
+                                        <LucideIcon Name="trash-2" Size="15" /> Hapus
+                                    </BbButton>
+                                </span>
+                            }
+                        </div>
+                    </div>
+                </BbCardContent>
+            </BbCard>
+        }
+    </div>
+}
+
+@code {
+    private IReadOnlyList<NavigationMenuItem> menus = [];
+    private NavigationMenuItem? edit;
+    private bool isNew;
+    private bool busy;
+    private string? error;
+
+    private IEnumerable<string> AvailableRoles => MetadataRoles.Known(Metadata.Current);
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Current.User is null) return;
+        await Reload();
+    }
+
+    private async Task Reload()
+    {
+        menus = await MenuStore.ListAsync(Current.Required.TenantId, onlyActive: false);
+    }
+
+    private void StartCreate()
+    {
+        error = null;
+        isNew = true;
+        edit = new NavigationMenuItem
+        {
+            Id = Guid.NewGuid().ToString("N"),
+            TenantId = Current.Required.TenantId,
+            Title = "",
+            Href = "",
+            Icon = "file-text",
+            GroupName = "Umum",
+            SortOrder = (menus.Count > 0 ? menus.Max(m => m.SortOrder) + 10 : 100),
+            AllowedRoles = [],
+            IsActive = true,
+            IsSystem = false
+        };
+    }
+
+    private void StartEdit(NavigationMenuItem item)
+    {
+        error = null;
+        isNew = false;
+        edit = new NavigationMenuItem
+        {
+            Id = item.Id,
+            TenantId = item.TenantId,
+            Title = item.Title,
+            Href = item.Href,
+            Icon = item.Icon,
+            GroupName = item.GroupName,
+            SortOrder = item.SortOrder,
+            AllowedRoles = [.. item.AllowedRoles],
+            IsSystem = item.IsSystem,
+            IsActive = item.IsActive,
+            BadgeKey = item.BadgeKey,
+            CreatedAt = item.CreatedAt,
+            UpdatedAt = item.UpdatedAt
+        };
+    }
+
+    private void ToggleRole(string role, bool? isChecked)
+    {
+        if (edit is null) return;
+        if (isChecked == true)
+        {
+            if (!edit.AllowedRoles.Contains(role)) edit.AllowedRoles.Add(role);
+        }
+        else
+        {
+            edit.AllowedRoles.Remove(role);
+        }
+    }
+
+    private async Task Save()
+    {
+        if (edit is null) return;
+        if (string.IsNullOrWhiteSpace(edit.Title))
+        {
+            error = "Judul menu tidak boleh kosong.";
+            return;
+        }
+
+        busy = true;
+        error = null;
+        try
+        {
+            await MenuStore.SaveAsync(edit);
+            Toasts.Success($"Menu \"{edit.Title}\" berhasil disimpan.", "Berhasil Disimpan");
+            edit = null;
+            await Reload();
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task ConfirmDelete(NavigationMenuItem item)
+    {
+        if (item.IsSystem)
+        {
+            Toasts.Error("Menu sistem bawaan tidak dapat dihapus.", "Tidak Diizinkan");
+            return;
+        }
+
+        var res = await Dialogs.ConfirmAsync(
+            $"Hapus menu \"{item.Title}\"?",
+            "Menu ini akan dihapus dari navigasi sidebar. Tindakan ini tidak bisa dibatalkan.",
+            new ConfirmDialogOptions { Destructive = true, ConfirmText = "Hapus Menu", CancelText = "Batal" });
+
+        if (!res.Confirmed) return;
+
+        busy = true;
+        try
+        {
+            await MenuStore.DeleteAsync(item.Id, item.TenantId);
+            if (edit?.Id == item.Id) edit = null;
+            Toasts.Success($"Menu \"{item.Title}\" berhasil dihapus.", "Menu Dihapus");
+            await Reload();
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error(ex.Message, "Gagal Menghapus Menu");
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task ResetDefaults()
+    {
+        var res = await Dialogs.ConfirmAsync(
+            "Seed / Pulihkan Menu Wajib?",
+            "Sistem akan memeriksa dan menambahkan menu universal & menu wajib sistem yang belum ada di database.",
+            new ConfirmDialogOptions { ConfirmText = "Jalankan Seed", CancelText = "Batal" });
+
+        if (!res.Confirmed) return;
+
+        busy = true;
+        try
+        {
+            await MenuStore.EnsureDefaultMenusAsync(Current.Required.TenantId);
+            Toasts.Success("Menu default berhasil diperiksa dan di-seed.", "Seed Berhasil");
+            await Reload();
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error(ex.Message, "Gagal Seed Menu");
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+}
+

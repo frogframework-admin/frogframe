@@ -5,6 +5,7 @@ using Framework.Dashboards;
 using Framework.Reports;
 using Framework.Api;
 using Framework.Imports;
+using Framework.Navigation;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Builder;
@@ -100,6 +101,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<QueryApiService>();
         // Impor Excel/CSV ke DocType (lewat DocumentService yang sama dengan form).
         services.TryAddSingleton<IImportLogStore, InMemoryImportLogStore>();
+        // Navigasi menu sidebar dinamis.
+        services.TryAddSingleton<INavigationMenuStore, InMemoryNavigationMenuStore>();
         services.AddSingleton(sp =>
         {
             var cfg = sp.GetService<IConfiguration>();
