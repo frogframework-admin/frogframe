@@ -111,7 +111,22 @@ public static class NavigationMenuDefaults
             Icon = "users",
             GroupName = "Sistem",
             SortOrder = 130,
-            AllowedRoles = [UserContext.SystemManager],
+            AllowedRoles = [UserContext.SystemManager, UserContext.Administrator],
+            IsSystem = true,
+            IsActive = true,
+            CreatedAt = now,
+            UpdatedAt = now
+        },
+        new()
+        {
+            Id = $"menu_{tenantId}_roles",
+            TenantId = tenantId,
+            Title = "Role Pengguna",
+            Href = "admin/roles",
+            Icon = "shield-check",
+            GroupName = "Sistem",
+            SortOrder = 135,
+            AllowedRoles = [UserContext.SystemManager, UserContext.Administrator],
             IsSystem = true,
             IsActive = true,
             CreatedAt = now,

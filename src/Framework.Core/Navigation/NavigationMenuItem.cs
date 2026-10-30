@@ -28,7 +28,7 @@ public sealed class NavigationMenuItem
     public bool IsVisibleFor(UserContext? user)
     {
         if (!IsActive || user is null) return false;
-        if (user.Roles.Contains(UserContext.SystemManager)) return true;
+        if (user.IsAdmin) return true;
         if (AllowedRoles.Count == 0) return true;
         return user.Roles.Any(AllowedRoles.Contains);
     }

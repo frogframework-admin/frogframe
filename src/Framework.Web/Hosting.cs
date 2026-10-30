@@ -103,6 +103,8 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IImportLogStore, InMemoryImportLogStore>();
         // Navigasi menu sidebar dinamis.
         services.TryAddSingleton<INavigationMenuStore, InMemoryNavigationMenuStore>();
+        // Master roles pengguna.
+        services.TryAddSingleton<IRoleStore, InMemoryRoleStore>();
         services.AddSingleton(sp =>
         {
             var cfg = sp.GetService<IConfiguration>();

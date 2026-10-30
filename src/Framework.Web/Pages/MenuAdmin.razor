@@ -1,7 +1,9 @@
 @page "/admin/menus"
 @using Framework.Navigation
+@using Framework.Security
 @using Framework.Web.Admin
 @inject INavigationMenuStore MenuStore
+@inject IRoleStore RoleStore
 @inject IMetadataProvider Metadata
 @inject CurrentUser Current
 @inject ToastService Toasts
@@ -9,9 +11,9 @@
 
 <PageTitle>Master Menu Navigasi · DocFrame</PageTitle>
 
-@if (!Current.Required.Roles.Contains(UserContext.SystemManager))
+@if (!Current.Required.IsAdmin)
 {
-    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>Halaman ini hanya untuk System Manager.</BbAlertDescription></BbAlert>
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>Halaman ini hanya untuk Administrator / System Manager.</BbAlertDescription></BbAlert>
 }
 else
 {
@@ -201,16 +203,21 @@ else
 
 @code {
     private IReadOnlyList<NavigationMenuItem> menus = [];
+    private IReadOnlyList<RoleDef> storedRoles = [];
     private NavigationMenuItem? edit;
     private bool isNew;
     private bool busy;
     private string? error;
 
-    private IEnumerable<string> AvailableRoles => MetadataRoles.Known(Metadata.Current);
+    private IEnumerable<string> AvailableRoles => MetadataRoles.Known(Metadata.Current)
+        .Append(UserContext.Administrator)
+        .Concat(storedRoles.Select(r => r.Name))
+        .Distinct().Order();
 
     protected override async Task OnInitializedAsync()
     {
         if (Current.User is null) return;
+        storedRoles = await RoleStore.ListAsync(Current.Required.TenantId);
         await Reload();
     }
 

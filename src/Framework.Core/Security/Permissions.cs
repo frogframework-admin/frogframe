@@ -13,7 +13,9 @@ public sealed record UserContext(
     IReadOnlyDictionary<string, string> Attributes)
 {
     public const string SystemManager = "System Manager";
-    public bool HasRole(string role) => Roles.Contains(role) || Roles.Contains(SystemManager) && role != "*";
+    public const string Administrator = "Administrator";
+    public bool IsAdmin => Roles.Contains(SystemManager) || Roles.Contains(Administrator);
+    public bool HasRole(string role) => Roles.Contains(role) || IsAdmin && role != "*";
     public string? Attr(string key) => Attributes.TryGetValue(key, out var v) ? v : null;
 }
 
@@ -46,10 +48,10 @@ public sealed class PermissionService : IPermissionService
 {
     private static IEnumerable<PermissionDef> Rules(UserContext user, CompiledDocType meta, string action, int level = 0) =>
         meta.Def.Permissions.Where(p => p.PermLevel == level && p.Actions.Contains(action) &&
-            (user.Roles.Contains(p.Role) || user.Roles.Contains(UserContext.SystemManager)));
+            (user.Roles.Contains(p.Role) || user.IsAdmin));
 
     public bool Can(UserContext user, CompiledDocType meta, string action) =>
-        user.Roles.Contains(UserContext.SystemManager) || Rules(user, meta, action).Any();
+        user.IsAdmin || Rules(user, meta, action).Any();
 
     public void Demand(UserContext user, CompiledDocType meta, string action)
     {
@@ -59,7 +61,7 @@ public sealed class PermissionService : IPermissionService
 
     public RowScope ScopeFor(UserContext user, CompiledDocType meta, string action)
     {
-        if (user.Roles.Contains(UserContext.SystemManager)) return RowScope.All;
+        if (user.IsAdmin) return RowScope.All;
         var rules = Rules(user, meta, action).ToList();
         if (rules.Count == 0) return RowScope.None;
         if (rules.Any(r => r.Scope == "all")) return RowScope.All;
@@ -89,10 +91,10 @@ public sealed class PermissionService : IPermissionService
         };
 
     public bool CanReadField(UserContext user, CompiledDocType meta, CompiledField field) =>
-        field.Def.PermLevel == 0 || user.Roles.Contains(UserContext.SystemManager) ||
+        field.Def.PermLevel == 0 || user.IsAdmin ||
         Rules(user, meta, DocActions.Read, field.Def.PermLevel).Any();
 
     public bool CanWriteField(UserContext user, CompiledDocType meta, CompiledField field) =>
-        field.Def.PermLevel == 0 || user.Roles.Contains(UserContext.SystemManager) ||
+        field.Def.PermLevel == 0 || user.IsAdmin ||
         Rules(user, meta, DocActions.Write, field.Def.PermLevel).Any();
 }

@@ -3,6 +3,7 @@
 @using Microsoft.AspNetCore.Identity
 @inject UserManager<UserAccount> Users
 @inject IUserAccountRepository Accounts
+@inject IRoleStore RoleStore
 @inject IMetadataProvider Metadata
 @inject CurrentUser Current
 @inject ToastService Toasts
@@ -11,9 +12,9 @@
 
 <PageTitle>Pengguna · DocFrame</PageTitle>
 
-@if (!Current.Required.Roles.Contains(UserContext.SystemManager))
+@if (!Current.Required.IsAdmin)
 {
-    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>Halaman ini hanya untuk System Manager.</BbAlertDescription></BbAlert>
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>Halaman ini hanya untuk Administrator / System Manager.</BbAlertDescription></BbAlert>
 }
 else
 {
@@ -92,7 +93,7 @@ else
                         @foreach (var role in KnownRoles)
                         {
                             var r = role;
-                            var self = !isNew && edit.Id == Current.Required.Id && r == UserContext.SystemManager;
+                            var self = !isNew && edit.Id == Current.Required.Id && (r == UserContext.SystemManager || r == UserContext.Administrator);
                             <div class="label-row">
                                 <BbCheckbox Id="@($"r-{r}")" Checked="edit.Roles.Contains(r)" Disabled="self" CheckedChanged="v => ToggleRole(r, v)" />
                                 <BbLabel For="@($"r-{r}")">@r@(self ? " (tidak bisa dicabut dari akun sendiri)" : "")</BbLabel>
@@ -128,16 +129,24 @@ else
 
 @code {
     private IReadOnlyList<UserAccount> accounts = [];
+    private IReadOnlyList<RoleDef> storedRoles = [];
     private UserAccount? edit;
     private bool isNew, busy;
     private string? error, tempPassword, tempFor;
 
-    /// <summary>Role yang dikenal: dari permission semua DocType, role workflow, dan System Manager.</summary>
+    /// <summary>Role yang dikenal: dari master role, permission semua DocType, role workflow, dan System Manager/Administrator.</summary>
     private IEnumerable<string> KnownRoles => Metadata.Current.DocTypes.Values.SelectMany(d => d.Def.Permissions.Select(p => p.Role))
         .Concat(Metadata.Current.Workflows.Values.SelectMany(w => w.Def.Transitions.SelectMany(t => t.AllowedRoles)))
-        .Append(UserContext.SystemManager).Concat(edit?.Roles ?? []).Distinct().Order();
+        .Append(UserContext.SystemManager)
+        .Append(UserContext.Administrator)
+        .Concat(storedRoles.Select(r => r.Name))
+        .Concat(edit?.Roles ?? []).Distinct().Order();
 
-    protected override async Task OnInitializedAsync() => await Reload();
+    protected override async Task OnInitializedAsync()
+    {
+        storedRoles = await RoleStore.ListAsync(Current.Required.TenantId);
+        await Reload();
+    }
 
     private async Task Reload() => accounts = await Accounts.ListAsync(Current.Required.TenantId);
 
