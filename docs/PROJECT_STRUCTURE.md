@@ -1,17 +1,17 @@
-# Dokumentasi Arsitektur & Struktur Proyek DocFrame
+# DocFrame Architecture & Project Structure Documentation
 
-Dokumen ini menjelaskan rancangan arsitektur, peran, dan pembagian tanggung jawab dari 4 proyek utama dalam solusi **DocFrame** (.NET 10).
+This document provides a comprehensive overview of the architectural design, responsibilities, and relationships among the four primary projects within the **DocFrame** solution (.NET 10).
 
 ---
 
-## 1. Diagram Ketergantungan Antar Proyek
+## 1. Project Dependency Graph
 
 ```mermaid
 graph TD
-    Sample["Apps.Sample (Host Aplikasi & Domain Bisnis)"]
-    Web["Framework.Web (UI Blazor, REST API & Admin Pages)"]
-    Persistence["Framework.Persistence.PostgreSql (Driver PostgreSQL & SQL Migrations)"]
-    Core["Framework.Core (Kernel Sistem, Metadata, Security & Kontrak)"]
+    Sample["Apps.Sample (Application Host & Domain Implementation)"]
+    Web["Framework.Web (Blazor UI, Layout, REST API & Admin Pages)"]
+    Persistence["Framework.Persistence.PostgreSql (PostgreSQL Driver, Migrations & Indexing)"]
+    Core["Framework.Core (System Kernel, Metadata Engine, Security & Contracts)"]
 
     Sample --> Web
     Sample --> Persistence
@@ -20,122 +20,121 @@ graph TD
     Persistence --> Core
 ```
 
-Solusi ini menerapkan prinsip **Clean Architecture / Hexagonal Architecture**:
-- **Core** berdiri sendiri tanpa dependensi ke database (PostgreSQL) maupun framework presentasi (Blazor/HTTP).
-- **Persistence** dan **Web** bertindak sebagai *adapters* yang mengimplementasikan kontrak interface dari **Core**.
-- **Apps.Sample** adalah *composition root* (host eksekusi) yang merangkai seluruh modul menjadi aplikasi utuh.
+The solution follows **Clean Architecture / Hexagonal Architecture** principles:
+- **`Framework.Core`** is the pure domain and kernel layer, free from any third-party UI or database dependencies.
+- **`Framework.Persistence.PostgreSql`** and **`Framework.Web`** act as adapters that implement the abstractions and contracts defined in `Core`.
+- **`Apps.Sample`** serves as the **Composition Root**, bootstrapping the services, database, authentication, and application domain logic into a deployable web application.
 
 ---
 
-## 2. Rincian & Fungsi Masing-Masing Proyek
+## 2. Detailed Responsibilities of Each Project
 
 ### A. `Framework.Core` (Kernel & Domain Engine)
-Proyek ini adalah jantung dari DocFrame yang bersifat murni (*pure .NET class library* tanpa dependensi library eksternal basis data atau web).
+The foundation of DocFrame. It is a pure, headless .NET class library containing zero database drivers and zero presentation-layer dependencies.
 
-**Tanggung Jawab Utama:**
+**Key Responsibilities:**
 1. **Metadata Engine (`Metadata/`)**:
-   - Membaca, mengompilasi, dan memvalidasi definisi skema DocType (`*.doctype.json`) dan Workflow (`*.workflow.json`).
-   - Registry tipe data dinamis (`FieldTypeRegistry`) seperti teks, angka, link/relasi, child table, mata uang, dan tanggal.
-2. **Dokumen & Mesin Transaksi (`Documents/`)**:
-   - Model dokumen generik (`Document`), nomor seri dokumen otomatis (*naming pattern*), audit trail riwayat perubahan, dan diff versi skema.
-3. **Keamanan & Kontrol Akses (`Security/`)**:
-   - `UserContext`: identitas pengguna terautentikasi (Id, Tenant, Role, Atribut).
-   - `IPermissionService`: evaluasi hak akses multi-level (DocType level, Row-level security / data scope `match:department`, dan Field-level permission `permlevel`).
-   - Kontrak Master Role (`IRoleStore`, `RoleDef`, `RoleDefaults`).
-   - Validasi dan hashing Kunci API (`IApiKeyStore`, `ApiKey`).
-4. **Navigasi Sidebar (`Navigation/`)**:
-   - Model `NavigationMenuItem`, default seeding menu universal (`Beranda`, `Dashboard`, `Kotak Masuk`), menu wajib sistem, dan kontrak `INavigationMenuStore`.
+   - Parses, compiles, and validates declarative schemas for DocTypes (`*.doctype.json`) and Workflows (`*.workflow.json`).
+   - Implements dynamic field registries (`FieldTypeRegistry`) supporting primitives, relational links, child tables, currency, and file attachments.
+2. **Document & Transaction Engine (`Documents/`)**:
+   - Manages generic document entities (`Document`), automated sequence numbering patterns (`NamingPattern`), schema version tracking, and immutable audit logs.
+3. **Security & Access Control (`Security/`)**:
+   - `UserContext`: Represents authenticated identity containing `Id`, `TenantId`, `Roles`, and custom attributes.
+   - `IPermissionService`: Multi-tiered authorization evaluating DocType-level permissions, row-level data scoping (e.g., `match:department`), and field-level access (`permlevel`).
+   - Role Management contracts: `IRoleStore`, `RoleDef`, and `RoleDefaults`.
+   - API Key verification: `IApiKeyStore` with cryptographic hashing.
+4. **Dynamic Navigation (`Navigation/`)**:
+   - Model definitions for sidebar menus (`NavigationMenuItem`), default menu seeding logic (`NavigationMenuDefaults`), and store contracts (`INavigationMenuStore`).
 5. **Expression Evaluator (`Expressions/`)**:
-   - Parser ekspresi logika aman (*sandboxed*) untuk kalkulasi nilai field dinamis (*computed fields*) dan kondisi transisi workflow tanpa `eval()` berbahaya.
-6. **Pelaporan & Template (`Reports/`)**:
-   - Mesin pemrosesan template dokumen OpenXML (Word `.docx` dan Excel `.xlsx`) dengan substitusi tag dan perulangan baris data.
-7. **Penyimpanan Abstrak (`Persistence/`)**:
-   - Kontrak interface penyimpanan: `IDocumentStore`, `IOutboxStore`, `INotificationStore`, `IMetadataVersionStore`, serta spesifikasi query `StoreQuery`.
-8. **Pola Outbox Transaksional (`Jobs/`)**:
-   - Penjaminan pengiriman event notifikasi dan integrasi secara andal (*at-least-once delivery*).
+   - A safe, sandboxed expression evaluator for computed fields and workflow transition conditions without dynamic code generation or arbitrary code execution vulnerabilities.
+6. **Reporting & Templating (`Reports/`)**:
+   - OpenXML template engine (`OoxmlTemplates.cs`) for dynamically populating Word (`.docx`) and Excel (`.xlsx`) documents with tagged substitutions and repeating row blocks.
+7. **Abstract Storage Contracts (`Persistence/`)**:
+   - Common storage interfaces: `IDocumentStore`, `IOutboxStore`, `INotificationStore`, `IMetadataVersionStore`, and query specifications (`StoreQuery`).
+8. **Transactional Outbox (`Jobs/`)**:
+   - Guarantees reliable asynchronous event handling and notification dispatching with idempotent processing and retry mechanisms.
 
 ---
 
-### B. `Framework.Persistence.PostgreSql` (Lapisan Data PostgreSQL)
-Proyek ini adalah implementasi nyata dari kontrak penyimpanan `Framework.Core` dengan basis data relasional **PostgreSQL 17** menggunakan driver resmi `Npgsql`.
+### B. `Framework.Persistence.PostgreSql` (PostgreSQL Infrastructure Layer)
+The production-ready relational data layer implementing `Framework.Core` contracts on **PostgreSQL 17** using the high-performance `Npgsql` driver.
 
-**Tanggung Jawab Utama:**
-1. **Migrasi Basis Data Tersemat (`Migrations/` & `SchemaMigrator.cs`)**:
-   - Eksekusi otomatis migrasi SQL berurutan (`001_initial.sql` hingga `014_roles.sql`) menggunakan PostgreSQL Advisory Lock sehingga aman dijalankan pada lingkungan *multi-replica/multi-instance*.
-2. **Penyimpanan Dokumen & Data (`PostgresStores.cs`)**:
-   - `PostgresDocumentStore`: menyimpan data dokumen dinamis dalam format JSONB yang diindeks, riwayat audit, dan event outbox dalam satu transaksi database atomik (ACID).
-3. **Penyimpanan Master & Fitur Spesifik**:
-   - `PostgresRoleStore`: master role dengan proteksi penghapusan role `Administrator`.
-   - `PostgresNavigationMenuStore`: master navigasi sidebar dengan deteksi menu wajib dan auto-seed.
-   - `PostgresApiKeyStore`: menyimpan identitas integrasi sistem luar (hanya menyimpan hash secret).
-   - `PostgresQueryApiStore` & `PostgresReportTemplateStore`: penyimpanan definisi API query dan template pelaporan.
-   - `PostgresUserAccountRepository`: penyimpanan akun pengguna ASP.NET Core Identity.
-4. **Optimasi Indeks Dinamis (`DocumentIndexSync.cs`)**:
-   - Membangun indeks PostgreSQL secara konkuren (`CREATE INDEX CONCURRENTLY`) berdasarkan metadata field yang sering dicari atau difilter, tanpa mengunci tabel.
-5. **Eksekutor Dashboard Analitik Read-Only (`Reporting.cs`)**:
-   - Pool koneksi khusus read-only (`docframe_ro`) untuk mengeksekusi query agregasi dashboard dan analitik dengan batasan waktu eksekusi (*statement timeout*) dan kuota baris agar tidak membebani transaksi operasional.
-
----
-
-### C. `Framework.Web` (Lapisan Antarmuka & Layanan Web)
-Proyek ini berisi pustaka antarmuka berbasis **Blazor Server** (menggunakan pustaka komponen BlazorBlueprint/shadcn) dan REST API HTTP endpoints.
-
-**Tanggung Jawab Utama:**
-1. **Layout & Navigasi Aplikasi (`Layout/`)**:
-   - `DeskLayout.razor`: kerangka antarmuka utama (Sidebar responsif dinamis, Dark Mode toggle, info tenant, avatar profil pengguna, dan badge notifikasi inbox real-time).
-   - `AuthLayout.razor` & `PrintLayout.razor`: tata letak halaman otentikasi dan dokumen cetak.
-2. **Halaman Administrasi Sistem (`Pages/`)**:
-   - `RoleAdmin.razor` (`/admin/roles`): manajemen Master Role dan proteksi role sistem.
-   - `MenuAdmin.razor` (`/admin/menus`): manajemen Master Menu sidebar, grup, urutan, ikon Lucide, dan filter peran.
-   - `UserAdmin.razor` (`/admin/users`): manajemen akun pengguna, reset password sementara, buka kunci lockout, dan penugasan peran.
-   - `MetadataAdmin.razor`, `DocTypeEditor.razor`, `WorkflowEditor.razor`: desainer visual skema DocType dan alur persetujuan workflow.
-   - `ApiKeysAdmin.razor` (`/admin/api-keys`): penerbitan dan pencabutan kunci API integrasi.
-3. **Halaman Operasional Dokumen (`Pages/`)**:
-   - `ListPage.razor` (`/app/{DocType}`): tabel daftar dokumen dengan pencarian, filter kolom, pagination, dan ekspor data.
-   - `FormPage.razor` (`/app/{DocType}/{Name}`): formulir pengisian dokumen, validasi dinamis, eksekusi tombol workflow (*Submit, Approve, Reject*), dan timeline jejak audit.
-   - `Inbox.razor` (`/inbox`): kotak masuk notifikasi dan daftar dokumen yang menunggu persetujuan pengguna saat ini.
-4. **Dashboard & Analitik Visual (`Dashboards/`)**:
-   - Pembuat widget SQL grafis (bar chart, line chart, number card, table grid), pinning widget ke dashboard pengguna, dan filter tanggal.
-5. **Layanan REST API (`Api.cs`)**:
-   - Endpoint CRUD dokumen: `GET/POST/PUT/DELETE /api/data/{DocType}`.
-   - Eksekusi method kustom: `POST /api/method/{Name}`.
-   - API Query SQL berparameter: `GET/POST /api/query/{Slug}`.
-   - Autentikasi ganda: Cookie (browser) dan Bearer API Key (sistem luar) dengan proteksi *Rate Limiting* terintegrasi.
-6. **Percetakan & Ekspor (`Printing/`, `ReportTemplates/`)**:
-   - Pembuatan format cetak HTML/PDF resmi dengan tanda air (*watermark*) status dokumen dan tanda tangan elektronik jejak alur kerja.
+**Key Responsibilities:**
+1. **Embedded Database Migrations (`Migrations/` & `SchemaMigrator.cs`)**:
+   - Executes ordered SQL migration scripts (`001_initial.sql` to `014_roles.sql`) embedded in the assembly using PostgreSQL Advisory Locks for safe multi-replica startups.
+2. **Document Storage & Transactional Integrity (`PostgresStores.cs`)**:
+   - `PostgresDocumentStore`: Persists document state in indexed `JSONB` columns alongside audit trail entries and outbox events in a single atomic database transaction (ACID).
+3. **Dedicated Stores**:
+   - `PostgresRoleStore`: Manages custom and system roles with deletion protection for `Administrator`.
+   - `PostgresNavigationMenuStore`: Persists dynamic sidebar menus with auto-sync and missing-menu injection.
+   - `PostgresApiKeyStore`: Stores integration secrets in hashed form.
+   - `PostgresQueryApiStore` & `PostgresReportTemplateStore`: Manages SQL API definitions and reporting templates.
+   - `PostgresUserAccountRepository`: Persists user accounts for ASP.NET Core Identity.
+4. **Dynamic Background Indexing (`DocumentIndexSync.cs`)**:
+   - Automatically builds PostgreSQL indexes (`CREATE INDEX CONCURRENTLY`) for searchable metadata fields in the background without locking tables during runtime.
+5. **Read-Only Reporting Executor (`Reporting.cs`)**:
+   - Maintains a dedicated read-only database connection pool (`docframe_ro`) to run analytical queries and dashboard widgets with strict statement timeouts and row count limits.
 
 ---
 
-### D. `Apps.Sample` (Aplikasi Host & Solusi Bisnis Contoh)
-Proyek ini adalah *executable project* (`Program.cs`) yang mengonsumsi ketiga modul framework di atas untuk membentuk aplikasi bisnis nyata (contoh: Sistem Pengadaan Barang / Procurement & HR).
+### C. `Framework.Web` (Presentation & API Layer)
+The user interface and public communication layer, implemented using **Blazor Server** (powered by BlazorBlueprint/shadcn components) and ASP.NET Core Minimal APIs.
 
-**Tanggung Jawab Utama:**
-1. **Entry Point & Konfigurasi Aplikasi (`Program.cs`)**:
-   - Mengonfigurasi dependensi injeksi (*Dependency Injection*): mendaftarkan metadata, koneksi database PostgreSQL, Identity, dan layanan pelaporan.
-   - Menjalankan migrasi database otomatis saat startup dan inisialisasi auto-seeding.
-   - Konfigurasi middleware: Autentikasi, Otorisasi, Antiforgery, Rate Limiting, dan Lokalisasi Bahasa Indonesia (`id-ID`).
-   - Endpoint pemantauan kesehatan aplikasi (`GET /health`).
-2. **Definisi Metadata Bisnis (`Metadata/`)**:
-   - Dokumen master: `Department.doctype.json`, `Employee.doctype.json`, `Vendor.doctype.json`, `Product.doctype.json`.
-   - Dokumen transaksi: `PurchaseRequest.doctype.json` dan `PurchaseRequestItem.doctype.json`.
-   - Alur persetujuan: `PurchaseRequestApproval.workflow.json` (Draft → Menunggu Atasan → Menunggu Finance → Disetujui/Ditolak).
-3. **Logika Domain Khusus C# (`Domain/`)**:
-   - `Procurement.cs`: handler validasi saat pengajuan (`PurchaseRequestHandler`), aturan batasan pagu anggaran departemen, dan inisialisasi data akun demo (*Andi, Budi, Dewi, Admin*).
-   - `ApiMethods.cs`: API kustom untuk pengecekan sisa anggaran dan pengajuan dokumen massal.
-   - `DemoDashboard.cs`: inisialisasi awal widget analitik pengadaan belanja per departemen.
-4. **Halaman Tambahan Kustom (`Components/Pages/`)**:
-   - `OrgChart.razor` (`/hr/struktur-organisasi`): halaman visual bagan organisasi per departemen dan hierarki atasan-bawahan.
-5. **Pengemasan Kontainer (`Dockerfile` & `docker-compose.yml`)**:
-   - Mengorkestrasi aplikasi bersama PostgreSQL 17 Alpine dalam satu perintah terpadu.
+**Key Responsibilities:**
+1. **Application Shell & Layout (`Layout/`)**:
+   - `DeskLayout.razor`: Main interactive application frame featuring dynamic role-based sidebar menus, theme toggling (Dark/Light mode), tenant indicator, user chip, and real-time inbox badges.
+   - `AuthLayout.razor` & `PrintLayout.razor`: Specialized layouts for login and printable views.
+2. **System Administration Portals (`Pages/`)**:
+   - `RoleAdmin.razor` (`/admin/roles`): Management of user roles, descriptions, and system role safeguards.
+   - `MenuAdmin.razor` (`/admin/menus`): Sidebar navigation management with live Lucide icon previews, sort ordering, and role restrictions.
+   - `UserAdmin.razor` (`/admin/users`): User lifecycle management, temporary password generator, lockout toggling, and role assignment.
+   - `MetadataAdmin.razor`, `DocTypeEditor.razor`, `WorkflowEditor.razor`: Visual IDE for editing metadata schemas and visual workflow diagrams.
+   - `ApiKeysAdmin.razor` (`/admin/api-keys`): Issue and revoke API keys for external integrations.
+3. **Operational Business Pages (`Pages/`)**:
+   - `ListPage.razor` (`/app/{DocType}`): Generic list view with real-time search, column filtering, pagination, and data export.
+   - `FormPage.razor` (`/app/{DocType}/{Name}`): Dynamic document editor, workflow action buttons (*Submit, Approve, Reject*), validation banners, and audit timelines.
+   - `Inbox.razor` (`/inbox`): Approval queue displaying tasks pending the current user's review.
+4. **Interactive Dashboards (`Dashboards/`)**:
+   - SQL-driven visual dashboard engine supporting bar charts, line charts, numeric metric cards, and data tables.
+5. **REST API Endpoints (`Api.cs`)**:
+   - Complete document REST API (`/api/data/{DocType}`), custom methods (`/api/method/{Name}`), and saved query endpoints (`/api/query/{Slug}`).
+   - Supports dual authentication: Browser session cookies and Bearer API keys, backed by sliding-window rate limiters.
+6. **Printing & Document Generation (`Printing/`, `ReportTemplates/`)**:
+   - Browser and server-side print renderer with status watermarks, print layout styling, and Excel/Word report generation.
 
 ---
 
-## 3. Matriks Perbandingan 4 Proyek
+### D. `Apps.Sample` (Executable Host & Business Solution)
+The runnable application (`Program.cs`) that configures and unites the framework libraries into a working enterprise solution (Procurement & HR showcase).
 
-| Kriteria | `Framework.Core` | `Framework.Persistence.PostgreSql` | `Framework.Web` | `Apps.Sample` |
+**Key Responsibilities:**
+1. **Composition Root & Startup Pipeline (`Program.cs`)**:
+   - Configures Dependency Injection: registers metadata files, PostgreSQL connection strings, ASP.NET Identity, and reporting services.
+   - Executes database schema migrations and auto-seeding on startup.
+   - Configures middleware: Authentication, Authorization, Antiforgery, Rate Limiting, and Localization (`id-ID`).
+   - Exposes application health check endpoint (`GET /health`).
+2. **Business Metadata Schemas (`Metadata/`)**:
+   - Master DocTypes: `Department.doctype.json`, `Employee.doctype.json`, `Vendor.doctype.json`, `Product.doctype.json`.
+   - Transactional DocTypes: `PurchaseRequest.doctype.json` and `PurchaseRequestItem.doctype.json`.
+   - Multi-step approval workflow: `PurchaseRequestApproval.workflow.json` (Draft → Pending Manager → Pending Finance → Approved / Rejected).
+3. **C# Domain Logic & Extensions (`Domain/`)**:
+   - `Procurement.cs`: Document submission lifecycle handlers (`PurchaseRequestHandler`), budget checking rules, and initial demo accounts (`Andi, Budi, Dewi, Admin`).
+   - `ApiMethods.cs`: Custom endpoints for department budget queries and bulk workflow approvals.
+   - `DemoDashboard.cs`: Initial analytics dashboard widgets.
+4. **Custom Application Views (`Components/Pages/`)**:
+   - `OrgChart.razor` (`/hr/struktur-organisasi`): Interactive department tree and supervisor-subordinate organizational hierarchy.
+5. **Container Orchestration (`Dockerfile` & `docker-compose.yml`)**:
+   - Multi-stage Docker packaging orchestrating the web application alongside PostgreSQL 17 Alpine with persistent volumes and healthchecks.
+
+---
+
+## 3. Comparative Summary Matrix
+
+| Characteristic | `Framework.Core` | `Framework.Persistence.PostgreSql` | `Framework.Web` | `Apps.Sample` |
 | :--- | :--- | :--- | :--- | :--- |
-| **Tipe Output** | Class Library | Class Library | Razor Class Library | Executable (Web App) |
-| **Ketergantungan UI** | Tidak ada | Tidak ada | Blazor, CSS, Razor | Blazor Host |
-| **Ketergantungan DB** | Tidak ada (Interface) | Npgsql (PostgreSQL) | Tidak langsung | Terhubung via konfigurasi |
-| **Fokus Utama** | Aturan bisnis & Domain Engine | Efisiensi & Keandalan Storage | Interaksi Pengguna & API | Perakitan Solusi Nyata |
-| **Portabilitas** | Sangat Tinggi (Bisa ganti DB/UI) | Khusus PostgreSQL | Khusus Web/Blazor | Aplikasi akhir yang di-deploy |
+| **Output Type** | Class Library | Class Library | Razor Class Library | Executable (Web App) |
+| **UI Dependency** | None (Headless) | None | Blazor Server, CSS, Lucide | Root Blazor Host |
+| **Database Dependency** | None (Interfaces only) | PostgreSQL (`Npgsql`) | Indirect (via DI) | PostgreSQL (`docker-compose`) |
+| **Architectural Role** | Domain Kernel & Contracts | Infrastructure Adapter | Primary Adapter (Web/API) | Composition Root |
+| **Portability** | Universal | PostgreSQL-specific | Web/Blazor-specific | Deployable artifact |
+| **Primary Focus** | Business rules & Schemas | Reliability & High Performance | User Experience & APIs | Business Value & Assembly |
