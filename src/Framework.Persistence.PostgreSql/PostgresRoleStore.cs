@@ -29,7 +29,9 @@ public sealed class PostgresRoleStore(NpgsqlDataSource db, TimeProvider clock) :
         await using var r = await cmd.ExecuteReaderAsync(ct);
         while (await r.ReadAsync(ct)) list.Add(Read(r));
 
-        if (list.Count == 0)
+        var defaults = RoleDefaults.CreateDefaultRoles(tenantId, clock.GetUtcNow());
+        var existingNames = list.Select(x => x.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (defaults.Any(d => d.IsSystem && !existingNames.Contains(d.Name)))
         {
             await EnsureDefaultRolesAsync(tenantId, ct);
             return await ListAsync(tenantId, ct);

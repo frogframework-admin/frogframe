@@ -112,6 +112,19 @@ if (app.Configuration.GetValue("Demo:SeedData", false))
     if (useReporting && reportingProblem is null) await DemoDashboard.SeedAsync(app.Services);
 }
 await BootstrapAdmin.EnsureAsync(app.Services, app.Configuration);
+
+// Pastikan menu default dan role default ter-seed untuk tenant acme/bootstrap
+var tenantToSeed = app.Configuration["Bootstrap:TenantId"] ?? "acme";
+try
+{
+    await app.Services.GetRequiredService<Framework.Navigation.INavigationMenuStore>().EnsureDefaultMenusAsync(tenantToSeed);
+    await app.Services.GetRequiredService<Framework.Security.IRoleStore>().EnsureDefaultRolesAsync(tenantToSeed);
+}
+catch (Exception ex)
+{
+    app.Logger.LogWarning(ex, "Gagal seed awal navigasi menu/role");
+}
+
 app.Run();
 
 public partial class Program;

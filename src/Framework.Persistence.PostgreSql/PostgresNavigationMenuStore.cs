@@ -39,7 +39,9 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
         await using var r = await cmd.ExecuteReaderAsync(ct);
         while (await r.ReadAsync(ct)) list.Add(Read(r));
 
-        if (list.Count == 0)
+        var defaults = NavigationMenuDefaults.CreateDefaultItems(tenantId, clock.GetUtcNow());
+        var existingHrefs = list.Select(x => x.Href).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (defaults.Any(d => d.IsSystem && !existingHrefs.Contains(d.Href)))
         {
             await EnsureDefaultMenusAsync(tenantId, ct);
             return await ListAsync(tenantId, onlyActive, ct);
