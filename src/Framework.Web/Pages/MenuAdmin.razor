@@ -28,183 +28,211 @@ else
         </div>
     </header>
 
-    <div class="users-grid">
-        <div class="table-wrap">
-            <table class="data">
-                <thead>
-                    <tr>
-                        <th style="width:3rem">Urutan</th>
-                        <th>Menu</th>
-                        <th>URL</th>
-                        <th>Grup</th>
-                        <th>Hak Akses</th>
-                        <th>Status</th>
-                        <th style="width:5rem">Aksi</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var m in menus)
+    <BbDataGrid TData="NavigationMenuItem"
+                Items="@menus"
+                ShowSearch="true"
+                SearchPlaceholder="Cari menu..."
+                ShowPagination="true"
+                InitialPageSize="10"
+                TableContainerClass="table-wrap"
+                RowClass="@(m => edit?.Id == m.Id ? "selected" : "")">
+        <Columns>
+            <BbDataGridPropertyColumn TData="NavigationMenuItem" TProp="int" Property="m => m.SortOrder" Title="Urutan" Width="5rem" Sortable="true">
+                <CellTemplate Context="item">
+                    <code>@item.SortOrder</code>
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridPropertyColumn TData="NavigationMenuItem" TProp="string" Property="m => m.Title" Title="Menu" Width="15rem" Sortable="true" Filterable="true">
+                <CellTemplate Context="item">
+                    <div class="row" style="gap:.5rem;align-items:center;flex-wrap:nowrap">
+                        <LucideIcon Name="@item.Icon" Size="16" />
+                        <strong>@item.Title</strong>
+                        @if (!string.IsNullOrEmpty(item.BadgeKey))
+                        {
+                            <span class="muted small" title="Badge: @item.BadgeKey">• badge</span>
+                        }
+                    </div>
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridPropertyColumn TData="NavigationMenuItem" TProp="string" Property="m => m.Href" Title="URL" Width="12rem" Sortable="true" Filterable="true">
+                <CellTemplate Context="item">
+                    <code>@item.Href</code>
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridPropertyColumn TData="NavigationMenuItem" TProp="string" Property="m => m.GroupName" Title="Grup" Width="8rem" Sortable="true" Filterable="true">
+                <CellTemplate Context="item">
+                    <BbBadge Variant="BadgeVariant.Outline">@item.GroupName</BbBadge>
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridTemplateColumn TData="NavigationMenuItem" Title="Hak Akses">
+                <ChildContent Context="item">
+                    @if (item.AllowedRoles.Count == 0)
                     {
-                        var item = m;
-                        <tr class="clickable @(edit?.Id == item.Id ? "selected" : "")" @onclick="() => StartEdit(item)">
-                            <td><code>@item.SortOrder</code></td>
-                            <td>
-                                <div class="row" style="gap:.5rem;align-items:center">
-                                    <LucideIcon Name="@item.Icon" Size="16" />
-                                    <strong>@item.Title</strong>
-                                    @if (!string.IsNullOrEmpty(item.BadgeKey))
-                                    {
-                                        <span class="muted small" title="Badge: @item.BadgeKey">• badge</span>
-                                    }
-                                </div>
-                            </td>
-                            <td><code>@item.Href</code></td>
-                            <td><BbBadge Variant="BadgeVariant.Outline">@item.GroupName</BbBadge></td>
-                            <td>
-                                @if (item.AllowedRoles.Count == 0)
-                                {
-                                    <BbBadge Variant="BadgeVariant.SoftSuccess">Semua Karyawan</BbBadge>
-                                }
-                                else
-                                {
-                                    <div class="row" style="gap:.25rem;flex-wrap:wrap">
-                                        @foreach (var r in item.AllowedRoles)
-                                        {
-                                            <BbBadge Variant="BadgeVariant.Soft">@r</BbBadge>
-                                        }
-                                    </div>
-                                }
-                            </td>
-                            <td>
-                                <div class="row" style="gap:.25rem">
-                                    @if (item.IsSystem)
-                                    {
-                                        <BbBadge Variant="BadgeVariant.Soft">Sistem</BbBadge>
-                                    }
-                                    @if (item.IsActive)
-                                    {
-                                        <BbBadge Variant="BadgeVariant.SoftSuccess">Aktif</BbBadge>
-                                    }
-                                    else
-                                    {
-                                        <BbBadge Variant="BadgeVariant.Secondary">Nonaktif</BbBadge>
-                                    }
-                                </div>
-                            </td>
-                            <td>
-                                <div class="row" style="gap:.25rem">
-                                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Edit menu" OnClick="() => StartEdit(item)">
-                                        <LucideIcon Name="pencil" Size="15" />
-                                    </BbButton>
-                                    @if (!item.IsSystem)
-                                    {
-                                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Hapus menu" OnClick="() => ConfirmDelete(item)">
-                                            <LucideIcon Name="trash-2" Size="15" />
-                                        </BbButton>
-                                    }
-                                </div>
-                            </td>
-                        </tr>
+                        <BbBadge Variant="BadgeVariant.SoftSuccess">Semua Karyawan</BbBadge>
                     }
-                </tbody>
-            </table>
-        </div>
-
-        @if (edit is not null)
-        {
-            <BbCard>
-                <BbCardHeader>
-                    <BbCardTitle Class="card-title">@(isNew ? "Menu baru" : $"Edit: {edit.Title}")</BbCardTitle>
-                    <BbCardDescription>
-                        @(edit.IsSystem ? "Menu bawaan sistem (tidak dapat dihapus, tapi dapat diatur judul, ikon, dan urutannya)." : "Menu kustom aplikasi.")
-                    </BbCardDescription>
-                </BbCardHeader>
-                <BbCardContent>
-                    <div class="stack">
-                        @if (error is not null)
-                        {
-                            <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@error</BbAlertDescription></BbAlert>
-                        }
-
-                        <BbField>
-                            <BbFieldLabel For="m-title">Judul Menu</BbFieldLabel>
-                            <BbInput Id="m-title" @bind-Value="edit.Title" Placeholder="mis. Beranda, Pengadaan" />
-                        </BbField>
-
-                        <BbField>
-                            <BbFieldLabel For="m-href">URL / Path</BbFieldLabel>
-                            <BbInput Id="m-href" @bind-Value="edit.Href" Placeholder="mis. dashboard, admin/users, atau kosongkan untuk Beranda" />
-                            <BbFieldDescription>Path relatif aplikasi, mis. "dashboard" atau "app/Employee". Kosongkan untuk halaman beranda.</BbFieldDescription>
-                        </BbField>
-
-                        <BbField>
-                            <BbFieldLabel For="m-icon">Ikon Lucide</BbFieldLabel>
-                            <div class="row" style="gap:.5rem;align-items:center">
-                                <BbInput Id="m-icon" @bind-Value="edit.Icon" Placeholder="mis. house, users, file-text" />
-                                <div style="display:flex;align-items:center;justify-content:center;width:2.5rem;height:2.5rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--muted)">
-                                    <LucideIcon Name="@(string.IsNullOrWhiteSpace(edit.Icon) ? "file-text" : edit.Icon)" Size="18" />
-                                </div>
-                            </div>
-                            <BbFieldDescription>Nama ikon dari Lucide Icons (mis. house, users, key-round, braces, settings-2, chart-column, inbox).</BbFieldDescription>
-                        </BbField>
-
-                        <BbField>
-                            <BbFieldLabel For="m-group">Grup Menu</BbFieldLabel>
-                            <BbInput Id="m-group" @bind-Value="edit.GroupName" Placeholder="mis. Utama, Sistem, Laporan, HR" />
-                            <BbFieldDescription>Menu dengan grup yang sama akan dikelompokkan di sidebar.</BbFieldDescription>
-                        </BbField>
-
-                        <BbField>
-                            <BbFieldLabel For="m-order">Urutan (Sort Order)</BbFieldLabel>
-                            <FormTextInput Id="m-order" Type="number" Value="@edit.SortOrder.ToString()" ValueChanged="v => edit.SortOrder = int.TryParse(v, out var n) ? n : edit.SortOrder" />
-                            <BbFieldDescription>Angka lebih kecil tampil lebih di atas (mis. 10, 20, 30, dst.).</BbFieldDescription>
-                        </BbField>
-
-                        <BbField>
-                            <BbFieldLabel For="m-badge">Kunci Badge (Opsional)</BbFieldLabel>
-                            <BbInput Id="m-badge" @bind-Value="edit.BadgeKey" Placeholder="mis. inbox_unread" />
-                            <BbFieldDescription>Isi "inbox_unread" bila ingin menampilkan badge jumlah notifikasi belum dibaca.</BbFieldDescription>
-                        </BbField>
-
-                        <div class="props-sub">Batasan Hak Akses (Role)</div>
-                        <p class="muted small">Jika tidak ada role yang dipilih, menu dapat dilihat oleh <strong>Semua Karyawan</strong>.</p>
-                        @foreach (var r in AvailableRoles)
-                        {
-                            var role = r;
-                            <div class="label-row">
-                                <BbCheckbox Id="@($"role-{role}")" Checked="edit.AllowedRoles.Contains(role)" CheckedChanged="v => ToggleRole(role, v)" />
-                                <BbLabel For="@($"role-{role}")">@role</BbLabel>
-                            </div>
-                        }
-
-                        <div class="label-row" style="margin-top:.5rem">
-                            <BbCheckbox Id="m-active" Checked="edit.IsActive" CheckedChanged="v => edit.IsActive = v" />
-                            <BbLabel For="m-active">Aktif (ditampilkan di sidebar)</BbLabel>
-                        </div>
-
-                        <div class="row" style="margin-top:1rem;gap:.5rem">
-                            <BbButton Disabled="busy" OnClick="Save"><LucideIcon Name="check" Size="16" /> Simpan</BbButton>
-                            <BbButton Variant="ButtonVariant.Ghost" OnClick="() => edit = null">Batal</BbButton>
-                            @if (!isNew && !edit.IsSystem)
+                    else
+                    {
+                        <div class="row" style="gap:.25rem;flex-wrap:wrap">
+                            @foreach (var r in item.AllowedRoles)
                             {
-                                <span style="margin-left:auto">
-                                    <BbButton Variant="ButtonVariant.Destructive" Size="ButtonSize.Small" Disabled="busy" OnClick="() => ConfirmDelete(edit)">
-                                        <LucideIcon Name="trash-2" Size="15" /> Hapus
-                                    </BbButton>
-                                </span>
+                                <BbBadge Variant="BadgeVariant.Soft">@r</BbBadge>
                             }
                         </div>
+                    }
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+
+            <BbDataGridTemplateColumn TData="NavigationMenuItem" Title="Status" Width="9rem" Sortable="true" SortBy="m => m.IsActive">
+                <ChildContent Context="item">
+                    <div class="row" style="gap:.25rem;flex-wrap:nowrap">
+                        @if (item.IsSystem)
+                        {
+                            <BbBadge Variant="BadgeVariant.Soft">Sistem</BbBadge>
+                        }
+                        @if (item.IsActive)
+                        {
+                            <BbBadge Variant="BadgeVariant.SoftSuccess">Aktif</BbBadge>
+                        }
+                        else
+                        {
+                            <BbBadge Variant="BadgeVariant.Secondary">Nonaktif</BbBadge>
+                        }
                     </div>
-                </BbCardContent>
-            </BbCard>
-        }
-    </div>
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+
+            <BbDataGridTemplateColumn TData="NavigationMenuItem" Title="Aksi" Width="6.5rem" NoWrap="true">
+                <ChildContent Context="item">
+                    <div style="display:inline-flex;align-items:center;gap:.25rem;flex-wrap:nowrap" @onclick:stopPropagation="true">
+                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Edit menu" OnClick="() => StartEdit(item)">
+                            <LucideIcon Name="pencil" Size="15" />
+                        </BbButton>
+                        @if (!item.IsSystem)
+                        {
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Hapus menu" OnClick="() => ConfirmDelete(item)">
+                                <LucideIcon Name="trash-2" Size="15" />
+                            </BbButton>
+                        }
+                    </div>
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+        </Columns>
+        <EmptyTemplate>
+            <div style="padding:2rem;text-align:center;color:var(--muted-foreground)">
+                Tidak ada menu yang ditemukan.
+            </div>
+        </EmptyTemplate>
+    </BbDataGrid>
+
+    <BbDrawer Open="@isDrawerOpen" OpenChanged="@OnDrawerOpenChanged" Direction="DrawerDirection.Right">
+        <BbDrawerContent Class="sm:max-w-md" Style="display:flex;flex-direction:column;max-height:100vh">
+            @if (edit is not null)
+            {
+                <BbDrawerHeader>
+                    <div class="row" style="justify-content:space-between;align-items:flex-start">
+                        <div>
+                            <BbDrawerTitle>@(isNew ? "Tambah Menu Baru" : $"Edit: {edit.Title}")</BbDrawerTitle>
+                            <BbDrawerDescription>
+                                @(edit.IsSystem ? "Menu bawaan sistem (tidak dapat dihapus, tapi dapat diatur judul, ikon, dan urutannya)." : "Menu kustom aplikasi.")
+                            </BbDrawerDescription>
+                        </div>
+                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Tutup drawer" OnClick="CloseDrawer">
+                            <LucideIcon Name="x" Size="16" />
+                        </BbButton>
+                    </div>
+                </BbDrawerHeader>
+
+                <div class="stack" style="padding:1rem 0;overflow-y:auto;flex:1">
+                    @if (error is not null)
+                    {
+                        <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@error</BbAlertDescription></BbAlert>
+                    }
+
+                    <BbField>
+                        <BbFieldLabel For="m-title">Judul Menu</BbFieldLabel>
+                        <BbInput Id="m-title" @bind-Value="edit.Title" Placeholder="mis. Beranda, Pengadaan" />
+                    </BbField>
+
+                    <BbField>
+                        <BbFieldLabel For="m-href">URL / Path</BbFieldLabel>
+                        <BbInput Id="m-href" @bind-Value="edit.Href" Placeholder="mis. dashboard, admin/users, atau kosongkan untuk Beranda" />
+                        <BbFieldDescription>Path relatif aplikasi, mis. "dashboard" atau "app/Employee". Kosongkan untuk halaman beranda.</BbFieldDescription>
+                    </BbField>
+
+                    <BbField>
+                        <BbFieldLabel For="m-icon">Ikon Lucide</BbFieldLabel>
+                        <div class="row" style="gap:.5rem;align-items:center;flex-wrap:nowrap">
+                            <BbInput Id="m-icon" @bind-Value="edit.Icon" Placeholder="mis. house, users, file-text" />
+                            <div style="display:flex;align-items:center;justify-content:center;width:2.5rem;height:2.5rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--muted);flex-shrink:0">
+                                <LucideIcon Name="@(string.IsNullOrWhiteSpace(edit.Icon) ? "file-text" : edit.Icon)" Size="18" />
+                            </div>
+                        </div>
+                        <BbFieldDescription>Nama ikon dari Lucide Icons (mis. house, users, key-round, braces, settings-2, chart-column, inbox).</BbFieldDescription>
+                    </BbField>
+
+                    <BbField>
+                        <BbFieldLabel For="m-group">Grup Menu</BbFieldLabel>
+                        <BbInput Id="m-group" @bind-Value="edit.GroupName" Placeholder="mis. Utama, Sistem, Laporan, HR" />
+                        <BbFieldDescription>Menu dengan grup yang sama akan dikelompokkan di sidebar.</BbFieldDescription>
+                    </BbField>
+
+                    <BbField>
+                        <BbFieldLabel For="m-order">Urutan (Sort Order)</BbFieldLabel>
+                        <FormTextInput Id="m-order" Type="number" Value="@edit.SortOrder.ToString()" ValueChanged="v => edit.SortOrder = int.TryParse(v, out var n) ? n : edit.SortOrder" />
+                        <BbFieldDescription>Angka lebih kecil tampil lebih di atas (mis. 10, 20, 30, dst.).</BbFieldDescription>
+                    </BbField>
+
+                    <BbField>
+                        <BbFieldLabel For="m-badge">Kunci Badge (Opsional)</BbFieldLabel>
+                        <BbInput Id="m-badge" @bind-Value="edit.BadgeKey" Placeholder="mis. inbox_unread" />
+                        <BbFieldDescription>Isi "inbox_unread" bila ingin menampilkan badge jumlah notifikasi belum dibaca.</BbFieldDescription>
+                    </BbField>
+
+                    <div class="props-sub">Batasan Hak Akses (Role)</div>
+                    <p class="muted small">Jika tidak ada role yang dipilih, menu dapat dilihat oleh <strong>Semua Karyawan</strong>.</p>
+                    @foreach (var r in AvailableRoles)
+                    {
+                        var role = r;
+                        <div class="label-row">
+                            <BbCheckbox Id="@($"role-{role}")" Checked="edit.AllowedRoles.Contains(role)" CheckedChanged="v => ToggleRole(role, v)" />
+                            <BbLabel For="@($"role-{role}")">@role</BbLabel>
+                        </div>
+                    }
+
+                    <div class="label-row" style="margin-top:.5rem">
+                        <BbCheckbox Id="m-active" Checked="edit.IsActive" CheckedChanged="v => edit.IsActive = v" />
+                        <BbLabel For="m-active">Aktif (ditampilkan di sidebar)</BbLabel>
+                    </div>
+                </div>
+
+                <BbDrawerFooter>
+                    <div class="row" style="gap:.5rem;width:100%;align-items:center">
+                        <BbButton Disabled="busy" Loading="busy" LoadingText="Menyimpan…" OnClick="Save"><LucideIcon Name="check" Size="16" /> Simpan</BbButton>
+                        <BbButton Variant="ButtonVariant.Ghost" OnClick="CloseDrawer">Batal</BbButton>
+                        @if (!isNew && !edit.IsSystem)
+                        {
+                            <span style="margin-left:auto">
+                                <BbButton Variant="ButtonVariant.Destructive" Size="ButtonSize.Small" Disabled="busy" OnClick="() => ConfirmDelete(edit)">
+                                    <LucideIcon Name="trash-2" Size="15" /> Hapus
+                                </BbButton>
+                            </span>
+                        }
+                    </div>
+                </BbDrawerFooter>
+            }
+        </BbDrawerContent>
+    </BbDrawer>
 }
 
 @code {
     private IReadOnlyList<NavigationMenuItem> menus = [];
     private IReadOnlyList<RoleDef> storedRoles = [];
     private NavigationMenuItem? edit;
+    private bool isDrawerOpen;
     private bool isNew;
     private bool busy;
     private string? error;
@@ -243,6 +271,7 @@ else
             IsActive = true,
             IsSystem = false
         };
+        isDrawerOpen = true;
     }
 
     private void StartEdit(NavigationMenuItem item)
@@ -265,6 +294,22 @@ else
             CreatedAt = item.CreatedAt,
             UpdatedAt = item.UpdatedAt
         };
+        isDrawerOpen = true;
+    }
+
+    private void CloseDrawer()
+    {
+        isDrawerOpen = false;
+    }
+
+    private void OnDrawerOpenChanged(bool open)
+    {
+        isDrawerOpen = open;
+        if (!open)
+        {
+            edit = null;
+            error = null;
+        }
     }
 
     private void ToggleRole(string role, bool? isChecked)
@@ -282,7 +327,7 @@ else
 
     private async Task Save()
     {
-        if (edit is null) return;
+        if (edit is null || busy) return;
         if (string.IsNullOrWhiteSpace(edit.Title))
         {
             error = "Judul menu tidak boleh kosong.";
@@ -291,11 +336,13 @@ else
 
         busy = true;
         error = null;
+        StateHasChanged();
+
         try
         {
             await MenuStore.SaveAsync(edit);
             Toasts.Success($"Menu \"{edit.Title}\" berhasil disimpan.", "Berhasil Disimpan");
-            edit = null;
+            isDrawerOpen = false;
             await Reload();
         }
         catch (Exception ex)
@@ -327,7 +374,7 @@ else
         try
         {
             await MenuStore.DeleteAsync(item.Id, item.TenantId);
-            if (edit?.Id == item.Id) edit = null;
+            if (edit?.Id == item.Id) isDrawerOpen = false;
             Toasts.Success($"Menu \"{item.Title}\" berhasil dihapus.", "Menu Dihapus");
             await Reload();
         }

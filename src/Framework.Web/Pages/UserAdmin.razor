@@ -36,101 +36,178 @@ else
         </BbAlert>
     }
 
-    <div class="users-grid">
-        <div class="table-wrap">
-            <table class="data">
-                <thead><tr><th>Nama</th><th>Username</th><th>Departemen</th><th>Role</th><th>Status</th><th>Login terakhir</th></tr></thead>
-                <tbody>
-                    @foreach (var a in accounts)
-                    {
-                        var acc = a;
-                        <tr class="clickable @(edit?.Id == acc.Id ? "selected" : "")" @onclick="() => StartEdit(acc)">
-                            <td><strong>@acc.FullName</strong>@if (acc.EmployeeId is not null) { <div class="muted small">@acc.EmployeeId</div> }</td>
-                            <td><code>@acc.UserName</code></td>
-                            <td>@(acc.Department ?? "—")</td>
-                            <td><div class="row" style="gap:.25rem">@foreach (var r in acc.Roles) { <BbBadge Variant="BadgeVariant.Soft">@r</BbBadge> }</div></td>
-                            <td>@Status(acc)</td>
-                            <td class="muted nowrap">@(acc.LastLoginAt is { } t ? Fmt.When(t) : "belum pernah")</td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
+    <BbDataGrid TData="UserAccount"
+                Items="@accounts"
+                ShowSearch="true"
+                SearchPlaceholder="Cari pengguna..."
+                ShowPagination="true"
+                InitialPageSize="10"
+                TableContainerClass="table-wrap"
+                RowClass="@(a => edit?.Id == a.Id ? "selected" : "")">
+        <Columns>
+            <BbDataGridPropertyColumn TData="UserAccount" TProp="string" Property="a => a.FullName" Title="Nama" Sortable="true" Filterable="true">
+                <CellTemplate Context="item">
+                    <div>
+                        <strong>@item.FullName</strong>
+                        @if (item.EmployeeId is not null)
+                        {
+                            <div class="muted small">@item.EmployeeId</div>
+                        }
+                    </div>
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
 
-        @if (edit is not null)
-        {
-            <BbCard>
-                <BbCardHeader>
-                    <BbCardTitle Class="card-title">@(isNew ? "Pengguna baru" : edit.FullName)</BbCardTitle>
-                    <BbCardDescription>@(isNew ? "Password sementara dibuat otomatis." : $"Username {edit.UserName} · dibuat {Fmt.When(edit.CreatedAt)}")</BbCardDescription>
-                </BbCardHeader>
-                <BbCardContent>
-                    <div class="stack">
-                        @if (error is not null) { <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@error</BbAlertDescription></BbAlert> }
-                        <BbField><BbFieldLabel For="u-name">Nama lengkap</BbFieldLabel><BbInput Id="u-name" @bind-Value="edit.FullName" /></BbField>
-                        @if (isNew)
+            <BbDataGridPropertyColumn TData="UserAccount" TProp="string" Property="a => a.UserName" Title="Username" Width="10rem" Sortable="true" Filterable="true">
+                <CellTemplate Context="item">
+                    <code>@item.UserName</code>
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridPropertyColumn TData="UserAccount" TProp="string" Property="a => a.Department" Title="Departemen" Width="10rem" Sortable="true" Filterable="true">
+                <CellTemplate Context="item">
+                    @(item.Department ?? "—")
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridTemplateColumn TData="UserAccount" Title="Role">
+                <ChildContent Context="item">
+                    <div class="row" style="gap:.25rem;flex-wrap:wrap">
+                        @foreach (var r in item.Roles)
                         {
-                            <BbField>
-                                <BbFieldLabel For="u-user">Username</BbFieldLabel>
-                                <BbInput Id="u-user" @bind-Value="edit.UserName" />
-                                <BbFieldDescription>Huruf kecil, angka, titik, atau garis bawah. Menjadi id tetap pengguna (dipakai sebagai pemilik dokumen).</BbFieldDescription>
-                            </BbField>
+                            <BbBadge Variant="BadgeVariant.Soft">@r</BbBadge>
                         }
-                        <BbField><BbFieldLabel For="u-email">Email</BbFieldLabel><BbInput Id="u-email" Type="InputType.Email" @bind-Value="edit.Email" /></BbField>
-                        <BbField>
-                            <BbFieldLabel For="u-dept">Departemen</BbFieldLabel>
-                            <BbInput Id="u-dept" @bind-Value="edit.Department" />
-                            <BbFieldDescription>Dipakai cakupan data "match:department", mis. atasan hanya melihat pengajuan departemennya.</BbFieldDescription>
-                        </BbField>
-                        @if (Metadata.Current.TryGet("Employee", out _))
-                        {
-                            <BbField>
-                                <BbFieldLabel>Karyawan</BbFieldLabel>
-                                <div class="fill-trigger"><LinkInput Target="Employee" Label="Karyawan" Value="@edit.EmployeeId" ValueChanged="v => edit.EmployeeId = v" ShowLookup="true" /></div>
-                            </BbField>
-                        }
-                        <div class="props-sub">Role</div>
-                        @foreach (var role in KnownRoles)
-                        {
-                            var r = role;
-                            var self = !isNew && edit.Id == Current.Required.Id && (r == UserContext.SystemManager || r == UserContext.Administrator);
-                            <div class="label-row">
-                                <BbCheckbox Id="@($"r-{r}")" Checked="edit.Roles.Contains(r)" Disabled="self" CheckedChanged="v => ToggleRole(r, v)" />
-                                <BbLabel For="@($"r-{r}")">@r@(self ? " (tidak bisa dicabut dari akun sendiri)" : "")</BbLabel>
-                            </div>
-                        }
-                        @if (!isNew)
-                        {
-                            <div class="label-row">
-                                <BbCheckbox Id="u-active" Checked="edit.IsActive" Disabled="@(edit.Id == Current.Required.Id)" CheckedChanged="v => edit.IsActive = v" />
-                                <BbLabel For="u-active">Aktif (bisa login)</BbLabel>
-                            </div>
-                        }
-                        <div class="row">
-                            <BbButton Disabled="busy" OnClick="Save"><LucideIcon Name="check" Size="16" /> @(isNew ? "Buat pengguna" : "Simpan")</BbButton>
-                            <BbButton Variant="ButtonVariant.Ghost" OnClick="() => edit = null">Batal</BbButton>
+                    </div>
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+
+            <BbDataGridTemplateColumn TData="UserAccount" Title="Status" Width="8rem" Sortable="true" SortBy="a => a.IsActive">
+                <ChildContent Context="item">
+                    @if (!item.IsActive)
+                    {
+                        <BbBadge Variant="BadgeVariant.Secondary">Nonaktif</BbBadge>
+                    }
+                    else if (item.LockoutEnd > Clock.GetUtcNow())
+                    {
+                        <BbBadge Variant="BadgeVariant.Destructive">Terkunci</BbBadge>
+                    }
+                    else
+                    {
+                        <BbBadge Variant="BadgeVariant.SoftSuccess">Aktif</BbBadge>
+                    }
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+
+            <BbDataGridTemplateColumn TData="UserAccount" Title="Login Terakhir" Width="10rem" Sortable="true" SortBy="a => a.LastLoginAt">
+                <ChildContent Context="item">
+                    <span class="muted nowrap">@(item.LastLoginAt is { } t ? Fmt.When(t) : "belum pernah")</span>
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+
+            <BbDataGridTemplateColumn TData="UserAccount" Title="Aksi" Width="6.5rem" NoWrap="true">
+                <ChildContent Context="item">
+                    <div style="display:inline-flex;align-items:center;gap:.25rem;flex-wrap:nowrap" @onclick:stopPropagation="true">
+                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Edit pengguna" Title="Edit pengguna" OnClick="() => StartEdit(item)">
+                            <LucideIcon Name="pencil" Size="15" />
+                        </BbButton>
+                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Reset password" Title="Reset password" OnClick="() => ResetPassword(item)">
+                            <LucideIcon Name="key-round" Size="15" />
+                        </BbButton>
+                    </div>
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+        </Columns>
+        <EmptyTemplate>
+            <div style="padding:2rem;text-align:center;color:var(--muted-foreground)">
+                Tidak ada pengguna yang ditemukan.
+            </div>
+        </EmptyTemplate>
+    </BbDataGrid>
+
+    <BbDrawer Open="@isDrawerOpen" OpenChanged="@OnDrawerOpenChanged" Direction="DrawerDirection.Right">
+        <BbDrawerContent Class="sm:max-w-md" Style="display:flex;flex-direction:column;max-height:100vh">
+            @if (edit is not null)
+            {
+                <BbDrawerHeader>
+                    <div class="row" style="justify-content:space-between;align-items:flex-start">
+                        <div>
+                            <BbDrawerTitle>@(isNew ? "Pengguna Baru" : $"Edit: {edit.FullName}")</BbDrawerTitle>
+                            <BbDrawerDescription>
+                                @(isNew ? "Password sementara dibuat otomatis." : $"Username {edit.UserName} · dibuat {Fmt.When(edit.CreatedAt)}")
+                            </BbDrawerDescription>
                         </div>
-                        @if (!isNew)
+                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Tutup drawer" OnClick="CloseDrawer">
+                            <LucideIcon Name="x" Size="16" />
+                        </BbButton>
+                    </div>
+                </BbDrawerHeader>
+
+                <div class="stack" style="padding:1rem 0;overflow-y:auto;flex:1">
+                    @if (error is not null) { <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@error</BbAlertDescription></BbAlert> }
+                    <BbField><BbFieldLabel For="u-name">Nama lengkap</BbFieldLabel><BbInput Id="u-name" @bind-Value="edit.FullName" /></BbField>
+                    @if (isNew)
+                    {
+                        <BbField>
+                            <BbFieldLabel For="u-user">Username</BbFieldLabel>
+                            <BbInput Id="u-user" @bind-Value="edit.UserName" />
+                            <BbFieldDescription>Huruf kecil, angka, titik, atau garis bawah. Menjadi id tetap pengguna (dipakai sebagai pemilik dokumen).</BbFieldDescription>
+                        </BbField>
+                    }
+                    <BbField><BbFieldLabel For="u-email">Email</BbFieldLabel><BbInput Id="u-email" Type="InputType.Email" @bind-Value="edit.Email" /></BbField>
+                    <BbField>
+                        <BbFieldLabel For="u-dept">Departemen</BbFieldLabel>
+                        <BbInput Id="u-dept" @bind-Value="edit.Department" />
+                        <BbFieldDescription>Dipakai cakupan data "match:department", mis. atasan hanya melihat pengajuan departemennya.</BbFieldDescription>
+                    </BbField>
+                    @if (Metadata.Current.TryGet("Employee", out _))
+                    {
+                        <BbField>
+                            <BbFieldLabel>Karyawan</BbFieldLabel>
+                            <div class="fill-trigger"><LinkInput Target="Employee" Label="Karyawan" Value="@edit.EmployeeId" ValueChanged="v => edit.EmployeeId = v" ShowLookup="true" /></div>
+                        </BbField>
+                    }
+                    <div class="props-sub">Role</div>
+                    @foreach (var role in KnownRoles)
+                    {
+                        var r = role;
+                        var self = !isNew && edit.Id == Current.Required.Id && (r == UserContext.SystemManager || r == UserContext.Administrator);
+                        <div class="label-row">
+                            <BbCheckbox Id="@($"r-{r}")" Checked="edit.Roles.Contains(r)" Disabled="self" CheckedChanged="v => ToggleRole(r, v)" />
+                            <BbLabel For="@($"r-{r}")">@r@(self ? " (tidak bisa dicabut dari akun sendiri)" : "")</BbLabel>
+                        </div>
+                    }
+                    @if (!isNew)
+                    {
+                        <div class="label-row">
+                            <BbCheckbox Id="u-active" Checked="edit.IsActive" Disabled="@(edit.Id == Current.Required.Id)" CheckedChanged="v => edit.IsActive = v" />
+                            <BbLabel For="u-active">Aktif (bisa login)</BbLabel>
+                        </div>
+                    }
+                </div>
+
+                <BbDrawerFooter>
+                    <div class="stack" style="gap:.75rem;width:100%">
+                        <div class="row" style="gap:.5rem;width:100%;align-items:center">
+                            <BbButton Disabled="busy" Loading="busy" LoadingText="@(isNew ? "Membuat…" : "Menyimpan…")" OnClick="Save"><LucideIcon Name="check" Size="16" /> @(isNew ? "Buat pengguna" : "Simpan")</BbButton>
+                            <BbButton Variant="ButtonVariant.Ghost" OnClick="CloseDrawer">Batal</BbButton>
+                        </div>
+                        @if (!isNew && edit.LockoutEnd > Clock.GetUtcNow())
                         {
-                            <div class="row" style="border-top:1px solid var(--border);padding-top:.75rem">
-                                <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Disabled="busy" OnClick="ResetPassword"><LucideIcon Name="key-round" Size="15" /> Reset password</BbButton>
-                                @if (edit.LockoutEnd > Clock.GetUtcNow())
-                                {
-                                    <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Disabled="busy" OnClick="Unlock"><LucideIcon Name="lock-open" Size="15" /> Buka kunci</BbButton>
-                                }
+                            <div class="row" style="border-top:1px solid var(--border);padding-top:.75rem;gap:.5rem">
+                                <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Disabled="busy" OnClick="Unlock"><LucideIcon Name="lock-open" Size="15" /> Buka kunci</BbButton>
                             </div>
                         }
                     </div>
-                </BbCardContent>
-            </BbCard>
-        }
-    </div>
+                </BbDrawerFooter>
+            }
+        </BbDrawerContent>
+    </BbDrawer>
 }
 
 @code {
     private IReadOnlyList<UserAccount> accounts = [];
     private IReadOnlyList<RoleDef> storedRoles = [];
     private UserAccount? edit;
+    private bool isDrawerOpen;
     private bool isNew, busy;
     private string? error, tempPassword, tempFor;
 
@@ -159,6 +236,7 @@ else
     {
         edit = new UserAccount { TenantId = Current.Required.TenantId, Roles = ["Employee"] };
         isNew = true; error = null; tempPassword = null;
+        isDrawerOpen = true;
     }
 
     private async Task StartEdit(UserAccount a)
@@ -167,6 +245,22 @@ else
         var fresh = await Accounts.FindByIdAsync(a.Id);
         if (fresh is null || fresh.TenantId != Current.Required.TenantId) return;
         edit = fresh; isNew = false; error = null; tempPassword = null;
+        isDrawerOpen = true;
+    }
+
+    private void CloseDrawer()
+    {
+        isDrawerOpen = false;
+    }
+
+    private void OnDrawerOpenChanged(bool open)
+    {
+        isDrawerOpen = open;
+        if (!open)
+        {
+            edit = null;
+            error = null;
+        }
     }
 
     private void ToggleRole(string role, bool on)
@@ -177,11 +271,12 @@ else
 
     private async Task Save()
     {
-        if (edit is null) return;
+        if (edit is null || busy) return;
         error = null;
         if (string.IsNullOrWhiteSpace(edit.FullName)) { error = "Nama lengkap wajib diisi."; return; }
         if (edit.Roles.Count == 0) { error = "Pilih minimal satu role."; return; }
         busy = true;
+        StateHasChanged();
         try
         {
             edit.TenantId = Current.Required.TenantId; // tenant tidak bisa diubah dari UI
@@ -209,28 +304,40 @@ else
                 await Users.UpdateSecurityStampAsync(edit);
                 Toasts.Success("Perubahan berlaku setelah sesi pengguna diperbarui (maks. beberapa menit).", "Disimpan");
             }
-            edit = null;
+            isDrawerOpen = false;
             await Reload();
         }
         finally { busy = false; }
     }
 
-    private async Task ResetPassword()
+    private async Task ResetPassword(UserAccount target)
     {
-        var target = edit!;
         var ok = await Dialogs.ConfirmAsync($"Reset password {target.UserName}?", "Password lama tidak berlaku lagi dan sesi pengguna akan berakhir.",
             new ConfirmDialogOptions { ConfirmText = "Reset password", CancelText = "Batal" });
         if (!ok.Confirmed) return;
         busy = true;
         try
         {
-            var user = (await Users.FindByIdAsync(target.Id))!;
+            var user = await Users.FindByIdAsync(target.Id);
+            if (user is null)
+            {
+                Toasts.Error("Pengguna tidak ditemukan.", "Gagal");
+                return;
+            }
             var password = NewTemporaryPassword();
             await Users.RemovePasswordAsync(user);
             var result = await Users.AddPasswordAsync(user, password);
-            if (!result.Succeeded) { error = string.Join(" ", result.Errors.Select(e => e.Description)); return; }
+            if (!result.Succeeded)
+            {
+                Toasts.Error(string.Join(" ", result.Errors.Select(e => e.Description)), "Gagal reset password");
+                return;
+            }
             (tempPassword, tempFor) = (password, user.UserName);
-            edit = null;
+            Toasts.Success($"Password sementara untuk {user.UserName} berhasil dibuat.", "Reset Password");
+            if (isDrawerOpen && edit?.Id == target.Id)
+            {
+                CloseDrawer();
+            }
             await Reload();
         }
         finally { busy = false; }
@@ -242,7 +349,7 @@ else
         await Users.SetLockoutEndDateAsync(user, null);
         await Users.ResetAccessFailedCountAsync(user);
         Toasts.Success($"{user.UserName} bisa login kembali.", "Kunci dibuka");
-        edit = null;
+        CloseDrawer();
         await Reload();
     }
 

@@ -24,118 +24,136 @@ else
         </div>
     </header>
 
-    <div class="users-grid">
-        <div class="table-wrap">
-            <table class="data">
-                <thead>
-                    <tr>
-                        <th>Role</th>
-                        <th>Deskripsi</th>
-                        <th style="width:6rem">Tipe</th>
-                        <th style="width:5rem">Aksi</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var r in roles)
-                    {
-                        var item = r;
-                        <tr class="clickable @(edit?.Id == item.Id ? "selected" : "")" @onclick="() => StartEdit(item)">
-                            <td>
-                                <div class="row" style="gap:.5rem;align-items:center">
-                                    <LucideIcon Name="@(item.IsSystem ? "shield" : "shield-alert")" Size="16" />
-                                    <strong>@item.Name</strong>
-                                </div>
-                            </td>
-                            <td>@(item.Description ?? "—")</td>
-                            <td>
-                                @if (item.IsSystem)
-                                {
-                                    <BbBadge Variant="BadgeVariant.Soft">Sistem</BbBadge>
-                                }
-                                else
-                                {
-                                    <BbBadge Variant="BadgeVariant.Outline">Kustom</BbBadge>
-                                }
-                            </td>
-                            <td>
-                                <div class="row" style="gap:.25rem">
-                                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Edit role" OnClick="() => StartEdit(item)">
-                                        <LucideIcon Name="pencil" Size="15" />
-                                    </BbButton>
-                                    @if (!item.IsSystem && !string.Equals(item.Name, "Administrator", StringComparison.OrdinalIgnoreCase))
-                                    {
-                                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Hapus role" OnClick="() => ConfirmDelete(item)">
-                                            <LucideIcon Name="trash-2" Size="15" />
-                                        </BbButton>
-                                    }
-                                </div>
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-
-        @if (edit is not null)
-        {
-            <BbCard>
-                <BbCardHeader>
-                    <BbCardTitle Class="card-title">@(isNew ? "Role baru" : $"Edit: {edit.Name}")</BbCardTitle>
-                    <BbCardDescription>
-                        @(edit.IsSystem ? "Role sistem bawaan aplikasi (tidak dapat dihapus)." : "Role kustom tenant.")
-                    </BbCardDescription>
-                </BbCardHeader>
-                <BbCardContent>
-                    <div class="stack">
-                        @if (error is not null)
-                        {
-                            <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@error</BbAlertDescription></BbAlert>
-                        }
-
-                        <BbField>
-                            <BbFieldLabel For="r-name">Nama Role</BbFieldLabel>
-                            <BbInput Id="r-name" @bind-Value="edit.Name" Disabled="@(!isNew && edit.IsSystem)" Placeholder="mis. HR, Purchasing, Auditor" />
-                            @if (!isNew && edit.IsSystem)
-                            {
-                                <BbFieldDescription>Nama role sistem tidak dapat diubah demi menjaga integritas hak akses bawaan.</BbFieldDescription>
-                            }
-                        </BbField>
-
-                        <BbField>
-                            <BbFieldLabel For="r-desc">Deskripsi</BbFieldLabel>
-                            <BbInput Id="r-desc" @bind-Value="edit.Description" Placeholder="mis. Pengelolaan pengadaan dan vendor" />
-                            <BbFieldDescription>Penjelasan fungsi dan cakupan wewenang role ini.</BbFieldDescription>
-                        </BbField>
-
-                        @if (edit.IsSystem)
-                        {
-                            <BbAlert Variant="AlertVariant.Info" Class="props-block">
-                                <BbAlertDescription>Role ini adalah role inti sistem dan diproteksi agar tidak bisa dihapus.</BbAlertDescription>
-                            </BbAlert>
-                        }
-
-                        <div class="row" style="margin-top:1rem;gap:.5rem">
-                            <BbButton Disabled="busy" OnClick="Save"><LucideIcon Name="check" Size="16" /> Simpan</BbButton>
-                            <BbButton Variant="ButtonVariant.Ghost" OnClick="() => edit = null">Batal</BbButton>
-                            @if (!isNew && !edit.IsSystem && !string.Equals(edit.Name, "Administrator", StringComparison.OrdinalIgnoreCase))
-                            {
-                                <span style="margin-left:auto">
-                                    <BbButton Variant="ButtonVariant.Destructive" Size="ButtonSize.Small" Disabled="busy" OnClick="() => ConfirmDelete(edit)">
-                                        <LucideIcon Name="trash-2" Size="15" /> Hapus
-                                    </BbButton>
-                                </span>
-                            }
-                        </div>
+    <BbDataGrid TData="RoleDef"
+                Items="@roles"
+                ShowSearch="true"
+                SearchPlaceholder="Cari role..."
+                ShowPagination="true"
+                InitialPageSize="10"
+                TableContainerClass="table-wrap"
+                RowClass="@(r => edit?.Id == r.Id ? "selected" : "")">
+        <Columns>
+            <BbDataGridPropertyColumn TData="RoleDef" TProp="string" Property="r => r.Name" Title="Role" Width="16rem" Sortable="true" Filterable="true">
+                <CellTemplate Context="item">
+                    <div class="row" style="gap:.5rem;align-items:center;flex-wrap:nowrap">
+                        <LucideIcon Name="@(item.IsSystem ? "shield" : "shield-alert")" Size="16" />
+                        <strong>@item.Name</strong>
                     </div>
-                </BbCardContent>
-            </BbCard>
-        }
-    </div>
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridPropertyColumn TData="RoleDef" TProp="string" Property="r => r.Description" Title="Deskripsi" Sortable="true" Filterable="true">
+                <CellTemplate Context="item">
+                    @(string.IsNullOrWhiteSpace(item.Description) ? "—" : item.Description)
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridTemplateColumn TData="RoleDef" Title="Tipe" Width="7rem" Sortable="true" SortBy="r => r.IsSystem">
+                <ChildContent Context="item">
+                    @if (item.IsSystem)
+                    {
+                        <BbBadge Variant="BadgeVariant.Soft">Sistem</BbBadge>
+                    }
+                    else
+                    {
+                        <BbBadge Variant="BadgeVariant.Outline">Kustom</BbBadge>
+                    }
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+
+            <BbDataGridTemplateColumn TData="RoleDef" Title="Aksi" Width="6.5rem" NoWrap="true">
+                <ChildContent Context="item">
+                    <div style="display:inline-flex;align-items:center;gap:.25rem;flex-wrap:nowrap" @onclick:stopPropagation="true">
+                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Edit role" OnClick="() => StartEdit(item)">
+                            <LucideIcon Name="pencil" Size="15" />
+                        </BbButton>
+                        @if (!item.IsSystem && !string.Equals(item.Name, "Administrator", StringComparison.OrdinalIgnoreCase))
+                        {
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Hapus role" OnClick="() => ConfirmDelete(item)">
+                                <LucideIcon Name="trash-2" Size="15" />
+                            </BbButton>
+                        }
+                    </div>
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+        </Columns>
+        <EmptyTemplate>
+            <div style="padding:2rem;text-align:center;color:var(--muted-foreground)">
+                Tidak ada role yang ditemukan.
+            </div>
+        </EmptyTemplate>
+    </BbDataGrid>
+
+    <BbDrawer Open="@isDrawerOpen" OpenChanged="@OnDrawerOpenChanged" Direction="DrawerDirection.Right">
+        <BbDrawerContent Class="sm:max-w-md">
+            @if (edit is not null)
+            {
+                <BbDrawerHeader>
+                    <div class="row" style="justify-content:space-between;align-items:flex-start">
+                        <div>
+                            <BbDrawerTitle>@(isNew ? "Tambah Role Baru" : $"Edit: {edit.Name}")</BbDrawerTitle>
+                            <BbDrawerDescription>
+                                @(edit.IsSystem ? "Role sistem bawaan aplikasi (tidak dapat dihapus)." : "Role kustom tenant.")
+                            </BbDrawerDescription>
+                        </div>
+                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Tutup drawer" OnClick="CloseDrawer">
+                            <LucideIcon Name="x" Size="16" />
+                        </BbButton>
+                    </div>
+                </BbDrawerHeader>
+
+                <div class="stack" style="padding:1rem 0">
+                    @if (error is not null)
+                    {
+                        <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@error</BbAlertDescription></BbAlert>
+                    }
+
+                    <BbField>
+                        <BbFieldLabel For="r-name">Nama Role</BbFieldLabel>
+                        <BbInput Id="r-name" @bind-Value="edit.Name" Disabled="@(!isNew && edit.IsSystem)" Placeholder="mis. HR, Purchasing, Auditor" />
+                        @if (!isNew && edit.IsSystem)
+                        {
+                            <BbFieldDescription>Nama role sistem tidak dapat diubah demi menjaga integritas hak akses bawaan.</BbFieldDescription>
+                        }
+                    </BbField>
+
+                    <BbField>
+                        <BbFieldLabel For="r-desc">Deskripsi</BbFieldLabel>
+                        <BbInput Id="r-desc" @bind-Value="edit.Description" Placeholder="mis. Pengelolaan pengadaan dan vendor" />
+                        <BbFieldDescription>Penjelasan fungsi dan cakupan wewenang role ini.</BbFieldDescription>
+                    </BbField>
+
+                    @if (edit.IsSystem)
+                    {
+                        <BbAlert Variant="AlertVariant.Info" Class="props-block">
+                            <BbAlertDescription>Role ini adalah role inti sistem dan diproteksi agar tidak bisa dihapus.</BbAlertDescription>
+                        </BbAlert>
+                    }
+                </div>
+
+                <BbDrawerFooter>
+                    <div class="row" style="gap:.5rem;width:100%;align-items:center">
+                        <BbButton Disabled="busy" Loading="busy" LoadingText="Menyimpan…" OnClick="Save"><LucideIcon Name="check" Size="16" /> Simpan</BbButton>
+                        <BbButton Variant="ButtonVariant.Ghost" OnClick="CloseDrawer">Batal</BbButton>
+                        @if (!isNew && !edit.IsSystem && !string.Equals(edit.Name, "Administrator", StringComparison.OrdinalIgnoreCase))
+                        {
+                            <span style="margin-left:auto">
+                                <BbButton Variant="ButtonVariant.Destructive" Size="ButtonSize.Small" Disabled="busy" OnClick="() => ConfirmDelete(edit)">
+                                    <LucideIcon Name="trash-2" Size="15" /> Hapus
+                                </BbButton>
+                            </span>
+                        }
+                    </div>
+                </BbDrawerFooter>
+            }
+        </BbDrawerContent>
+    </BbDrawer>
 }
 
 @code {
     private IReadOnlyList<RoleDef> roles = [];
     private RoleDef? edit;
+    private bool isDrawerOpen;
     private bool isNew;
     private bool busy;
     private string? error;
@@ -163,6 +181,7 @@ else
             Description = "",
             IsSystem = false
         };
+        isDrawerOpen = true;
     }
 
     private void StartEdit(RoleDef item)
@@ -179,11 +198,27 @@ else
             CreatedAt = item.CreatedAt,
             UpdatedAt = item.UpdatedAt
         };
+        isDrawerOpen = true;
+    }
+
+    private void CloseDrawer()
+    {
+        isDrawerOpen = false;
+    }
+
+    private void OnDrawerOpenChanged(bool open)
+    {
+        isDrawerOpen = open;
+        if (!open)
+        {
+            edit = null;
+            error = null;
+        }
     }
 
     private async Task Save()
     {
-        if (edit is null) return;
+        if (edit is null || busy) return;
         if (string.IsNullOrWhiteSpace(edit.Name))
         {
             error = "Nama role tidak boleh kosong.";
@@ -191,22 +226,23 @@ else
         }
 
         edit.Name = edit.Name.Trim();
-
-        // Cek duplikasi nama jika role baru atau ganti nama
-        var existing = await RoleStore.GetByNameAsync(edit.Name, edit.TenantId);
-        if (existing is not null && existing.Id != edit.Id)
-        {
-            error = $"Role dengan nama \"{edit.Name}\" sudah ada.";
-            return;
-        }
-
         busy = true;
         error = null;
+        StateHasChanged();
+
         try
         {
+            // Check for duplicate name if new role or renamed
+            var existing = await RoleStore.GetByNameAsync(edit.Name, edit.TenantId);
+            if (existing is not null && existing.Id != edit.Id)
+            {
+                error = $"Role dengan nama \"{edit.Name}\" sudah ada.";
+                return;
+            }
+
             await RoleStore.SaveAsync(edit);
             Toasts.Success($"Role \"{edit.Name}\" berhasil disimpan.", "Berhasil Disimpan");
-            edit = null;
+            isDrawerOpen = false;
             await Reload();
         }
         catch (Exception ex)
@@ -238,7 +274,7 @@ else
         try
         {
             await RoleStore.DeleteAsync(item.Id, item.TenantId);
-            if (edit?.Id == item.Id) edit = null;
+            if (edit?.Id == item.Id) isDrawerOpen = false;
             Toasts.Success($"Role \"{item.Name}\" berhasil dihapus.", "Role Dihapus");
             await Reload();
         }

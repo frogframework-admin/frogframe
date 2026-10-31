@@ -1,0 +1,1630 @@
+================================================================================
+ IMPOR EXCEL/CSV KE DOCTYPE — TAHAP 1
+ DocFrame (.NET 10 + Blazor Blueprint) — di atas v14
+================================================================================
+
+RINGKASAN
+---------
+Tombol "Impor" di halaman daftar setiap DocType → wizard 4 langkah:
+File (template otomatis / unggah .xlsx .csv) → Pencocokan kolom → Simulasi (dry-run,
+tanpa menyimpan) → Hasil (dokumen dibuat + file baris gagal dengan alasan).
+Setiap baris lewat DocumentService yang sama dengan form. Mode: lewati baris gagal
+(default) atau semua-atau-tidak-sama-sekali (satu commit atomik). Child table:
+satu sheet per tabel, dihubungkan dengan kolom "Kunci impor". Riwayat impor &
+audit "Dibuat lewat impor #…".
+
+PERUBAHAN INTI
+  DocumentService: tahap persiapan insert dipisah (PrepareInsertAsync) dan dipakai
+  oleh InsertAsync (perilaku sama), ValidateInsertAsync (simulasi; nomor urut tidak
+  dipakai) dan InsertBatchAsync (satu UnitOfWork untuk banyak dokumen; nomor ganda
+  dalam batch terdeteksi; BatchRowException menyebut baris yang gagal).
+
+SUDAH DIUJI
+  - 4 test baru: template mengikuti metadata & izin (kunci impor, wajib *, field
+    turunan & berlevel izin tidak ada, dropdown, sheet tabel & Petunjuk, dibuka
+    LibreOffice, tanpa izin buat ditolak); simulasi lalu eksekusi (Link lewat judul
+    huruf kecil, tanggal Excel & dd/MM/yyyy, "1.500.000"/"2.500.000,00", Select tanpa
+    beda huruf, total dihitung ulang, aturan wajib tabel dari pipeline, nomor baris
+    Excel, baris tabel yatim diperingatkan, simulasi tidak menyimpan, audit, riwayat,
+    file baris gagal + baris tabelnya); atomik (1 gagal → 0 tersimpan; semua valid →
+    tersimpan sekaligus); CSV (';', BOM, kutip ganda, Check), batas baris, .xls,
+    kolom wajib yang tidak ada.
+  - Total: 56 lulus (in-memory) / 78 lulus (PostgreSQL); semua test lama tetap lulus
+    setelah refaktor insert.
+  - Uji browser 12 langkah (PostgreSQL): andi mengunduh template, template DIISI
+    dengan openpyxl (pustaka pihak ketiga) memakai sheet Petunjuk, diunggah,
+    kolom terpetakan otomatis, simulasi 2 siap / 1 bermasalah, mode atomik
+    menonaktifkan tombol impor, impor melewati baris gagal → 2 dokumen, file baris
+    gagal berisi alasan, dokumen hasil impor benar (pemohon dari judul, tanggal,
+    barang, total, DRAFT), riwayat tercatat, tombol Impor tidak muncul di daftar
+    pemasok untuk andi (tanpa izin buat).
+
+DAFTAR PERUBAHAN
+  CORE
+    [UBAH]  1. src/Framework.Core/Documents/DocumentService.cs (pipeline insert dipisah)
+    [UBAH]  2. src/Framework.Core/Documents/Model.cs           (BatchRowException)
+    [UBAH]  3. src/Framework.Core/Metadata/Definitions.cs      (ImportDef)
+    [UBAH]  4. src/Framework.Core/Reports/OoxmlTemplates.cs    (batas ukuran opsional)
+    [BARU]  5. src/Framework.Core/Imports/Spreadsheets.cs      (pembaca xlsx/csv, penulis xlsx)
+    [BARU]  6. src/Framework.Core/Imports/DataImport.cs        (layanan impor)
+  POSTGRESQL
+    [BARU]  7. Migrations/012_imports.sql + PostgresImportLogStore.cs
+    [UBAH]  8. PostgresStores.cs (registrasi store)
+  WEB
+    [UBAH]  9. Hosting.cs (DI + batas dari konfigurasi)
+    [BARU] 10. src/Framework.Web/Imports/ImportPage.razor
+    [UBAH] 11. Pages/ListPage.razor (tombol Impor), _Imports.razor, wwwroot/desk.css
+  TEST
+    [BARU] 12. tests/Framework.Tests/ImportTests.cs (opsional)
+
+
+================================================================================
+ 1. [UBAH] src/Framework.Core/Documents/DocumentService.cs
+    Aksi: REPLACE seluruh method InsertAsync dengan blok berikut (InsertAsync, PrepareInsertAsync, ValidateInsertAsync, InsertBatchAsync).
+================================================================================
+
+    public Task<Document> InsertAsync(UserContext user, string docType, IDictionary<string, object?> payload, CancellationToken ct = default) =>
+        InsertAsync(user, docType, payload, "Dibuat", ct);
+
+    /// <param name="auditAction">Teks aksi di audit, mis. "Dibuat lewat impor #imp_x".</param>
+    public async Task<Document> InsertAsync(UserContext user, string docType, IDictionary<string, object?> payload, string auditAction, CancellationToken ct = default)
+    {
+        var p = await PrepareInsertAsync(user, docType, payload, allocateName: true, ct);
+        var uow = new UnitOfWork();
+        uow.Upserts.Add((p.Doc, null));
+        p.Ctx.Events.Add(Event(p.Doc, "document.inserted", user));
+        await FinishAsync(p.Ctx, p.Doc, uow, Audit(p.Doc, user, auditAction, Diff(p.Meta, null, p.Doc)), ct);
+        return RedactForRead(user, p.Meta, p.Doc);
+    }
+
+    private sealed record PreparedInsert(CompiledDocType Meta, Document Doc, DocumentContext Ctx);
+
+    /// <summary>Tahap persiapan insert yang sama untuk form, API, simulasi, dan impor: payload → pipeline validasi & hook →
+    /// cakupan baris → nomor dokumen. Tanpa <paramref name="allocateName"/> nomor urut tidak dipakai (simulasi).</summary>
+    private async Task<PreparedInsert> PrepareInsertAsync(UserContext user, string docType, IDictionary<string, object?> payload, bool allocateName, CancellationToken ct)
+    {
+        var meta = TopLevel(docType);
+        permissions.Demand(user, meta, DocActions.Create);
+        var lookup = new TenantLookup(store, user.TenantId);
+        var now = clock.GetUtcNow();
+
+        var data = new Dictionary<string, object?>();
+        evaluator.ApplyDefaults(meta, data, user);
+        var draft = new Document
+        {
+            DocType = docType, Name = "(baru)", TenantId = user.TenantId, Owner = user.Id, Created = now, Modified = now,
+            ModifiedBy = user.Id, Version = 1, SchemaVersion = meta.Version, DocStatus = DocStatus.Draft,
+            WorkflowState = meta.Workflow?.Def.InitialState, WorkflowVersion = meta.Workflow?.Def.Version, Data = data
+        };
+        ApplyPayload(user, meta, draft, payload, isNew: true);
+
+        var ctx = new DocumentContext { Meta = meta, Doc = draft, User = user, Operation = DocumentOperation.Insert, Lookup = lookup };
+        await RunPipelineAsync(ctx, ct);
+
+        if (!permissions.InScope(user, meta, DocActions.Create, draft.Owner, draft.Data))
+            throw new PermissionDeniedException("Dokumen berada di luar cakupan data yang boleh Anda buat");
+
+        var newName = NamingField(meta) is { } nf
+            ? await NameFromFieldAsync(user, meta, nf, draft, ct)
+            : allocateName ? await store.NextNameAsync(user.TenantId, docType, meta.Def.Naming.Pattern, now, ct) : "(baru)";
+        var doc = CloneWithName(draft, newName);
+        return new PreparedInsert(meta, doc, ctx);
+    }
+
+    /// <summary>Simulasi insert (impor dry-run): seluruh aturan dijalankan, tidak ada yang disimpan dan nomor urut tidak dipakai.</summary>
+    public async Task<Document> ValidateInsertAsync(UserContext user, string docType, IDictionary<string, object?> payload, CancellationToken ct = default)
+    {
+        var p = await PrepareInsertAsync(user, docType, payload, allocateName: false, ct);
+        return RedactForRead(user, p.Meta, p.Doc);
+    }
+
+    /// <summary>
+    /// Insert banyak dokumen dalam SATU commit (semua atau tidak sama sekali). Gagal pada baris ke-i →
+    /// <see cref="BatchRowException"/> dengan indeks baris; tidak ada yang tersimpan.
+    /// </summary>
+    public async Task<IReadOnlyList<Document>> InsertBatchAsync(UserContext user, string docType, IReadOnlyList<IDictionary<string, object?>> payloads,
+        string auditAction, CancellationToken ct = default)
+    {
+        var uow = new UnitOfWork();
+        var prepared = new List<PreparedInsert>();
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        for (var i = 0; i < payloads.Count; i++)
+        {
+            try
+            {
+                var p = await PrepareInsertAsync(user, docType, payloads[i], allocateName: true, ct);
+                if (!names.Add(p.Doc.Name))
+                    throw new ValidationFailedException([new FieldError(NamingField(p.Meta)?.Name ?? StandardFields.Name, $"Nomor '{p.Doc.Name}' muncul lebih dari sekali dalam impor ini")]);
+                foreach (var h in handlers.For<IAfterSave>(p.Meta.Name)) await h.AfterSaveAsync(p.Ctx, ct);
+                ThrowIfErrors(p.Ctx);
+                uow.Upserts.Add((p.Doc, null));
+                if (p.Meta.Def.Document.TrackChanges) uow.Audits.Add(Audit(p.Doc, user, auditAction, Diff(p.Meta, null, p.Doc)));
+                p.Ctx.Events.Add(Event(p.Doc, "document.inserted", user));
+                uow.Outbox.AddRange(p.Ctx.Events);
+                prepared.Add(p);
+            }
+            catch (Exception ex) when (ex is ValidationFailedException or PermissionDeniedException or InvalidPayloadException or InvalidStateException)
+            {
+                throw new BatchRowException(i, ex);
+            }
+        }
+        await store.CommitAsync(uow, ct);
+        return prepared.Select(p => RedactForRead(user, p.Meta, p.Doc)).ToList();
+    }
+
+
+================================================================================
+ 2. [UBAH] src/Framework.Core/Documents/Model.cs
+    Aksi: setelah record FieldError TAMBAHKAN:
+================================================================================
+
+/// <summary>Kegagalan pada satu baris dalam insert batch (impor atomik); tidak ada yang tersimpan.</summary>
+public sealed class BatchRowException(int index, Exception inner) : Exception($"Baris ke-{index + 1}: {inner.Message}", inner)
+{
+    public int Index { get; } = index;
+}
+
+
+================================================================================
+ 3. [UBAH] src/Framework.Core/Metadata/Definitions.cs
+    Dua langkah.
+================================================================================
+
+--- 3a. Di DocTypeDef, setelah properti Api TAMBAHKAN:
+
+    /// <summary>Impor Excel/CSV. Default aktif untuk DocType yang bukan child table.</summary>
+    public ImportDef Import { get; set; } = new();
+
+--- 3b. Sebelum class NamingDef TAMBAHKAN:
+
+public sealed class ImportDef
+{
+    public bool Enabled { get; set; } = true;
+}
+
+
+================================================================================
+ 4. [UBAH] src/Framework.Core/Reports/OoxmlTemplates.cs
+    Aksi: REPLACE awal method OoxmlPackage.Open dengan:
+================================================================================
+
+    public static OoxmlPackage Open(byte[] bytes, string expectedFormat, long? maxBytes = null)
+    {
+        var limit = maxBytes ?? MaxTemplateBytes;
+        if (bytes.Length > limit) throw new TemplateException($"File maksimal {limit / 1024 / 1024} MB");
+
+
+================================================================================
+ 5. [BARU] src/Framework.Core/Imports/Spreadsheets.cs
+    Aksi: BUAT FOLDER "Imports" dan FILE BARU.
+================================================================================
+
+using System.Globalization;
+using System.Security;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Xml.Linq;
+using Framework.Reports;
+
+namespace Framework.Imports;
+
+/// <summary>Satu sheet: baris 0 = judul kolom. Nilai: string, decimal, bool, DateTime, atau null.</summary>
+public sealed record SheetData(string Name, List<object?[]> Rows, int FormulaCells = 0)
+{
+    /// <summary>Nomor baris Excel dari Rows[0] (judul kolom).</summary>
+    public int FirstRowNumber { get; init; } = 1;
+}
+
+/// <summary>Membaca .xlsx (dengan pengaman paket yang sama dengan template laporan) dan .csv.</summary>
+public static class SpreadsheetReader
+{
+    private static readonly XNamespace S = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+    private static readonly XNamespace R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+    private static readonly XNamespace PR = "http://schemas.openxmlformats.org/package/2006/relationships";
+
+    public static List<SheetData> Read(byte[] file, string fileName, long maxBytes)
+    {
+        var ext = Path.GetExtension(fileName).ToLowerInvariant();
+        return ext switch
+        {
+            ".xlsx" => ReadXlsx(file, maxBytes),
+            ".csv" or ".txt" => [ReadCsv(file, Path.GetFileNameWithoutExtension(fileName), maxBytes)],
+            ".xls" => throw new TemplateException("Format .xls lama tidak didukung. Simpan ulang sebagai .xlsx (Excel Workbook) atau .csv."),
+            _ => throw new TemplateException("File harus .xlsx atau .csv"),
+        };
+    }
+
+    private static List<SheetData> ReadXlsx(byte[] file, long maxBytes)
+    {
+        var pkg = OoxmlPackage.Open(file, ReportFormats.Xlsx, maxBytes);
+        var sst = !pkg.Has("xl/sharedStrings.xml") ? [] : pkg.Xml("xl/sharedStrings.xml").Root!.Elements(S + "si")
+            .Select(si => string.Concat(si.Descendants(S + "t").Where(t => t.Parent?.Name != S + "rPh").Select(t => t.Value))).ToList();
+        var dateStyles = DateStyles(pkg);
+        var wb = pkg.Xml("xl/workbook.xml");
+        var rels = pkg.Xml("xl/_rels/workbook.xml.rels").Root!.Elements(PR + "Relationship").ToDictionary(r => (string)r.Attribute("Id")!, r => (string)r.Attribute("Target")!);
+        var result = new List<SheetData>();
+        foreach (var sh in wb.Root!.Element(S + "sheets")!.Elements(S + "sheet"))
+        {
+            if ((string?)sh.Attribute("state") is "hidden" or "veryHidden") continue;
+            var target = rels[(string)sh.Attribute(R + "id")!];
+            var path = target.StartsWith('/') ? target.TrimStart('/') : "xl/" + target;
+            if (!pkg.Has(path)) continue;
+            var rows = new SortedDictionary<int, Dictionary<int, object?>>();
+            var formulas = 0;
+            foreach (var row in pkg.Xml(path).Descendants(S + "row"))
+            {
+                var r = (int?)row.Attribute("r") ?? rows.Count + 1;
+                var cells = new Dictionary<int, object?>();
+                var col = 0;
+                foreach (var c in row.Elements(S + "c"))
+                {
+                    col = c.Attribute("r") is { } ra ? XlsxTemplate.ColIndex(Regex.Match((string)ra, "^[A-Z]+").Value) : col + 1;
+                    if (c.Element(S + "f") is not null) formulas++;
+                    cells[col] = Value(c, sst, dateStyles);
+                }
+                if (cells.Values.Any(v => v is not null && !(v is string s && s.Trim().Length == 0))) rows[r] = cells;
+            }
+            if (rows.Count == 0) continue;
+            var width = rows.Values.SelectMany(c => c.Keys).DefaultIfEmpty(0).Max();
+            // Baris kosong di tengah dipertahankan agar nomor baris di pesan error sama dengan nomor baris di Excel.
+            var first = rows.Keys.First();
+            var list = new List<object?[]>();
+            for (var r = first; r <= rows.Keys.Last(); r++)
+            {
+                var arr = new object?[width];
+                if (rows.TryGetValue(r, out var cells)) foreach (var (c, v) in cells) arr[c - 1] = v;
+                list.Add(arr);
+            }
+            result.Add(new SheetData((string)sh.Attribute("name")!, list, formulas) { FirstRowNumber = first });
+        }
+        return result;
+    }
+
+    private static object? Value(XElement c, List<string> sst, HashSet<int> dateStyles)
+    {
+        var v = c.Element(S + "v")?.Value;
+        switch ((string?)c.Attribute("t"))
+        {
+            case "s": return int.TryParse(v, out var i) && i < sst.Count ? sst[i] : null;
+            case "inlineStr": return string.Concat(c.Element(S + "is")?.Descendants(S + "t").Select(t => t.Value) ?? []);
+            case "str": return v;
+            case "b": return v == "1";
+            case "e": return "#ERROR " + v;
+        }
+        if (v is null) return null;
+        if (!decimal.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out var d)) return v;
+        if (dateStyles.Contains((int?)c.Attribute("s") ?? 0) && d is > 0 and < 2958466)
+            return DateTime.FromOADate((double)d);
+        return d;
+    }
+
+    private static HashSet<int> DateStyles(OoxmlPackage pkg)
+    {
+        var set = new HashSet<int>();
+        if (!pkg.Has("xl/styles.xml")) return set;
+        var doc = pkg.Xml("xl/styles.xml");
+        var custom = doc.Root!.Element(S + "numFmts")?.Elements(S + "numFmt")
+            .ToDictionary(n => (int)n.Attribute("numFmtId")!, n => Regex.Replace((string)n.Attribute("formatCode")!, "\"[^\"]*\"|\\[[^\\]]*\\]", "")) ?? [];
+        var xfs = doc.Root!.Element(S + "cellXfs")?.Elements(S + "xf").ToList() ?? [];
+        for (var i = 0; i < xfs.Count; i++)
+        {
+            var id = (int?)xfs[i].Attribute("numFmtId") ?? 0;
+            if (id is >= 14 and <= 22 or >= 45 and <= 47 || custom.TryGetValue(id, out var code) && code.IndexOfAny(['d', 'y', 'D', 'Y']) >= 0) set.Add(i);
+        }
+        return set;
+    }
+
+    private static SheetData ReadCsv(byte[] file, string name, long maxBytes)
+    {
+        if (file.Length > maxBytes) throw new TemplateException($"File maksimal {maxBytes / 1024 / 1024} MB");
+        var text = new UTF8Encoding(false).GetString(file).TrimStart('\uFEFF');
+        var firstLine = text.Split('\n')[0];
+        var sep = new[] { ',', ';', '\t' }.OrderByDescending(ch => firstLine.Count(x => x == ch)).First();
+        var rows = new List<object?[]>();
+        var row = new List<object?>();
+        var cell = new StringBuilder();
+        var quoted = false;
+        for (var i = 0; i < text.Length; i++)
+        {
+            var ch = text[i];
+            if (quoted)
+            {
+                if (ch == '"' && i + 1 < text.Length && text[i + 1] == '"') { cell.Append('"'); i++; }
+                else if (ch == '"') quoted = false;
+                else cell.Append(ch);
+            }
+            else if (ch == '"' && cell.Length == 0) quoted = true;
+            else if (ch == sep) { row.Add(Cell(cell)); cell.Clear(); }
+            else if (ch == '\n' || ch == '\r')
+            {
+                if (ch == '\r' && i + 1 < text.Length && text[i + 1] == '\n') i++;
+                row.Add(Cell(cell)); cell.Clear(); rows.Add([.. row]); row.Clear();
+            }
+            else cell.Append(ch);
+        }
+        if (cell.Length > 0 || row.Count > 0) { row.Add(Cell(cell)); rows.Add([.. row]); }
+        while (rows.Count > 0 && rows[^1].All(v => v is null)) rows.RemoveAt(rows.Count - 1);
+        var width = rows.Count == 0 ? 0 : rows.Max(r => r.Length);
+        return new SheetData(name, rows.Select(r => r.Length == width ? r : [.. r, .. new object?[width - r.Length]]).ToList()) { FirstRowNumber = 1 };
+
+        static object? Cell(StringBuilder sb) => sb.Length == 0 ? null : sb.ToString();
+    }
+}
+
+/// <summary>Penulis .xlsx sederhana: judul kolom tebal (wajib bertanda), baris judul dibekukan, dropdown dari sheet
+/// daftar tersembunyi, tanggal sebagai tanggal Excel. Dipakai untuk template impor & laporan baris gagal.</summary>
+public sealed class XlsxSheet
+{
+    public required string Name { get; init; }
+    public required IReadOnlyList<string> Headers { get; init; }
+    public List<object?[]> Rows { get; init; } = [];
+    public HashSet<int> RequiredColumns { get; init; } = [];
+    /// <summary>Kolom (indeks 0) → pilihan dropdown.</summary>
+    public Dictionary<int, IReadOnlyList<string>> Lists { get; init; } = [];
+    public Dictionary<int, double> Widths { get; init; } = [];
+    public bool Hidden { get; init; }
+    public bool WrapText { get; init; }
+    public int ValidationRows { get; init; } = 1000;
+}
+
+public static class XlsxWriter
+{
+    private const string NsMain = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+    private const string NsRel = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+
+    public static byte[] Build(IReadOnlyList<XlsxSheet> input)
+    {
+        var sheets = input.ToList();
+        // Pilihan dropdown ditaruh di sheet tersembunyi: tidak terbatas 255 karakter dan aman untuk pilihan yang memuat koma.
+        var listCols = new List<(XlsxSheet Sheet, int Col, IReadOnlyList<string> Options)>();
+        foreach (var s in sheets) foreach (var (c, o) in s.Lists) if (o.Count > 0) listCols.Add((s, c, o));
+        if (listCols.Count > 0)
+            sheets.Add(new XlsxSheet
+            {
+                Name = "_pilihan", Hidden = true, Headers = listCols.Select((_, i) => $"daftar{i + 1}").ToList(),
+                Rows = Enumerable.Range(0, listCols.Max(l => l.Options.Count)).Select(r => listCols.Select(l => (object?)(r < l.Options.Count ? l.Options[r] : null)).ToArray()).ToList(),
+            });
+
+        var parts = new List<(string, string)>();
+        var ct = new StringBuilder("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">" +
+            "<Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/><Default Extension=\"xml\" ContentType=\"application/xml\"/>" +
+            "<Override PartName=\"/xl/workbook.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml\"/>" +
+            "<Override PartName=\"/xl/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml\"/>");
+        var wbSheets = new StringBuilder();
+        var wbRels = new StringBuilder();
+        for (var i = 0; i < sheets.Count; i++)
+        {
+            var s = sheets[i];
+            ct.Append($"<Override PartName=\"/xl/worksheets/sheet{i + 1}.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/>");
+            wbSheets.Append($"<sheet name=\"{Esc(s.Name)}\" sheetId=\"{i + 1}\"{(s.Hidden ? " state=\"hidden\"" : "")} r:id=\"rId{i + 1}\"/>");
+            wbRels.Append($"<Relationship Id=\"rId{i + 1}\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet{i + 1}.xml\"/>");
+            parts.Add(($"xl/worksheets/sheet{i + 1}.xml", Sheet(s, listCols.Select((l, n) => (l, n)).Where(x => x.l.Sheet == s).Select(x => (x.l.Col, x.n, x.l.Options.Count)).ToList())));
+        }
+        ct.Append("</Types>");
+        wbRels.Append($"<Relationship Id=\"rId{sheets.Count + 1}\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/>");
+        parts.Insert(0, ("[Content_Types].xml", ct.ToString()));
+        parts.Add(("_rels/.rels", "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"xl/workbook.xml\"/></Relationships>"));
+        parts.Add(("xl/workbook.xml", $"<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><workbook xmlns=\"{NsMain}\" xmlns:r=\"{NsRel}\"><sheets>{wbSheets}</sheets></workbook>"));
+        parts.Add(("xl/_rels/workbook.xml.rels", $"<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">{wbRels}</Relationships>"));
+        parts.Add(("xl/styles.xml", Styles));
+        return OoxmlPackage.FromParts(parts).Save();
+    }
+
+    private const string Styles = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><styleSheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">" +
+        "<fonts count=\"3\"><font><sz val=\"11\"/><name val=\"Calibri\"/></font><font><b/><sz val=\"11\"/><name val=\"Calibri\"/></font><font><b/><sz val=\"11\"/><color rgb=\"FFB42318\"/><name val=\"Calibri\"/></font></fonts>" +
+        "<fills count=\"3\"><fill><patternFill patternType=\"none\"/></fill><fill><patternFill patternType=\"gray125\"/></fill><fill><patternFill patternType=\"solid\"><fgColor rgb=\"FFE7E6F7\"/><bgColor indexed=\"64\"/></patternFill></fill></fills>" +
+        "<borders count=\"1\"><border><left/><right/><top/><bottom/><diagonal/></border></borders>" +
+        "<cellStyleXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/></cellStyleXfs>" +
+        "<cellXfs count=\"5\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\" xfId=\"0\"/>" +
+        "<xf numFmtId=\"0\" fontId=\"1\" fillId=\"2\" borderId=\"0\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\"/>" +
+        "<xf numFmtId=\"0\" fontId=\"2\" fillId=\"2\" borderId=\"0\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\"/>" +
+        "<xf numFmtId=\"14\" fontId=\"0\" fillId=\"0\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\"/>" +
+        "<xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\" xfId=\"0\" applyAlignment=\"1\"><alignment wrapText=\"1\" vertical=\"top\"/></xf></cellXfs>" +
+        "<cellStyles count=\"1\"><cellStyle name=\"Normal\" xfId=\"0\" builtinId=\"0\"/></cellStyles></styleSheet>";
+
+    private static string Sheet(XlsxSheet s, List<(int Col, int ListIndex, int Count)> lists)
+    {
+        var sb = new StringBuilder($"<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><worksheet xmlns=\"{NsMain}\" xmlns:r=\"{NsRel}\">");
+        if (!s.Hidden) sb.Append("<sheetViews><sheetView workbookViewId=\"0\"><pane ySplit=\"1\" topLeftCell=\"A2\" activePane=\"bottomLeft\" state=\"frozen\"/></sheetView></sheetViews>");
+        sb.Append("<cols>");
+        for (var c = 0; c < s.Headers.Count; c++)
+            sb.Append($"<col min=\"{c + 1}\" max=\"{c + 1}\" width=\"{(s.Widths.TryGetValue(c, out var w) ? w : Math.Clamp(s.Headers[c].Length + 4, 12, 40)).ToString(CultureInfo.InvariantCulture)}\" customWidth=\"1\"/>");
+        sb.Append("</cols><sheetData>");
+        sb.Append("<row r=\"1\">");
+        for (var c = 0; c < s.Headers.Count; c++) sb.Append(Str(c, 1, s.Headers[c], s.RequiredColumns.Contains(c) ? 2 : 1));
+        sb.Append("</row>");
+        for (var r = 0; r < s.Rows.Count; r++)
+        {
+            sb.Append($"<row r=\"{r + 2}\">");
+            var row = s.Rows[r];
+            for (var c = 0; c < row.Length; c++)
+            {
+                var v = row[c];
+                var at = $"{XlsxTemplate.ColLetters(c + 1)}{r + 2}";
+                switch (v)
+                {
+                    case null: break;
+                    case decimal d: sb.Append($"<c r=\"{at}\"><v>{d.ToString(CultureInfo.InvariantCulture)}</v></c>"); break;
+                    case long l: sb.Append($"<c r=\"{at}\"><v>{l}</v></c>"); break;
+                    case DateTime dt: sb.Append($"<c r=\"{at}\" s=\"3\"><v>{dt.ToOADate().ToString(CultureInfo.InvariantCulture)}</v></c>"); break;
+                    case bool b: sb.Append(Str(c, r + 2, b ? "Ya" : "Tidak", 0)); break;
+                    default: sb.Append(Str(c, r + 2, Convert.ToString(v, CultureInfo.InvariantCulture) ?? "", s.WrapText ? 4 : 0)); break;
+                }
+            }
+            sb.Append("</row>");
+        }
+        sb.Append("</sheetData>");
+        if (lists.Count > 0)
+        {
+            sb.Append($"<dataValidations count=\"{lists.Count}\">");
+            foreach (var (col, li, count) in lists)
+            {
+                var letter = XlsxTemplate.ColLetters(col + 1);
+                var src = XlsxTemplate.ColLetters(li + 1);
+                sb.Append($"<dataValidation type=\"list\" allowBlank=\"1\" showErrorMessage=\"1\" errorTitle=\"Nilai tidak valid\" error=\"Pilih dari daftar\" sqref=\"{letter}2:{letter}{s.ValidationRows + 1}\">" +
+                          $"<formula1>'_pilihan'!${src}$2:${src}${count + 1}</formula1></dataValidation>");
+            }
+            sb.Append("</dataValidations>");
+        }
+        return sb.Append("</worksheet>").ToString();
+    }
+
+    private static string Str(int col, int row, string text, int style) =>
+        $"<c r=\"{XlsxTemplate.ColLetters(col + 1)}{row}\" t=\"inlineStr\"{(style > 0 ? $" s=\"{style}\"" : "")}><is><t xml:space=\"preserve\">{Esc(text)}</t></is></c>";
+
+    private static string Esc(string s) => SecurityElement.Escape(s) ?? "";
+}
+
+
+================================================================================
+ 6. [BARU] src/Framework.Core/Imports/DataImport.cs
+    Aksi: BUAT FILE BARU.
+================================================================================
+
+using System.Collections.Concurrent;
+using System.Globalization;
+using System.Text.Json;
+using System.Text.RegularExpressions;
+using Framework.Documents;
+using Framework.Metadata;
+using Framework.Persistence;
+using Framework.Reports;
+using Framework.Security;
+
+namespace Framework.Imports;
+
+// ============================================================================
+//  Impor Excel/CSV ke DocType. Setiap baris diperlakukan PERSIS seperti mengisi form: lewat DocumentService
+//  (permission, cakupan baris, level field, validasi, hook, penomoran, workflow awal, audit, outbox).
+// ============================================================================
+
+public sealed class ImportLimits
+{
+    public int MaxRows { get; set; } = 10_000;
+    public long MaxFileBytes { get; set; } = 10 * 1024 * 1024;
+}
+
+/// <summary>Satu kolom file → field DocType (null = diabaikan).</summary>
+public sealed class ImportColumn
+{
+    public int Index { get; init; }
+    public string Header { get; init; } = "";
+    public string? Field { get; set; }
+    public IReadOnlyList<string> Samples { get; init; } = [];
+}
+
+public sealed class ImportSheet
+{
+    public required SheetData Data { get; init; }
+    public required List<ImportColumn> Columns { get; init; }
+    /// <summary>Indeks kolom "Kunci impor" (penghubung sheet utama ↔ sheet child table), -1 bila tidak ada.</summary>
+    public int KeyColumn { get; init; } = -1;
+    public int RowNumber(int dataIndex) => Data.FirstRowNumber + 1 + dataIndex; // baris Excel (judul = FirstRowNumber)
+    public IEnumerable<(int Index, object?[] Row)> DataRows() => Data.Rows.Skip(1).Select((r, i) => (i, r)).Where(x => x.r.Any(v => v is not null && !(v is string s && s.Trim().Length == 0)));
+}
+
+/// <summary>Status wizard impor (disimpan di sirkuit Blazor / permintaan API).</summary>
+public sealed class ImportSession
+{
+    public required string DocType { get; init; }
+    public required string FileName { get; init; }
+    public required ImportSheet Main { get; init; }
+    /// <summary>Nama field Table → sheet child table.</summary>
+    public Dictionary<string, ImportSheet> Children { get; init; } = [];
+    public List<string> Warnings { get; init; } = [];
+    public int RowCount => Main.DataRows().Count();
+}
+
+public sealed record ImportRowResult(int RowNumber, string? Key, bool Ok, IReadOnlyList<string> Errors, string? CreatedName = null);
+
+public sealed record ImportPreview(IReadOnlyList<ImportRowResult> Rows, IReadOnlyList<string> Warnings)
+{
+    public int Ok => Rows.Count(r => r.Ok);
+    public int Failed => Rows.Count(r => !r.Ok);
+}
+
+public sealed class ImportLog
+{
+    public string Id { get; set; } = "";
+    public string TenantId { get; set; } = "";
+    public string DocType { get; set; } = "";
+    public string FileName { get; set; } = "";
+    public bool Atomic { get; set; }
+    public int Total { get; set; }
+    public int Succeeded { get; set; }
+    public int Failed { get; set; }
+    /// <summary>Nomor dokumen yang dibuat (maks. 1.000 disimpan di log; selebihnya cukup lewat audit).</summary>
+    public List<string> CreatedNames { get; set; } = [];
+    public string UserId { get; set; } = "";
+    public string UserName { get; set; } = "";
+    public DateTimeOffset At { get; set; }
+}
+
+public interface IImportLogStore
+{
+    Task SaveAsync(ImportLog log, CancellationToken ct = default);
+    Task<IReadOnlyList<ImportLog>> ListAsync(string tenantId, string docType, int take, CancellationToken ct = default);
+}
+
+public sealed class InMemoryImportLogStore : IImportLogStore
+{
+    private readonly ConcurrentDictionary<string, string> _logs = new();
+    public Task SaveAsync(ImportLog log, CancellationToken ct = default) { _logs[log.Id] = JsonSerializer.Serialize(log); return Task.CompletedTask; }
+    public Task<IReadOnlyList<ImportLog>> ListAsync(string tenantId, string docType, int take, CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<ImportLog>>(_logs.Values.Select(j => JsonSerializer.Deserialize<ImportLog>(j)!)
+            .Where(l => l.TenantId == tenantId && l.DocType == docType).OrderByDescending(l => l.At).Take(take).ToList());
+}
+
+public sealed record ImportExecution(ImportLog Log, IReadOnlyList<ImportRowResult> Rows);
+
+public sealed partial class DataImportService(DocumentService docs, IMetadataProvider metadata, IPermissionService permissions,
+    IImportLogStore logs, TimeProvider clock, ImportLimits limits)
+{
+    public const string KeyHeader = "Kunci impor";
+    private static readonly CultureInfo Id = CultureInfo.GetCultureInfo("id-ID");
+    public ImportLimits Limits => limits;
+
+    // ---------------- metadata ----------------
+
+    public bool CanImport(UserContext u, string docType) =>
+        metadata.Current.DocTypes.TryGetValue(docType, out var m) && !m.Def.IsChild && m.Def.Import.Enabled && permissions.Can(u, m, DocActions.Create);
+
+    private CompiledDocType Meta(UserContext u, string docType)
+    {
+        if (!metadata.Current.DocTypes.TryGetValue(docType, out var m) || m.Def.IsChild) throw new TemplateException($"DocType {docType} tidak ada");
+        if (!m.Def.Import.Enabled) throw new TemplateException($"Impor dinonaktifkan untuk {m.Title}");
+        if (!permissions.Can(u, m, DocActions.Create)) throw new PermissionDeniedException($"Anda tidak boleh membuat {m.Title}");
+        return m;
+    }
+
+    private static bool Always(string? expr, string value) => string.Equals(expr?.Trim(), value, StringComparison.OrdinalIgnoreCase);
+    public static bool IsRequired(CompiledField f) => Always(f.Def.RequiredWhen, "true");
+
+    /// <summary>Field yang boleh diisi lewat impor oleh pengguna ini — sama dengan yang boleh ia isi di form.</summary>
+    public IReadOnlyList<CompiledField> Fields(UserContext u, CompiledDocType m, bool child = false) => m.Fields.Where(f =>
+        !StandardFields.All.Contains(f.Name) && f.Def.Type is not ("Image" or "Table") && !f.IsDerived
+        && !Always(f.Def.ReadOnlyWhen, "true") && !Always(f.Def.VisibleWhen, "false")
+        && (child || permissions.CanWriteField(u, m, f))).ToList();
+
+    public IReadOnlyList<(CompiledField Table, CompiledDocType Child)> Tables(UserContext u, CompiledDocType m) =>
+        m.Fields.Where(f => f.Def.Type == "Table" && !f.IsDerived && permissions.CanWriteField(u, m, f) && f.Def.ChildDocType is not null
+                            && metadata.Current.DocTypes.ContainsKey(f.Def.ChildDocType))
+            .Select(f => (f, metadata.Current.DocTypes[f.Def.ChildDocType!])).ToList();
+
+    private static string Hint(CompiledField f) => f.Def.Type switch
+    {
+        "Date" => "Tanggal: sel tanggal Excel, 2026-10-30, atau 30/10/2026",
+        "Int" => "Bilangan bulat",
+        "Float" or "Currency" => "Angka: sel angka atau teks 1.500.000,50",
+        "Check" => "Ya / Tidak",
+        "Select" => "Salah satu: " + string.Join(", ", f.Def.Options ?? []),
+        "Link" => $"Nomor atau nama {f.Def.LinkTo} yang sudah ada",
+        "Email" => "Alamat email",
+        _ => f.Def.MaxLength is { } n ? $"Teks (maks. {n} karakter)" : "Teks",
+    };
+
+    // ---------------- template ----------------
+
+    public byte[] BuildTemplate(UserContext u, string docType)
+    {
+        var m = Meta(u, docType);
+        var fields = Fields(u, m);
+        var tables = Tables(u, m);
+        var withKey = tables.Count > 0;
+        XlsxSheet SheetFor(string name, IReadOnlyList<CompiledField> fs, bool key) => new()
+        {
+            Name = name,
+            Headers = [.. key ? [KeyHeader] : Array.Empty<string>(), .. fs.Select(f => f.Label + (IsRequired(f) ? " *" : ""))],
+            RequiredColumns = fs.Select((f, i) => (f, i)).Where(x => IsRequired(x.f)).Select(x => x.i + (key ? 1 : 0)).ToHashSet(),
+            Lists = fs.Select((f, i) => (f, i)).Where(x => x.f.Def.Type is "Select" or "Check")
+                .ToDictionary(x => x.i + (key ? 1 : 0), x => (IReadOnlyList<string>)(x.f.Def.Type == "Check" ? ["Ya", "Tidak"] : x.f.Def.Options ?? [])),
+        };
+        var sheets = new List<XlsxSheet> { SheetFor(SheetName(m.Title), fields, withKey) };
+        foreach (var (t, child) in tables) sheets.Add(SheetFor(SheetName(t.Label), Fields(u, child, child: true), true));
+        var help = new List<object?[]>
+        {
+            new object?[] { $"Impor {m.Title}", "", "", "" },
+            new object?[] { "Isi satu baris per dokumen di sheet \"" + SheetName(m.Title) + "\". Kolom bertanda * wajib diisi. Baris kosong diabaikan.", "", "", "" },
+            new object?[] { withKey ? $"Baris tabel (mis. {string.Join(", ", tables.Select(t => t.Table.Label))}) diisi di sheet masing-masing; kolom \"{KeyHeader}\" menghubungkannya ke baris dokumen (isi bebas: 1, 2, 3, …)." : "", "", "", "" },
+            new object?[] { "Dokumen hasil impor dibuat sebagai draft / tahap awal alur persetujuan.", "", "", "" },
+            new object?[] { null, null, null, null },
+            new object?[] { "Kolom", "Nama field", "Wajib", "Nilai yang diterima" },
+        };
+        foreach (var f in fields) help.Add([f.Label, f.Name, IsRequired(f) ? "Ya" : "", Hint(f)]);
+        foreach (var (t, child) in tables)
+            foreach (var f in Fields(u, child, true)) help.Add([$"{t.Label} › {f.Label}", $"{t.Name}.{f.Name}", IsRequired(f) ? "Ya" : "", Hint(f)]);
+        sheets.Add(new XlsxSheet { Name = "Petunjuk", Headers = ["Petunjuk", "", "", ""], Rows = help, WrapText = true, Widths = new() { [0] = 48, [1] = 24, [2] = 8, [3] = 60 } });
+        return XlsxWriter.Build(sheets);
+    }
+
+    private static string SheetName(string s) => Regex.Replace(s, @"[\[\]\*\?/\\:]", " ").Trim() is var x && x.Length > 31 ? x[..31] : x;
+
+    // ---------------- membuka file ----------------
+
+    private static string Norm(string? h) => Regex.Replace((h ?? "").Replace("*", ""), @"\s+", " ").Trim().ToLowerInvariant();
+
+    public ImportSession Open(UserContext u, string docType, string fileName, byte[] file)
+    {
+        var m = Meta(u, docType);
+        var sheets = SpreadsheetReader.Read(file, fileName, limits.MaxFileBytes)
+            .Where(s => !Norm(s.Name).Equals("petunjuk") && !s.Name.StartsWith('_') && s.Rows.Count > 0).ToList();
+        if (sheets.Count == 0) throw new TemplateException("File tidak berisi data");
+        var tables = Tables(u, m);
+        var childSheets = new Dictionary<string, SheetData>();
+        foreach (var (t, _) in tables)
+            if (sheets.FirstOrDefault(s => Norm(s.Name) == Norm(t.Label) || Norm(s.Name) == Norm(t.Name) || Norm(s.Name) == Norm(SheetName(t.Label))) is { } cs)
+                childSheets[t.Name] = cs;
+        var main = sheets.FirstOrDefault(s => Norm(s.Name) == Norm(SheetName(m.Title)) || Norm(s.Name) == Norm(m.Name))
+                   ?? sheets.First(s => !childSheets.Values.Contains(s));
+
+        var session = new ImportSession { DocType = docType, FileName = fileName, Main = Sheet(main, Fields(u, m)) };
+        foreach (var (t, child) in tables)
+            if (childSheets.TryGetValue(t.Name, out var cs)) session.Children[t.Name] = Sheet(cs, Fields(u, child, true));
+        if (session.RowCount == 0) throw new TemplateException($"Sheet \"{main.Name}\" tidak berisi baris data");
+        if (session.RowCount > limits.MaxRows) throw new TemplateException($"Maksimal {limits.MaxRows:N0} baris per impor (file berisi {session.RowCount:N0}). Bagi menjadi beberapa file.");
+        if (session.Children.Count > 0 && session.Main.KeyColumn < 0)
+            session.Warnings.Add($"Sheet tabel ditemukan, tetapi sheet utama tidak punya kolom \"{KeyHeader}\" — baris tabel tidak bisa dihubungkan dan diabaikan.");
+        var formulas = sheets.Sum(s => s.FormulaCells);
+        if (formulas > 0) session.Warnings.Add($"{formulas:N0} sel berisi rumus; nilai hasil hitung yang tersimpan di file yang dipakai.");
+        foreach (var s in sheets.Where(s => s != main && !childSheets.Values.Contains(s)))
+            session.Warnings.Add($"Sheet \"{s.Name}\" tidak dikenali dan diabaikan.");
+        return session;
+    }
+
+    private static ImportSheet Sheet(SheetData data, IReadOnlyList<CompiledField> fields)
+    {
+        var header = data.Rows[0];
+        var cols = new List<ImportColumn>();
+        var key = -1;
+        for (var i = 0; i < header.Length; i++)
+        {
+            var h = Convert.ToString(header[i], CultureInfo.InvariantCulture) ?? "";
+            if (Norm(h) == Norm(KeyHeader)) { key = i; continue; }
+            if (h.Trim().Length == 0) continue;
+            var match = fields.FirstOrDefault(f => Norm(f.Label) == Norm(h)) ?? fields.FirstOrDefault(f => Norm(f.Name) == Norm(h));
+            cols.Add(new ImportColumn
+            {
+                Index = i, Header = h.Trim(), Field = match?.Name,
+                Samples = data.Rows.Skip(1).Select(r => i < r.Length ? r[i] : null).Where(v => v is not null).Take(3).Select(v => Display(v)).ToList(),
+            });
+        }
+        // Satu field hanya boleh dipetakan sekali: kolom berikutnya dengan field yang sama diabaikan.
+        foreach (var dup in cols.Where(c => c.Field is not null).GroupBy(c => c.Field).SelectMany(g => g.Skip(1))) dup.Field = null;
+        return new ImportSheet { Data = data, Columns = cols, KeyColumn = key };
+    }
+
+    public static string Display(object? v) => v switch
+    {
+        null => "",
+        DateTime d => d.TimeOfDay == TimeSpan.Zero ? d.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture) : d.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture),
+        decimal n => n.ToString("#,0.##", Id),
+        bool b => b ? "Ya" : "Tidak",
+        _ => Convert.ToString(v, CultureInfo.InvariantCulture) ?? "",
+    };
+
+    /// <summary>Field wajib yang belum dipetakan ke kolom mana pun (impor tidak bisa dilanjutkan).</summary>
+    public IReadOnlyList<string> MissingRequired(UserContext u, ImportSession s)
+    {
+        var m = Meta(u, s.DocType);
+        var mapped = s.Main.Columns.Where(c => c.Field is not null).Select(c => c.Field!).ToHashSet();
+        var missing = Fields(u, m).Where(f => IsRequired(f) && f.StaticDefault is null && f.DynamicDefault is null && !mapped.Contains(f.Name)).Select(f => f.Label).ToList();
+        foreach (var (t, child) in Tables(u, m))
+            if (s.Children.TryGetValue(t.Name, out var cs))
+            {
+                var cm = cs.Columns.Where(c => c.Field is not null).Select(c => c.Field!).ToHashSet();
+                missing.AddRange(Fields(u, child, true).Where(f => IsRequired(f) && f.StaticDefault is null && f.DynamicDefault is null && !cm.Contains(f.Name)).Select(f => $"{t.Label} › {f.Label}"));
+            }
+        return missing;
+    }
+
+    // ---------------- konversi nilai ----------------
+
+    private sealed class LinkCache(DocumentService docs, IMetadataProvider metadata, UserContext user)
+    {
+        private readonly Dictionary<string, (Dictionary<string, string> ByName, Dictionary<string, List<string>> ByTitle)> _targets = new();
+
+        public async Task<(string? Name, string? Error)> ResolveAsync(string target, string value, CancellationToken ct)
+        {
+            if (!_targets.TryGetValue(target, out var t))
+            {
+                var meta = metadata.Current.DocTypes[target];
+                var titleField = meta.Def.ListView.TitleField;
+                var rows = await docs.QueryForReportAsync(user, target, [], DocActions.Read, ct);
+                t = (rows.GroupBy(d => d.Name.ToLowerInvariant()).ToDictionary(g => g.Key, g => g.First().Name),
+                     titleField is null ? [] : rows.Where(d => d.Data.GetValueOrDefault(titleField) is string).GroupBy(d => ((string)d.Data[titleField]!).Trim().ToLowerInvariant())
+                         .ToDictionary(g => g.Key, g => g.Select(d => d.Name).ToList()));
+                _targets[target] = t;
+            }
+            var key = value.Trim().ToLowerInvariant();
+            if (t.ByName.TryGetValue(key, out var name)) return (name, null);
+            if (t.ByTitle.TryGetValue(key, out var names))
+                return names.Count == 1 ? (names[0], null) : (null, $"'{value}' cocok dengan {names.Count} {metadata.Current.DocTypes[target].Title} ({string.Join(", ", names.Take(3))}) — pakai nomornya");
+            return (null, $"'{value}' tidak ditemukan di {metadata.Current.DocTypes[target].Title}");
+        }
+    }
+
+    private static readonly string[] DateFormats = ["yyyy-MM-dd", "dd/MM/yyyy", "d/M/yyyy", "dd-MM-yyyy", "d-M-yyyy", "dd.MM.yyyy", "yyyy/MM/dd", "d MMMM yyyy", "dd MMMM yyyy", "d MMM yyyy", "yyyy-MM-ddTHH:mm:ss", "yyyy-MM-dd HH:mm:ss"];
+
+    public static bool TryNumber(object? v, out decimal d)
+    {
+        d = 0;
+        switch (v)
+        {
+            case decimal n: d = n; return true;
+            case bool: return false;
+            case string s:
+                s = Regex.Replace(s, @"(?i)\s|rp\.?|idr", "");
+                if (s.Length == 0) return false;
+                var lastDot = s.LastIndexOf('.'); var lastComma = s.LastIndexOf(',');
+                if (lastDot >= 0 && lastComma >= 0)
+                    s = lastComma > lastDot ? s.Replace(".", "").Replace(',', '.') : s.Replace(",", "");
+                else if (lastComma >= 0)
+                    s = Regex.IsMatch(s, @"^-?\d{1,3}(,\d{3})+$") ? s.Replace(",", "") : s.Replace(',', '.');
+                else if (lastDot >= 0 && Regex.IsMatch(s, @"^-?\d{1,3}(\.\d{3})+$"))
+                    s = s.Replace(".", ""); // 1.500.000 = format ribuan Indonesia
+                return decimal.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out d);
+        }
+        return false;
+    }
+
+    private async Task<(object? Value, string? Error)> ConvertAsync(CompiledField f, object? raw, LinkCache links, CancellationToken ct)
+    {
+        if (raw is null || raw is string e && e.Trim().Length == 0) return (null, null);
+        if (raw is string err && err.StartsWith("#ERROR ")) return (null, $"sel berisi error Excel ({err[7..]})");
+        switch (f.Def.Type)
+        {
+            case "Int":
+                return TryNumber(raw, out var i) && i == Math.Truncate(i) ? ((long)i, null) : (null, $"'{Display(raw)}' bukan bilangan bulat");
+            case "Float" or "Currency":
+                return TryNumber(raw, out var d) ? (d, null) : (null, $"'{Display(raw)}' bukan angka");
+            case "Check":
+                return raw switch
+                {
+                    bool b => (b, null),
+                    decimal n when n is 0 or 1 => (n == 1, null),
+                    string s when Regex.IsMatch(s.Trim(), "^(?i)(ya|y|yes|true|1|✓|v)$") => (true, null),
+                    string s when Regex.IsMatch(s.Trim(), "^(?i)(tidak|t|no|n|false|0|-)$") => (false, null),
+                    _ => (null, $"'{Display(raw)}' harus Ya atau Tidak"),
+                };
+            case "Date":
+                if (raw is DateTime dt) return (dt.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), null);
+                if (raw is decimal serial && serial is > 0 and < 2958466) return (DateTime.FromOADate((double)serial).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), null);
+                var text = Convert.ToString(raw, CultureInfo.InvariantCulture)!.Trim();
+                if (DateTime.TryParseExact(text, DateFormats, Id, DateTimeStyles.None, out var p) || DateTime.TryParseExact(text, DateFormats, CultureInfo.InvariantCulture, DateTimeStyles.None, out p))
+                    return (p.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), null);
+                return (null, $"'{text}' bukan tanggal (pakai 2026-10-30 atau 30/10/2026)");
+            case "Select":
+                var sv = Display(raw).Trim();
+                var opt = f.Def.Options?.FirstOrDefault(o => o.Equals(sv, StringComparison.OrdinalIgnoreCase));
+                return opt is not null ? (opt, null) : (null, $"'{sv}' bukan pilihan yang valid ({string.Join(", ", f.Def.Options ?? [])})");
+            case "Link":
+                var (name, error) = await links.ResolveAsync(f.Def.LinkTo!, Display(raw), ct);
+                return (name, error);
+            default:
+                return (raw switch
+                {
+                    decimal n => n.ToString(CultureInfo.InvariantCulture),
+                    DateTime x => x.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                    bool b => b ? "Ya" : "Tidak",
+                    _ => Convert.ToString(raw, CultureInfo.InvariantCulture)!.Trim(),
+                }, null);
+        }
+    }
+
+    private sealed record Prepared(int RowNumber, string? Key, Dictionary<string, object?>? Payload, List<string> Errors);
+
+    private static string? KeyOf(ImportSheet s, object?[] row) =>
+        s.KeyColumn >= 0 && s.KeyColumn < row.Length && row[s.KeyColumn] is { } k ? Display(k).Trim() is { Length: > 0 } x ? x : null : null;
+
+    private async Task<(List<Prepared> Rows, List<string> Warnings)> PrepareAsync(UserContext u, ImportSession s, CancellationToken ct)
+    {
+        var m = Meta(u, s.DocType);
+        var missing = MissingRequired(u, s);
+        if (missing.Count > 0) throw new TemplateException("Kolom wajib belum dipetakan: " + string.Join(", ", missing));
+        var links = new LinkCache(docs, metadata, u);
+        var warnings = new List<string>();
+
+        async Task<(Dictionary<string, object?> Values, List<string> Errors)> RowAsync(ImportSheet sheet, CompiledDocType meta, object?[] row, string prefix)
+        {
+            var values = new Dictionary<string, object?>();
+            var errors = new List<string>();
+            foreach (var c in sheet.Columns.Where(c => c.Field is not null))
+            {
+                var f = meta.ByName[c.Field!];
+                var (v, e) = await ConvertAsync(f, c.Index < row.Length ? row[c.Index] : null, links, ct);
+                if (e is not null) errors.Add($"{prefix}{c.Header.TrimEnd(' ', '*')}: {e}");
+                else if (v is not null) values[f.Name] = v;
+            }
+            return (values, errors);
+        }
+
+        // Baris child table dikelompokkan per kunci impor.
+        var childRows = new Dictionary<string, Dictionary<string, List<(int Row, object?[] Data)>>>();
+        foreach (var (table, sheet) in s.Children)
+        {
+            var groups = new Dictionary<string, List<(int, object?[])>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var (i, row) in sheet.DataRows())
+            {
+                var key = KeyOf(sheet, row);
+                if (key is null) { warnings.Add($"Sheet \"{sheet.Data.Name}\" baris {sheet.RowNumber(i)}: kolom \"{KeyHeader}\" kosong — diabaikan."); continue; }
+                (groups.TryGetValue(key, out var l) ? l : groups[key] = []).Add((sheet.RowNumber(i), row));
+            }
+            childRows[table] = groups;
+        }
+
+        var result = new List<Prepared>();
+        var seenKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (i, row) in s.Main.DataRows())
+        {
+            var key = KeyOf(s.Main, row);
+            var (values, errors) = await RowAsync(s.Main, m, row, "");
+            if (key is not null && !seenKeys.Add(key)) errors.Add($"{KeyHeader} '{key}' dipakai lebih dari satu baris");
+            foreach (var (t, child) in Tables(u, m))
+            {
+                if (key is null || !childRows.TryGetValue(t.Name, out var groups) || !groups.TryGetValue(key, out var lines)) continue;
+                var list = new List<Dictionary<string, object?>>();
+                foreach (var (rn, data) in lines)
+                {
+                    var (cv, ce) = await RowAsync(s.Children[t.Name], child, data, $"{t.Label} baris {rn} › ");
+                    errors.AddRange(ce);
+                    list.Add(cv);
+                }
+                values[t.Name] = list;
+            }
+            result.Add(new Prepared(s.Main.RowNumber(i), key, errors.Count == 0 ? values : null, errors));
+        }
+        foreach (var (table, groups) in childRows)
+            foreach (var key in groups.Keys.Where(k => !seenKeys.Contains(k)))
+                warnings.Add($"Sheet \"{s.Children[table].Data.Name}\": {KeyHeader} '{key}' tidak ada di sheet utama — {groups[key].Count} baris diabaikan.");
+        return (result, warnings);
+    }
+
+    private string Label(CompiledDocType m, string path) =>
+        m.ByName.TryGetValue(path.Split('.', '[')[0], out var f) ? f.Label : path;
+
+    private IReadOnlyList<string> Errors(CompiledDocType m, Exception ex) => ex switch
+    {
+        ValidationFailedException v => v.Errors.Select(e => string.IsNullOrEmpty(e.Path) || e.Message.Contains(Label(m, e.Path)) ? e.Message : $"{Label(m, e.Path)}: {e.Message}").ToList(),
+        InvalidPayloadException p => [$"{p.Message}: {string.Join(", ", p.Fields)}"],
+        BatchRowException b => Errors(m, b.InnerException!),
+        _ => [ex.Message],
+    };
+
+    // ---------------- simulasi & eksekusi ----------------
+
+    /// <summary>Dry-run: setiap baris dijalankan lewat seluruh aturan DocumentService tanpa disimpan.</summary>
+    public async Task<ImportPreview> SimulateAsync(UserContext u, ImportSession s, IProgress<int>? progress = null, CancellationToken ct = default)
+    {
+        var m = Meta(u, s.DocType);
+        var (rows, warnings) = await PrepareAsync(u, s, ct);
+        var results = new List<ImportRowResult>();
+        var names = NamingFieldOf(m) is { } nf ? new Dictionary<string, int>(StringComparer.Ordinal) : null;
+        for (var i = 0; i < rows.Count; i++)
+        {
+            var r = rows[i];
+            if (r.Payload is null) { results.Add(new(r.RowNumber, r.Key, false, r.Errors)); continue; }
+            try
+            {
+                var draft = await docs.ValidateInsertAsync(u, s.DocType, r.Payload, ct);
+                if (names is not null && !names.TryAdd(draft.Name, r.RowNumber))
+                    results.Add(new(r.RowNumber, r.Key, false, [$"Nomor '{draft.Name}' sama dengan baris {names[draft.Name]}"]));
+                else results.Add(new(r.RowNumber, r.Key, true, []));
+            }
+            catch (Exception ex) when (ex is ValidationFailedException or PermissionDeniedException or InvalidPayloadException or InvalidStateException)
+            {
+                results.Add(new(r.RowNumber, r.Key, false, Errors(m, ex)));
+            }
+            if (i % 50 == 0) progress?.Report(i);
+        }
+        return new ImportPreview(results, [.. s.Warnings, .. warnings]);
+    }
+
+    private static CompiledField? NamingFieldOf(CompiledDocType m) =>
+        m.Def.Naming.Pattern.StartsWith("field:") && m.ByName.TryGetValue(m.Def.Naming.Pattern["field:".Length..], out var cf) ? cf : null;
+
+    /// <summary>
+    /// Menjalankan impor. <paramref name="atomic"/> = semua atau tidak sama sekali (satu commit); selain itu baris yang
+    /// gagal dilewati dan baris lain tetap tersimpan. Hasil dicatat di riwayat impor.
+    /// </summary>
+    public async Task<ImportExecution> ExecuteAsync(UserContext u, ImportSession s, bool atomic, IProgress<int>? progress = null, CancellationToken ct = default)
+    {
+        var m = Meta(u, s.DocType);
+        var (rows, _) = await PrepareAsync(u, s, ct);
+        var log = new ImportLog
+        {
+            Id = "imp_" + Guid.NewGuid().ToString("N")[..10], TenantId = u.TenantId, DocType = s.DocType, FileName = s.FileName,
+            Atomic = atomic, Total = rows.Count, UserId = u.Id, UserName = u.FullName, At = clock.GetUtcNow(),
+        };
+        var action = $"Dibuat lewat impor #{log.Id}";
+        var results = new List<ImportRowResult>();
+        if (atomic)
+        {
+            if (rows.Any(r => r.Payload is null))
+                results.AddRange(rows.Select(r => r.Payload is null ? new ImportRowResult(r.RowNumber, r.Key, false, r.Errors)
+                    : new ImportRowResult(r.RowNumber, r.Key, false, ["Tidak disimpan: ada baris lain yang gagal (mode semua atau tidak sama sekali)"])));
+            else
+            {
+                try
+                {
+                    var created = await docs.InsertBatchAsync(u, s.DocType, rows.Select(r => (IDictionary<string, object?>)r.Payload!).ToList(), action, ct);
+                    results.AddRange(rows.Select((r, i) => new ImportRowResult(r.RowNumber, r.Key, true, [], created[i].Name)));
+                }
+                catch (BatchRowException ex)
+                {
+                    results.AddRange(rows.Select((r, i) => i == ex.Index ? new ImportRowResult(r.RowNumber, r.Key, false, Errors(m, ex))
+                        : new ImportRowResult(r.RowNumber, r.Key, false, [$"Tidak disimpan: baris {rows[ex.Index].RowNumber} gagal (mode semua atau tidak sama sekali)"])));
+                }
+            }
+        }
+        else
+        {
+            for (var i = 0; i < rows.Count; i++)
+            {
+                var r = rows[i];
+                if (r.Payload is null) { results.Add(new(r.RowNumber, r.Key, false, r.Errors)); continue; }
+                try
+                {
+                    var doc = await docs.InsertAsync(u, s.DocType, r.Payload, action, ct);
+                    results.Add(new(r.RowNumber, r.Key, true, [], doc.Name));
+                }
+                catch (Exception ex) when (ex is ValidationFailedException or PermissionDeniedException or InvalidPayloadException or InvalidStateException)
+                {
+                    results.Add(new(r.RowNumber, r.Key, false, Errors(m, ex)));
+                }
+                if (i % 25 == 0) progress?.Report(i);
+            }
+        }
+        log.Succeeded = results.Count(r => r.Ok);
+        log.Failed = results.Count - log.Succeeded;
+        log.CreatedNames = results.Where(r => r.CreatedName is not null).Select(r => r.CreatedName!).Take(1000).ToList();
+        await logs.SaveAsync(log, ct);
+        return new ImportExecution(log, results);
+    }
+
+    public Task<IReadOnlyList<ImportLog>> HistoryAsync(UserContext u, string docType, CancellationToken ct = default) =>
+        logs.ListAsync(u.TenantId, docType, 20, ct);
+
+    /// <summary>File berisi baris yang gagal (nilai asli + kolom "Alasan"), siap diperbaiki dan diimpor ulang.</summary>
+    public static byte[] FailureReport(ImportSession s, IReadOnlyList<ImportRowResult> results)
+    {
+        var failed = results.Where(r => !r.Ok).ToDictionary(r => r.RowNumber);
+        var keys = results.Where(r => !r.Ok && r.Key is not null).Select(r => r.Key!).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        XlsxSheet Copy(ImportSheet sheet, Func<int, object?[], bool> include, Func<int, string?>? reason)
+        {
+            var headers = sheet.Data.Rows[0].Select(h => Convert.ToString(h, CultureInfo.InvariantCulture) ?? "").ToList();
+            if (reason is not null) headers.Add("Alasan");
+            return new XlsxSheet
+            {
+                Name = sheet.Data.Name, Headers = headers,
+                Rows = sheet.DataRows().Where(x => include(x.Index, x.Row))
+                    .Select(x => reason is null ? x.Row : [.. x.Row, .. new object?[headers.Count - 1 - x.Row.Length], reason(sheet.RowNumber(x.Index))]).ToList(),
+                Widths = reason is null ? [] : new() { [headers.Count - 1] = 70 },
+            };
+        }
+        var sheets = new List<XlsxSheet> { Copy(s.Main, (i, _) => failed.ContainsKey(s.Main.RowNumber(i)), rn => string.Join("; ", failed[rn].Errors)) };
+        foreach (var (_, child) in s.Children)
+            sheets.Add(Copy(child, (_, row) => KeyOf(child, row) is { } k && keys.Contains(k), null));
+        return XlsxWriter.Build(sheets);
+    }
+}
+
+
+================================================================================
+ 7. [BARU] Migrations/012_imports.sql & PostgresImportLogStore.cs
+    Aksi: BUAT DUA FILE BARU di src/Framework.Persistence.PostgreSql/.
+================================================================================
+
+--- Migrations/012_imports.sql
+
+-- DocFrame: riwayat impor Excel/CSV. Dokumen hasil impor juga tercatat di audit masing-masing ("Dibuat lewat impor #…").
+CREATE TABLE docframe_imports (
+    id            text        PRIMARY KEY,
+    tenant_id     text        NOT NULL,
+    doctype       text        NOT NULL,
+    file_name     text        NOT NULL,
+    atomic        boolean     NOT NULL,
+    total         integer     NOT NULL,
+    succeeded     integer     NOT NULL,
+    failed        integer     NOT NULL,
+    created_names text[]      NOT NULL DEFAULT '{}',
+    user_id       text        NOT NULL,
+    user_name     text        NOT NULL,
+    created_at    timestamptz NOT NULL
+);
+CREATE INDEX ix_imports_doctype ON docframe_imports (tenant_id, doctype, created_at DESC);
+
+--- PostgresImportLogStore.cs
+
+using Framework.Imports;
+using Npgsql;
+
+namespace Framework.Persistence.PostgreSql;
+
+public sealed class PostgresImportLogStore(NpgsqlDataSource db) : IImportLogStore
+{
+    public async Task SaveAsync(ImportLog l, CancellationToken ct = default)
+    {
+        await using var cmd = db.CreateCommand(
+            "INSERT INTO docframe_imports (id, tenant_id, doctype, file_name, atomic, total, succeeded, failed, created_names, user_id, user_name, created_at) " +
+            "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)");
+        foreach (var v in new object[] { l.Id, l.TenantId, l.DocType, l.FileName, l.Atomic, l.Total, l.Succeeded, l.Failed, l.CreatedNames.ToArray(), l.UserId, l.UserName, l.At })
+            cmd.Parameters.AddWithValue(v);
+        await cmd.ExecuteNonQueryAsync(ct);
+    }
+
+    public async Task<IReadOnlyList<ImportLog>> ListAsync(string tenantId, string docType, int take, CancellationToken ct = default)
+    {
+        await using var cmd = db.CreateCommand(
+            "SELECT id, tenant_id, doctype, file_name, atomic, total, succeeded, failed, created_names, user_id, user_name, created_at " +
+            "FROM docframe_imports WHERE tenant_id = $1 AND doctype = $2 ORDER BY created_at DESC LIMIT $3");
+        cmd.Parameters.AddWithValue(tenantId); cmd.Parameters.AddWithValue(docType); cmd.Parameters.AddWithValue(take);
+        var list = new List<ImportLog>();
+        await using var r = await cmd.ExecuteReaderAsync(ct);
+        while (await r.ReadAsync(ct))
+            list.Add(new ImportLog
+            {
+                Id = r.GetString(0), TenantId = r.GetString(1), DocType = r.GetString(2), FileName = r.GetString(3), Atomic = r.GetBoolean(4),
+                Total = r.GetInt32(5), Succeeded = r.GetInt32(6), Failed = r.GetInt32(7), CreatedNames = r.GetFieldValue<string[]>(8).ToList(),
+                UserId = r.GetString(9), UserName = r.GetString(10), At = r.GetFieldValue<DateTimeOffset>(11),
+            });
+        return list;
+    }
+}
+
+
+================================================================================
+ 8. [UBAH] src/Framework.Persistence.PostgreSql/PostgresStores.cs
+    Aksi: setelah registrasi PostgresQueryApiStore TAMBAHKAN:
+================================================================================
+
+        services.Replace(ServiceDescriptor.Singleton<Framework.Imports.IImportLogStore, PostgresImportLogStore>());
+
+
+================================================================================
+ 9. [UBAH] src/Framework.Web/Hosting.cs
+    Aksi: tambahkan "using Framework.Imports;" lalu setelah "services.AddSingleton<QueryApiService>();" TAMBAHKAN:
+================================================================================
+
+        // Impor Excel/CSV ke DocType (lewat DocumentService yang sama dengan form).
+        services.TryAddSingleton<IImportLogStore, InMemoryImportLogStore>();
+        services.AddSingleton(sp =>
+        {
+            var cfg = sp.GetService<IConfiguration>();
+            return new ImportLimits
+            {
+                MaxRows = cfg?.GetValue("Import:MaxRows", 10_000) ?? 10_000,
+                MaxFileBytes = (cfg?.GetValue("Import:MaxFileMb", 10) ?? 10) * 1024L * 1024L,
+            };
+        });
+        services.AddSingleton<DataImportService>();
+
+
+================================================================================
+ 10. [BARU] src/Framework.Web/Imports/ImportPage.razor
+    Aksi: BUAT FOLDER "Imports" dan FILE BARU.
+================================================================================
+
+@page "/app/{DocType}/import"
+@using Framework.Imports
+@using Framework.Reports
+@using Microsoft.AspNetCore.Components.Forms
+@inject DataImportService Importer
+@inject IMetadataProvider Metadata
+@inject CurrentUser Current
+@inject ToastService Toasts
+
+<PageTitle>Impor @(meta?.Title ?? DocType) · DocFrame</PageTitle>
+
+<BbBreadcrumb Class="crumbs">
+    <BbBreadcrumbList>
+        <BbBreadcrumbItem><BbBreadcrumbLink Href="@($"/app/{DocType}")">@(meta?.Title ?? DocType)</BbBreadcrumbLink></BbBreadcrumbItem>
+        <BbBreadcrumbSeparator />
+        <BbBreadcrumbItem><BbBreadcrumbPage>Impor</BbBreadcrumbPage></BbBreadcrumbItem>
+    </BbBreadcrumbList>
+</BbBreadcrumb>
+
+@if (meta is null || !Importer.CanImport(Current.Required, DocType))
+{
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>Impor tidak tersedia untuk DocType ini, atau Anda tidak memiliki izin membuat dokumennya.</BbAlertDescription></BbAlert>
+}
+else
+{
+    <header class="page-head">
+        <div>
+            <h1>Impor @meta.Title</h1>
+            <p>Setiap baris diperiksa dengan aturan yang sama seperti mengisi form. Tidak ada yang disimpan sebelum Anda menekan <strong>Impor</strong>.</p>
+        </div>
+    </header>
+
+    <ol class="wizard-steps" aria-label="Langkah">
+        @foreach (var (n, title) in Steps)
+        {
+            var num = n;
+            <li class="@(step == num ? "current" : num < step ? "done" : "")">
+                <button type="button" disabled="@(num > maxStep || step == 4)" @onclick="() => GoTo(num)" aria-current="@(step == num ? "step" : null)">
+                    <span class="step-num">@(num < step ? "✓" : num.ToString())</span><span>@title</span>
+                </button>
+            </li>
+        }
+    </ol>
+
+    @if (error is not null)
+    {
+        <BbAlert Variant="AlertVariant.Danger" Class="props-block"><BbAlertTitle>@errorTitle</BbAlertTitle><BbAlertDescription>@error</BbAlertDescription></BbAlert>
+    }
+
+    @switch (step)
+    {
+        case 1:
+            <div class="builder-grid">
+                <BbCard>
+                    <BbCardHeader><BbCardTitle Class="card-title">1. Siapkan file</BbCardTitle></BbCardHeader>
+                    <BbCardContent>
+                        <div class="stack">
+                            <div>
+                                <a class="bb-like-button" href="@TemplateUrl" download="@($"template-impor-{DocType}.xlsx")"><LucideIcon Name="file-spreadsheet" Size="16" /> Unduh template Excel</a>
+                                <p class="muted small" style="margin:.4rem 0 0">Berisi kolom yang boleh Anda isi (bertanda * wajib), pilihan dropdown, @(Importer.Tables(Current.Required, meta).Count > 0 ? "sheet untuk baris tabel, " : "")dan sheet Petunjuk.</p>
+                            </div>
+                            <div>
+                                <div class="props-sub" style="margin-bottom:.35rem">Unggah file (.xlsx atau .csv, maks. @(Importer.Limits.MaxFileBytes / 1024 / 1024) MB, @Importer.Limits.MaxRows.ToString("N0") baris)</div>
+                                <label class="image-pick">
+                                    <InputFile id="import-file" accept=".xlsx,.csv" OnChange="Upload" />
+                                    <LucideIcon Name="upload" Size="15" /> Pilih file
+                                </label>
+                                <p class="muted small" style="margin:.4rem 0 0">File Excel Anda sendiri juga bisa; kolomnya dicocokkan di langkah berikut.</p>
+                            </div>
+                        </div>
+                    </BbCardContent>
+                </BbCard>
+                <BbCard>
+                    <BbCardHeader><BbCardTitle Class="card-title">Riwayat impor</BbCardTitle></BbCardHeader>
+                    <BbCardContent>
+                        @if (history.Count == 0) { <p class="muted small">Belum ada impor untuk @meta.Title.</p> }
+                        else
+                        {
+                            <table class="data">
+                                <thead><tr><th>Waktu</th><th>File</th><th>Oleh</th><th class="num">Berhasil</th><th class="num">Gagal</th></tr></thead>
+                                <tbody>@foreach (var h in history) { <tr><td class="nowrap muted">@Fmt.When(h.At)</td><td>@h.FileName @if (h.Atomic) { <span class="muted small">(atomik)</span> }</td><td>@h.UserName</td><td class="num">@h.Succeeded</td><td class="num">@h.Failed</td></tr> }</tbody>
+                            </table>
+                        }
+                    </BbCardContent>
+                </BbCard>
+            </div>
+            break;
+
+        case 2 when session is not null:
+            <BbCard>
+                <BbCardHeader>
+                    <BbCardTitle Class="card-title">2. Pencocokan kolom — @session.FileName</BbCardTitle>
+                    <BbCardDescription>@session.RowCount.ToString("N0") baris data. Kolom yang dipetakan "(abaikan)" tidak diimpor.</BbCardDescription>
+                </BbCardHeader>
+                <BbCardContent>
+                    @foreach (var w in session.Warnings) { <BbAlert Class="props-block"><BbAlertDescription>@w</BbAlertDescription></BbAlert> }
+                    @if (Missing.Count > 0)
+                    {
+                        <BbAlert Variant="AlertVariant.Danger" Class="props-block"><BbAlertTitle>Kolom wajib belum dipetakan</BbAlertTitle><BbAlertDescription>@string.Join(", ", Missing)</BbAlertDescription></BbAlert>
+                    }
+                    @MappingTable(session.Main, meta, "Sheet " + session.Main.Data.Name, false)
+                    @foreach (var (t, child) in Importer.Tables(Current.Required, meta))
+                    {
+                        @if (session.Children.TryGetValue(t.Name, out var cs)) { @MappingTable(cs, child, $"{t.Label} (sheet {cs.Data.Name})", true) }
+                    }
+                    <div class="row" style="margin-top:1rem">
+                        <BbButton Variant="ButtonVariant.Ghost" OnClick="() => GoTo(1)">Ganti file</BbButton>
+                        <span class="spacer"></span>
+                        <BbButton Disabled="@(busy || Missing.Count > 0)" OnClick="Simulate"><LucideIcon Name="scan-search" Size="16" /> @(busy ? $"Memeriksa… {progress:N0}/{session.RowCount:N0}" : "Lanjut: simulasi")</BbButton>
+                    </div>
+                </BbCardContent>
+            </BbCard>
+            break;
+
+        case 3 when session is not null && preview is not null:
+            <BbCard>
+                <BbCardHeader>
+                    <BbCardTitle Class="card-title">3. Simulasi</BbCardTitle>
+                    <BbCardDescription>Semua aturan sudah dijalankan; belum ada yang disimpan.</BbCardDescription>
+                </BbCardHeader>
+                <BbCardContent>
+                    <div class="import-summary">
+                        <div class="ok"><strong>@preview.Ok.ToString("N0")</strong><span>siap diimpor</span></div>
+                        <div class="bad"><strong>@preview.Failed.ToString("N0")</strong><span>bermasalah</span></div>
+                    </div>
+                    @foreach (var w in preview.Warnings) { <BbAlert Class="props-block"><BbAlertDescription>@w</BbAlertDescription></BbAlert> }
+                    @if (preview.Failed > 0)
+                    {
+                        <div class="result-grid" style="max-height:20rem">
+                            <table class="data">
+                                <thead><tr><th class="num">Baris</th>@if (session.Main.KeyColumn >= 0) { <th>Kunci</th> }<th>Masalah</th></tr></thead>
+                                <tbody>
+                                    @foreach (var r in preview.Rows.Where(r => !r.Ok).Take(300))
+                                    {
+                                        <tr><td class="num">@r.RowNumber</td>@if (session.Main.KeyColumn >= 0) { <td>@r.Key</td> }<td class="wrap"><ul class="error-list">@foreach (var e in r.Errors) { <li>@e</li> }</ul></td></tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                        @if (preview.Failed > 300) { <p class="muted small">Menampilkan 300 baris pertama; semua baris bermasalah ada di file baris gagal setelah impor.</p> }
+                    }
+                    <div style="margin-top:1rem">
+                        <div class="props-sub" style="margin-bottom:.35rem">Jika ada baris bermasalah</div>
+                        <div class="label-row"><input type="radio" id="m-skip" name="mode" checked="@(!atomic)" @onchange="() => atomic = false" /><label for="m-skip">Lewati baris yang gagal — baris lain tetap disimpan</label></div>
+                        <div class="label-row"><input type="radio" id="m-atomic" name="mode" checked="@atomic" @onchange="() => atomic = true" /><label for="m-atomic">Semua atau tidak sama sekali — satu baris gagal, tidak ada yang disimpan</label></div>
+                    </div>
+                    <div class="row" style="margin-top:1rem">
+                        <BbButton Variant="ButtonVariant.Ghost" OnClick="() => GoTo(2)">Kembali</BbButton>
+                        <span class="spacer"></span>
+                        <BbButton Disabled="@(busy || preview.Ok == 0 || atomic && preview.Failed > 0)" OnClick="Execute">
+                            <LucideIcon Name="file-up" Size="16" /> @(busy ? $"Mengimpor… {progress:N0}/{preview.Rows.Count:N0}" : $"Impor {preview.Ok:N0} baris")
+                        </BbButton>
+                    </div>
+                    @if (atomic && preview.Failed > 0) { <p class="muted small" style="text-align:right;margin:.35rem 0 0">Mode semua-atau-tidak: perbaiki @preview.Failed baris bermasalah dulu.</p> }
+                </BbCardContent>
+            </BbCard>
+            break;
+
+        case 4 when session is not null && result is not null:
+            <BbCard>
+                <BbCardHeader><BbCardTitle Class="card-title">4. Hasil impor #@result.Log.Id</BbCardTitle></BbCardHeader>
+                <BbCardContent>
+                    <div class="import-summary">
+                        <div class="ok"><strong>@result.Log.Succeeded.ToString("N0")</strong><span>dibuat</span></div>
+                        <div class="bad"><strong>@result.Log.Failed.ToString("N0")</strong><span>gagal</span></div>
+                    </div>
+                    @if (result.Log.Succeeded > 0)
+                    {
+                        <div class="props-sub" style="margin:.75rem 0 .35rem">Dokumen yang dibuat</div>
+                        <p class="created-list">@foreach (var n in result.Rows.Where(r => r.Ok).Take(30)) { <a href="@($"/app/{DocType}/{n.CreatedName}")">@n.CreatedName</a> }@if (result.Log.Succeeded > 30) { <span class="muted">+@(result.Log.Succeeded - 30) lainnya</span> }</p>
+                    }
+                    <div class="row" style="margin-top:1rem">
+                        @if (result.Log.Failed > 0)
+                        {
+                            <a class="bb-like-button" href="@FailureUrl" download="@($"baris-gagal-{result.Log.Id}.xlsx")"><LucideIcon Name="file-down" Size="16" /> Unduh baris gagal (+ alasan)</a>
+                        }
+                        <span class="spacer"></span>
+                        <BbButton Variant="ButtonVariant.Outline" OnClick="Restart">Impor file lain</BbButton>
+                        <BbButton Href="@($"/app/{DocType}")">Ke daftar @meta.Title.ToLower()</BbButton>
+                    </div>
+                </BbCardContent>
+            </BbCard>
+            break;
+    }
+}
+
+@code {
+    [Parameter] public string DocType { get; set; } = "";
+    private static readonly (int, string)[] Steps = [(1, "File"), (2, "Pencocokan kolom"), (3, "Simulasi"), (4, "Hasil")];
+    private CompiledDocType? meta;
+    private int step = 1, maxStep = 1, progress;
+    private bool busy, atomic;
+    private string? error, errorTitle, templateUrl, loaded;
+    private ImportSession? session;
+    private ImportPreview? preview;
+    private ImportExecution? result;
+    private IReadOnlyList<ImportLog> history = [];
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (loaded == DocType) return;
+        loaded = DocType;
+        meta = Metadata.Current.DocTypes.TryGetValue(DocType, out var m) && !m.Def.IsChild ? m : null;
+        if (meta is null || !Importer.CanImport(Current.Required, DocType)) return;
+        templateUrl = null; step = maxStep = 1;
+        history = await Importer.HistoryAsync(Current.Required, DocType);
+    }
+
+    private string TemplateUrl => templateUrl ??= "data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64," +
+        Convert.ToBase64String(Importer.BuildTemplate(Current.Required, DocType));
+    private string FailureUrl => "data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64," +
+        Convert.ToBase64String(DataImportService.FailureReport(session!, result!.Rows));
+    private IReadOnlyList<string> Missing => session is null ? [] : Importer.MissingRequired(Current.Required, session);
+
+    private void GoTo(int n) { if (n <= maxStep) { step = n; error = null; } }
+
+    private async Task Upload(InputFileChangeEventArgs e)
+    {
+        error = null; session = null; preview = null; result = null;
+        try
+        {
+            if (e.File.Size > Importer.Limits.MaxFileBytes) throw new TemplateException($"File maksimal {Importer.Limits.MaxFileBytes / 1024 / 1024} MB");
+            await using var s = e.File.OpenReadStream(Importer.Limits.MaxFileBytes);
+            using var ms = new MemoryStream();
+            await s.CopyToAsync(ms);
+            session = Importer.Open(Current.Required, DocType, e.File.Name, ms.ToArray());
+            step = maxStep = 2;
+        }
+        catch (Exception ex) when (ex is TemplateException or PermissionDeniedException or IOException)
+        {
+            (errorTitle, error) = ("File tidak bisa dibaca", ex.Message);
+        }
+    }
+
+    private RenderFragment MappingTable(ImportSheet sheet, CompiledDocType target, string title, bool child) => __builder =>
+    {
+        var fields = Importer.Fields(Current.Required, target, child);
+        var options = new[] { new SelectOption<string>("", "(abaikan)") }.Concat(fields.Select(f => new SelectOption<string>(f.Name, f.Label + (DataImportService.IsRequired(f) ? " *" : "")))).ToList();
+        <div class="props-sub" style="margin:.75rem 0 .35rem">@title</div>
+        <div class="table-wrap">
+            <table class="perm-table">
+                <thead><tr><th>Kolom di file</th><th>Contoh nilai</th><th style="min-width:15rem">Diisi ke field</th></tr></thead>
+                <tbody>
+                    @foreach (var col in sheet.Columns)
+                    {
+                        var c = col;
+                        <tr>
+                            <td><strong>@c.Header</strong></td>
+                            <td class="muted small">@string.Join(" · ", c.Samples)</td>
+                            <td><BbSelect TValue="string" Value="@(c.Field ?? "")" ValueChanged="v => Map(sheet, c, v)" Options="options" AriaLabel="@($"Field untuk kolom {c.Header}")" /></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    };
+
+    private void Map(ImportSheet sheet, ImportColumn c, string? field)
+    {
+        field = string.IsNullOrEmpty(field) ? null : field;
+        if (field is not null) foreach (var other in sheet.Columns.Where(o => o != c && o.Field == field)) other.Field = null; // satu field satu kolom
+        c.Field = field;
+        preview = null; maxStep = 2;
+    }
+
+    private Progress<int> Reporter() => new(i => { progress = i; _ = InvokeAsync(StateHasChanged); });
+
+    private async Task Simulate()
+    {
+        error = null; busy = true; progress = 0;
+        try
+        {
+            await Task.Yield();
+            preview = await Importer.SimulateAsync(Current.Required, session!, Reporter());
+            atomic = false;
+            step = maxStep = 3;
+        }
+        catch (Exception ex) when (ex is TemplateException or PermissionDeniedException)
+        {
+            (errorTitle, error) = ("Simulasi tidak bisa dijalankan", ex.Message);
+        }
+        finally { busy = false; }
+    }
+
+    private async Task Execute()
+    {
+        error = null; busy = true; progress = 0;
+        try
+        {
+            await Task.Yield();
+            result = await Importer.ExecuteAsync(Current.Required, session!, atomic, Reporter());
+            step = maxStep = 4;
+            history = await Importer.HistoryAsync(Current.Required, DocType);
+            if (result.Log.Succeeded > 0) Toasts.Success($"{result.Log.Succeeded:N0} dokumen dibuat, {result.Log.Failed:N0} gagal.", $"Impor #{result.Log.Id} selesai");
+        }
+        catch (Exception ex) when (ex is TemplateException or PermissionDeniedException)
+        {
+            (errorTitle, error) = ("Impor gagal", ex.Message);
+        }
+        finally { busy = false; }
+    }
+
+    private void Restart() { session = null; preview = null; result = null; step = maxStep = 1; }
+}
+
+
+================================================================================
+ 11. [UBAH] ListPage.razor, _Imports.razor, desk.css
+    Tiga langkah.
+================================================================================
+
+--- 11a. ListPage.razor: tambahkan "@inject Framework.Imports.DataImportService Importer" lalu di dalam blok tombol "Buat", SEBELUM BbButton Buat, TAMBAHKAN:
+
+            @if (Importer.CanImport(Current.Required, meta.Name))
+            {
+                <BbButton Variant="ButtonVariant.Outline" Href="@($"/app/{meta.Name}/import")"><LucideIcon Name="file-up" Size="16" /> Impor</BbButton>
+            }
+
+--- 11b. _Imports.razor: tambahkan  @using Framework.Web.Imports
+
+--- 11c. desk.css: TAMBAHKAN di akhir:
+
+/* ---------- Impor ---------- */
+.import-summary { display: flex; gap: .75rem; flex-wrap: wrap; margin-bottom: .75rem; }
+.import-summary > div { display: flex; flex-direction: column; min-width: 9rem; padding: .6rem .9rem; border-radius: var(--radius); border: 1px solid var(--border); }
+.import-summary strong { font-size: 1.6rem; line-height: 1.1; }
+.import-summary span { font-size: .8rem; color: var(--muted-foreground); }
+.import-summary .ok strong { color: var(--success, #15803d); }
+.import-summary .bad strong { color: var(--destructive); }
+.created-list { display: flex; flex-wrap: wrap; gap: .35rem .75rem; margin: 0; font-size: .85rem; }
+table.data td.wrap { white-space: normal; }
+
+
+================================================================================
+ 12. [BARU] tests/Framework.Tests/ImportTests.cs
+    Aksi (opsional): BUAT FILE BARU.
+================================================================================
+
+using System.IO.Compression;
+using System.Text;
+using Framework.Documents;
+using Framework.Imports;
+using Framework.Metadata;
+using Framework.Persistence;
+using Framework.Reports;
+using Framework.Security;
+using Microsoft.Extensions.DependencyInjection;
+
+/// <summary>Impor Excel/CSV ke DocType.</summary>
+sealed partial class Tests
+{
+    private DataImportService Imports => sp.GetRequiredService<DataImportService>();
+
+    /// <summary>File seperti yang diisi pengguna dari template: judul kolom diambil dari template asli.</summary>
+    private byte[] FilledPurchaseRequests(bool includeBadRows)
+    {
+        var template = SpreadsheetReader.Read(Imports.BuildTemplate(U("andi"), PR), "t.xlsx", 10_000_000);
+        var mainHeaders = template[0].Rows[0].Select(h => (string)h!).ToList();
+        object?[] Main(params (string Label, object? Value)[] cells)
+        {
+            var row = new object?[mainHeaders.Count];
+            foreach (var (label, v) in cells) row[mainHeaders.FindIndex(h => h.TrimEnd(' ', '*') == label)] = v;
+            return row;
+        }
+        var meta = sp.GetRequiredService<IMetadataProvider>().Current.Get(PR);
+        string L(string f) => meta.ByName[f].Label;
+        var rows = new List<object?[]>
+        {
+            Main(("Kunci impor", 1m), (L("requester"), "andi pratama"), (L("request_date"), new DateTime(2026, 10, 1)), (L("priority"), "tinggi"), (L("justification"), "Impor 1")),
+            Main(("Kunci impor", 2m), (L("requester"), "Andi Pratama"), (L("request_date"), "15/10/2026"), (L("priority"), "Normal"), (L("justification"), "Impor 2")),
+        };
+        if (includeBadRows)
+        {
+            rows.Add(Main(("Kunci impor", 3m), (L("requester"), "Orang Tidak Ada"), (L("request_date"), "2026-10-20"), (L("priority"), "Sangat tinggi")));
+            rows.Add(Main(("Kunci impor", 4m), (L("requester"), "Andi Pratama"), (L("request_date"), "kemarin"), (L("priority"), "Rendah")));
+            rows.Add(Main(("Kunci impor", 5m), (L("requester"), "Andi Pratama"), (L("request_date"), "2026-10-21"), (L("priority"), "Rendah"))); // tanpa barang: wajib dari pipeline
+        }
+        var child = new XlsxSheet
+        {
+            Name = template[1].Name, Headers = ["Kunci impor", "item_name", "qty", "rate", "uom"], // sheet anak memakai nama field (juga didukung)
+            Rows =
+            [
+                [1m, "Mouse wireless", 2m, "150.000", "pcs"],
+                [1m, "Keyboard mekanik", 1m, 450000m, "PCS"],
+                [2m, "Monitor 27 inci", 1m, "2.500.000,00", "unit"],
+                .. includeBadRows ? new object?[][] { [3m, "Kertas", 5m, 50000m, "box"], [9m, "Yatim", 1m, 1m, "pcs"] } : [],
+            ],
+        };
+        return XlsxWriter.Build([new XlsxSheet { Name = template[0].Name, Headers = mainHeaders, Rows = rows }, child]);
+    }
+
+    private async Task<int> CountPR() => (await Docs.QueryForReportAsync(U("admin"), PR, [], DocActions.Read)).Count;
+
+    [Test]
+    public async Task Impor_template_mengikuti_metadata_dan_izin_pengguna()
+    {
+        var bytes = Imports.BuildTemplate(U("andi"), PR);
+        var sheets = SpreadsheetReader.Read(bytes, "t.xlsx", 10_000_000);
+        var meta = sp.GetRequiredService<IMetadataProvider>().Current.Get(PR);
+        var headers = sheets[0].Rows[0].Select(h => (string)h!).ToList();
+        Assert.True(headers[0] == DataImportService.KeyHeader && headers.Contains(meta.ByName["requester"].Label + " *"), "kunci impor + wajib bertanda *: " + string.Join(" | ", headers));
+        Assert.True(!headers.Any(h => h.StartsWith(meta.ByName["total"].Label)) && !headers.Any(h => h.StartsWith(meta.ByName["requester_name"].Label)), "field turunan tidak ada di template");
+        var perm = meta.Fields.Where(f => f.Def.PermLevel > 0).Select(f => f.Label).ToList();
+        Assert.True(perm.Count > 0 && perm.All(l => !headers.Any(h => h.StartsWith(l))), "field berlevel izin lebih tinggi tidak tampil untuk karyawan: " + string.Join(", ", perm));
+        Assert.True(sheets.Any(s => s.Name == meta.ByName["items"].Label) && sheets.Any(s => s.Name == "Petunjuk") && sheets.All(s => s.Name != "_pilihan"), "sheet tabel + petunjuk; daftar pilihan tersembunyi");
+        using (var zip = new ZipArchive(new MemoryStream(bytes)))
+        using (var r = new StreamReader(zip.GetEntry("xl/worksheets/sheet1.xml")!.Open()))
+            Assert.True(r.ReadToEnd().Contains("<dataValidation type=\"list\""), "dropdown untuk Select");
+        await Assert.Throws<PermissionDeniedException>(() => Task.FromResult(Imports.BuildTemplate(U("andi"), "Vendor")), "tanpa izin buat → tidak ada template");
+        if (LibreOffice(bytes, "xlsx", "csv") is { } csv) Assert.True(csv.Contains(DataImportService.KeyHeader), "template dibuka LibreOffice");
+    }
+
+    [Test]
+    public async Task Impor_simulasi_lalu_eksekusi_melewati_baris_gagal()
+    {
+        var andi = U("andi");
+        var before = await CountPR();
+        var session = Imports.Open(andi, PR, "pengajuan.xlsx", FilledPurchaseRequests(includeBadRows: true));
+        Assert.Equal(5, session.RowCount, "5 baris data");
+        Assert.True(session.Main.Columns.Count(c => c.Field is not null) >= 5 && session.Children.Count == 1, "kolom & sheet tabel terpetakan otomatis");
+        Assert.Equal(0, Imports.MissingRequired(andi, session).Count, "semua kolom wajib terpetakan");
+
+        var preview = await Imports.SimulateAsync(andi, session);
+        string Err(int key) => string.Join(" | ", preview.Rows.Single(r => r.Key == key.ToString()).Errors);
+        Assert.True(preview.Ok == 2 && preview.Failed == 3, $"2 siap, 3 bermasalah: {string.Join(" || ", preview.Rows.Select(r => $"{r.Key}:{string.Join(";", r.Errors)}"))}");
+        Assert.True(Err(3).Contains("'Orang Tidak Ada' tidak ditemukan") && Err(3).Contains("'Sangat tinggi' bukan pilihan"), "Link & Select: " + Err(3));
+        Assert.True(Err(4).Contains("'kemarin' bukan tanggal"), "tanggal: " + Err(4));
+        Assert.True(Err(5).Length > 0, "aturan wajib dari pipeline dokumen (tabel barang kosong): " + Err(5));
+        Assert.True(preview.Rows.Single(r => r.Key == "3").RowNumber == 4, "nomor baris = nomor baris Excel");
+        Assert.True(preview.Warnings.Any(w => w.Contains("'9'") && w.Contains("tidak ada di sheet utama")), "baris tabel yatim diperingatkan");
+        Assert.Equal(before, await CountPR(), "simulasi tidak menyimpan apa pun");
+
+        var run = await Imports.ExecuteAsync(andi, session, atomic: false);
+        Assert.True(run.Log.Succeeded == 2 && run.Log.Failed == 3 && await CountPR() == before + 2, "2 tersimpan, 3 dilewati");
+        var doc = await Docs.GetAsync(andi, PR, run.Rows.First(r => r.Ok).CreatedName!);
+        var items = (IList<Dictionary<string, object?>>)doc.Data["items"]!;
+        Assert.True(items.Count == 2 && (decimal)doc.Data["total"]! == 750_000m && (string)doc.Data["priority"]! == "Tinggi" && (string)doc.Data["request_date"]! == "2026-10-01",
+            $"nilai dikonversi & dihitung: items={items.Count}, total={doc.Data["total"]}, prioritas={doc.Data["priority"]}, tanggal={doc.Data["request_date"]}");
+        Assert.True((string)items[1]["uom"]! == "pcs", "Select di tabel tidak peka huruf besar");
+        var second = await Docs.GetAsync(andi, PR, run.Rows.Where(r => r.Ok).ElementAt(1).CreatedName!);
+        Assert.Equal(2_500_000m, (decimal)second.Data["total"]!, "angka '2.500.000,00' format Indonesia");
+        Assert.True(doc.WorkflowState == "Draft" && doc.Owner == "andi", "dibuat sebagai draft milik pengimpor");
+        var audit = await Docs.GetAuditAsync(andi, PR, doc.Name);
+        Assert.True(audit.Any(a => a.Action == $"Dibuat lewat impor #{run.Log.Id}"), "audit menyebut asal impor");
+        var history = await Imports.HistoryAsync(andi, PR);
+        Assert.True(history.Single().Id == run.Log.Id && history.Single().CreatedNames.Count == 2, "riwayat impor tercatat");
+
+        var report = SpreadsheetReader.Read(DataImportService.FailureReport(session, run.Rows), "gagal.xlsx", 10_000_000);
+        Assert.True(report[0].Rows.Count == 4 && (string)report[0].Rows[0][^1]! == "Alasan" && report[0].Rows.Skip(1).All(r => r[^1] is string s && s.Length > 0), "file baris gagal + alasan");
+        Assert.True(report[1].Rows.Count == 2 && (decimal)report[1].Rows[1][0]! == 3m, "baris tabel ikut untuk baris gagal saja");
+    }
+
+    [Test]
+    public async Task Impor_atomik_semua_atau_tidak_sama_sekali()
+    {
+        var andi = U("andi");
+        var before = await CountPR();
+        var bad = await Imports.ExecuteAsync(andi, Imports.Open(andi, PR, "a.xlsx", FilledPurchaseRequests(includeBadRows: true)), atomic: true);
+        Assert.True(bad.Log.Succeeded == 0 && await CountPR() == before, "satu baris gagal → tidak ada yang tersimpan");
+        Assert.True(bad.Rows.Where(r => r.Key is "1" or "2").All(r => r.Errors.Single().Contains("ada baris lain yang gagal")), "baris valid diberi alasan");
+        var good = await Imports.ExecuteAsync(andi, Imports.Open(andi, PR, "b.xlsx", FilledPurchaseRequests(includeBadRows: false)), atomic: true);
+        Assert.True(good.Log.Succeeded == 2 && await CountPR() == before + 2 && good.Rows.All(r => r.CreatedName!.StartsWith("PR-")), "semua valid → tersimpan sekaligus");
+    }
+
+    [Test]
+    public async Task Impor_csv_dan_batasan()
+    {
+        var rina = U("rina");
+        var meta = sp.GetRequiredService<IMetadataProvider>().Current.Get("Vendor");
+        var csv = $"{meta.ByName["vendor_name"].Label};{meta.ByName["category"].Label};email;{meta.ByName["blacklisted"].Label}\n" +
+                  "PT Sumber Baru;atk;halo@sumber.co;Ya\n\"Toko \"\"Jaya\"\"; Abadi\";jasa;;tidak\n";
+        var s = Imports.Open(rina, "Vendor", "pemasok.csv", Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(csv)).ToArray());
+        Assert.True(s.RowCount == 2 && s.Main.Columns.All(c => c.Field is not null), "CSV ';' + BOM + kutip terbaca, kolom terpetakan (label & nama field)");
+        var run = await Imports.ExecuteAsync(rina, s, atomic: false);
+        Assert.Equal(2, run.Log.Succeeded, "2 pemasok dibuat: " + string.Join(";", run.Rows.SelectMany(r => r.Errors)));
+        var v = await Docs.GetAsync(rina, "Vendor", run.Rows[1].CreatedName!);
+        Assert.True((string)v.Data["vendor_name"]! == "Toko \"Jaya\"; Abadi" && (string)v.Data["category"]! == "Jasa" && (bool)v.Data["blacklisted"]! == false, "kutip, Select, Check");
+
+        await Assert.Throws<PermissionDeniedException>(() => Task.FromResult(Imports.Open(U("andi"), "Vendor", "x.csv", Encoding.UTF8.GetBytes(csv))), "tanpa izin buat ditolak");
+        var small = new DataImportService(Docs, sp.GetRequiredService<IMetadataProvider>(), sp.GetRequiredService<IPermissionService>(),
+            sp.GetRequiredService<IImportLogStore>(), TimeProvider.System, new ImportLimits { MaxRows = 1 });
+        var big = await Assert.Throws<TemplateException>(() => Task.FromResult(small.Open(rina, "Vendor", "x.csv", Encoding.UTF8.GetBytes(csv))), "batas baris");
+        Assert.True(big.Message.Contains("Maksimal 1"), big.Message);
+        await Assert.Throws<TemplateException>(() => Task.FromResult(Imports.Open(rina, "Vendor", "lama.xls", [1, 2, 3])), ".xls lama ditolak dengan petunjuk");
+        var noKey = Imports.Open(rina, "Vendor", "x.csv", Encoding.UTF8.GetBytes("email\nx@y.z\n"));
+        Assert.True(Imports.MissingRequired(rina, noKey).Contains(meta.ByName["vendor_name"].Label), "kolom wajib yang tidak ada dilaporkan sebelum simulasi");
+    }
+}
+
+
+================================================================================
+ CATATAN PENTING
+================================================================================
+
+- Impor berjalan di sirkuit halaman dengan progres. Untuk ribuan baris, biarkan
+  halaman terbuka sampai selesai (job latar belakang ada di tahap 2).
+- Mode "semua atau tidak sama sekali" menyimpan seluruh dokumen dalam SATU transaksi.
+  Mode default menyimpan per baris.
+- Dokumen hasil impor selalu mulai di state awal workflow (draft).
+- Pencarian Link berdasarkan judul memuat daftar dokumen target yang boleh dibaca
+  pengguna (sekali per impor). Pakai nomor dokumen untuk target berjumlah sangat besar.
+- Tahap 2 (sesuai rancangan): mode Perbarui & Tambah-atau-perbarui, job latar
+  belakang + progres, pengaturan impor per DocType di editor DocType.
+  Tahap 3: batalkan impor, endpoint API impor.

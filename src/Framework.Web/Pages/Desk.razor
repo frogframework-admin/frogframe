@@ -54,7 +54,7 @@
         </BbCardContent>
     </BbCard>
 
-    <div class="shortcuts">
+    @*<div class="shortcuts">
         @foreach (var m in Metadata.Current.DocTypes.Values.Where(m => !m.Def.IsChild && Perms.Can(Current.Required, m, DocActions.Read)))
         {
             <BbCard>
@@ -73,7 +73,7 @@
                 </BbCardFooter>
             </BbCard>
         }
-    </div>
+    </div>*@
 </div>
 
 @code {

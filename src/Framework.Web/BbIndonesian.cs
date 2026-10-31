@@ -22,6 +22,7 @@ public static class BbIndonesian
         l.Set("Pagination.MorePages", "Halaman lain");
         l.Set("Pagination.GoToFirstPage", "Ke halaman pertama");
         l.Set("Pagination.GoToLastPage", "Ke halaman terakhir");
+        l.Set("Pagination.RowsPerPage", "Baris per halaman");
         l.Set("Pagination.ShowingFormat", "{0}–{1} dari {2}");
         l.Set("Pagination.PageFormat", "Halaman {0} dari {1}");
         l.Set("Pagination.NoItems", "Tidak ada data");

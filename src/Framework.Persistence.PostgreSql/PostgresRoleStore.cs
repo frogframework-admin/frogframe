@@ -29,9 +29,7 @@ public sealed class PostgresRoleStore(NpgsqlDataSource db, TimeProvider clock) :
         await using var r = await cmd.ExecuteReaderAsync(ct);
         while (await r.ReadAsync(ct)) list.Add(Read(r));
 
-        var defaults = RoleDefaults.CreateDefaultRoles(tenantId, clock.GetUtcNow());
-        var existingNames = list.Select(x => x.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        if (defaults.Any(d => d.IsSystem && !existingNames.Contains(d.Name)))
+        if (list.Count == 0)
         {
             await EnsureDefaultRolesAsync(tenantId, ct);
             return await ListAsync(tenantId, ct);
@@ -76,7 +74,15 @@ public sealed class PostgresRoleStore(NpgsqlDataSource db, TimeProvider clock) :
         cmd.Parameters.AddWithValue(role.CreatedAt);
         cmd.Parameters.AddWithValue(role.UpdatedAt);
 
-        await cmd.ExecuteNonQueryAsync(ct);
+        try
+        {
+            await cmd.ExecuteNonQueryAsync(ct);
+        }
+        catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UniqueViolation)
+        {
+            throw new InvalidOperationException($"Role dengan nama \"{role.Name}\" sudah ada.");
+        }
+
         Changed?.Invoke();
     }
 

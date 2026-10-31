@@ -17,7 +17,7 @@ h1:focus { outline: none; } /* FocusOnNavigate memindahkan fokus ke h1 untuk pem
 .app-header { display: flex; align-items: center; gap: .75rem; height: 3.5rem; padding: 0 1rem; border-bottom: 1px solid var(--border); background: var(--background); position: sticky; top: 0; z-index: 20; }
 .app-header .tenant { font-size: .8125rem; color: var(--muted-foreground); }
 .app-header .user-select { width: 17rem; max-width: 50vw; }
-.app-main { padding: 1.5rem 2rem 4rem; max-width: 1200px; width: 100%; }
+.app-main { padding: 1.5rem 2rem 4rem; width: 100%; box-sizing: border-box; }
 .brand { display: flex; align-items: center; gap: .6rem; font-weight: 700; }
 .brand-mark { width: 1.9rem; height: 1.9rem; display: grid; place-items: center; border: 2px solid currentColor; border-radius: .35rem; font-weight: 800; transform: rotate(-6deg); color: var(--sidebar-primary); flex-shrink: 0; }
 .sidebar-user { display: flex; align-items: center; gap: .6rem; padding: .25rem; min-width: 0; }
@@ -67,11 +67,53 @@ table.data a.doc-link:hover { text-decoration: underline; text-underline-offset:
 .list-foot { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: .75rem; flex-wrap: wrap; }
 .list-foot nav { margin: 0; width: auto; }
 
+/* ---------- BbDataGrid Pagination Footer ---------- */
+/* Prevent page indicator text (Page X of Y) from truncating or wrapping */
+.bb\:w-\[100px\],
+[class*="w-[100px]"],
+[class*="bb:w-[100px]"] {
+    width: auto !important;
+    min-width: max-content !important;
+    white-space: nowrap !important;
+    padding: 0 0.5rem !important;
+}
+
+/* Align vertically and prevent text wrap in BbDataGrid pagination footer */
+nav[role="navigation"] [class*="items-center"],
+nav[role="navigation"] [class*="bb:items-center"] {
+    align-items: center !important;
+}
+
+nav[role="navigation"] p {
+    margin: 0 !important;
+    white-space: nowrap !important;
+}
+
+nav[role="navigation"] span {
+    white-space: nowrap !important;
+}
+
+/* Ensure navigation icon buttons (<< < > >>) are aligned and neat */
+nav[role="navigation"] button {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
 /* ---------- Form ---------- */
 .doc-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1rem; }
 .doc-head h1 { font-size: 1.5rem; font-weight: 700; margin: 0; letter-spacing: -.01em; }
 .doc-head p { margin: .3rem 0 0; color: var(--muted-foreground); font-size: .875rem; }
 .toolbar { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; padding-bottom: 1rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border); }
+
+/* Card content without header (BbCardContent as first child) requires full top padding */
+[class*="bb:rounded-lg"] > [class*="bb:pt-0"]:first-child,
+[class*="bb:rounded-lg"] > [class*="bb:p-6"]:first-child,
+[class*="bb:bg-card"] > [class*="bb:pt-0"]:first-child,
+[class*="bb:bg-card"] > [class*="bb:p-6"]:first-child {
+    padding-top: 1.5rem !important;
+}
+
 .form-cols { display: grid; gap: 0 1.5rem; grid-template-columns: minmax(0, 1fr); }
 .form-col, .form-col > * { min-width: 0; }
 .form-cols.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -152,7 +194,7 @@ table.data td { white-space: nowrap; }
 .lookup-dialog { max-width: min(56rem, calc(100vw - 2rem)) !important; width: 100%; }
 .lookup-search { margin-bottom: .75rem; }
 .lookup-table { max-height: 24rem; overflow-y: auto; }
-table.data tbody tr.selected td { background: var(--accent); }
+table.data tbody tr.selected td, .users-grid tr.selected td, tr.selected td { background: var(--accent); }
 table.data tbody tr.excluded td { opacity: .45; cursor: not-allowed; }
 .link-row { display: flex; gap: .4rem; align-items: center; }
 .link-row > :first-child { flex: 1; min-width: 0; }
@@ -251,7 +293,7 @@ button.who-chip:hover { background: var(--accent); color: var(--accent-foregroun
 .auth-alert.auth-success { border-color: color-mix(in oklch, var(--alert-success) 40%, transparent); background: var(--alert-success-bg); color: var(--alert-success-foreground); }
 .users-grid { display: grid; grid-template-columns: minmax(0, 1fr) 22rem; gap: 1rem; align-items: start; }
 .users-grid:has(> :only-child) { grid-template-columns: minmax(0, 1fr); }
-table.data tbody tr.selected td { background: var(--accent); }
+table.data tbody tr.selected td, .users-grid tr.selected td, tr.selected td { background: var(--accent); }
 .temp-password { font-size: 1rem; padding: .15rem .5rem; user-select: all; }
 @media (max-width: 1100px) { .users-grid { grid-template-columns: minmax(0, 1fr); } }
 

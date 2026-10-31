@@ -1,0 +1,1422 @@
+================================================================================
+ API INTEGRASI: KUNCI API + METHOD KUSTOM (padanan api_key & @frappe.whitelist)
+ DocFrame (.NET 10 + Blazor Blueprint) — di atas v12
+================================================================================
+
+RINGKASAN
+---------
+1. Kunci API (menu "Kunci API", System Manager):
+   Authorization: ApiKey dfk_<id>.<secret>
+   - melekat pada akun (role/tenant/departemen akun yang berlaku) — termasuk akun
+     integrasi tanpa password yang dibuat dari halaman yang sama;
+   - cakupan opsional doc:{DocType}:{op}, method:{nama}, report:{id} (wildcard *);
+     endpoint tanpa deklarasi cakupan menolak kunci API (gagal tertutup);
+   - secret 256-bit ditampilkan sekali, disimpan hanya hash; kedaluwarsa, IP/CIDR,
+     cabut seketika, catatan terakhir dipakai; akun nonaktif → kunci tak berlaku.
+2. Method kustom: kelas IApiMethod + AddApiMethod<T>() → POST /api/method/{nama},
+   GET /api/method (daftar yang boleh dipanggil). Argumen divalidasi ketat (argumen
+   asing ditolak, wajib, tipe), role dicek, method berjalan sebagai pemanggil.
+   Contoh: sisa-anggaran (baca), ajukan-massal (tulis lewat workflow).
+3. Batas laju /api per kunci/pengguna/IP (Api:RateLimitPerMinute, default 300) → 429.
+4. Kesalahan tak terduga di API → 500 generik tanpa detail internal (detail di log).
+
+SUDAH DIUJI
+  - 6 test baru: kunci (hash saja yang tersimpan, verifikasi, secret salah, dicabut,
+    kedaluwarsa, IP/CIDR termasuk IPv4-dalam-IPv6, akun nonaktif, tenant lain,
+    cakupan tidak valid), wildcard cakupan, argumen method (wajib, asing, tipe, role),
+    sisa-anggaran mengikuti hak akses (manager Marketing tidak melihat data IT),
+    ajukan-massal lewat workflow dengan hasil per dokumen + audit.
+  - Total: 52 lulus (in-memory) / 71 lulus (PostgreSQL).
+  - Uji HTTP + browser 16 langkah pada aplikasi berjalan (PostgreSQL): admin membuat
+    kunci untuk akun integrasi baru dengan cakupan terbatas; dalam cakupan 200;
+    Vendor / ubah PR / method lain / endpoint tanpa cakupan → 403; argumen asing →
+    422; tanpa kunci / kunci salah → 401; akun integrasi tidak bisa login di layar;
+    429 + Retry-After saat batas laju; terakhir dipakai tercatat; dicabut → 401.
+
+DAFTAR PERUBAHAN
+  CORE
+    [BARU]  1. src/Framework.Core/Security/ApiKeys.cs
+    [BARU]  2. src/Framework.Core/Api/ApiMethods.cs
+  POSTGRESQL
+    [BARU]  3. Migrations/010_api_keys.sql
+    [BARU]  4. src/Framework.Persistence.PostgreSql/PostgresApiKeyStore.cs
+    [UBAH]  5. src/Framework.Persistence.PostgreSql/PostgresStores.cs   (registrasi store)
+  WEB
+    [BARU]  6. src/Framework.Web/Identity/ApiKeyAuthentication.cs
+    [UBAH]  7. src/Framework.Web/Identity/DocFrameIdentity.cs           (skema ApiKey)
+    [UBAH]  8. src/Framework.Web/Hosting.cs                             (DI, rate limiter, AddApiMethod)
+    [GANTI] 9. src/Framework.Web/Api.cs                                 (ganti seluruh isi)
+    [BARU] 10. src/Framework.Web/Pages/ApiKeysAdmin.razor
+    [UBAH] 11. src/Framework.Web/Layout/DeskLayout.razor, wwwroot/desk.css
+  APLIKASI
+    [BARU] 12. src/Apps.Sample/Domain/ApiMethods.cs                     (2 method contoh)
+    [UBAH] 13. src/Apps.Sample/Program.cs
+  TEST
+    [BARU] 14. tests/Framework.Tests/ApiIntegrationTests.cs              (opsional)
+    [UBAH] 15. tests/Framework.Tests/Program.cs: daftarkan 2 method contoh di harness
+
+
+================================================================================
+ 1. [BARU] src/Framework.Core/Security/ApiKeys.cs
+    Aksi: BUAT FILE BARU.
+================================================================================
+
+using System.Collections.Concurrent;
+using System.Net;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using System.Text.RegularExpressions;
+
+namespace Framework.Security;
+
+/// <summary>
+/// Kunci API untuk integrasi sistem-ke-sistem (padanan api_key:api_secret di Frappe). Kunci melekat pada sebuah akun:
+/// role, tenant, dan departemen akun itulah yang menentukan akses — lewat jalur DocumentService yang sama dengan UI.
+/// Cakupan (scope) opsional membatasi lebih jauh. Secret hanya ditampilkan sekali; yang disimpan hanya hash-nya.
+/// </summary>
+public sealed class ApiKey
+{
+    public string Id { get; set; } = "";
+    public string TenantId { get; set; } = "";
+    public string UserId { get; set; } = "";
+    public string Name { get; set; } = "";
+    /// <summary>SHA-256 (hex) dari secret acak 256-bit. Secret berentropi tinggi → hash cepat sudah aman (tidak bisa ditebak).</summary>
+    public string SecretHash { get; set; } = "";
+    /// <summary>Cakupan, mis. "doc:PurchaseRequest:read", "doc:*:list", "method:sisa-anggaran". Kosong = semua sesuai role akun.</summary>
+    public List<string> Scopes { get; set; } = [];
+    /// <summary>IP atau CIDR yang boleh memakai kunci. Kosong = semua.</summary>
+    public List<string> AllowedIps { get; set; } = [];
+    public string CreatedBy { get; set; } = "";
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset? ExpiresAt { get; set; }
+    public DateTimeOffset? RevokedAt { get; set; }
+    public DateTimeOffset? LastUsedAt { get; set; }
+    public string? LastUsedIp { get; set; }
+
+    public string Status(DateTimeOffset now) => RevokedAt is not null ? "Dicabut" : ExpiresAt is { } e && e <= now ? "Kedaluwarsa" : "Aktif";
+}
+
+public interface IApiKeyStore
+{
+    Task<ApiKey?> GetAsync(string id, CancellationToken ct = default);
+    Task<IReadOnlyList<ApiKey>> ListAsync(string tenantId, CancellationToken ct = default);
+    Task SaveAsync(ApiKey key, CancellationToken ct = default);
+}
+
+public sealed class InMemoryApiKeyStore : IApiKeyStore
+{
+    private readonly ConcurrentDictionary<string, string> _keys = new();
+    private static ApiKey Read(string j) => JsonSerializer.Deserialize<ApiKey>(j)!;
+    public Task<ApiKey?> GetAsync(string id, CancellationToken ct = default) => Task.FromResult(_keys.TryGetValue(id, out var j) ? Read(j) : null);
+    public Task<IReadOnlyList<ApiKey>> ListAsync(string tenantId, CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<ApiKey>>(_keys.Values.Select(Read).Where(k => k.TenantId == tenantId).OrderByDescending(k => k.CreatedAt).ToList());
+    public Task SaveAsync(ApiKey key, CancellationToken ct = default) { _keys[key.Id] = JsonSerializer.Serialize(key); return Task.CompletedTask; }
+}
+
+public static class ApiScopes
+{
+    public static readonly string[] DocOperations = ["list", "read", "create", "update", "delete", "action"];
+    private static readonly Regex Valid = new(@"^(\*|doc:(\*|[A-Z][A-Za-z0-9]*):(\*|list|read|create|update|delete|action)|method:(\*|[a-z0-9][a-z0-9-]*)|report:(\*|[a-z0-9_]+))$");
+
+    public static bool IsValid(string scope) => Valid.IsMatch(scope);
+
+    /// <summary>Apakah salah satu cakupan yang diberikan mencakup cakupan yang dibutuhkan (wildcard per segmen).</summary>
+    public static bool Allows(IEnumerable<string> granted, string required)
+    {
+        var need = required.Split(':');
+        foreach (var g in granted)
+        {
+            if (g == "*") return true;
+            var have = g.Split(':');
+            if (have.Length != need.Length) continue;
+            if (have.Zip(need).All(p => p.First == "*" || p.First.Equals(p.Second, StringComparison.Ordinal))) return true;
+        }
+        return false;
+    }
+}
+
+public sealed record CreateApiKeyRequest(string Name, string UserId, IReadOnlyList<string> Scopes, IReadOnlyList<string> AllowedIps, DateTimeOffset? ExpiresAt);
+public sealed record ApiKeyVerification(ApiKey Key, UserAccount Account);
+
+public sealed class ApiKeyException(string message) : Exception(message);
+
+public sealed class ApiKeyService(IApiKeyStore store, IUserAccountRepository accounts, TimeProvider clock)
+{
+    public const string TokenPrefix = "dfk_";
+
+    private static void DemandAdmin(UserContext u)
+    {
+        if (!u.Roles.Contains(UserContext.SystemManager)) throw new PermissionDeniedException("Mengelola kunci API hanya untuk System Manager");
+    }
+
+    private static string Hash(string secret) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(secret)));
+
+    /// <summary>Membuat kunci; token lengkap dikembalikan SEKALI dan tidak bisa diambil lagi.</summary>
+    public async Task<(ApiKey Key, string Token)> CreateAsync(UserContext admin, CreateApiKeyRequest req, CancellationToken ct = default)
+    {
+        DemandAdmin(admin);
+        if (string.IsNullOrWhiteSpace(req.Name)) throw new ApiKeyException("Nama kunci wajib diisi");
+        var account = await accounts.FindByIdAsync(req.UserId, ct);
+        if (account is null || account.TenantId != admin.TenantId) throw new ApiKeyException("Akun tidak ditemukan di tenant ini");
+        if (!account.IsActive) throw new ApiKeyException("Akun nonaktif tidak bisa diberi kunci API");
+        foreach (var s in req.Scopes) if (!ApiScopes.IsValid(s)) throw new ApiKeyException($"Cakupan '{s}' tidak valid");
+        foreach (var ip in req.AllowedIps) if (!IPNetwork.TryParse(ip.Contains('/') ? ip : ip + (ip.Contains(':') ? "/128" : "/32"), out _)) throw new ApiKeyException($"IP/CIDR '{ip}' tidak valid");
+        if (req.ExpiresAt is { } e && e <= clock.GetUtcNow()) throw new ApiKeyException("Tanggal kedaluwarsa harus di masa depan");
+
+        var id = "k" + Convert.ToHexString(RandomNumberGenerator.GetBytes(8)).ToLowerInvariant();
+        var secret = Base64Url(RandomNumberGenerator.GetBytes(32));
+        var key = new ApiKey
+        {
+            Id = id, TenantId = admin.TenantId, UserId = account.Id, Name = req.Name.Trim(), SecretHash = Hash(secret),
+            Scopes = req.Scopes.Distinct().ToList(), AllowedIps = req.AllowedIps.Select(i => i.Trim()).Where(i => i.Length > 0).Distinct().ToList(),
+            CreatedBy = admin.Id, CreatedAt = clock.GetUtcNow(), ExpiresAt = req.ExpiresAt,
+        };
+        await store.SaveAsync(key, ct);
+        return (key, $"{TokenPrefix}{id}.{secret}");
+    }
+
+    public async Task<IReadOnlyList<ApiKey>> ListAsync(UserContext admin, CancellationToken ct = default)
+    {
+        DemandAdmin(admin);
+        return await store.ListAsync(admin.TenantId, ct);
+    }
+
+    public async Task RevokeAsync(UserContext admin, string id, CancellationToken ct = default)
+    {
+        DemandAdmin(admin);
+        var key = await store.GetAsync(id, ct);
+        if (key is null || key.TenantId != admin.TenantId) throw new ApiKeyException("Kunci tidak ditemukan");
+        key.RevokedAt ??= clock.GetUtcNow();
+        await store.SaveAsync(key, ct);
+    }
+
+    /// <summary>
+    /// Verifikasi token pada setiap permintaan. Null bila format salah, kunci tidak ada / dicabut / kedaluwarsa,
+    /// IP tidak diizinkan, secret salah (dibandingkan waktu-konstan), atau akun nonaktif / pindah tenant.
+    /// </summary>
+    public async Task<ApiKeyVerification?> VerifyAsync(string token, IPAddress? remoteIp, CancellationToken ct = default)
+    {
+        if (!token.StartsWith(TokenPrefix, StringComparison.Ordinal)) return null;
+        var parts = token[TokenPrefix.Length..].Split('.', 2);
+        if (parts.Length != 2 || parts[0].Length is < 2 or > 40 || parts[1].Length is < 20 or > 100) return null;
+        var key = await store.GetAsync(parts[0], ct);
+        if (key is null) return null;
+        var now = clock.GetUtcNow();
+        if (key.RevokedAt is not null || key.ExpiresAt is { } e && e <= now) return null;
+        if (!CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(Hash(parts[1])), Encoding.ASCII.GetBytes(key.SecretHash))) return null;
+        if (key.AllowedIps.Count > 0 && (remoteIp is null || !key.AllowedIps.Any(a => Matches(a, remoteIp)))) return null;
+        var account = await accounts.FindByIdAsync(key.UserId, ct);
+        if (account is not { IsActive: true } || account.TenantId != key.TenantId) return null;
+
+        // Catatan pemakaian (dibatasi per menit agar tidak menulis di setiap permintaan).
+        if (key.LastUsedAt is null || now - key.LastUsedAt > TimeSpan.FromMinutes(1) || key.LastUsedIp != remoteIp?.ToString())
+        {
+            key.LastUsedAt = now; key.LastUsedIp = remoteIp?.ToString();
+            await store.SaveAsync(key, ct);
+        }
+        return new ApiKeyVerification(key, account);
+    }
+
+    private static bool Matches(string allowed, IPAddress ip)
+    {
+        if (ip.IsIPv4MappedToIPv6) ip = ip.MapToIPv4();
+        var cidr = allowed.Contains('/') ? allowed : allowed + (allowed.Contains(':') ? "/128" : "/32");
+        return IPNetwork.TryParse(cidr, out var net) && net.Contains(ip);
+    }
+
+    private static string Base64Url(byte[] b) => Convert.ToBase64String(b).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+}
+
+
+================================================================================
+ 2. [BARU] src/Framework.Core/Api/ApiMethods.cs
+    Aksi: BUAT FOLDER "Api" dan FILE BARU.
+================================================================================
+
+using System.Globalization;
+using System.Text.Json;
+using System.Text.RegularExpressions;
+using Framework.Documents;
+using Framework.Security;
+
+namespace Framework.Api;
+
+/// <summary>Tipe argumen method: text, number (decimal), date (DateOnly yyyy-MM-dd), boolean, list (daftar teks).</summary>
+public static class ArgTypes
+{
+    public const string Text = "text", Number = "number", Date = "date", Boolean = "boolean", List = "list";
+}
+
+public sealed record ApiMethodParam(string Name, string Type, bool Required = false, string? Description = null);
+
+public sealed class ApiMethodContext
+{
+    public required UserContext User { get; init; }
+    public required IReadOnlyDictionary<string, object?> Args { get; init; }
+    public required IServiceProvider Services { get; init; }
+
+    public T? Arg<T>(string name) => Args.TryGetValue(name, out var v) && v is T t ? t : default;
+}
+
+/// <summary>Kesalahan yang memang untuk pemanggil (400), mis. data tidak cocok. Kesalahan lain tidak dibocorkan.</summary>
+public sealed class ApiMethodException(string message) : Exception(message);
+
+/// <summary>
+/// Method kustom yang dibuka sebagai API (padanan @frappe.whitelist): POST /api/method/{Name}.
+/// Method berjalan sebagai pemanggil — gunakan DocumentService agar permission, cakupan baris, dan validasi tetap berlaku.
+/// </summary>
+public interface IApiMethod
+{
+    /// <summary>Huruf kecil, angka, tanda hubung, mis. "sisa-anggaran".</summary>
+    string Name { get; }
+    string Description { get; }
+    /// <summary>Role yang boleh memanggil. Kosong = semua pengguna yang terautentikasi.</summary>
+    IReadOnlyList<string> Roles { get; }
+    IReadOnlyList<ApiMethodParam> Parameters { get; }
+    Task<object?> InvokeAsync(ApiMethodContext ctx, CancellationToken ct);
+}
+
+public sealed partial class ApiMethodRegistry
+{
+    [GeneratedRegex("^[a-z0-9][a-z0-9-]{0,62}$")] private static partial Regex NameRx();
+    private readonly Dictionary<string, IApiMethod> _methods;
+
+    public ApiMethodRegistry(IEnumerable<IApiMethod> methods)
+    {
+        _methods = new(StringComparer.Ordinal);
+        foreach (var m in methods)
+        {
+            if (!NameRx().IsMatch(m.Name)) throw new InvalidOperationException($"Nama method API '{m.Name}' tidak valid (huruf kecil, angka, '-')");
+            if (!_methods.TryAdd(m.Name, m)) throw new InvalidOperationException($"Method API '{m.Name}' didaftarkan dua kali");
+        }
+    }
+
+    public static bool CanCall(UserContext u, IApiMethod m) =>
+        m.Roles.Count == 0 || u.Roles.Contains(UserContext.SystemManager) || m.Roles.Any(u.Roles.Contains);
+
+    public IEnumerable<IApiMethod> Visible(UserContext u) => _methods.Values.Where(m => CanCall(u, m)).OrderBy(m => m.Name);
+    public IApiMethod? Find(string name) => _methods.GetValueOrDefault(name);
+
+    public async Task<object?> InvokeAsync(UserContext user, string name, JsonElement? body, IServiceProvider services, CancellationToken ct = default)
+    {
+        var m = Find(name) ?? throw new KeyNotFoundException($"Method API '{name}' tidak ada");
+        if (!CanCall(user, m)) throw new PermissionDeniedException($"Anda tidak boleh memanggil method '{name}'");
+        var args = Bind(m, body);
+        return await m.InvokeAsync(new ApiMethodContext { User = user, Args = args, Services = services }, ct);
+    }
+
+    /// <summary>Argumen divalidasi ketat: hanya parameter yang dideklarasikan (argumen asing ditolak), wajib, dan tipe.</summary>
+    public static Dictionary<string, object?> Bind(IApiMethod m, JsonElement? body)
+    {
+        var errors = new List<FieldError>();
+        var args = new Dictionary<string, object?>(StringComparer.Ordinal);
+        if (body is { } b && b.ValueKind is not (JsonValueKind.Object or JsonValueKind.Null or JsonValueKind.Undefined))
+            throw new ValidationFailedException([new FieldError("", "Body harus objek JSON berisi argumen")]);
+        var given = body is { ValueKind: JsonValueKind.Object } o ? o.EnumerateObject().ToDictionary(p => p.Name, p => p.Value) : [];
+        foreach (var extra in given.Keys.Where(k => m.Parameters.All(p => p.Name != k)))
+            errors.Add(new FieldError(extra, "argumen tidak dikenal"));
+        foreach (var p in m.Parameters)
+        {
+            if (!given.TryGetValue(p.Name, out var v) || v.ValueKind is JsonValueKind.Null || v.ValueKind == JsonValueKind.String && v.GetString()!.Trim().Length == 0)
+            {
+                if (p.Required) errors.Add(new FieldError(p.Name, "wajib diisi"));
+                else args[p.Name] = null;
+                continue;
+            }
+            try { args[p.Name] = Convert(p, v); }
+            catch (FormatException ex) { errors.Add(new FieldError(p.Name, ex.Message)); }
+        }
+        if (errors.Count > 0) throw new ValidationFailedException(errors);
+        return args;
+    }
+
+    private static object Convert(ApiMethodParam p, JsonElement v) => p.Type switch
+    {
+        ArgTypes.Number => v.ValueKind == JsonValueKind.Number ? v.GetDecimal()
+            : v.ValueKind == JsonValueKind.String && decimal.TryParse(v.GetString(), NumberStyles.Number, CultureInfo.InvariantCulture, out var d) ? d
+            : throw new FormatException("harus angka"),
+        ArgTypes.Boolean => v.ValueKind is JsonValueKind.True or JsonValueKind.False ? v.GetBoolean() : throw new FormatException("harus true/false"),
+        ArgTypes.Date => v.ValueKind == JsonValueKind.String && DateOnly.TryParseExact(v.GetString(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt) ? dt
+            : throw new FormatException("harus tanggal yyyy-MM-dd"),
+        ArgTypes.List => v.ValueKind == JsonValueKind.Array && v.EnumerateArray().All(x => x.ValueKind == JsonValueKind.String)
+            ? v.EnumerateArray().Select(x => x.GetString()!).ToList() : throw new FormatException("harus daftar teks"),
+        _ => v.ValueKind == JsonValueKind.String ? v.GetString()! : throw new FormatException("harus teks"),
+    };
+}
+
+
+================================================================================
+ 3. [BARU] src/Framework.Persistence.PostgreSql/Migrations/010_api_keys.sql
+    Aksi: BUAT FILE BARU (diterapkan otomatis).
+================================================================================
+
+-- DocFrame: kunci API integrasi. Hanya hash secret yang disimpan (secret ditampilkan sekali saat dibuat).
+CREATE TABLE docframe_api_keys (
+    id           text        PRIMARY KEY,
+    tenant_id    text        NOT NULL,
+    user_id      text        NOT NULL,
+    name         text        NOT NULL,
+    secret_hash  text        NOT NULL,
+    scopes       text[]      NOT NULL DEFAULT '{}',
+    allowed_ips  text[]      NOT NULL DEFAULT '{}',
+    created_by   text        NOT NULL,
+    created_at   timestamptz NOT NULL,
+    expires_at   timestamptz,
+    revoked_at   timestamptz,
+    last_used_at timestamptz,
+    last_used_ip text
+);
+CREATE INDEX ix_api_keys_tenant ON docframe_api_keys (tenant_id, created_at DESC);
+
+
+================================================================================
+ 4. [BARU] src/Framework.Persistence.PostgreSql/PostgresApiKeyStore.cs
+    Aksi: BUAT FILE BARU.
+================================================================================
+
+using Framework.Security;
+using Npgsql;
+
+namespace Framework.Persistence.PostgreSql;
+
+public sealed class PostgresApiKeyStore(NpgsqlDataSource db) : IApiKeyStore
+{
+    private const string Cols = "id, tenant_id, user_id, name, secret_hash, scopes, allowed_ips, created_by, created_at, expires_at, revoked_at, last_used_at, last_used_ip";
+
+    private static ApiKey Read(NpgsqlDataReader r) => new()
+    {
+        Id = r.GetString(0), TenantId = r.GetString(1), UserId = r.GetString(2), Name = r.GetString(3), SecretHash = r.GetString(4),
+        Scopes = r.GetFieldValue<string[]>(5).ToList(), AllowedIps = r.GetFieldValue<string[]>(6).ToList(), CreatedBy = r.GetString(7),
+        CreatedAt = r.GetFieldValue<DateTimeOffset>(8),
+        ExpiresAt = r.IsDBNull(9) ? null : r.GetFieldValue<DateTimeOffset>(9), RevokedAt = r.IsDBNull(10) ? null : r.GetFieldValue<DateTimeOffset>(10),
+        LastUsedAt = r.IsDBNull(11) ? null : r.GetFieldValue<DateTimeOffset>(11), LastUsedIp = r.IsDBNull(12) ? null : r.GetString(12),
+    };
+
+    public async Task<ApiKey?> GetAsync(string id, CancellationToken ct = default)
+    {
+        await using var cmd = db.CreateCommand($"SELECT {Cols} FROM docframe_api_keys WHERE id = $1");
+        cmd.Parameters.AddWithValue(id);
+        await using var r = await cmd.ExecuteReaderAsync(ct);
+        return await r.ReadAsync(ct) ? Read(r) : null;
+    }
+
+    public async Task<IReadOnlyList<ApiKey>> ListAsync(string tenantId, CancellationToken ct = default)
+    {
+        await using var cmd = db.CreateCommand($"SELECT {Cols} FROM docframe_api_keys WHERE tenant_id = $1 ORDER BY created_at DESC");
+        cmd.Parameters.AddWithValue(tenantId);
+        var list = new List<ApiKey>();
+        await using var r = await cmd.ExecuteReaderAsync(ct);
+        while (await r.ReadAsync(ct)) list.Add(Read(r));
+        return list;
+    }
+
+    public async Task SaveAsync(ApiKey k, CancellationToken ct = default)
+    {
+        await using var cmd = db.CreateCommand(
+            $"INSERT INTO docframe_api_keys ({Cols}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) " +
+            "ON CONFLICT (id) DO UPDATE SET name=$4, scopes=$6, allowed_ips=$7, expires_at=$10, revoked_at=$11, last_used_at=$12, last_used_ip=$13");
+        object N(object? v) => v ?? DBNull.Value;
+        cmd.Parameters.AddWithValue(k.Id); cmd.Parameters.AddWithValue(k.TenantId); cmd.Parameters.AddWithValue(k.UserId);
+        cmd.Parameters.AddWithValue(k.Name); cmd.Parameters.AddWithValue(k.SecretHash);
+        cmd.Parameters.AddWithValue(k.Scopes.ToArray()); cmd.Parameters.AddWithValue(k.AllowedIps.ToArray());
+        cmd.Parameters.AddWithValue(k.CreatedBy); cmd.Parameters.AddWithValue(k.CreatedAt);
+        cmd.Parameters.AddWithValue(N(k.ExpiresAt)); cmd.Parameters.AddWithValue(N(k.RevokedAt));
+        cmd.Parameters.AddWithValue(N(k.LastUsedAt)); cmd.Parameters.AddWithValue(N(k.LastUsedIp));
+        await cmd.ExecuteNonQueryAsync(ct);
+    }
+}
+
+
+================================================================================
+ 5. [UBAH] src/Framework.Persistence.PostgreSql/PostgresStores.cs
+    Aksi: di AddDocFrameworkPostgreSql, setelah "services.AddSingleton<DocumentIndexSync>();" TAMBAHKAN:
+================================================================================
+
+        services.Replace(ServiceDescriptor.Singleton<Framework.Security.IApiKeyStore, PostgresApiKeyStore>());
+
+
+================================================================================
+ 6. [BARU] src/Framework.Web/Identity/ApiKeyAuthentication.cs
+    Aksi: BUAT FILE BARU.
+================================================================================
+
+using System.Security.Claims;
+using System.Text.Encodings.Web;
+using Framework.Security;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+
+namespace Framework.Web.Identity;
+
+public static class ApiKeyDefaults
+{
+    public const string Scheme = "ApiKey";
+    public const string KeyIdClaim = "docframe:api_key";
+    public const string ScopeClaim = "docframe:api_scope";
+}
+
+/// <summary>
+/// Autentikasi "Authorization: ApiKey dfk_…". Klaim dibuat oleh pabrik klaim yang sama dengan login (tenant, role,
+/// departemen dari akun pemilik kunci), ditambah id kunci dan cakupannya.
+/// </summary>
+public sealed class ApiKeyAuthenticationHandler(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder, ApiKeyService keys)
+    : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
+{
+    protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
+    {
+        var header = Request.Headers.Authorization.ToString();
+        if (!header.StartsWith(ApiKeyDefaults.Scheme + " ", StringComparison.OrdinalIgnoreCase)) return AuthenticateResult.NoResult();
+        var verified = await keys.VerifyAsync(header[(ApiKeyDefaults.Scheme.Length + 1)..].Trim(), Context.Connection.RemoteIpAddress, Context.RequestAborted);
+        if (verified is null) return AuthenticateResult.Fail("Kunci API tidak valid, dicabut, kedaluwarsa, atau IP tidak diizinkan");
+        var principal = await Context.RequestServices.GetRequiredService<IUserClaimsPrincipalFactory<UserAccount>>().CreateAsync(verified.Account);
+        var id = (ClaimsIdentity)principal.Identity!;
+        id.AddClaim(new Claim(ApiKeyDefaults.KeyIdClaim, verified.Key.Id));
+        foreach (var s in verified.Key.Scopes.DefaultIfEmpty("*")) id.AddClaim(new Claim(ApiKeyDefaults.ScopeClaim, s));
+        return AuthenticateResult.Success(new AuthenticationTicket(principal, Scheme.Name));
+    }
+
+    protected override Task HandleChallengeAsync(AuthenticationProperties properties)
+    {
+        Response.StatusCode = 401;
+        return Task.CompletedTask;
+    }
+}
+
+
+================================================================================
+ 7. [UBAH] src/Framework.Web/Identity/DocFrameIdentity.cs
+    Aksi: REPLACE blok .AddPolicyScheme(...) dengan blok berikut (menambah skema ApiKey):
+================================================================================
+
+            .AddPolicyScheme(AuthScheme, "Cookie, bearer, atau kunci API", o => o.ForwardDefaultSelector = ctx =>
+            {
+                var h = ctx.Request.Headers.Authorization.ToString();
+                return h.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) ? IdentityConstants.BearerScheme
+                     : h.StartsWith(ApiKeyDefaults.Scheme + " ", StringComparison.OrdinalIgnoreCase) ? ApiKeyDefaults.Scheme
+                     : IdentityConstants.ApplicationScheme;
+            })
+            .AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(ApiKeyDefaults.Scheme, null)
+
+
+================================================================================
+ 8. [UBAH] src/Framework.Web/Hosting.cs
+    Tiga langkah.
+================================================================================
+
+--- 8a. TAMBAHKAN using:
+
+using Framework.Api;
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.Builder;
+using System.Security.Claims;
+
+--- 8b. Di AddDocFramework, setelah registrasi IReportTemplateStore, TAMBAHKAN:
+
+        // API integrasi: kunci API + method kustom + batas laju per kunci/pengguna.
+        services.TryAddSingleton<IApiKeyStore, InMemoryApiKeyStore>();
+        services.AddSingleton<ApiKeyService>();
+        services.AddSingleton<ApiMethodRegistry>();
+        services.AddRateLimiter(o =>
+        {
+            o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+            o.OnRejected = async (ctx, ct) =>
+            {
+                ctx.HttpContext.Response.Headers.RetryAfter = "60";
+                await ctx.HttpContext.Response.WriteAsJsonAsync(new { title = "Terlalu banyak permintaan", detail = "Batas permintaan per menit terlampaui. Coba lagi sebentar lagi.", status = 429 }, ct);
+            };
+            o.AddPolicy(ApiRateLimit, http =>
+            {
+                var who = http.User.FindFirst(Framework.Web.Identity.ApiKeyDefaults.KeyIdClaim)?.Value is { } k ? "k:" + k
+                        : http.User.FindFirst(ClaimTypes.NameIdentifier)?.Value is { } u ? "u:" + u
+                        : "ip:" + http.Connection.RemoteIpAddress;
+                var limit = http.RequestServices.GetService<IConfiguration>()?.GetValue("Api:RateLimitPerMinute", 300) ?? 300;
+                return RateLimitPartition.GetFixedWindowLimiter(who, _ => new FixedWindowRateLimiterOptions { PermitLimit = limit, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 });
+            });
+        });
+
+--- 8c. Di class ServiceCollectionExtensions, setelah AddDeskMenuItem, TAMBAHKAN:
+
+    /// <summary>Membuka method C# sebagai API: POST /api/method/{nama}.</summary>
+    public static IServiceCollection AddApiMethod<T>(this IServiceCollection s) where T : class, IApiMethod => s.AddSingleton<IApiMethod, T>();
+    public const string ApiRateLimit = "docframe-api";
+
+
+================================================================================
+ 9. [GANTI] src/Framework.Web/Api.cs
+    Aksi: GANTI SELURUH ISI (cakupan per endpoint, skema ApiKey, endpoint method, 500 generik, rate limit).
+================================================================================
+
+using System.Text.Json;
+using Framework.Documents;
+using Framework.Jobs;
+using Framework.Metadata;
+using Framework.Persistence;
+using Framework.Security;
+using Framework.Web.Printing;
+using Framework.Web.Identity;
+using Microsoft.AspNetCore.Identity;
+using Framework.Files;
+using Framework.Reports;
+using Framework.Api;
+using Microsoft.Extensions.Logging;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace Framework.Web;
+
+public static class DocApi
+{
+    public static IEndpointRouteBuilder MapDocFrameworkApi(this IEndpointRouteBuilder app)
+    {
+        // ---------- File (gambar) ----------
+        // Cookie browser diterima (dipakai <img>). Tertaut ke dokumen → hanya yang boleh membaca dokumen itu dan
+        // dokumen masih memakai file tersebut; belum tertaut → hanya pengunggah. Selain itu 404 (tidak membocorkan keberadaan).
+        app.MapGet("/files/{id}", async (HttpContext http, string id) =>
+        {
+            var user = ClaimsUserMapper.ToUserContext(http.User);
+            if (user is null) return Results.Unauthorized();
+            var sp = http.RequestServices;
+            var file = await sp.GetRequiredService<IFileStore>().GetAsync(user.TenantId, id, http.RequestAborted);
+            if (file is not { } f) return Results.NotFound();
+            bool allowed;
+            if (f.Record.DocName is null) allowed = f.Record.UploadedBy == user.Id;
+            else
+            {
+                try
+                {
+                    var doc = await Docs(sp).GetAsync(user, f.Record.DocType!, f.Record.DocName, http.RequestAborted);
+                    allowed = f.Record.Field is { } field && doc.Data.GetValueOrDefault(field) as string == id;
+                }
+                catch (Exception ex) when (ex is DocumentNotFoundException or PermissionDeniedException or KeyNotFoundException) { allowed = false; }
+            }
+            if (!allowed) return Results.NotFound();
+            http.Response.Headers["X-Content-Type-Options"] = "nosniff";
+            http.Response.Headers["Content-Security-Policy"] = "default-src 'none'; img-src 'self'; sandbox";
+            http.Response.Headers.CacheControl = "private, max-age=300";
+            return Results.File(f.Content, f.Record.ContentType);
+        });
+
+        // ---------- Laporan file (Excel/Word) ----------
+        // Unduhan dari halaman laporan: token sekali pakai yang terikat pengguna (cookie browser diterima, GET).
+        app.MapGet("/report-downloads/{token}", (HttpContext http, string token) =>
+        {
+            var user = ClaimsUserMapper.ToUserContext(http.User);
+            if (user is null) return Results.Unauthorized();
+            var output = http.RequestServices.GetRequiredService<ReportDownloads>().Take(token, user.TenantId, user.Id);
+            if (output is null) return Results.NotFound();
+            http.Response.Headers["X-Content-Type-Options"] = "nosniff";
+            http.Response.Headers.CacheControl = "no-store";
+            return Results.File(output.Content, output.ContentType, output.FileName);
+        });
+
+        var api = app.MapGroup("/api").RequireRateLimiting(ServiceCollectionExtensions.ApiRateLimit);
+
+        // ---------- Method kustom (padanan /api/method di Frappe) ----------
+        api.MapGet("/method", (Delegate)((HttpContext http) => Run(http, AnyApiKeyScope, (user, sp) =>
+        {
+            var granted = http.User.FindAll(Framework.Web.Identity.ApiKeyDefaults.ScopeClaim).Select(c => c.Value).ToList();
+            var viaKey = http.User.FindFirst(Framework.Web.Identity.ApiKeyDefaults.KeyIdClaim) is not null;
+            var list = sp.GetRequiredService<ApiMethodRegistry>().Visible(user)
+                .Where(m => !viaKey || ApiScopes.Allows(granted, $"method:{m.Name}"))
+                .Select(m => new { name = m.Name, description = m.Description, roles = m.Roles, parameters = m.Parameters, endpoint = $"/api/method/{m.Name}" });
+            return Task.FromResult(Results.Ok(list));
+        })));
+
+        api.MapPost("/method/{name}", (HttpContext http, string name) => Run(http, $"method:{name}", async (user, sp) =>
+        {
+            JsonElement? body = null;
+            if (http.Request.ContentLength is > 0 || http.Request.Headers.TransferEncoding.Count > 0)
+            {
+                using var doc = await JsonDocument.ParseAsync(http.Request.Body, cancellationToken: http.RequestAborted);
+                body = doc.RootElement.Clone();
+            }
+            var result = await sp.GetRequiredService<ApiMethodRegistry>().InvokeAsync(user, name, body, sp, http.RequestAborted);
+            return Results.Ok(new { data = result });
+        }));
+
+        // Klien API (bearer token): POST /api/report-templates/{id}/generate  { "parameters": { "Periode": "2026-10-01" } }
+        api.MapPost("/report-templates/{id}/generate", (HttpContext http, string id, GenerateReportBody? body) => Run(http, $"report:{id}", async (user, sp) =>
+        {
+            try
+            {
+                var output = await sp.GetRequiredService<ReportTemplateService>().GenerateAsync(user, id, body?.Parameters ?? new Dictionary<string, string?>(), http.RequestAborted);
+                return Results.File(output.Content, output.ContentType, output.FileName);
+            }
+            catch (Exception ex) when (ex is TemplateException or Framework.Dashboards.QueryRejectedException or Framework.Dashboards.ReportingUnavailableException)
+            {
+                return Problem(400, "Laporan tidak bisa dibuat", ex.Message);
+            }
+        }));
+
+        // ---------- Autentikasi API ----------
+        api.MapPost("/auth/login", async (LoginBody body, SignInManager<UserAccount> signIn) =>
+        {
+            // Respons token (access_token, expires_in, refresh_token) ditulis langsung oleh handler bearer token.
+            signIn.AuthenticationScheme = IdentityConstants.BearerScheme;
+            var result = await signIn.PasswordSignInAsync(body.UserName ?? "", body.Password ?? "", isPersistent: false, lockoutOnFailure: true);
+            if (result.Succeeded) return Results.Empty;
+            return result.IsLockedOut ? Problem(423, "Akun terkunci", "Terlalu banyak percobaan gagal. Coba lagi nanti.")
+                : Problem(401, "Login gagal", "Username atau password salah, atau akun nonaktif.");
+        }).AllowAnonymous();
+
+        api.MapGet("/auth/me", (HttpContext http) => ClaimsUserMapper.ToUserContext(http.User) is { } u
+            ? Results.Ok(u) : Problem(401, "Belum terautentikasi", "Tidak ada sesi atau token yang valid."));
+
+        // ---------- Metadata ----------
+        api.MapGet("/meta/{doctype}", (HttpContext http, string doctype) => Run(http, $"doc:{doctype}:read", (user, sp) =>
+        {
+            var meta = sp.GetRequiredService<IMetadataProvider>().Current.Get(doctype);
+            var perms = sp.GetRequiredService<IPermissionService>();
+            perms.Demand(user, meta, DocActions.Read);
+            return Task.FromResult(Results.Ok(new
+            {
+                meta.Name, meta.Version, meta.Title, meta.Def.IsChild, meta.Def.Workflow,
+                fields = meta.Fields.Where(f => perms.CanReadField(user, meta, f)).Select(f => f.Def),
+                meta.Def.ListView, meta.Def.Rules,
+                can = DocActions.All.Where(a => perms.Can(user, meta, a)),
+            }));
+        }));
+
+        api.MapGet("/meta/{doctype}/versions", (HttpContext http, string doctype) => Run(http, (user, sp) =>
+        {
+            RequireRole(user, UserContext.SystemManager);
+            return Task.FromResult(Results.Ok(sp.GetRequiredService<IMetadataProvider>().History(doctype)
+                .Select(v => new { v.Version, status = v.Status.ToString(), v.PublishedBy, v.PublishedAt, v.Changes })));
+        }));
+
+        api.MapGet("/meta/{doctype}/versions/{version:int}", (HttpContext http, string doctype, int version) => Run(http, (user, sp) =>
+        {
+            RequireRole(user, UserContext.SystemManager);
+            var v = sp.GetRequiredService<IMetadataProvider>().History(doctype).FirstOrDefault(x => x.Version == version)
+                ?? throw new DocumentNotFoundException("Versi metadata", $"{doctype} v{version}");
+            return Task.FromResult(Results.Ok(v.Def));
+        }));
+
+        api.MapPost("/admin/metadata/preview", (HttpContext http, JsonElement body) => Run(http, (user, sp) =>
+        {
+            RequireRole(user, UserContext.SystemManager);
+            var def = MetadataJson.ParseDocType(body.GetRawText());
+            return Task.FromResult(Results.Ok(sp.GetRequiredService<MetadataRegistry>().Preview(def)));
+        }));
+
+        api.MapPost("/admin/metadata/publish", (HttpContext http, JsonElement body, bool acknowledgeRisk) => Run(http, (user, sp) =>
+        {
+            RequireRole(user, UserContext.SystemManager);
+            var def = MetadataJson.ParseDocType(body.GetRawText());
+            var v = sp.GetRequiredService<MetadataRegistry>().Publish(def, user.Id, acknowledgeRisk);
+            return Task.FromResult(Results.Ok(new { v.DocType, v.Version, v.Changes }));
+        }));
+
+        // ---------- Data ----------
+        api.MapGet("/data/{doctype}", (HttpContext http, string doctype, string? search, string? sort, string? dir, int? page, int? pageSize, string? filters) =>
+            Run(http, $"doc:{doctype}:list", async (user, sp) =>
+            {
+                RequireApi(sp, doctype, "list");
+                var parsed = ParseFilters(filters);
+                var res = await Docs(sp).ListAsync(user, doctype, new ListRequest(parsed, search, sort, dir, page ?? 1, pageSize ?? 0), http.RequestAborted);
+                return Results.Ok(res);
+            }));
+
+        api.MapGet("/data/{doctype}/{name}", (HttpContext http, string doctype, string name) => Run(http, $"doc:{doctype}:read", async (user, sp) =>
+        {
+            RequireApi(sp, doctype, "read");
+            var doc = await Docs(sp).GetAsync(user, doctype, name, http.RequestAborted);
+            http.Response.Headers.ETag = $"\"{doc.Version}\"";
+            return Results.Ok(ToDto(doc));
+        }));
+
+        api.MapPost("/data/{doctype}", (HttpContext http, string doctype, Dictionary<string, JsonElement> body) => Run(http, $"doc:{doctype}:create", async (user, sp) =>
+        {
+            RequireApi(sp, doctype, "create");
+            var doc = await Docs(sp).InsertAsync(user, doctype, ToPayload(body), http.RequestAborted);
+            return Results.Created($"/api/data/{doctype}/{doc.Name}", ToDto(doc));
+        }));
+
+        api.MapMethods("/data/{doctype}/{name}", ["PATCH"], (HttpContext http, string doctype, string name, Dictionary<string, JsonElement> body) => Run(http, $"doc:{doctype}:update", async (user, sp) =>
+        {
+            RequireApi(sp, doctype, "update");
+            var doc = await Docs(sp).UpdateAsync(user, doctype, name, IfMatch(http), ToPayload(body), http.RequestAborted);
+            http.Response.Headers.ETag = $"\"{doc.Version}\"";
+            return Results.Ok(ToDto(doc));
+        }));
+
+        api.MapDelete("/data/{doctype}/{name}", (HttpContext http, string doctype, string name) => Run(http, $"doc:{doctype}:delete", async (user, sp) =>
+        {
+            RequireApi(sp, doctype, "delete");
+            await Docs(sp).DeleteAsync(user, doctype, name, IfMatch(http), http.RequestAborted);
+            return Results.NoContent();
+        }));
+
+        api.MapPost("/data/{doctype}/{name}/actions/{action}", (HttpContext http, string doctype, string name, string action, ActionBody? body) => Run(http, $"doc:{doctype}:action", async (user, sp) =>
+        {
+            RequireApi(sp, doctype, "action");
+            var doc = await Docs(sp).RunActionAsync(user, doctype, name, action, IfMatch(http), body?.Comment, http.RequestAborted);
+            http.Response.Headers.ETag = $"\"{doc.Version}\"";
+            return Results.Ok(ToDto(doc));
+        }));
+
+        api.MapGet("/data/{doctype}/{name}/audit", (HttpContext http, string doctype, string name) => Run(http, $"doc:{doctype}:read", async (user, sp) =>
+        {
+            RequireApi(sp, doctype, "read");
+            return Results.Ok(await Docs(sp).GetAuditAsync(user, doctype, name, http.RequestAborted));
+        }));
+
+        api.MapGet("/links/{target}", (HttpContext http, string target, string? q) => Run(http, $"doc:{target}:list", async (user, sp) =>
+            Results.Ok(await Docs(sp).SearchLinkAsync(user, target, q, http.RequestAborted))));
+
+        // ---------- Report ----------
+        api.MapGet("/reports/{name}", (HttpContext http, string name) => Run(http, async (user, sp) =>
+            Results.Ok(await sp.GetRequiredService<ReportService>().RunAsync(user, name, QueryDict(http), http.RequestAborted))));
+
+        api.MapGet("/reports/{name}/export.csv", (HttpContext http, string name) => Run(http, async (user, sp) =>
+        {
+            var csv = await sp.GetRequiredService<ReportService>().ExportCsvAsync(user, name, QueryDict(http), http.RequestAborted);
+            return Results.File(System.Text.Encoding.UTF8.GetPreamble().Concat(System.Text.Encoding.UTF8.GetBytes(csv)).ToArray(), "text/csv", $"{name}.csv");
+        }));
+
+        // ---------- Cetak ----------
+        api.MapGet("/print/{doctype}/{name}/pdf", (HttpContext http, string doctype, string name, bool? inline) => Run(http, $"doc:{doctype}:read", async (user, sp) =>
+        {
+            var model = await sp.GetRequiredService<PrintService>().BuildAsync(user, doctype, name, http.RequestAborted);
+            var html = await sp.GetRequiredService<PrintHtmlRenderer>().RenderAsync(model);
+            var pdf = await sp.GetRequiredService<IPdfRenderer>().RenderAsync(html, http.RequestAborted);
+            await Docs(sp).LogPrintAsync(user, doctype, name, "PDF", http.RequestAborted);
+            return inline == true ? Results.File(pdf, "application/pdf") : Results.File(pdf, "application/pdf", $"{name}.pdf");
+        }));
+
+        return app;
+    }
+
+    public sealed record ActionBody(string? Comment);
+    public sealed record LoginBody(string? UserName, string? Password);
+    public sealed record GenerateReportBody(Dictionary<string, string?>? Parameters);
+
+    private static DocumentService Docs(IServiceProvider sp) => sp.GetRequiredService<DocumentService>();
+
+    private static void RequireRole(UserContext user, string role)
+    {
+        if (!user.Roles.Contains(role)) throw new PermissionDeniedException($"Butuh role '{role}'");
+    }
+
+    /// <summary>API generik opt-in per DocType (RFC §13).</summary>
+    private static void RequireApi(IServiceProvider sp, string doctype, string op)
+    {
+        if (!sp.GetRequiredService<IMetadataProvider>().Current.TryGet(doctype, out var meta) || meta.Def.IsChild)
+            throw new DocumentNotFoundException("DocType", doctype);
+        if (!meta.Def.Api.Enabled || !meta.Def.Api.Operations.Contains(op))
+            throw new DocumentNotFoundException($"Operasi API '{op}' untuk", doctype);
+    }
+
+    private static int IfMatch(HttpContext http)
+    {
+        var raw = http.Request.Headers.IfMatch.FirstOrDefault()?.Trim('"', ' ');
+        return int.TryParse(raw, out var v) ? v : throw new InvalidPayloadException("Header If-Match berisi versi dokumen wajib dikirim");
+    }
+
+    private static Dictionary<string, object?> ToPayload(Dictionary<string, JsonElement> body) =>
+        body.ToDictionary(kv => kv.Key, kv => (object?)kv.Value);
+
+    private static Dictionary<string, string?> QueryDict(HttpContext http) =>
+        http.Request.Query.ToDictionary(kv => kv.Key, kv => (string?)kv.Value.ToString());
+
+    private static List<FilterClause> ParseFilters(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return [];
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            return doc.RootElement.EnumerateArray().Select(e =>
+            {
+                var a = e.EnumerateArray().ToArray();
+                if (a.Length != 3) throw new InvalidPayloadException("Filter harus berupa [field, operator, nilai]");
+                object? value = a[2].ValueKind == JsonValueKind.Array
+                    ? a[2].EnumerateArray().Select(Scalar).ToList()
+                    : Scalar(a[2]);
+                return new FilterClause(a[0].GetString()!, a[1].GetString()!, value);
+            }).ToList();
+        }
+        catch (JsonException) { throw new InvalidPayloadException("Parameter filters bukan JSON yang valid"); }
+    }
+
+    private static object? Scalar(JsonElement e) => e.ValueKind switch
+    {
+        JsonValueKind.String => e.GetString(),
+        JsonValueKind.Number => e.GetDecimal(),
+        JsonValueKind.True => true,
+        JsonValueKind.False => false,
+        JsonValueKind.Null => null,
+        _ => throw new InvalidPayloadException("Nilai filter harus skalar atau daftar skalar")
+    };
+
+    public static Dictionary<string, object?> ToDto(Document d)
+    {
+        var dto = new Dictionary<string, object?>
+        {
+            ["name"] = d.Name, ["doctype"] = d.DocType, ["docstatus"] = d.DocStatus, ["workflow_state"] = d.WorkflowState,
+            ["owner"] = d.Owner, ["created"] = d.Created, ["modified"] = d.Modified, ["modified_by"] = d.ModifiedBy,
+            ["version"] = d.Version, ["schema_version"] = d.SchemaVersion, ["workflow_version"] = d.WorkflowVersion,
+            ["amended_from"] = d.AmendedFrom,
+        };
+        foreach (var (k, v) in d.Data) dto[k] = v;
+        return dto;
+    }
+
+    /// <summary>Pemetaan exception → response yang konsisten (application/problem+json).</summary>
+    /// <summary>Endpoint tanpa deklarasi cakupan: kunci API ditolak (gagal tertutup).</summary>
+    private static Task<IResult> Run(HttpContext http, Func<UserContext, IServiceProvider, Task<IResult>> action) => Run(http, null, action);
+
+    /// <summary>Cakupan khusus: kunci API boleh masuk tanpa dicek di sini (endpoint menyaring sendiri, mis. daftar method).</summary>
+    private const string AnyApiKeyScope = "*any";
+
+    private static async Task<IResult> Run(HttpContext http, string? scope, Func<UserContext, IServiceProvider, Task<IResult>> action)
+    {
+        // Kunci API: hanya endpoint yang mendeklarasikan cakupan, dan cakupan itu harus diberikan pada kunci.
+        if (http.User.FindFirst(Framework.Web.Identity.ApiKeyDefaults.KeyIdClaim) is not null && scope != AnyApiKeyScope)
+        {
+            if (scope is null) return Problem(403, "Kunci API tidak berlaku", "Endpoint ini tidak bisa dipakai dengan kunci API.");
+            if (!ApiScopes.Allows(http.User.FindAll(Framework.Web.Identity.ApiKeyDefaults.ScopeClaim).Select(c => c.Value), scope))
+                return Problem(403, "Di luar cakupan kunci API", $"Kunci ini tidak mencakup '{scope}'.");
+        }
+        // Identitas dari klaim (cookie atau bearer) yang sudah divalidasi middleware autentikasi.
+        var user = ClaimsUserMapper.ToUserContext(http.User);
+        if (user is null) return Problem(401, "Belum terautentikasi", "Login lewat POST /api/auth/login lalu kirim header Authorization: Bearer <token>.");
+        // Cookie dikirim otomatis oleh browser → permintaan yang mengubah data wajib memakai bearer token (perlindungan CSRF).
+        var authz = http.Request.Headers.Authorization.ToString();
+        var viaBearer = authz.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) || authz.StartsWith(Framework.Web.Identity.ApiKeyDefaults.Scheme + " ", StringComparison.OrdinalIgnoreCase);
+        if (!viaBearer && !HttpMethods.IsGet(http.Request.Method) && !HttpMethods.IsHead(http.Request.Method))
+            return Problem(403, "Butuh bearer token", "API yang mengubah data harus memakai header Authorization: Bearer <token>, bukan cookie browser.");
+        try { return await action(user, http.RequestServices); }
+        catch (ValidationFailedException ex) { return Problem(422, "Validasi gagal", ex.Message, ex.Errors); }
+        catch (PermissionDeniedException ex) { return Problem(403, "Akses ditolak", ex.Message); }
+        catch (DocumentNotFoundException ex) { return Problem(404, "Tidak ditemukan", ex.Message); }
+        catch (KeyNotFoundException ex) { return Problem(404, "Tidak ditemukan", ex.Message); }
+        catch (ConcurrencyException ex) { return Problem(409, "Konflik versi", ex.Message); }
+        catch (InvalidStateException ex) { return Problem(409, "Status dokumen tidak mengizinkan", ex.Message); }
+        catch (InvalidPayloadException ex) { return Problem(400, "Payload tidak valid", ex.Message, ex.Fields.Select(f => new FieldError(f, "tidak diizinkan")).ToList()); }
+        catch (MetadataCompilationException ex) { return Problem(422, "Metadata tidak valid", "Periksa daftar error", ex.Errors.Select(e => new FieldError(e.Path, e.Message)).ToList()); }
+        catch (JsonException ex) { return Problem(400, "JSON tidak valid", ex.Message); }
+        catch (PdfUnavailableException ex) { return Problem(501, "PDF tidak tersedia", ex.Message); }
+        catch (InvalidOperationException ex) { return Problem(409, "Operasi ditolak", ex.Message); }
+        catch (ApiMethodException ex) { return Problem(400, "Permintaan ditolak", ex.Message); }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Jangan bocorkan detail internal (stack, SQL) ke klien API; detail ada di log server.
+            http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("Framework.Api").LogError(ex, "API {Method} {Path} gagal", http.Request.Method, http.Request.Path);
+            return Problem(500, "Kesalahan internal", "Terjadi kesalahan di server. Hubungi administrator (rujuk waktu kejadian).");
+        }
+    }
+
+    private static IResult Problem(int status, string title, string detail, IReadOnlyList<FieldError>? errors = null) =>
+        Results.Json(new { type = $"https://httpstatuses.io/{status}", title, status, detail, errors = errors ?? [] },
+            statusCode: status, contentType: "application/problem+json");
+}
+
+
+================================================================================
+ 10. [BARU] src/Framework.Web/Pages/ApiKeysAdmin.razor
+    Aksi: BUAT FILE BARU.
+================================================================================
+
+@page "/admin/api-keys"
+@using Framework.Api
+@using Microsoft.AspNetCore.Identity
+@inject ApiKeyService Keys
+@inject ApiMethodRegistry Methods
+@inject IUserAccountRepository Accounts
+@inject UserManager<UserAccount> Users
+@inject IMetadataProvider Metadata
+@inject CurrentUser Current
+@inject ToastService Toasts
+@inject DialogService Dialogs
+@inject NavigationManager Nav
+@inject TimeProvider Clock
+
+<PageTitle>Kunci API · DocFrame</PageTitle>
+
+@if (!Current.Required.Roles.Contains(UserContext.SystemManager))
+{
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>Halaman ini hanya untuk System Manager.</BbAlertDescription></BbAlert>
+}
+else
+{
+    <header class="page-head">
+        <div>
+            <h1>Kunci API</h1>
+            <p>Untuk integrasi sistem lain. Kunci bertindak sebagai akunnya: role, departemen, dan cakupan data akun itu yang berlaku — lewat aturan yang sama dengan layar aplikasi.</p>
+        </div>
+        @if (!creating) { <BbButton OnClick="StartCreate"><LucideIcon Name="key-round" Size="16" /> Buat kunci</BbButton> }
+    </header>
+
+    @if (token is not null)
+    {
+        <BbAlert Variant="AlertVariant.Warning" Class="props-block">
+            <BbAlertTitle>Simpan kunci ini sekarang — tidak akan ditampilkan lagi</BbAlertTitle>
+            <BbAlertDescription>
+                <code class="temp-password" id="new-token">@token</code>
+                <pre class="api-example">curl -H "Authorization: ApiKey @token" @(BaseUrl)api/data/PurchaseRequest</pre>
+            </BbAlertDescription>
+        </BbAlert>
+    }
+
+    @if (creating)
+    {
+        <BbCard Class="props-block">
+            <BbCardHeader><BbCardTitle Class="card-title">Kunci baru</BbCardTitle></BbCardHeader>
+            <BbCardContent>
+                <div class="stack" style="max-width:56rem">
+                    @if (error is not null) { <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@error</BbAlertDescription></BbAlert> }
+                    <BbField><BbFieldLabel For="k-name">Nama kunci</BbFieldLabel><FormTextInput Id="k-name" Value="@name" ValueChanged="v => name = v ?? string.Empty" Placeholder="mis. Integrasi ERP keuangan" /></BbField>
+
+                    <BbField>
+                        <BbFieldLabel>Akun pemilik kunci</BbFieldLabel>
+                        <BbSelect TValue="string" Value="@accountId" ValueChanged="v => accountId = v ?? NewAccount" AriaLabel="Akun pemilik kunci" Options="AccountOptions" />
+                        <BbFieldDescription>Disarankan akun integrasi khusus (tanpa password), bukan akun manusia.</BbFieldDescription>
+                    </BbField>
+                    @if (accountId == NewAccount)
+                    {
+                        <div class="props-row">
+                            <BbField><BbFieldLabel For="a-name">Nama akun integrasi</BbFieldLabel><FormTextInput Id="a-name" Value="@newName" ValueChanged="v => newName = v ?? string.Empty" Placeholder="mis. Sistem ERP" /></BbField>
+                            <BbField><BbFieldLabel For="a-user">Username</BbFieldLabel><FormTextInput Id="a-user" Value="@newUser" ValueChanged="v => newUser = (v ?? string.Empty).Trim().ToLowerInvariant()" Placeholder="mis. svc.erp" /></BbField>
+                        </div>
+                        <BbField><BbFieldLabel For="a-dept">Departemen (opsional)</BbFieldLabel><FormTextInput Id="a-dept" Value="@newDept" ValueChanged="v => newDept = v" /></BbField>
+                        <div>
+                            <div class="props-sub" style="margin-bottom:.35rem">Role akun integrasi</div>
+                            <div class="wf-roles">
+                                @foreach (var role in MetadataRoles.Known(Metadata.Current).Where(r => r != UserContext.SystemManager))
+                                {
+                                    var r = role;
+                                    <div class="label-row"><BbCheckbox Id="@($"ar-{r}")" Checked="newRoles.Contains(r)" CheckedChanged="v => { if (v) newRoles.Add(r); else newRoles.Remove(r); }" /><BbLabel For="@($"ar-{r}")">@r</BbLabel></div>
+                                }
+                            </div>
+                        </div>
+                    }
+
+                    <div>
+                        <div class="props-sub" style="margin-bottom:.35rem">Cakupan</div>
+                        <div class="label-row"><input type="radio" id="sc-all" name="scope" checked="@(!limited)" @onchange="() => limited = false" /><label for="sc-all">Semua yang diizinkan role akun</label></div>
+                        <div class="label-row"><input type="radio" id="sc-lim" name="scope" checked="@limited" @onchange="() => limited = true" /><label for="sc-lim">Terbatas pada pilihan berikut</label></div>
+                    </div>
+                    @if (limited)
+                    {
+                        <div class="table-wrap">
+                            <table class="perm-table">
+                                <thead><tr><th>DocType (API aktif)</th>@foreach (var op in ApiScopes.DocOperations) { <th class="c">@OpLabel(op)</th> }</tr></thead>
+                                <tbody>
+                                    @foreach (var dt in Metadata.Current.DocTypes.Values.Where(d => d.Def.Api.Enabled && !d.Def.IsChild).OrderBy(d => d.Title))
+                                    {
+                                        var doc = dt;
+                                        <tr>
+                                            <td>@doc.Title <span class="muted small">@doc.Name</span></td>
+                                            @foreach (var op in ApiScopes.DocOperations)
+                                            {
+                                                var scope = $"doc:{doc.Name}:{op}";
+                                                <td class="c"><BbCheckbox Checked="scopes.Contains(scope)" CheckedChanged="v => Toggle(scope, v)" AriaLabel="@scope" /></td>
+                                            }
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                        @if (Methods.Visible(Current.Required).Any())
+                        {
+                            <div class="props-sub">Method</div>
+                            <div class="wf-roles">
+                                @foreach (var m in Methods.Visible(Current.Required))
+                                {
+                                    var scope = $"method:{m.Name}";
+                                    <div class="label-row" title="@m.Description"><BbCheckbox Id="@($"m-{m.Name}")" Checked="scopes.Contains(scope)" CheckedChanged="v => Toggle(scope, v)" /><BbLabel For="@($"m-{m.Name}")"><code>@m.Name</code></BbLabel></div>
+                                }
+                            </div>
+                        }
+                    }
+                    <div class="props-row">
+                        <BbField><BbFieldLabel For="k-exp">Berlaku sampai (opsional)</BbFieldLabel><FormTextInput Id="k-exp" Type="date" Value="@expires" ValueChanged="v => expires = v" /></BbField>
+                        <BbField><BbFieldLabel For="k-ip">IP yang diizinkan (opsional)</BbFieldLabel><FormTextInput Id="k-ip" Value="@ips" ValueChanged="v => ips = v" Placeholder="mis. 10.0.5.0/24, 203.0.113.7" /></BbField>
+                    </div>
+                    <div class="row">
+                        <BbButton Disabled="busy" OnClick="Create"><LucideIcon Name="key-round" Size="16" /> Buat kunci</BbButton>
+                        <BbButton Variant="ButtonVariant.Ghost" OnClick="() => creating = false">Batal</BbButton>
+                    </div>
+                </div>
+            </BbCardContent>
+        </BbCard>
+    }
+
+    <div class="table-wrap">
+        <table class="data">
+            <thead><tr><th>Kunci</th><th>Akun</th><th>Cakupan</th><th>Berlaku sampai</th><th>Terakhir dipakai</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var k in keys)
+                {
+                    var key = k;
+                    var status = key.Status(Clock.GetUtcNow());
+                    <tr>
+                        <td><strong>@key.Name</strong><div class="muted small"><code>dfk_@(key.Id).…</code></div></td>
+                        <td>@(names.GetValueOrDefault(key.UserId) ?? key.UserId)</td>
+                        <td class="small scope-cell">@(key.Scopes.Count == 0 ? "Semua sesuai role" : string.Join(", ", key.Scopes.Take(4)) + (key.Scopes.Count > 4 ? $" +{key.Scopes.Count - 4}" : ""))
+                            @if (key.AllowedIps.Count > 0) { <div class="muted">IP: @string.Join(", ", key.AllowedIps)</div> }</td>
+                        <td class="nowrap">@(key.ExpiresAt is { } e ? Fmt.When(e) : "—")</td>
+                        <td class="nowrap muted">@(key.LastUsedAt is { } u ? $"{Fmt.When(u)} · {key.LastUsedIp}" : "belum pernah")</td>
+                        <td><BbBadge Variant="@(status == "Aktif" ? BadgeVariant.SoftSuccess : BadgeVariant.Soft)">@status</BbBadge></td>
+                        <td>@if (status == "Aktif") { <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="() => Revoke(key)"><LucideIcon Name="ban" Size="15" /> Cabut</BbButton> }</td>
+                    </tr>
+                }
+                @if (keys.Count == 0) { <tr><td colspan="7" class="grid-empty">Belum ada kunci API.</td></tr> }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private const string NewAccount = "__new__";
+    private IReadOnlyList<ApiKey> keys = [];
+    private Dictionary<string, string> names = new();
+    private List<UserAccount> accounts = [];
+    private bool creating, limited, busy;
+    private string name = "", accountId = NewAccount, newName = "", newUser = "";
+    private string? newDept, expires, ips, error, token;
+    private readonly HashSet<string> newRoles = ["Employee"];
+    private readonly HashSet<string> scopes = new();
+
+    private string BaseUrl => Nav.BaseUri;
+    private IEnumerable<SelectOption<string>> AccountOptions =>
+        new[] { new SelectOption<string>(NewAccount, "＋ Akun integrasi baru") }
+        .Concat(accounts.Where(a => a.IsActive).Select(a => new SelectOption<string>(a.Id, $"{a.FullName} ({a.UserName}){(a.PasswordHash is null ? " · integrasi" : "")}")));
+
+    protected override async Task OnInitializedAsync() => await Reload();
+
+    private async Task Reload()
+    {
+        if (!Current.Required.Roles.Contains(UserContext.SystemManager)) return;
+        keys = await Keys.ListAsync(Current.Required);
+        accounts = (await Accounts.ListAsync(Current.Required.TenantId)).ToList();
+        names = accounts.ToDictionary(a => a.Id, a => a.FullName);
+    }
+
+    private void StartCreate()
+    {
+        creating = true; token = null; error = null; limited = false; scopes.Clear();
+        name = ""; accountId = NewAccount; newName = ""; newUser = ""; newDept = null; expires = null; ips = null;
+    }
+
+    private void Toggle(string scope, bool on) { if (on) scopes.Add(scope); else scopes.Remove(scope); }
+
+    private async Task Create()
+    {
+        error = null; busy = true;
+        try
+        {
+            var owner = accountId;
+            if (accountId == NewAccount)
+            {
+                if (string.IsNullOrWhiteSpace(newName) || !System.Text.RegularExpressions.Regex.IsMatch(newUser, "^[a-z0-9._]{3,40}$"))
+                { error = "Isi nama akun dan username (3–40 karakter: huruf kecil, angka, titik, garis bawah)."; return; }
+                if (newRoles.Count == 0) { error = "Pilih minimal satu role untuk akun integrasi."; return; }
+                // Akun integrasi dibuat TANPA password: tidak bisa login lewat layar, hanya lewat kunci API.
+                var acc = new UserAccount { UserName = newUser, FullName = newName.Trim(), TenantId = Current.Required.TenantId,
+                    Department = string.IsNullOrWhiteSpace(newDept) ? null : newDept.Trim(), Roles = newRoles.ToList() };
+                var result = await Users.CreateAsync(acc);
+                if (!result.Succeeded) { error = string.Join(" ", result.Errors.Select(e => e.Description)); return; }
+                owner = acc.Id;
+            }
+            if (limited && scopes.Count == 0) { error = "Pilih minimal satu cakupan, atau pilih \"Semua yang diizinkan role akun\"."; return; }
+            DateTimeOffset? exp = DateOnly.TryParse(expires, out var d) ? new DateTimeOffset(d.ToDateTime(new TimeOnly(23, 59, 59)), TimeZoneInfo.Local.GetUtcOffset(DateTime.Now)) : null;
+            var (key, t) = await Keys.CreateAsync(Current.Required, new CreateApiKeyRequest(name, owner,
+                limited ? scopes.ToList() : [], (ips ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries), exp));
+            token = t; creating = false;
+            Toasts.Success("Salin kunci sekarang; setelah halaman ditutup kunci tidak bisa dilihat lagi.", $"Kunci \"{key.Name}\" dibuat");
+            await Reload();
+        }
+        catch (Exception ex) when (ex is ApiKeyException or PermissionDeniedException) { error = ex.Message; }
+        finally { busy = false; }
+    }
+
+    private async Task Revoke(ApiKey k)
+    {
+        var ok = await Dialogs.ConfirmAsync($"Cabut kunci \"{k.Name}\"?", "Sistem yang memakai kunci ini langsung ditolak (HTTP 401). Tindakan ini tidak bisa dibatalkan.",
+            new ConfirmDialogOptions { Destructive = true, ConfirmText = "Cabut kunci", CancelText = "Batal" });
+        if (!ok.Confirmed) return;
+        await Keys.RevokeAsync(Current.Required, k.Id);
+        Toasts.Success("Permintaan dengan kunci ini kini ditolak.", "Kunci dicabut");
+        await Reload();
+    }
+
+    private static string OpLabel(string op) => op switch { "list" => "Daftar", "read" => "Baca", "create" => "Buat", "update" => "Ubah", "delete" => "Hapus", _ => "Aksi" };
+}
+
+
+================================================================================
+ 11. [UBAH] Layout/DeskLayout.razor & wwwroot/desk.css
+    Dua langkah.
+================================================================================
+
+--- 11a. DeskLayout.razor: setelah item menu "Pengguna" (grup admin), TAMBAHKAN:
+
+                                    <BbSidebarMenuItem>
+                                        <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="admin/api-keys" Tooltip="Kunci API">
+                                            <LucideIcon Name="key-round" Size="18" /><span>Kunci API</span>
+                                        </BbSidebarMenuButton>
+                                    </BbSidebarMenuItem>
+
+--- 11b. desk.css: TAMBAHKAN di akhir:
+
+.api-example { margin: .5rem 0 0; padding: .5rem .6rem; background: var(--muted); border-radius: calc(var(--radius) - 2px); font-size: .75rem; white-space: pre-wrap; word-break: break-all; }
+table.data td.scope-cell { white-space: normal; min-width: 14rem; max-width: 24rem; word-break: break-word; }
+
+
+================================================================================
+ 12. [BARU] src/Apps.Sample/Domain/ApiMethods.cs
+    Aksi: BUAT FILE BARU.
+================================================================================
+
+using Framework.Api;
+using Framework.Documents;
+using Framework.Persistence;
+using Framework.Security;
+using Framework.Metadata;
+
+namespace Apps.Sample.Domain;
+
+/// <summary>
+/// Contoh method BACA: sisa anggaran pengadaan suatu departemen. Data diambil lewat DocumentService, jadi hasil
+/// mengikuti hak akses pemanggil (manager IT tidak bisa mengintip pengajuan Marketing).
+/// </summary>
+public sealed class SisaAnggaranMethod(IConfiguration config) : IApiMethod
+{
+    public string Name => "sisa-anggaran";
+    public string Description => "Anggaran, terpakai (pengajuan disetujui / menunggu Finance), dan sisa anggaran pengadaan per departemen.";
+    public IReadOnlyList<string> Roles => ["Finance", "Manager"];
+    public IReadOnlyList<ApiMethodParam> Parameters =>
+    [
+        new("departemen", ArgTypes.Text, Required: true, Description: "Kode departemen, mis. IT"),
+        new("tahun", ArgTypes.Number, Description: "Tahun pengajuan; kosong = tahun berjalan"),
+    ];
+
+    public async Task<object?> InvokeAsync(ApiMethodContext ctx, CancellationToken ct)
+    {
+        var dept = ctx.Arg<string>("departemen")!;
+        var tahun = (int)(ctx.Arg<decimal?>("tahun") ?? DateTime.Today.Year);
+        if (tahun is < 2000 or > 2100) throw new ApiMethodException("tahun di luar rentang wajar");
+        var docs = ctx.Services.GetRequiredService<DocumentService>();
+        var rows = await docs.QueryForReportAsync(ctx.User, "PurchaseRequest",
+        [
+            new FilterClause("department", "=", dept),
+            new FilterClause("workflow_state", "in", new List<object?> { "Disetujui", "Menunggu Finance" }),
+            new FilterClause("request_date", ">=", $"{tahun}-01-01"),
+            new FilterClause("request_date", "<=", $"{tahun}-12-31"),
+        ], DocActions.Report, ct);
+        var anggaran = config.GetValue<decimal?>($"Anggaran:{dept}") ?? config.GetValue("Anggaran:Default", 500_000_000m);
+        var terpakai = rows.Sum(d => d.Data.GetValueOrDefault("total") as decimal? ?? 0m);
+        return new { departemen = dept, tahun, anggaran, terpakai, sisa = anggaran - terpakai, jumlahPengajuan = rows.Count };
+    }
+}
+
+/// <summary>
+/// Contoh method TULIS: mengajukan beberapa pengajuan draft sekaligus lewat aksi workflow "Ajukan". Setiap dokumen
+/// diproses lewat jalur workflow biasa (role, kondisi, validasi, audit) — hasil per dokumen dilaporkan.
+/// </summary>
+public sealed class AjukanMassalMethod : IApiMethod
+{
+    public string Name => "ajukan-massal";
+    public string Description => "Mengajukan beberapa pengajuan pembelian draft milik pemanggil sekaligus (maks. 50).";
+    public IReadOnlyList<string> Roles => ["Employee"];
+    public IReadOnlyList<ApiMethodParam> Parameters => [new("nomor", ArgTypes.List, Required: true, Description: "Daftar nomor pengajuan, mis. [\"PR-2026-00003\"]")];
+
+    public async Task<object?> InvokeAsync(ApiMethodContext ctx, CancellationToken ct)
+    {
+        var nomor = ctx.Arg<List<string>>("nomor")!;
+        if (nomor.Count is 0 or > 50) throw new ApiMethodException("isi 1 sampai 50 nomor pengajuan");
+        var docs = ctx.Services.GetRequiredService<DocumentService>();
+        var hasil = new List<object>();
+        foreach (var n in nomor.Distinct())
+        {
+            try
+            {
+                var doc = await docs.GetAsync(ctx.User, "PurchaseRequest", n, ct);
+                var after = await docs.RunActionAsync(ctx.User, "PurchaseRequest", n, "Ajukan", doc.Version, null, ct);
+                hasil.Add(new { nomor = n, berhasil = true, status = after.WorkflowState });
+            }
+            catch (Exception ex) when (ex is DocumentNotFoundException or PermissionDeniedException or InvalidStateException or ValidationFailedException or ConcurrencyException)
+            {
+                hasil.Add(new { nomor = n, berhasil = false, pesan = ex.Message });
+            }
+        }
+        return new { diproses = hasil.Count, berhasil = hasil.Count(h => (bool)h.GetType().GetProperty("berhasil")!.GetValue(h)!), hasil };
+    }
+}
+
+
+================================================================================
+ 13. [UBAH] src/Apps.Sample/Program.cs
+    Dua langkah.
+================================================================================
+
+--- 13a. Setelah "builder.Services.AddReport<SpendByDepartmentReport>();" TAMBAHKAN:
+
+// Method kustom yang dibuka sebagai API: POST /api/method/{nama}
+builder.Services.AddApiMethod<SisaAnggaranMethod>();
+builder.Services.AddApiMethod<AjukanMassalMethod>();
+
+--- 13b. Setelah "app.UseAuthorization();" TAMBAHKAN:
+
+app.UseRateLimiter(); // batas permintaan /api per kunci API / pengguna (Api:RateLimitPerMinute)
+
+(Opsional appsettings.json:  "Api": { "RateLimitPerMinute": 300 },  "Anggaran": { "Default": 500000000, "IT": 750000000 })
+
+
+================================================================================
+ 14. [BARU] tests/Framework.Tests/ApiIntegrationTests.cs
+    Aksi (opsional): BUAT FILE BARU.
+================================================================================
+
+using System.Net;
+using System.Text.Json;
+using Apps.Sample.Domain;
+using Framework.Api;
+using Framework.Documents;
+using Framework.Persistence;
+using Framework.Security;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.DependencyInjection;
+
+/// <summary>Kunci API integrasi & method kustom.</summary>
+sealed partial class Tests
+{
+    private ApiKeyService ApiKeys => sp.GetRequiredService<ApiKeyService>();
+
+    [Test]
+    public async Task ApiKey_hanya_hash_tersimpan_dan_token_diverifikasi_sebagai_akunnya()
+    {
+        var (key, token) = await ApiKeys.CreateAsync(U("admin"), new CreateApiKeyRequest("ERP keuangan", "dewi", ["doc:PurchaseRequest:read", "method:*"], [], null));
+        Assert.True(token.StartsWith($"dfk_{key.Id}.") && token.Length > 50, "format token dfk_<id>.<secret>");
+        var stored = (await sp.GetRequiredService<IApiKeyStore>().GetAsync(key.Id))!;
+        var secret = token.Split('.', 2)[1];
+        Assert.True(!JsonSerializer.Serialize(stored).Contains(secret), "secret tidak pernah disimpan, hanya hash");
+        var ok = await ApiKeys.VerifyAsync(token, IPAddress.Loopback);
+        Assert.True(ok is not null && ok.Account.Id == "dewi" && ok.Account.TenantId == "acme", "token valid → akun pemilik");
+        Assert.True(await ApiKeys.VerifyAsync(token[..^2] + "xx", IPAddress.Loopback) is null, "secret salah ditolak");
+        Assert.True(await ApiKeys.VerifyAsync("dfk_tidakada.abcdefghijklmnopqrstuvwxyz", IPAddress.Loopback) is null, "kunci tidak dikenal ditolak");
+        Assert.True(await ApiKeys.VerifyAsync("Bearer apapun", IPAddress.Loopback) is null, "format lain ditolak");
+        Assert.True((await sp.GetRequiredService<IApiKeyStore>().GetAsync(key.Id))!.LastUsedAt is not null, "waktu pemakaian terakhir dicatat");
+        await Assert.Throws<PermissionDeniedException>(() => ApiKeys.CreateAsync(U("dewi"), new CreateApiKeyRequest("x", "dewi", [], [], null)), "hanya System Manager membuat kunci");
+        await Assert.Throws<ApiKeyException>(() => ApiKeys.CreateAsync(U("admin"), new CreateApiKeyRequest("x", "tono", [], [], null)), "akun tenant lain ditolak");
+        await Assert.Throws<ApiKeyException>(() => ApiKeys.CreateAsync(U("admin"), new CreateApiKeyRequest("x", "dewi", ["doc:purchase:read; DROP"], [], null)), "cakupan tidak valid ditolak");
+    }
+
+    [Test]
+    public async Task ApiKey_dicabut_kedaluwarsa_ip_dan_akun_nonaktif_ditolak()
+    {
+        var admin = U("admin");
+        var (k1, t1) = await ApiKeys.CreateAsync(admin, new CreateApiKeyRequest("Cabut", "dewi", [], [], null));
+        await ApiKeys.RevokeAsync(admin, k1.Id);
+        Assert.True(await ApiKeys.VerifyAsync(t1, IPAddress.Loopback) is null, "kunci dicabut langsung ditolak");
+
+        var (_, t2) = await ApiKeys.CreateAsync(admin, new CreateApiKeyRequest("IP", "dewi", [], ["10.0.5.0/24", "203.0.113.7"], null));
+        Assert.True(await ApiKeys.VerifyAsync(t2, IPAddress.Parse("10.0.5.42")) is not null, "IP dalam CIDR diterima");
+        Assert.True(await ApiKeys.VerifyAsync(t2, IPAddress.Parse("203.0.113.7").MapToIPv6()) is not null, "IPv4 yang dipetakan ke IPv6 dikenali");
+        Assert.True(await ApiKeys.VerifyAsync(t2, IPAddress.Parse("10.0.6.1")) is null, "IP di luar daftar ditolak");
+
+        await Assert.Throws<ApiKeyException>(() => ApiKeys.CreateAsync(admin, new CreateApiKeyRequest("Lampau", "dewi", [], [], DateTimeOffset.UtcNow.AddDays(-1))), "kedaluwarsa di masa lalu ditolak");
+        var store = sp.GetRequiredService<IApiKeyStore>();
+        var (k3, t3) = await ApiKeys.CreateAsync(admin, new CreateApiKeyRequest("Pendek", "dewi", [], [], DateTimeOffset.UtcNow.AddMinutes(5)));
+        var stored = (await store.GetAsync(k3.Id))!; stored.ExpiresAt = DateTimeOffset.UtcNow.AddSeconds(-1); await store.SaveAsync(stored);
+        Assert.True(await ApiKeys.VerifyAsync(t3, IPAddress.Loopback) is null, "kunci kedaluwarsa ditolak");
+
+        var (_, t4) = await ApiKeys.CreateAsync(admin, new CreateApiKeyRequest("Akun", "sari", [], [], null));
+        var users = sp.CreateScope().ServiceProvider.GetRequiredService<UserManager<UserAccount>>();
+        var sari = (await users.FindByIdAsync("sari"))!; sari.IsActive = false; await users.UpdateAsync(sari);
+        Assert.True(await ApiKeys.VerifyAsync(t4, IPAddress.Loopback) is null, "akun dinonaktifkan → kuncinya ikut tidak berlaku");
+    }
+
+    [Test]
+    public Task ApiKey_cakupan_memakai_wildcard_per_segmen()
+    {
+        string[] g = ["doc:PurchaseRequest:read", "doc:Vendor:*", "doc:*:list", "method:sisa-anggaran"];
+        Assert.True(ApiScopes.Allows(g, "doc:PurchaseRequest:read") && ApiScopes.Allows(g, "doc:Vendor:delete") && ApiScopes.Allows(g, "doc:Employee:list"), "cakupan cocok");
+        Assert.True(!ApiScopes.Allows(g, "doc:PurchaseRequest:update") && !ApiScopes.Allows(g, "doc:Employee:read") && !ApiScopes.Allows(g, "method:ajukan-massal"), "di luar cakupan ditolak");
+        Assert.True(ApiScopes.Allows(["*"], "method:apa-saja") && !ApiScopes.Allows([], "doc:Vendor:read"), "'*' semua; kosong tidak ada");
+        Assert.True(ApiScopes.IsValid("doc:*:list") && ApiScopes.IsValid("report:rt_abc") && !ApiScopes.IsValid("doc:Vendor:hapus") && !ApiScopes.IsValid("method:Huruf_Besar"), "validasi format cakupan");
+        return Task.CompletedTask;
+    }
+
+    private static JsonElement Json(string s) => JsonDocument.Parse(s).RootElement;
+
+    [Test]
+    public async Task ApiMethod_argumen_divalidasi_ketat_dan_role_ditegakkan()
+    {
+        var reg = sp.GetRequiredService<ApiMethodRegistry>();
+        Assert.True(reg.Visible(U("dewi")).Any(m => m.Name == "sisa-anggaran") && reg.Visible(U("andi")).All(m => m.Name != "sisa-anggaran"), "daftar method mengikuti role");
+        await Assert.Throws<PermissionDeniedException>(() => reg.InvokeAsync(U("andi"), "sisa-anggaran", Json("""{"departemen":"IT"}"""), sp), "role tanpa izin ditolak");
+        await Assert.Throws<KeyNotFoundException>(() => reg.InvokeAsync(U("dewi"), "tidak-ada", null, sp), "method tidak dikenal");
+        var miss = await Assert.Throws<ValidationFailedException>(() => reg.InvokeAsync(U("dewi"), "sisa-anggaran", Json("{}"), sp), "argumen wajib");
+        Assert.True(miss.Errors.Any(e => e.Path == "departemen"), "argumen wajib disebut");
+        var extra = await Assert.Throws<ValidationFailedException>(() => reg.InvokeAsync(U("dewi"), "sisa-anggaran", Json("""{"departemen":"IT","owner":"admin"}"""), sp), "argumen asing");
+        Assert.True(extra.Errors.Any(e => e.Path == "owner" && e.Message.Contains("tidak dikenal")), "argumen yang tidak dideklarasikan ditolak (mass assignment)");
+        var type = await Assert.Throws<ValidationFailedException>(() => reg.InvokeAsync(U("dewi"), "sisa-anggaran", Json("""{"departemen":"IT","tahun":"dua ribu"}"""), sp), "tipe salah");
+        Assert.True(type.Errors.Any(e => e.Path == "tahun" && e.Message.Contains("angka")), "pesan tipe jelas");
+        await Assert.Throws<ApiMethodException>(() => reg.InvokeAsync(U("dewi"), "sisa-anggaran", Json("""{"departemen":"IT","tahun":1800}"""), sp), "validasi milik method");
+    }
+
+    [Test]
+    public async Task ApiMethod_sisa_anggaran_mengikuti_hak_akses_pemanggil()
+    {
+        var reg = sp.GetRequiredService<ApiMethodRegistry>();
+        async Task<JsonElement> Call(string user, string dept) =>
+            Json(JsonSerializer.Serialize(await reg.InvokeAsync(U(user), "sisa-anggaran", Json($$"""{"departemen":"{{dept}}","tahun":{{DateTime.Today.Year}}}"""), sp)));
+        var finance = await Call("dewi", "IT");
+        Assert.True(finance.GetProperty("jumlahPengajuan").GetInt32() > 0 && finance.GetProperty("terpakai").GetDecimal() > 0, "Finance melihat pengajuan IT: " + finance);
+        Assert.Equal(finance.GetProperty("anggaran").GetDecimal() - finance.GetProperty("terpakai").GetDecimal(), finance.GetProperty("sisa").GetDecimal(), "sisa = anggaran - terpakai");
+        var otherManager = await Call("maya", "IT");
+        Assert.Equal(0, otherManager.GetProperty("jumlahPengajuan").GetInt32(), "manager Marketing tidak bisa mengintip pengajuan IT lewat method");
+    }
+
+    [Test]
+    public async Task ApiMethod_ajukan_massal_lewat_workflow_dengan_hasil_per_dokumen()
+    {
+        var andi = U("andi");
+        var draft = (await Docs.ListAsync(andi, PR, new ListRequest(Filters: [new FilterClause("workflow_state", "=", "Draft")]))).Items.First();
+        var result = Json(JsonSerializer.Serialize(await sp.GetRequiredService<ApiMethodRegistry>().InvokeAsync(andi, "ajukan-massal",
+            Json($$"""{"nomor":["{{draft["name"]}}","PR-2026-00004","PR-9999-99999"]}"""), sp)));
+        var hasil = result.GetProperty("hasil").EnumerateArray().ToList();
+        Assert.True(result.GetProperty("berhasil").GetInt32() == 1 && hasil.Count == 3, "1 berhasil dari 3: " + result);
+        Assert.True(hasil[0].GetProperty("berhasil").GetBoolean() && hasil[0].GetProperty("status").GetString() == "Menunggu Atasan", "draft milik sendiri diajukan lewat workflow");
+        Assert.True(!hasil[1].GetProperty("berhasil").GetBoolean() && !hasil[2].GetProperty("berhasil").GetBoolean(), "milik orang lain & tidak ada → gagal dengan pesan, bukan seluruh panggilan gagal");
+        var audit = await Docs.GetAuditAsync(andi, PR, (string)draft["name"]!);
+        Assert.True(audit.Any(a => a.ToState == "Menunggu Atasan"), "transisi tercatat di audit seperti dari layar");
+    }
+}
+
+
+================================================================================
+ 15. [UBAH] tests/Framework.Tests/Program.cs
+    Aksi: di BuildProviderAsync, setelah "services.AddReport<SpendByDepartmentReport>();" TAMBAHKAN:
+================================================================================
+
+        services.AddApiMethod<SisaAnggaranMethod>();
+        services.AddApiMethod<AjukanMassalMethod>();
+
+
+================================================================================
+ CATATAN PENTING
+================================================================================
+
+- Kunci API = akses penuh akunnya (dalam cakupan). Pakai akun integrasi dengan role
+  seminimal mungkin dan cakupan terbatas; simpan kunci di secret manager sistem
+  pemanggil, jangan di kode sumber.
+- Secret tidak bisa dilihat lagi. Bila hilang: cabut, lalu buat kunci baru.
+- Pencabutan langsung berlaku (diperiksa di setiap permintaan, tanpa cache).
+- Daftar IP dicek terhadap alamat koneksi. Di belakang reverse proxy, aktifkan
+  ForwardedHeaders (KnownProxies) agar IP klien asli yang dicek.
+- Batas laju disimpan di memori per instance. Dengan beberapa instance, batas
+  efektif = batas × jumlah instance.
+- Method kustom harus memakai DocumentService (bukan store langsung) agar
+  permission, cakupan baris, dan validasi tetap berlaku.
+- Belum termasuk (tahap berikutnya): dokumentasi OpenAPI otomatis, webhook keluar.

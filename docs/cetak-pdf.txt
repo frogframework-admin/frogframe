@@ -1,0 +1,28 @@
+Saya buat print format dan PDF dengan dua jalur:
+
+Halaman cetak HTML A4, yang bisa langsung dicetak atau disimpan sebagai PDF dari browser.
+Endpoint unduh PDF di server.
+
+Keduanya memakai satu komponen yang sama, jadi hasilnya identik. Saya cek dulu apa yang tersedia di sandbox untuk menguji pembuatan PDF di server:
+
+Semua ter-compile. Saya tambahkan test untuk fitur cetak: terbilang, tanda tangan dari riwayat workflow, tanda air, permission, audit “Dicetak”, render HTML, dan validasi metadata.
+
+Fitur cetak dan PDF sudah selesai dan teruji. Ada dua file:
+
+cetak-pdf.txt adalah panduan perubahan seperti sebelumnya, untuk diterapkan ke proyek Anda yang sudah berjalan. Isinya 19 bagian, masing-masing berisi path, aksi (buat baru / cari lalu ganti / tambahkan), dan kodenya. Kodenya diambil langsung dari file yang sudah diuji.
+DocFrame-net10-v3.zip adalah proyek lengkap yang sudah memuat fitur lookup dialog dan fitur cetak, untuk pembanding. Folder docs/ berisi contoh PDF dan screenshot.
+
+Cara kerjanya:
+
+Dua tombol baru di form: Cetak dan PDF. “Cetak” membuka pratinjau A4 yang bisa dicetak atau disimpan sebagai PDF dari browser. “PDF” mengunduh PDF yang dibuat di server memakai Chrome atau Edge yang terpasang, tanpa paket NuGet tambahan. Hasil keduanya identik karena memakai komponen yang sama.
+Isi dokumen:
+Kop surat per tenant (dari appsettings.json) dan cap status.
+Tabel item, total, dan terbilang Rupiah.
+Kotak tanda tangan elektronik yang terisi otomatis dari riwayat workflow.
+Tanda air DRAFT, BELUM DISETUJUI, atau DITOLAK untuk dokumen yang belum final.
+Kaki halaman di setiap halaman: kode verifikasi dan nomor halaman.
+Diatur lewat metadata printFormat. DocType yang tidak punya printFormat tetap bisa dicetak memakai format default dari layout form.
+Keamanan tetap sama seperti di form. Dokumen di luar akses pengguna menghasilkan 404, field terbatas tidak ikut tercetak, dan setiap cetak atau unduhan PDF tercatat di riwayat audit.
+
+Hasil pengujian: build 0 error dan 22 test lulus, termasuk 5 test baru untuk cetak. PDF yang dibuat server valid dan berukuran A4, dan saya periksa langsung tampilannya.
+

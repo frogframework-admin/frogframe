@@ -36,7 +36,7 @@ else if (errors.Count > 0)
                 {
                     <BbCard>
                         @if (sec.Title is not null) { <BbCardHeader><BbCardTitle Class="card-title">@sec.Title</BbCardTitle></BbCardHeader> }
-                        <BbCardContent>
+                        <BbCardContent Style="@(sec.Title is null ? "padding-top:1.5rem" : null)">
                             <div class="form-cols cols-@sec.Columns.Count">
                                 @foreach (var col in sec.Columns)
                                 {

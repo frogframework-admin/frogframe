@@ -1,0 +1,1781 @@
+================================================================================
+ API DARI QUERY TERSIMPAN — SATU JALUR DENGAN DASHBOARD & LAPORAN, DENGAN OPSI
+ DocFrame (.NET 10 + Blazor Blueprint) — di atas v13
+================================================================================
+
+RINGKASAN
+---------
+GET /api/query/{slug}?Param=nilai — query SQL read-only (mesin yang sama dengan
+dashboard & laporan: tenant terisolasi, READ ONLY, statement_timeout, parameter
+native) diterbitkan sebagai API. Tidak ada kode yang dieksekusi dari metadata.
+
+Dua cara, satu jalur:
+  1. Menu "API Query" → wizard: Query → Parameter & pratinjau → Terbitkan.
+  2. Centang "Terbitkan juga sebagai API" di langkah simpan widget dashboard atau
+     template laporan → query & parameter yang sama diterbitkan, ikut diperbarui
+     setiap kali sumbernya disimpan; centang dilepas → API dihapus.
+
+Opsi saat terbit: keluaran (daftar baris JSON / satu objek / CSV), batas baris
+(maks. 10.000, truncated: true), cache 0–3600 detik, role pemanggil, aktif/nonaktif.
+Parameter "dari akun" (departemen/ID pengguna) tidak bisa ditimpa pemanggil.
+Kunci API: cakupan query:{slug} (dipilih di halaman Kunci API).
+
+SUDAH DIUJI
+  - 3 test layanan (PostgreSQL + read-only): terbit & dipanggil dengan parameter,
+    argumen asing/tipe salah → 422, role → 403, nonaktif/tidak ada → 404, slug
+    tidak valid/ganda, query non-SELECT ditolak saat terbit; parameter dari akun
+    tidak bisa ditimpa (manager IT → data IT, manager Marketing → data Marketing);
+    terbit dari widget bertaut (simpan ulang → API yang sama v2, slug milik sumber
+    lain ditolak); cache menghemat eksekusi (dihitung), versi baru membatalkan cache.
+  - Total: 52 lulus (in-memory) / 74 lulus (PostgreSQL).
+  - Uji browser + HTTP 10 langkah (aplikasi berjalan, PostgreSQL): wizard API
+    Query; opsi di wizard widget menerbitkan API bersumber "Widget dashboard";
+    kunci dewi dengan cakupan satu query → 200 hanya data Marketing; parameter
+    asing → 422; API lain → 403; daftar API untuk kunci hanya yang dalam cakupan;
+    keluaran CSV text/csv; API dinonaktifkan → 404.
+
+DAFTAR PERUBAHAN
+  CORE
+    [BARU]  1. src/Framework.Core/Api/QueryApis.cs
+    [UBAH]  2. src/Framework.Core/Security/ApiKeys.cs     (cakupan query:{slug})
+  POSTGRESQL
+    [BARU]  3. Migrations/011_query_apis.sql
+    [BARU]  4. src/Framework.Persistence.PostgreSql/PostgresQueryApiStore.cs
+    [UBAH]  5. src/Framework.Persistence.PostgreSql/PostgresStores.cs
+  WEB
+    [UBAH]  6. src/Framework.Web/Hosting.cs
+    [GANTI] 7. src/Framework.Web/Api.cs                    (ganti seluruh isi)
+    [BARU]  8. src/Framework.Web/QueryApis/PublishAsApiOption.cs + .razor (komponen opsi bersama)
+    [BARU]  9. src/Framework.Web/QueryApis/QueryApiList.razor
+    [BARU] 10. src/Framework.Web/QueryApis/QueryApiBuilder.razor
+    [UBAH] 11. src/Framework.Web/Dashboards/WidgetBuilder.razor          (opsi terbitkan)
+    [UBAH] 12. src/Framework.Web/ReportTemplates/ReportTemplateBuilder.razor (opsi terbitkan)
+    [UBAH] 13. src/Framework.Web/Pages/ApiKeysAdmin.razor  (cakupan API Query)
+    [UBAH] 14. _Imports.razor, Layout/DeskLayout.razor, wwwroot/desk.css
+  TEST
+    [BARU] 15. tests/Framework.Tests/QueryApiTests.cs       (opsional)
+
+
+================================================================================
+ 1. [BARU] src/Framework.Core/Api/QueryApis.cs
+    Aksi: BUAT FILE BARU.
+================================================================================
+
+using System.Collections.Concurrent;
+using System.Text.Json;
+using System.Text.RegularExpressions;
+using Framework.Dashboards;
+using Framework.Documents;
+using Framework.Security;
+
+namespace Framework.Api;
+
+public static class QueryApiOutputs
+{
+    public const string Rows = "rows", Object = "object", Csv = "csv";
+    public static readonly IReadOnlySet<string> All = new HashSet<string> { Rows, Object, Csv };
+}
+
+/// <summary>Konfigurasi API dari query tersimpan (JSON). Jalur yang sama dengan widget dashboard & template laporan.</summary>
+public sealed class QueryApiConfig
+{
+    public int SchemaVersion { get; set; } = 1;
+    public string Sql { get; set; } = "";
+    public List<WidgetParameter> Parameters { get; set; } = [];
+    /// <summary>rows = daftar baris JSON · object = baris pertama sebagai objek (KPI) · csv = file CSV.</summary>
+    public string Output { get; set; } = QueryApiOutputs.Rows;
+    public int MaxRows { get; set; } = 1000;
+    /// <summary>0 = tanpa cache. Cache per tenant + nilai parameter (termasuk parameter dari akun).</summary>
+    public int CacheSeconds { get; set; }
+    /// <summary>Role yang boleh memanggil. Kosong = semua pengguna tenant.</summary>
+    public List<string> Roles { get; set; } = [];
+    public bool Enabled { get; set; } = true;
+}
+
+public sealed class QueryApiDef
+{
+    public string Id { get; set; } = "";
+    public string TenantId { get; set; } = "";
+    /// <summary>Bagian URL: GET /api/query/{Slug}. Huruf kecil, angka, tanda hubung.</summary>
+    public string Slug { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string? Description { get; set; }
+    public QueryApiConfig Config { get; set; } = new();
+    /// <summary>Asal bila diterbitkan dari wizard lain, mis. "widget:w_123" atau "report:rt_456"; null = dibuat langsung.</summary>
+    public string? SourceRef { get; set; }
+    public string CreatedBy { get; set; } = "";
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+    public int Version { get; set; } = 1;
+}
+
+public interface IQueryApiStore
+{
+    Task<IReadOnlyList<QueryApiDef>> ListAsync(string tenantId, CancellationToken ct = default);
+    Task<QueryApiDef?> GetAsync(string tenantId, string id, CancellationToken ct = default);
+    Task<QueryApiDef?> GetBySlugAsync(string tenantId, string slug, CancellationToken ct = default);
+    Task SaveAsync(QueryApiDef def, CancellationToken ct = default);
+    Task DeleteAsync(string tenantId, string id, CancellationToken ct = default);
+}
+
+public sealed class InMemoryQueryApiStore : IQueryApiStore
+{
+    private readonly ConcurrentDictionary<(string, string), string> _items = new();
+    private static QueryApiDef Read(string j) => JsonSerializer.Deserialize<QueryApiDef>(j, DashboardJson.Options)!;
+    private IEnumerable<QueryApiDef> Of(string t) => _items.Where(kv => kv.Key.Item1 == t).Select(kv => Read(kv.Value));
+    public Task<IReadOnlyList<QueryApiDef>> ListAsync(string tenantId, CancellationToken ct = default) => Task.FromResult<IReadOnlyList<QueryApiDef>>(Of(tenantId).OrderBy(d => d.Slug).ToList());
+    public Task<QueryApiDef?> GetAsync(string tenantId, string id, CancellationToken ct = default) => Task.FromResult(_items.TryGetValue((tenantId, id), out var j) ? Read(j) : null);
+    public Task<QueryApiDef?> GetBySlugAsync(string tenantId, string slug, CancellationToken ct = default) => Task.FromResult(Of(tenantId).FirstOrDefault(d => d.Slug == slug));
+    public Task SaveAsync(QueryApiDef def, CancellationToken ct = default) { _items[(def.TenantId, def.Id)] = JsonSerializer.Serialize(def, DashboardJson.Options); return Task.CompletedTask; }
+    public Task DeleteAsync(string tenantId, string id, CancellationToken ct = default) { _items.TryRemove((tenantId, id), out _); return Task.CompletedTask; }
+}
+
+public sealed record QueryApiResult(QueryApiDef Def, QueryResultSet Data, bool FromCache);
+
+/// <summary>
+/// API dari query tersimpan: GET /api/query/{slug}?Param=nilai. Memakai eksekutor read-only dashboard
+/// (tenant terisolasi, READ ONLY, statement_timeout, parameter native). Bisa dibuat langsung atau diterbitkan
+/// sebagai opsi dari wizard widget dashboard / template laporan (satu jalur query yang sama).
+/// </summary>
+public sealed partial class QueryApiService(IQueryApiStore store, IReportingQueryExecutor executor, TimeProvider clock)
+{
+    public const int MaxRowsCap = 10_000, PreviewRows = 100;
+    [GeneratedRegex("^[a-z0-9][a-z0-9-]{1,62}$")] private static partial Regex SlugRx();
+    private readonly ConcurrentDictionary<string, (DateTimeOffset Expires, QueryResultSet Data)> _cache = new();
+
+    public bool IsAvailable => executor.IsAvailable;
+    public static bool CanDesign(UserContext u) => u.Roles.Contains(UserContext.SystemManager);
+    public static bool CanCall(UserContext u, QueryApiDef d) => CanDesign(u) || d.Config.Roles.Count == 0 || d.Config.Roles.Any(u.Roles.Contains);
+    public static bool IsUserBound(WidgetParameter p) => p.Binding is ParamBindings.UserId or ParamBindings.UserDepartment;
+    public static string Slugify(string s) => Regex.Replace((s ?? "").ToLowerInvariant(), "[^a-z0-9]+", "-").Trim('-') is { Length: > 1 } x ? x[..Math.Min(x.Length, 60)] : "query";
+
+    private static void DemandDesigner(UserContext u)
+    {
+        if (!CanDesign(u)) throw new PermissionDeniedException("Menerbitkan API query hanya untuk System Manager");
+    }
+
+    public static (string? Error, List<WidgetParameter> Parameters) DetectParameters(string sql, IReadOnlyList<WidgetParameter>? existing)
+    {
+        var (a, ps) = DashboardService.DetectParameters(sql, existing);
+        if (!a.Ok) return (a.Error, []);
+        foreach (var p in ps.Where(p => p.Binding is not (ParamBindings.Default or ParamBindings.UserId or ParamBindings.UserDepartment)))
+            p.Binding = ParamBindings.Default; // filter dashboard tidak berlaku: nilai dikirim pemanggil API
+        return (null, ps);
+    }
+
+    /// <summary>Nilai parameter: dari akun (tidak bisa ditimpa) atau dari pemanggil (default bila tidak dikirim).
+    /// Argumen yang tidak dideklarasikan ditolak.</summary>
+    private static List<(WidgetParameter P, object? V)> Bind(UserContext u, QueryApiConfig c, IReadOnlyDictionary<string, string?> args)
+    {
+        var errors = new List<FieldError>();
+        foreach (var k in args.Keys.Where(k => c.Parameters.All(p => !p.Name.Equals(k, StringComparison.OrdinalIgnoreCase))))
+            errors.Add(new FieldError(k, "parameter tidak dikenal"));
+        var values = new List<(WidgetParameter, object?)>();
+        foreach (var p in c.Parameters)
+        {
+            var given = args.FirstOrDefault(kv => kv.Key.Equals(p.Name, StringComparison.OrdinalIgnoreCase));
+            if (IsUserBound(p) && given.Key is not null) { errors.Add(new FieldError(p.Name, "diisi otomatis dari akun pemanggil dan tidak boleh dikirim")); continue; }
+            var raw = p.Binding switch
+            {
+                ParamBindings.UserId => u.Id,
+                ParamBindings.UserDepartment => u.Attr("department"),
+                _ => given.Key is not null ? given.Value : p.DefaultValue,
+            };
+            try { values.Add((p, DashboardService.Convert(p, raw))); }
+            catch (QueryRejectedException ex) { errors.Add(new FieldError(p.Name, ex.Message)); }
+        }
+        if (errors.Count > 0) throw new ValidationFailedException(errors);
+        return values;
+    }
+
+    private async Task<QueryResultSet> RunAsync(UserContext u, QueryApiConfig c, List<(WidgetParameter P, object? V)> values, int limit, CancellationToken ct)
+    {
+        var a = SqlGuard.Analyze(c.Sql);
+        if (!a.Ok) throw new QueryRejectedException(a.Error!);
+        var ps = a.Parameters.Select(n => values.FirstOrDefault(v => v.P.Name.Equals(n, StringComparison.OrdinalIgnoreCase)) is { P: not null } v
+            ? new SqlParam(v.V, v.P.Type) : throw new QueryRejectedException($"Parameter @{n} belum didefinisikan")).ToList();
+        return await executor.ExecuteAsync(u.TenantId, a.ParameterizedSql, ps, limit, ct);
+    }
+
+    public Task<QueryResultSet> PreviewAsync(UserContext u, QueryApiConfig c, CancellationToken ct = default)
+    {
+        DemandDesigner(u);
+        return RunAsync(u, c, Bind(u, c, new Dictionary<string, string?>()), PreviewRows, ct);
+    }
+
+    private async Task Validate(UserContext u, QueryApiDef def, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(def.Name)) throw new ApiMethodException("Nama API wajib diisi");
+        if (!SlugRx().IsMatch(def.Slug)) throw new ApiMethodException("Slug harus 2–63 karakter: huruf kecil, angka, atau tanda hubung (mis. rekap-pengajuan)");
+        if (!QueryApiOutputs.All.Contains(def.Config.Output)) throw new ApiMethodException("Bentuk keluaran tidak dikenal");
+        if (def.Config.MaxRows is < 1 or > MaxRowsCap) throw new ApiMethodException($"Batas baris 1–{MaxRowsCap:N0}");
+        if (def.Config.CacheSeconds is < 0 or > 3600) throw new ApiMethodException("Cache 0–3600 detik");
+        var (err, _) = DetectParameters(def.Config.Sql, def.Config.Parameters);
+        if (err is not null) throw new QueryRejectedException(err);
+        foreach (var p in def.Config.Parameters)
+            if (p.Binding is not (ParamBindings.Default or ParamBindings.UserId or ParamBindings.UserDepartment)) p.Binding = ParamBindings.Default;
+        await RunAsync(u, def.Config, Bind(u, def.Config, new Dictionary<string, string?>()), 1, ct); // query & parameter pasti valid sebelum terbit
+    }
+
+    public async Task<QueryApiDef> SaveAsync(UserContext u, QueryApiDef def, CancellationToken ct = default)
+    {
+        DemandDesigner(u);
+        await Validate(u, def, ct);
+        var existing = string.IsNullOrEmpty(def.Id) ? null : await store.GetAsync(u.TenantId, def.Id, ct);
+        if (await store.GetBySlugAsync(u.TenantId, def.Slug, ct) is { } other && other.Id != existing?.Id)
+            throw new ApiMethodException($"Slug '{def.Slug}' sudah dipakai API \"{other.Name}\"");
+        var now = clock.GetUtcNow();
+        def.TenantId = u.TenantId;
+        if (existing is null) { def.Id = "qa_" + Guid.NewGuid().ToString("N")[..12]; def.CreatedBy = u.Id; def.CreatedAt = now; def.Version = 1; }
+        else { def.CreatedBy = existing.CreatedBy; def.CreatedAt = existing.CreatedAt; def.Version = existing.Version + 1; def.SourceRef ??= existing.SourceRef; }
+        def.UpdatedAt = now;
+        await store.SaveAsync(def, ct);
+        return def;
+    }
+
+    /// <summary>Opsi "terbitkan juga sebagai API" dari wizard widget/laporan: query & parameter disalin dan ikut diperbarui
+    /// setiap kali sumbernya disimpan. Pengaturan API (keluaran, batas, cache) dari penerbitan sebelumnya dipertahankan.</summary>
+    public async Task<QueryApiDef> PublishFromAsync(UserContext u, string sourceRef, string slug, string name, string? description,
+        string sql, IReadOnlyList<WidgetParameter> parameters, IReadOnlyList<string> roles, CancellationToken ct = default)
+    {
+        DemandDesigner(u);
+        var linked = await GetBySourceAsync(u, sourceRef, ct);
+        var bySlug = await store.GetBySlugAsync(u.TenantId, slug, ct);
+        if (bySlug is not null && bySlug.SourceRef != sourceRef)
+            throw new ApiMethodException($"Slug '{slug}' sudah dipakai API \"{bySlug.Name}\"");
+        var def = linked ?? new QueryApiDef { SourceRef = sourceRef };
+        def.Slug = slug; def.Name = name; def.Description = description;
+        def.Config.Sql = sql;
+        def.Config.Parameters = JsonSerializer.Deserialize<List<WidgetParameter>>(JsonSerializer.Serialize(parameters, DashboardJson.Options), DashboardJson.Options)!;
+        def.Config.Roles = roles.ToList();
+        return await SaveAsync(u, def, ct);
+    }
+
+    public async Task<QueryApiDef?> GetBySourceAsync(UserContext u, string sourceRef, CancellationToken ct = default) =>
+        (await store.ListAsync(u.TenantId, ct)).FirstOrDefault(d => d.SourceRef == sourceRef);
+
+    public async Task<IReadOnlyList<QueryApiDef>> ListAsync(UserContext u, CancellationToken ct = default) =>
+        (await store.ListAsync(u.TenantId, ct)).Where(d => CanDesign(u) || d.Config.Enabled && CanCall(u, d)).ToList();
+
+    public async Task<QueryApiDef?> GetAsync(UserContext u, string id, CancellationToken ct = default)
+    {
+        DemandDesigner(u);
+        return await store.GetAsync(u.TenantId, id, ct);
+    }
+
+    public async Task DeleteAsync(UserContext u, string id, CancellationToken ct = default)
+    {
+        DemandDesigner(u);
+        await store.DeleteAsync(u.TenantId, id, ct);
+    }
+
+    /// <summary>Menjalankan API. Nonaktif / tidak ada → 404 (keberadaan tidak dibocorkan); role → 403; argumen → 422.</summary>
+    public async Task<QueryApiResult> ExecuteAsync(UserContext u, string slug, IReadOnlyDictionary<string, string?> args, CancellationToken ct = default)
+    {
+        var def = await store.GetBySlugAsync(u.TenantId, slug, ct);
+        if (def is null || !def.Config.Enabled) throw new KeyNotFoundException($"API query '{slug}' tidak ada");
+        if (!CanCall(u, def)) throw new PermissionDeniedException("Anda tidak memiliki akses ke API ini");
+        var values = Bind(u, def.Config, args);
+        var key = $"{u.TenantId}|{def.Id}|v{def.Version}|" + string.Join("&", values.Select(v => $"{v.P.Name}={JsonSerializer.Serialize(v.V)}"));
+        var now = clock.GetUtcNow();
+        if (def.Config.CacheSeconds > 0 && _cache.TryGetValue(key, out var hit) && hit.Expires > now)
+            return new QueryApiResult(def, hit.Data, true);
+        var data = await RunAsync(u, def.Config, values, def.Config.MaxRows, ct);
+        if (def.Config.CacheSeconds > 0)
+        {
+            foreach (var kv in _cache.Where(kv => kv.Value.Expires <= now).ToList()) _cache.TryRemove(kv.Key, out _);
+            _cache[key] = (now.AddSeconds(def.Config.CacheSeconds), data);
+        }
+        return new QueryApiResult(def, data, false);
+    }
+}
+
+
+================================================================================
+ 2. [UBAH] src/Framework.Core/Security/ApiKeys.cs
+    Aksi: di regex Valid (class ApiScopes), sebelum ")$" tambahkan alternatif query:
+================================================================================
+
+    |query:(\*|[a-z0-9][a-z0-9-]*)
+
+Hasil akhir:
+    private static readonly Regex Valid = new(@"^(\*|doc:(\*|[A-Z][A-Za-z0-9]*):(\*|list|read|create|update|delete|action)|method:(\*|[a-z0-9][a-z0-9-]*)|report:(\*|[a-z0-9_]+)|query:(\*|[a-z0-9][a-z0-9-]*))$");
+
+
+================================================================================
+ 3. [BARU] src/Framework.Persistence.PostgreSql/Migrations/011_query_apis.sql
+    Aksi: BUAT FILE BARU.
+================================================================================
+
+-- DocFrame: API dari query tersimpan (GET /api/query/{slug}). source_ref menautkan API yang diterbitkan dari
+-- widget dashboard / template laporan agar ikut diperbarui saat sumbernya disimpan.
+CREATE TABLE docframe_query_apis (
+    tenant_id   text        NOT NULL,
+    id          text        NOT NULL,
+    slug        text        NOT NULL,
+    name        text        NOT NULL,
+    description text,
+    config      jsonb       NOT NULL,
+    source_ref  text,
+    created_by  text        NOT NULL,
+    created_at  timestamptz NOT NULL,
+    updated_at  timestamptz NOT NULL,
+    version     integer     NOT NULL,
+    PRIMARY KEY (tenant_id, id),
+    UNIQUE (tenant_id, slug)
+);
+
+
+================================================================================
+ 4. [BARU] src/Framework.Persistence.PostgreSql/PostgresQueryApiStore.cs
+    Aksi: BUAT FILE BARU.
+================================================================================
+
+using System.Text.Json;
+using Framework.Api;
+using Framework.Dashboards;
+using Npgsql;
+
+namespace Framework.Persistence.PostgreSql;
+
+public sealed class PostgresQueryApiStore(NpgsqlDataSource db) : IQueryApiStore
+{
+    private const string Cols = "tenant_id, id, slug, name, description, config::text, source_ref, created_by, created_at, updated_at, version";
+
+    private static QueryApiDef Read(NpgsqlDataReader r) => new()
+    {
+        TenantId = r.GetString(0), Id = r.GetString(1), Slug = r.GetString(2), Name = r.GetString(3), Description = r.IsDBNull(4) ? null : r.GetString(4),
+        Config = JsonSerializer.Deserialize<QueryApiConfig>(r.GetString(5), DashboardJson.Options) ?? new(), SourceRef = r.IsDBNull(6) ? null : r.GetString(6),
+        CreatedBy = r.GetString(7), CreatedAt = r.GetFieldValue<DateTimeOffset>(8), UpdatedAt = r.GetFieldValue<DateTimeOffset>(9), Version = r.GetInt32(10),
+    };
+
+    private async Task<List<QueryApiDef>> Query(string where, params object[] args)
+    {
+        await using var cmd = db.CreateCommand($"SELECT {Cols} FROM docframe_query_apis WHERE {where} ORDER BY slug");
+        foreach (var a in args) cmd.Parameters.AddWithValue(a);
+        var list = new List<QueryApiDef>();
+        await using var r = await cmd.ExecuteReaderAsync();
+        while (await r.ReadAsync()) list.Add(Read(r));
+        return list;
+    }
+
+    public async Task<IReadOnlyList<QueryApiDef>> ListAsync(string tenantId, CancellationToken ct = default) => await Query("tenant_id = $1", tenantId);
+    public async Task<QueryApiDef?> GetAsync(string tenantId, string id, CancellationToken ct = default) => (await Query("tenant_id = $1 AND id = $2", tenantId, id)).FirstOrDefault();
+    public async Task<QueryApiDef?> GetBySlugAsync(string tenantId, string slug, CancellationToken ct = default) => (await Query("tenant_id = $1 AND slug = $2", tenantId, slug)).FirstOrDefault();
+
+    public async Task SaveAsync(QueryApiDef d, CancellationToken ct = default)
+    {
+        await using var cmd = db.CreateCommand(
+            $"INSERT INTO docframe_query_apis ({Cols.Replace("::text", "")}) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11) " +
+            "ON CONFLICT (tenant_id, id) DO UPDATE SET slug=$3, name=$4, description=$5, config=$6::jsonb, source_ref=$7, updated_at=$10, version=$11");
+        cmd.Parameters.AddWithValue(d.TenantId); cmd.Parameters.AddWithValue(d.Id); cmd.Parameters.AddWithValue(d.Slug); cmd.Parameters.AddWithValue(d.Name);
+        cmd.Parameters.AddWithValue((object?)d.Description ?? DBNull.Value);
+        cmd.Parameters.AddWithValue(JsonSerializer.Serialize(d.Config, DashboardJson.Options));
+        cmd.Parameters.AddWithValue((object?)d.SourceRef ?? DBNull.Value);
+        cmd.Parameters.AddWithValue(d.CreatedBy); cmd.Parameters.AddWithValue(d.CreatedAt); cmd.Parameters.AddWithValue(d.UpdatedAt); cmd.Parameters.AddWithValue(d.Version);
+        await cmd.ExecuteNonQueryAsync(ct);
+    }
+
+    public async Task DeleteAsync(string tenantId, string id, CancellationToken ct = default)
+    {
+        await using var cmd = db.CreateCommand("DELETE FROM docframe_query_apis WHERE tenant_id = $1 AND id = $2");
+        cmd.Parameters.AddWithValue(tenantId); cmd.Parameters.AddWithValue(id);
+        await cmd.ExecuteNonQueryAsync(ct);
+    }
+}
+
+
+================================================================================
+ 5. [UBAH] src/Framework.Persistence.PostgreSql/PostgresStores.cs
+    Aksi: setelah registrasi PostgresApiKeyStore, TAMBAHKAN:
+================================================================================
+
+        services.Replace(ServiceDescriptor.Singleton<Framework.Api.IQueryApiStore, PostgresQueryApiStore>());
+
+
+================================================================================
+ 6. [UBAH] src/Framework.Web/Hosting.cs
+    Aksi: setelah "services.AddSingleton<ApiMethodRegistry>();" TAMBAHKAN:
+================================================================================
+
+        services.TryAddSingleton<IQueryApiStore, InMemoryQueryApiStore>();
+        services.AddSingleton<QueryApiService>();
+
+
+================================================================================
+ 7. [GANTI] src/Framework.Web/Api.cs
+    Aksi: GANTI SELURUH ISI (endpoint /api/query, CSV, peta error query 400/503).
+================================================================================
+
+using System.Text.Json;
+using Framework.Documents;
+using Framework.Jobs;
+using Framework.Metadata;
+using Framework.Persistence;
+using Framework.Security;
+using Framework.Web.Printing;
+using Framework.Web.Identity;
+using Microsoft.AspNetCore.Identity;
+using Framework.Files;
+using Framework.Reports;
+using Framework.Api;
+using Microsoft.Extensions.Logging;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace Framework.Web;
+
+public static class DocApi
+{
+    public static IEndpointRouteBuilder MapDocFrameworkApi(this IEndpointRouteBuilder app)
+    {
+        // ---------- File (gambar) ----------
+        // Cookie browser diterima (dipakai <img>). Tertaut ke dokumen → hanya yang boleh membaca dokumen itu dan
+        // dokumen masih memakai file tersebut; belum tertaut → hanya pengunggah. Selain itu 404 (tidak membocorkan keberadaan).
+        app.MapGet("/files/{id}", async (HttpContext http, string id) =>
+        {
+            var user = ClaimsUserMapper.ToUserContext(http.User);
+            if (user is null) return Results.Unauthorized();
+            var sp = http.RequestServices;
+            var file = await sp.GetRequiredService<IFileStore>().GetAsync(user.TenantId, id, http.RequestAborted);
+            if (file is not { } f) return Results.NotFound();
+            bool allowed;
+            if (f.Record.DocName is null) allowed = f.Record.UploadedBy == user.Id;
+            else
+            {
+                try
+                {
+                    var doc = await Docs(sp).GetAsync(user, f.Record.DocType!, f.Record.DocName, http.RequestAborted);
+                    allowed = f.Record.Field is { } field && doc.Data.GetValueOrDefault(field) as string == id;
+                }
+                catch (Exception ex) when (ex is DocumentNotFoundException or PermissionDeniedException or KeyNotFoundException) { allowed = false; }
+            }
+            if (!allowed) return Results.NotFound();
+            http.Response.Headers["X-Content-Type-Options"] = "nosniff";
+            http.Response.Headers["Content-Security-Policy"] = "default-src 'none'; img-src 'self'; sandbox";
+            http.Response.Headers.CacheControl = "private, max-age=300";
+            return Results.File(f.Content, f.Record.ContentType);
+        });
+
+        // ---------- Laporan file (Excel/Word) ----------
+        // Unduhan dari halaman laporan: token sekali pakai yang terikat pengguna (cookie browser diterima, GET).
+        app.MapGet("/report-downloads/{token}", (HttpContext http, string token) =>
+        {
+            var user = ClaimsUserMapper.ToUserContext(http.User);
+            if (user is null) return Results.Unauthorized();
+            var output = http.RequestServices.GetRequiredService<ReportDownloads>().Take(token, user.TenantId, user.Id);
+            if (output is null) return Results.NotFound();
+            http.Response.Headers["X-Content-Type-Options"] = "nosniff";
+            http.Response.Headers.CacheControl = "no-store";
+            return Results.File(output.Content, output.ContentType, output.FileName);
+        });
+
+        var api = app.MapGroup("/api").RequireRateLimiting(ServiceCollectionExtensions.ApiRateLimit);
+
+        // ---------- API dari query tersimpan: GET /api/query/{slug}?Param=nilai ----------
+        api.MapGet("/query", (Delegate)((HttpContext http) => Run(http, AnyApiKeyScope, async (user, sp) =>
+        {
+            var granted = http.User.FindAll(Framework.Web.Identity.ApiKeyDefaults.ScopeClaim).Select(c => c.Value).ToList();
+            var viaKey = http.User.FindFirst(Framework.Web.Identity.ApiKeyDefaults.KeyIdClaim) is not null;
+            var list = (await sp.GetRequiredService<QueryApiService>().ListAsync(user, http.RequestAborted))
+                .Where(d => d.Config.Enabled && QueryApiService.CanCall(user, d) && (!viaKey || ApiScopes.Allows(granted, $"query:{d.Slug}")))
+                .Select(d => new
+                {
+                    slug = d.Slug, name = d.Name, description = d.Description, output = d.Config.Output, endpoint = $"/api/query/{d.Slug}",
+                    parameters = d.Config.Parameters.Where(p => !QueryApiService.IsUserBound(p)).Select(p => new { name = p.Name, label = p.Label, type = p.Type, @default = p.DefaultValue }),
+                });
+            return Results.Ok(list);
+        })));
+
+        api.MapGet("/query/{slug}", (HttpContext http, string slug) => Run(http, $"query:{slug}", async (user, sp) =>
+        {
+            var args = http.Request.Query.ToDictionary(q => q.Key, q => (string?)q.Value.ToString(), StringComparer.OrdinalIgnoreCase);
+            var r = await sp.GetRequiredService<QueryApiService>().ExecuteAsync(user, slug, args, http.RequestAborted);
+            http.Response.Headers["X-Cache"] = r.FromCache ? "HIT" : "MISS";
+            var cols = r.Data.Columns;
+            Dictionary<string, object?> Row(object?[] row) => cols.Select((c, i) => (c.Name, row[i])).ToDictionary(x => x.Name, x => x.Item2);
+            return r.Def.Config.Output switch
+            {
+                QueryApiOutputs.Object => Results.Ok(new { data = r.Data.Rows.Count > 0 ? Row(r.Data.Rows[0]) : null, columns = cols }),
+                QueryApiOutputs.Csv => Results.File(Csv(cols, r.Data.Rows), "text/csv; charset=utf-8", $"{slug}.csv"),
+                _ => Results.Ok(new { data = r.Data.Rows.Select(Row), columns = cols, count = r.Data.Rows.Count, truncated = r.Data.Truncated }),
+            };
+        }));
+
+        // ---------- Method kustom (padanan /api/method di Frappe) ----------
+        api.MapGet("/method", (Delegate)((HttpContext http) => Run(http, AnyApiKeyScope, (user, sp) =>
+        {
+            var granted = http.User.FindAll(Framework.Web.Identity.ApiKeyDefaults.ScopeClaim).Select(c => c.Value).ToList();
+            var viaKey = http.User.FindFirst(Framework.Web.Identity.ApiKeyDefaults.KeyIdClaim) is not null;
+            var list = sp.GetRequiredService<ApiMethodRegistry>().Visible(user)
+                .Where(m => !viaKey || ApiScopes.Allows(granted, $"method:{m.Name}"))
+                .Select(m => new { name = m.Name, description = m.Description, roles = m.Roles, parameters = m.Parameters, endpoint = $"/api/method/{m.Name}" });
+            return Task.FromResult(Results.Ok(list));
+        })));
+
+        api.MapPost("/method/{name}", (HttpContext http, string name) => Run(http, $"method:{name}", async (user, sp) =>
+        {
+            JsonElement? body = null;
+            if (http.Request.ContentLength is > 0 || http.Request.Headers.TransferEncoding.Count > 0)
+            {
+                using var doc = await JsonDocument.ParseAsync(http.Request.Body, cancellationToken: http.RequestAborted);
+                body = doc.RootElement.Clone();
+            }
+            var result = await sp.GetRequiredService<ApiMethodRegistry>().InvokeAsync(user, name, body, sp, http.RequestAborted);
+            return Results.Ok(new { data = result });
+        }));
+
+        // Klien API (bearer token): POST /api/report-templates/{id}/generate  { "parameters": { "Periode": "2026-10-01" } }
+        api.MapPost("/report-templates/{id}/generate", (HttpContext http, string id, GenerateReportBody? body) => Run(http, $"report:{id}", async (user, sp) =>
+        {
+            try
+            {
+                var output = await sp.GetRequiredService<ReportTemplateService>().GenerateAsync(user, id, body?.Parameters ?? new Dictionary<string, string?>(), http.RequestAborted);
+                return Results.File(output.Content, output.ContentType, output.FileName);
+            }
+            catch (Exception ex) when (ex is TemplateException or Framework.Dashboards.QueryRejectedException or Framework.Dashboards.ReportingUnavailableException)
+            {
+                return Problem(400, "Laporan tidak bisa dibuat", ex.Message);
+            }
+        }));
+
+        // ---------- Autentikasi API ----------
+        api.MapPost("/auth/login", async (LoginBody body, SignInManager<UserAccount> signIn) =>
+        {
+            // Respons token (access_token, expires_in, refresh_token) ditulis langsung oleh handler bearer token.
+            signIn.AuthenticationScheme = IdentityConstants.BearerScheme;
+            var result = await signIn.PasswordSignInAsync(body.UserName ?? "", body.Password ?? "", isPersistent: false, lockoutOnFailure: true);
+            if (result.Succeeded) return Results.Empty;
+            return result.IsLockedOut ? Problem(423, "Akun terkunci", "Terlalu banyak percobaan gagal. Coba lagi nanti.")
+                : Problem(401, "Login gagal", "Username atau password salah, atau akun nonaktif.");
+        }).AllowAnonymous();
+
+        api.MapGet("/auth/me", (HttpContext http) => ClaimsUserMapper.ToUserContext(http.User) is { } u
+            ? Results.Ok(u) : Problem(401, "Belum terautentikasi", "Tidak ada sesi atau token yang valid."));
+
+        // ---------- Metadata ----------
+        api.MapGet("/meta/{doctype}", (HttpContext http, string doctype) => Run(http, $"doc:{doctype}:read", (user, sp) =>
+        {
+            var meta = sp.GetRequiredService<IMetadataProvider>().Current.Get(doctype);
+            var perms = sp.GetRequiredService<IPermissionService>();
+            perms.Demand(user, meta, DocActions.Read);
+            return Task.FromResult(Results.Ok(new
+            {
+                meta.Name, meta.Version, meta.Title, meta.Def.IsChild, meta.Def.Workflow,
+                fields = meta.Fields.Where(f => perms.CanReadField(user, meta, f)).Select(f => f.Def),
+                meta.Def.ListView, meta.Def.Rules,
+                can = DocActions.All.Where(a => perms.Can(user, meta, a)),
+            }));
+        }));
+
+        api.MapGet("/meta/{doctype}/versions", (HttpContext http, string doctype) => Run(http, (user, sp) =>
+        {
+            RequireRole(user, UserContext.SystemManager);
+            return Task.FromResult(Results.Ok(sp.GetRequiredService<IMetadataProvider>().History(doctype)
+                .Select(v => new { v.Version, status = v.Status.ToString(), v.PublishedBy, v.PublishedAt, v.Changes })));
+        }));
+
+        api.MapGet("/meta/{doctype}/versions/{version:int}", (HttpContext http, string doctype, int version) => Run(http, (user, sp) =>
+        {
+            RequireRole(user, UserContext.SystemManager);
+            var v = sp.GetRequiredService<IMetadataProvider>().History(doctype).FirstOrDefault(x => x.Version == version)
+                ?? throw new DocumentNotFoundException("Versi metadata", $"{doctype} v{version}");
+            return Task.FromResult(Results.Ok(v.Def));
+        }));
+
+        api.MapPost("/admin/metadata/preview", (HttpContext http, JsonElement body) => Run(http, (user, sp) =>
+        {
+            RequireRole(user, UserContext.SystemManager);
+            var def = MetadataJson.ParseDocType(body.GetRawText());
+            return Task.FromResult(Results.Ok(sp.GetRequiredService<MetadataRegistry>().Preview(def)));
+        }));
+
+        api.MapPost("/admin/metadata/publish", (HttpContext http, JsonElement body, bool acknowledgeRisk) => Run(http, (user, sp) =>
+        {
+            RequireRole(user, UserContext.SystemManager);
+            var def = MetadataJson.ParseDocType(body.GetRawText());
+            var v = sp.GetRequiredService<MetadataRegistry>().Publish(def, user.Id, acknowledgeRisk);
+            return Task.FromResult(Results.Ok(new { v.DocType, v.Version, v.Changes }));
+        }));
+
+        // ---------- Data ----------
+        api.MapGet("/data/{doctype}", (HttpContext http, string doctype, string? search, string? sort, string? dir, int? page, int? pageSize, string? filters) =>
+            Run(http, $"doc:{doctype}:list", async (user, sp) =>
+            {
+                RequireApi(sp, doctype, "list");
+                var parsed = ParseFilters(filters);
+                var res = await Docs(sp).ListAsync(user, doctype, new ListRequest(parsed, search, sort, dir, page ?? 1, pageSize ?? 0), http.RequestAborted);
+                return Results.Ok(res);
+            }));
+
+        api.MapGet("/data/{doctype}/{name}", (HttpContext http, string doctype, string name) => Run(http, $"doc:{doctype}:read", async (user, sp) =>
+        {
+            RequireApi(sp, doctype, "read");
+            var doc = await Docs(sp).GetAsync(user, doctype, name, http.RequestAborted);
+            http.Response.Headers.ETag = $"\"{doc.Version}\"";
+            return Results.Ok(ToDto(doc));
+        }));
+
+        api.MapPost("/data/{doctype}", (HttpContext http, string doctype, Dictionary<string, JsonElement> body) => Run(http, $"doc:{doctype}:create", async (user, sp) =>
+        {
+            RequireApi(sp, doctype, "create");
+            var doc = await Docs(sp).InsertAsync(user, doctype, ToPayload(body), http.RequestAborted);
+            return Results.Created($"/api/data/{doctype}/{doc.Name}", ToDto(doc));
+        }));
+
+        api.MapMethods("/data/{doctype}/{name}", ["PATCH"], (HttpContext http, string doctype, string name, Dictionary<string, JsonElement> body) => Run(http, $"doc:{doctype}:update", async (user, sp) =>
+        {
+            RequireApi(sp, doctype, "update");
+            var doc = await Docs(sp).UpdateAsync(user, doctype, name, IfMatch(http), ToPayload(body), http.RequestAborted);
+            http.Response.Headers.ETag = $"\"{doc.Version}\"";
+            return Results.Ok(ToDto(doc));
+        }));
+
+        api.MapDelete("/data/{doctype}/{name}", (HttpContext http, string doctype, string name) => Run(http, $"doc:{doctype}:delete", async (user, sp) =>
+        {
+            RequireApi(sp, doctype, "delete");
+            await Docs(sp).DeleteAsync(user, doctype, name, IfMatch(http), http.RequestAborted);
+            return Results.NoContent();
+        }));
+
+        api.MapPost("/data/{doctype}/{name}/actions/{action}", (HttpContext http, string doctype, string name, string action, ActionBody? body) => Run(http, $"doc:{doctype}:action", async (user, sp) =>
+        {
+            RequireApi(sp, doctype, "action");
+            var doc = await Docs(sp).RunActionAsync(user, doctype, name, action, IfMatch(http), body?.Comment, http.RequestAborted);
+            http.Response.Headers.ETag = $"\"{doc.Version}\"";
+            return Results.Ok(ToDto(doc));
+        }));
+
+        api.MapGet("/data/{doctype}/{name}/audit", (HttpContext http, string doctype, string name) => Run(http, $"doc:{doctype}:read", async (user, sp) =>
+        {
+            RequireApi(sp, doctype, "read");
+            return Results.Ok(await Docs(sp).GetAuditAsync(user, doctype, name, http.RequestAborted));
+        }));
+
+        api.MapGet("/links/{target}", (HttpContext http, string target, string? q) => Run(http, $"doc:{target}:list", async (user, sp) =>
+            Results.Ok(await Docs(sp).SearchLinkAsync(user, target, q, http.RequestAborted))));
+
+        // ---------- Report ----------
+        api.MapGet("/reports/{name}", (HttpContext http, string name) => Run(http, async (user, sp) =>
+            Results.Ok(await sp.GetRequiredService<ReportService>().RunAsync(user, name, QueryDict(http), http.RequestAborted))));
+
+        api.MapGet("/reports/{name}/export.csv", (HttpContext http, string name) => Run(http, async (user, sp) =>
+        {
+            var csv = await sp.GetRequiredService<ReportService>().ExportCsvAsync(user, name, QueryDict(http), http.RequestAborted);
+            return Results.File(System.Text.Encoding.UTF8.GetPreamble().Concat(System.Text.Encoding.UTF8.GetBytes(csv)).ToArray(), "text/csv", $"{name}.csv");
+        }));
+
+        // ---------- Cetak ----------
+        api.MapGet("/print/{doctype}/{name}/pdf", (HttpContext http, string doctype, string name, bool? inline) => Run(http, $"doc:{doctype}:read", async (user, sp) =>
+        {
+            var model = await sp.GetRequiredService<PrintService>().BuildAsync(user, doctype, name, http.RequestAborted);
+            var html = await sp.GetRequiredService<PrintHtmlRenderer>().RenderAsync(model);
+            var pdf = await sp.GetRequiredService<IPdfRenderer>().RenderAsync(html, http.RequestAborted);
+            await Docs(sp).LogPrintAsync(user, doctype, name, "PDF", http.RequestAborted);
+            return inline == true ? Results.File(pdf, "application/pdf") : Results.File(pdf, "application/pdf", $"{name}.pdf");
+        }));
+
+        return app;
+    }
+
+    public sealed record ActionBody(string? Comment);
+    public sealed record LoginBody(string? UserName, string? Password);
+    public sealed record GenerateReportBody(Dictionary<string, string?>? Parameters);
+
+    private static DocumentService Docs(IServiceProvider sp) => sp.GetRequiredService<DocumentService>();
+
+    private static void RequireRole(UserContext user, string role)
+    {
+        if (!user.Roles.Contains(role)) throw new PermissionDeniedException($"Butuh role '{role}'");
+    }
+
+    /// <summary>API generik opt-in per DocType (RFC §13).</summary>
+    private static void RequireApi(IServiceProvider sp, string doctype, string op)
+    {
+        if (!sp.GetRequiredService<IMetadataProvider>().Current.TryGet(doctype, out var meta) || meta.Def.IsChild)
+            throw new DocumentNotFoundException("DocType", doctype);
+        if (!meta.Def.Api.Enabled || !meta.Def.Api.Operations.Contains(op))
+            throw new DocumentNotFoundException($"Operasi API '{op}' untuk", doctype);
+    }
+
+    private static int IfMatch(HttpContext http)
+    {
+        var raw = http.Request.Headers.IfMatch.FirstOrDefault()?.Trim('"', ' ');
+        return int.TryParse(raw, out var v) ? v : throw new InvalidPayloadException("Header If-Match berisi versi dokumen wajib dikirim");
+    }
+
+    private static Dictionary<string, object?> ToPayload(Dictionary<string, JsonElement> body) =>
+        body.ToDictionary(kv => kv.Key, kv => (object?)kv.Value);
+
+    private static Dictionary<string, string?> QueryDict(HttpContext http) =>
+        http.Request.Query.ToDictionary(kv => kv.Key, kv => (string?)kv.Value.ToString());
+
+    private static List<FilterClause> ParseFilters(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return [];
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            return doc.RootElement.EnumerateArray().Select(e =>
+            {
+                var a = e.EnumerateArray().ToArray();
+                if (a.Length != 3) throw new InvalidPayloadException("Filter harus berupa [field, operator, nilai]");
+                object? value = a[2].ValueKind == JsonValueKind.Array
+                    ? a[2].EnumerateArray().Select(Scalar).ToList()
+                    : Scalar(a[2]);
+                return new FilterClause(a[0].GetString()!, a[1].GetString()!, value);
+            }).ToList();
+        }
+        catch (JsonException) { throw new InvalidPayloadException("Parameter filters bukan JSON yang valid"); }
+    }
+
+    private static object? Scalar(JsonElement e) => e.ValueKind switch
+    {
+        JsonValueKind.String => e.GetString(),
+        JsonValueKind.Number => e.GetDecimal(),
+        JsonValueKind.True => true,
+        JsonValueKind.False => false,
+        JsonValueKind.Null => null,
+        _ => throw new InvalidPayloadException("Nilai filter harus skalar atau daftar skalar")
+    };
+
+    public static Dictionary<string, object?> ToDto(Document d)
+    {
+        var dto = new Dictionary<string, object?>
+        {
+            ["name"] = d.Name, ["doctype"] = d.DocType, ["docstatus"] = d.DocStatus, ["workflow_state"] = d.WorkflowState,
+            ["owner"] = d.Owner, ["created"] = d.Created, ["modified"] = d.Modified, ["modified_by"] = d.ModifiedBy,
+            ["version"] = d.Version, ["schema_version"] = d.SchemaVersion, ["workflow_version"] = d.WorkflowVersion,
+            ["amended_from"] = d.AmendedFrom,
+        };
+        foreach (var (k, v) in d.Data) dto[k] = v;
+        return dto;
+    }
+
+    /// <summary>Pemetaan exception → response yang konsisten (application/problem+json).</summary>
+    /// <summary>Endpoint tanpa deklarasi cakupan: kunci API ditolak (gagal tertutup).</summary>
+    private static Task<IResult> Run(HttpContext http, Func<UserContext, IServiceProvider, Task<IResult>> action) => Run(http, null, action);
+
+    /// <summary>Cakupan khusus: kunci API boleh masuk tanpa dicek di sini (endpoint menyaring sendiri, mis. daftar method).</summary>
+    private const string AnyApiKeyScope = "*any";
+
+    private static async Task<IResult> Run(HttpContext http, string? scope, Func<UserContext, IServiceProvider, Task<IResult>> action)
+    {
+        // Kunci API: hanya endpoint yang mendeklarasikan cakupan, dan cakupan itu harus diberikan pada kunci.
+        if (http.User.FindFirst(Framework.Web.Identity.ApiKeyDefaults.KeyIdClaim) is not null && scope != AnyApiKeyScope)
+        {
+            if (scope is null) return Problem(403, "Kunci API tidak berlaku", "Endpoint ini tidak bisa dipakai dengan kunci API.");
+            if (!ApiScopes.Allows(http.User.FindAll(Framework.Web.Identity.ApiKeyDefaults.ScopeClaim).Select(c => c.Value), scope))
+                return Problem(403, "Di luar cakupan kunci API", $"Kunci ini tidak mencakup '{scope}'.");
+        }
+        // Identitas dari klaim (cookie atau bearer) yang sudah divalidasi middleware autentikasi.
+        var user = ClaimsUserMapper.ToUserContext(http.User);
+        if (user is null) return Problem(401, "Belum terautentikasi", "Login lewat POST /api/auth/login lalu kirim header Authorization: Bearer <token>.");
+        // Cookie dikirim otomatis oleh browser → permintaan yang mengubah data wajib memakai bearer token (perlindungan CSRF).
+        var authz = http.Request.Headers.Authorization.ToString();
+        var viaBearer = authz.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) || authz.StartsWith(Framework.Web.Identity.ApiKeyDefaults.Scheme + " ", StringComparison.OrdinalIgnoreCase);
+        if (!viaBearer && !HttpMethods.IsGet(http.Request.Method) && !HttpMethods.IsHead(http.Request.Method))
+            return Problem(403, "Butuh bearer token", "API yang mengubah data harus memakai header Authorization: Bearer <token>, bukan cookie browser.");
+        try { return await action(user, http.RequestServices); }
+        catch (ValidationFailedException ex) { return Problem(422, "Validasi gagal", ex.Message, ex.Errors); }
+        catch (PermissionDeniedException ex) { return Problem(403, "Akses ditolak", ex.Message); }
+        catch (DocumentNotFoundException ex) { return Problem(404, "Tidak ditemukan", ex.Message); }
+        catch (KeyNotFoundException ex) { return Problem(404, "Tidak ditemukan", ex.Message); }
+        catch (ConcurrencyException ex) { return Problem(409, "Konflik versi", ex.Message); }
+        catch (InvalidStateException ex) { return Problem(409, "Status dokumen tidak mengizinkan", ex.Message); }
+        catch (InvalidPayloadException ex) { return Problem(400, "Payload tidak valid", ex.Message, ex.Fields.Select(f => new FieldError(f, "tidak diizinkan")).ToList()); }
+        catch (MetadataCompilationException ex) { return Problem(422, "Metadata tidak valid", "Periksa daftar error", ex.Errors.Select(e => new FieldError(e.Path, e.Message)).ToList()); }
+        catch (JsonException ex) { return Problem(400, "JSON tidak valid", ex.Message); }
+        catch (PdfUnavailableException ex) { return Problem(501, "PDF tidak tersedia", ex.Message); }
+        catch (InvalidOperationException ex) { return Problem(409, "Operasi ditolak", ex.Message); }
+        catch (ApiMethodException ex) { return Problem(400, "Permintaan ditolak", ex.Message); }
+        catch (Framework.Dashboards.QueryRejectedException ex) { return Problem(400, "Query ditolak", ex.Message); }
+        catch (Framework.Dashboards.ReportingUnavailableException ex) { return Problem(503, "Fitur query tidak tersedia", ex.Message); }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Jangan bocorkan detail internal (stack, SQL) ke klien API; detail ada di log server.
+            http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("Framework.Api").LogError(ex, "API {Method} {Path} gagal", http.Request.Method, http.Request.Path);
+            return Problem(500, "Kesalahan internal", "Terjadi kesalahan di server. Hubungi administrator (rujuk waktu kejadian).");
+        }
+    }
+
+    /// <summary>CSV UTF-8 (BOM agar Excel membaca huruf dengan benar). Nilai berawalan = + - @ diberi apostrof:
+    /// mencegah formula injection saat file dibuka di spreadsheet.</summary>
+    private static byte[] Csv(IReadOnlyList<Framework.Dashboards.ResultColumn> cols, IReadOnlyList<object?[]> rows)
+    {
+        static string Cell(object? v)
+        {
+            var s = v switch { null => "", decimal d => d.ToString(System.Globalization.CultureInfo.InvariantCulture), bool b => b ? "true" : "false", _ => Convert.ToString(v, System.Globalization.CultureInfo.InvariantCulture) ?? "" };
+            if (s.Length > 0 && v is string && "=+-@".Contains(s[0])) s = "'" + s;
+            return s.IndexOfAny([',', '"', '\n', '\r']) >= 0 ? "\"" + s.Replace("\"", "\"\"") + "\"" : s;
+        }
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine(string.Join(",", cols.Select(c => Cell(c.Name))));
+        foreach (var r in rows) sb.AppendLine(string.Join(",", r.Select(Cell)));
+        return [.. System.Text.Encoding.UTF8.GetPreamble(), .. System.Text.Encoding.UTF8.GetBytes(sb.ToString())];
+    }
+
+    private static IResult Problem(int status, string title, string detail, IReadOnlyList<FieldError>? errors = null) =>
+        Results.Json(new { type = $"https://httpstatuses.io/{status}", title, status, detail, errors = errors ?? [] },
+            statusCode: status, contentType: "application/problem+json");
+}
+
+
+================================================================================
+ 8. [BARU] src/Framework.Web/QueryApis/PublishAsApiOption.cs
+    Aksi: BUAT FOLDER "QueryApis" dan FILE BARU.
+================================================================================
+
+using Framework.Api;
+using Framework.Dashboards;
+using Framework.Security;
+
+namespace Framework.Web.QueryApis;
+
+/// <summary>
+/// Opsi "Terbitkan juga sebagai API" di wizard widget dashboard & template laporan: query dan parameter yang sama
+/// diterbitkan di /api/query/{slug} dan ikut diperbarui setiap kali sumbernya disimpan. Dicentang lalu dilepas = API dihapus.
+/// </summary>
+public sealed class ApiPublishOption
+{
+    public bool On { get; set; }
+    public string Slug { get; set; } = "";
+    public QueryApiDef? Linked { get; private set; }
+
+    public async Task LoadAsync(QueryApiService apis, UserContext u, string? sourceRef)
+    {
+        if (sourceRef is null || !apis.IsAvailable || !QueryApiService.CanDesign(u)) return;
+        Linked = await apis.GetBySourceAsync(u, sourceRef);
+        On = Linked is not null;
+        Slug = Linked?.Slug ?? "";
+    }
+
+    /// <summary>Menerapkan pilihan setelah sumber disimpan. Mengembalikan keterangan untuk notifikasi (null = tidak ada perubahan).</summary>
+    public async Task<string?> ApplyAsync(QueryApiService apis, UserContext u, string sourceRef, string name, string? description,
+        string sql, IReadOnlyList<WidgetParameter> parameters, IReadOnlyList<string> roles)
+    {
+        if (On)
+        {
+            var d = await apis.PublishFromAsync(u, sourceRef, Slug, name, description, sql, parameters, roles);
+            Linked = d;
+            return $"API /api/query/{d.Slug} diperbarui (v{d.Version}).";
+        }
+        if (Linked is null) return null;
+        await apis.DeleteAsync(u, Linked.Id);
+        Linked = null;
+        return "API dari sumber ini dihapus.";
+    }
+}
+
+
+================================================================================
+ 8. [BARU] src/Framework.Web/QueryApis/PublishAsApiOption.razor
+    Aksi: BUAT FILE BARU.
+================================================================================
+
+@using Framework.Api
+@inject QueryApiService Apis
+
+@if (Apis.IsAvailable)
+{
+    <div class="api-option">
+        <div class="label-row">
+            <BbCheckbox Id="pub-api" Checked="Option.On" CheckedChanged="Toggle" />
+            <BbLabel For="pub-api">Terbitkan juga sebagai API (JSON) — query &amp; parameter yang sama</BbLabel>
+        </div>
+        @if (Option.On)
+        {
+            <div class="api-slug">
+                <span class="muted small">/api/query/</span>
+                <FormTextInput Id="pub-slug" Value="@Option.Slug" ValueChanged="v => Option.Slug = (v ?? string.Empty).Trim().ToLowerInvariant()" AriaLabel="Slug API" Placeholder="rekap-pengajuan" />
+            </div>
+            <p class="muted small" style="margin:.35rem 0 0">Ikut diperbarui setiap kali disimpan. Role sama dengan pengaturan di atas. Bentuk keluaran, batas baris, dan cache diatur di menu <a href="/query-apis">API Query</a>.</p>
+        }
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public ApiPublishOption Option { get; set; } = default!;
+    [Parameter] public string DefaultName { get; set; } = "";
+
+    private void Toggle(bool on)
+    {
+        Option.On = on;
+        if (on && string.IsNullOrWhiteSpace(Option.Slug)) Option.Slug = QueryApiService.Slugify(DefaultName);
+    }
+}
+
+
+================================================================================
+ 9. [BARU] src/Framework.Web/QueryApis/QueryApiList.razor
+    Aksi: BUAT FILE BARU.
+================================================================================
+
+@page "/query-apis"
+@using Framework.Api
+@inject QueryApiService Apis
+@inject CurrentUser Current
+@inject ToastService Toasts
+@inject DialogService Dialogs
+
+<PageTitle>API Query · DocFrame</PageTitle>
+
+<header class="page-head">
+    <div><h1>API Query</h1><p>Query tersimpan yang diterbitkan sebagai endpoint <code>GET /api/query/{slug}</code> — dibuat di sini, atau sebagai opsi dari widget dashboard dan template laporan.</p></div>
+    @if (designer) { <BbButton Href="/query-apis/new"><LucideIcon Name="plus" Size="16" /> API baru</BbButton> }
+</header>
+
+@if (!Apis.IsAvailable)
+{
+    <Framework.Web.Dashboards.UnavailableNotice />
+}
+else if (!designer)
+{
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>Halaman ini hanya untuk System Manager. Daftar API yang bisa Anda panggil: <code>GET /api/query</code>.</BbAlertDescription></BbAlert>
+}
+else if (items is null)
+{
+    <BbSkeleton Height="10rem" />
+}
+else if (items.Count == 0)
+{
+    <BbEmpty Title="Belum ada API query" Description="Buat langsung, atau centang &quot;Terbitkan juga sebagai API&quot; saat menyimpan widget dashboard / template laporan." />
+}
+else
+{
+    <div class="table-wrap">
+        <table class="data">
+            <thead><tr><th>API</th><th>Endpoint</th><th>Keluaran</th><th>Parameter</th><th>Boleh dipanggil</th><th>Sumber</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var d in items)
+                {
+                    var item = d;
+                    <tr>
+                        <td><strong>@item.Name</strong>@if (item.Description is not null) { <div class="muted small">@item.Description</div> }</td>
+                        <td class="nowrap"><code>/api/query/@item.Slug</code></td>
+                        <td>@OutputLabel(item.Config.Output)@(item.Config.CacheSeconds > 0 ? $" · cache {item.Config.CacheSeconds} dtk" : "")</td>
+                        <td>@(item.Config.Parameters.Count == 0 ? "—" : string.Join(", ", item.Config.Parameters.Select(p => QueryApiService.IsUserBound(p) ? $"{p.Name} (akun)" : p.Name)))</td>
+                        <td>@(item.Config.Roles.Count == 0 ? "Semua" : string.Join(", ", item.Config.Roles))</td>
+                        <td class="small">@SourceLabel(item.SourceRef)</td>
+                        <td><BbBadge Variant="@(item.Config.Enabled ? BadgeVariant.SoftSuccess : BadgeVariant.Soft)">@(item.Config.Enabled ? "Aktif" : "Nonaktif")</BbBadge></td>
+                        <td class="nowrap">
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" Href="@($"/query-apis/{item.Id}/edit")"><LucideIcon Name="pencil" Size="15" /> Edit</BbButton>
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@($"Hapus {item.Name}")" OnClick="() => Delete(item)"><LucideIcon Name="trash-2" Size="15" /></BbButton>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private IReadOnlyList<QueryApiDef>? items;
+    private bool designer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        designer = QueryApiService.CanDesign(Current.Required);
+        if (designer && Apis.IsAvailable) items = await Apis.ListAsync(Current.Required);
+    }
+
+    private async Task Delete(QueryApiDef d)
+    {
+        var ok = await Dialogs.ConfirmAsync($"Hapus API {d.Name}?", $"Pemanggil /api/query/{d.Slug} akan mendapat 404.",
+            new ConfirmDialogOptions { Destructive = true, ConfirmText = "Hapus", CancelText = "Batal" });
+        if (!ok.Confirmed) return;
+        await Apis.DeleteAsync(Current.Required, d.Id);
+        Toasts.Success("API dihapus.", d.Name);
+        items = await Apis.ListAsync(Current.Required);
+    }
+
+    internal static string OutputLabel(string o) => o switch { QueryApiOutputs.Object => "Satu objek", QueryApiOutputs.Csv => "CSV", _ => "Daftar baris" };
+    private static string SourceLabel(string? s) => s switch
+    {
+        null => "Dibuat langsung",
+        _ when s.StartsWith("widget:") => "Widget dashboard",
+        _ when s.StartsWith("report:") => "Template laporan",
+        _ => s,
+    };
+}
+
+
+================================================================================
+ 10. [BARU] src/Framework.Web/QueryApis/QueryApiBuilder.razor
+    Aksi: BUAT FILE BARU.
+================================================================================
+
+@page "/query-apis/new"
+@page "/query-apis/{ApiId}/edit"
+@using Framework.Api
+@using Framework.Dashboards
+@using System.Text.Json
+@inject QueryApiService Apis
+@inject IMetadataProvider Metadata
+@inject CurrentUser Current
+@inject ToastService Toasts
+@inject NavigationManager Nav
+
+<PageTitle>@(isEdit ? "Edit API query" : "API query baru") · DocFrame</PageTitle>
+
+<BbBreadcrumb Class="crumbs">
+    <BbBreadcrumbList>
+        <BbBreadcrumbItem><BbBreadcrumbLink Href="/query-apis">API Query</BbBreadcrumbLink></BbBreadcrumbItem>
+        <BbBreadcrumbSeparator />
+        <BbBreadcrumbItem><BbBreadcrumbPage>@(isEdit ? def.Name : "Baru")</BbBreadcrumbPage></BbBreadcrumbItem>
+    </BbBreadcrumbList>
+</BbBreadcrumb>
+
+@if (!QueryApiService.CanDesign(Current.Required))
+{
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>Menerbitkan API query hanya untuk System Manager.</BbAlertDescription></BbAlert>
+}
+else if (!Apis.IsAvailable)
+{
+    <UnavailableNotice />
+}
+else
+{
+    <header class="page-head">
+        <div>
+            <h1>@(isEdit ? $"Edit: {def.Name}" : "API query baru")</h1>
+            <p>Jalur yang sama dengan widget dashboard &amp; template laporan: query (read-only, terbatas tenant) → parameter → terbitkan sebagai <code>GET /api/query/{slug}</code>.</p>
+        </div>
+    </header>
+
+    @if (def.SourceRef is not null)
+    {
+        <BbAlert Class="props-block"><BbAlertDescription>API ini diterbitkan dari @(def.SourceRef.StartsWith("widget:") ? "widget dashboard" : "template laporan"). Query, parameter, dan role ikut diperbarui saat sumbernya disimpan; pengaturan di langkah 3 (keluaran, batas, cache, status) tetap milik API ini.</BbAlertDescription></BbAlert>
+    }
+
+    <ol class="wizard-steps" aria-label="Langkah" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+        @foreach (var (n, title) in Steps)
+        {
+            var num = n;
+            <li class="@(step == num ? "current" : num < step ? "done" : "")">
+                <button type="button" disabled="@(num > maxStep)" @onclick="() => GoTo(num)" aria-current="@(step == num ? "step" : null)">
+                    <span class="step-num">@(num < step ? "✓" : num.ToString())</span><span>@title</span>
+                </button>
+            </li>
+        }
+    </ol>
+
+    @if (error is not null)
+    {
+        <BbAlert Variant="AlertVariant.Danger" Class="props-block"><BbAlertTitle>@errorTitle</BbAlertTitle><BbAlertDescription><span class="pre">@error</span></BbAlertDescription></BbAlert>
+    }
+
+    @switch (step)
+    {
+        case 1:
+            <div class="builder-grid">
+                <BbCard>
+                    <BbCardHeader>
+                        <BbCardTitle Class="card-title">1. Query</BbCardTitle>
+                        <BbCardDescription>Satu SELECT. Parameter <code>@@Nama</code> menjadi query string: <code>/api/query/slug?Nama=nilai</code>.</BbCardDescription>
+                    </BbCardHeader>
+                    <BbCardContent>
+                        <div class="stack">
+                            <FormTextArea Id="sql" Value="@def.Config.Sql" ValueChanged="v => def.Config.Sql = v ?? string.Empty" Rows="12" AriaLabel="Query SQL" />
+                            <div class="row"><BbButton OnClick="Detect"><LucideIcon Name="scan-search" Size="16" /> Lanjut: deteksi parameter</BbButton></div>
+                        </div>
+                    </BbCardContent>
+                </BbCard>
+                <BbCard>
+                    <BbCardHeader><BbCardTitle Class="card-title">View yang tersedia</BbCardTitle><BbCardDescription>Klik untuk menyisipkan.</BbCardDescription></BbCardHeader>
+                    <BbCardContent>
+                        <div class="catalog">
+                            @foreach (var v in ReportingCatalog.Describe(Metadata.Current))
+                            {
+                                var view = v;
+                                <details>
+                                    <summary><button type="button" class="catalog-insert" @onclick="() => Insert(view.Name)" @onclick:stopPropagation="true"><code>@view.Name</code></button><span class="muted small">@view.Title</span></summary>
+                                    <ul>@foreach (var (col, type) in view.Columns) { var c = col; <li><button type="button" class="catalog-insert" @onclick="() => Insert(c)"><code>@c</code></button><span class="muted small">@type</span></li> }</ul>
+                                </details>
+                            }
+                        </div>
+                    </BbCardContent>
+                </BbCard>
+            </div>
+            break;
+
+        case 2:
+            <BbCard>
+                <BbCardHeader>
+                    <BbCardTitle Class="card-title">2. Parameter &amp; pratinjau</BbCardTitle>
+                    <BbCardDescription>@(def.Config.Parameters.Count == 0 ? "Query tidak memakai parameter." : "\"Dari pemanggil\" = dikirim lewat query string (default dipakai bila tidak dikirim). \"Dari akun\" = diisi otomatis dan tidak bisa ditimpa pemanggil.")</BbCardDescription>
+                </BbCardHeader>
+                <BbCardContent>
+                    @if (def.Config.Parameters.Count > 0)
+                    {
+                        <div class="table-wrap">
+                            <table class="perm-table">
+                                <thead><tr><th>Parameter</th><th>Label</th><th>Tipe</th><th>Nilai default</th><th>Sumber nilai</th></tr></thead>
+                                <tbody>
+                                    @foreach (var prm in def.Config.Parameters)
+                                    {
+                                        var p = prm;
+                                        <tr>
+                                            <td><code>@@@p.Name</code></td>
+                                            <td style="min-width:9rem"><FormTextInput Value="@p.Label" ValueChanged="v => p.Label = v ?? p.Name" AriaLabel="@($"Label {p.Name}")" /></td>
+                                            <td style="min-width:8rem"><BbSelect TValue="string" Value="@p.Type" ValueChanged="v => { p.Type = v ?? ParamTypes.Text; p.DefaultValue = null; }" Options="TypeOptions" AriaLabel="@($"Tipe {p.Name}")" /></td>
+                                            <td style="min-width:11rem">
+                                                <FormTextInput Id="@($"pv-{p.Name}")" Type="@(p.Type == ParamTypes.Date ? "date" : p.Type == ParamTypes.Number ? "number" : "text")" Value="@p.DefaultValue"
+                                                               ValueChanged="v => p.DefaultValue = string.IsNullOrWhiteSpace(v) ? null : v" AriaLabel="@($"Nilai {p.Name}")" Disabled="QueryApiService.IsUserBound(p)" />
+                                            </td>
+                                            <td style="min-width:14rem"><BbSelect TValue="string" Value="@p.Binding" ValueChanged="v => p.Binding = v ?? ParamBindings.Default" Options="BindingOptions(p)" AriaLabel="@($"Sumber {p.Name}")" /></td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    <div class="row" style="margin:.75rem 0">
+                        <BbButton Disabled="busy" OnClick="RunPreview"><LucideIcon Name="play" Size="16" /> @(busy ? "Menjalankan…" : "Jalankan pratinjau")</BbButton>
+                        <BbButton Variant="ButtonVariant.Ghost" OnClick="() => GoTo(1)">Kembali ke query</BbButton>
+                        <span class="spacer"></span>
+                        <BbButton Disabled="@(preview is null)" OnClick="() => GoTo(3)">Lanjut: terbitkan <LucideIcon Name="arrow-right" Size="16" /></BbButton>
+                    </div>
+                    @if (preview is not null) { <ResultGrid Result="preview" ShowFooter="true" /> }
+                </BbCardContent>
+            </BbCard>
+            break;
+
+        case 3:
+            <div class="builder-grid">
+                <BbCard>
+                    <BbCardHeader><BbCardTitle Class="card-title">3. Terbitkan</BbCardTitle></BbCardHeader>
+                    <BbCardContent>
+                        <div class="stack">
+                            <BbField><BbFieldLabel For="q-name">Nama</BbFieldLabel><FormTextInput Id="q-name" Value="@def.Name" ValueChanged="SetName" /></BbField>
+                            <BbField>
+                                <BbFieldLabel For="q-slug">Slug endpoint</BbFieldLabel>
+                                <div class="api-slug"><span class="muted small">/api/query/</span><FormTextInput Id="q-slug" Value="@def.Slug" ValueChanged="v => { def.Slug = (v ?? string.Empty).Trim().ToLowerInvariant(); slugTouched = true; }" /></div>
+                            </BbField>
+                            <BbField><BbFieldLabel For="q-desc">Deskripsi</BbFieldLabel><FormTextArea Id="q-desc" Value="@def.Description" ValueChanged="v => def.Description = string.IsNullOrWhiteSpace(v) ? null : v" Rows="2" /></BbField>
+                            <div>
+                                <div class="props-sub" style="margin-bottom:.35rem">Bentuk keluaran</div>
+                                @foreach (var (o, label, hint) in Outputs)
+                                {
+                                    var opt = o;
+                                    <div class="label-row"><input type="radio" id="@($"out-{opt}")" name="output" checked="@(def.Config.Output == opt)" @onchange="() => def.Config.Output = opt" /><label for="@($"out-{opt}")">@label <span class="muted small">— @hint</span></label></div>
+                                }
+                            </div>
+                            <div class="props-row">
+                                <BbField><BbFieldLabel For="q-max">Batas baris</BbFieldLabel><FormTextInput Id="q-max" Type="number" Value="@def.Config.MaxRows.ToString()" ValueChanged="v => def.Config.MaxRows = int.TryParse(v, out var n) ? n : def.Config.MaxRows" /><BbFieldDescription>Maks. @QueryApiService.MaxRowsCap.ToString("N0"). Melebihi → <code>truncated: true</code>.</BbFieldDescription></BbField>
+                                <BbField><BbFieldLabel For="q-cache">Cache (detik)</BbFieldLabel><FormTextInput Id="q-cache" Type="number" Value="@def.Config.CacheSeconds.ToString()" ValueChanged="v => def.Config.CacheSeconds = int.TryParse(v, out var n) ? n : 0" /><BbFieldDescription>0 = selalu data terbaru.</BbFieldDescription></BbField>
+                            </div>
+                            <div>
+                                <div class="props-sub" style="margin-bottom:.4rem">Boleh dipanggil oleh (kosong = semua pengguna)</div>
+                                <div class="wf-roles">
+                                    @foreach (var role in MetadataRoles.Known(Metadata.Current, def.Config.Roles))
+                                    {
+                                        var r = role;
+                                        <div class="label-row"><BbCheckbox Id="@($"qr-{r}")" Checked="def.Config.Roles.Contains(r)" CheckedChanged="v => { if (v) def.Config.Roles.Add(r); else def.Config.Roles.Remove(r); }" /><BbLabel For="@($"qr-{r}")">@r</BbLabel></div>
+                                    }
+                                </div>
+                            </div>
+                            <div class="label-row"><BbCheckbox Id="q-enabled" Checked="def.Config.Enabled" CheckedChanged="v => def.Config.Enabled = v" /><BbLabel For="q-enabled">Aktif (nonaktif → pemanggil mendapat 404)</BbLabel></div>
+                            <div class="row">
+                                <BbButton Variant="ButtonVariant.Ghost" OnClick="() => GoTo(2)">Kembali</BbButton>
+                                <span class="spacer"></span>
+                                <BbButton Disabled="@(busy || string.IsNullOrWhiteSpace(def.Name))" OnClick="Save"><LucideIcon Name="send" Size="16" /> @(busy ? "Menerbitkan…" : "Terbitkan API")</BbButton>
+                            </div>
+                        </div>
+                    </BbCardContent>
+                </BbCard>
+                <BbCard>
+                    <BbCardHeader><BbCardTitle Class="card-title">Contoh pemanggilan</BbCardTitle><BbCardDescription>Dengan kunci API (menu Kunci API, cakupan <code>query:@(def.Slug)</code>).</BbCardDescription></BbCardHeader>
+                    <BbCardContent>
+                        <pre class="api-example">curl -H "Authorization: ApiKey dfk_…" \
+  "@(Nav.BaseUri)api/query/@(def.Slug)@ExampleQuery"</pre>
+                        <div class="props-sub" style="margin:.75rem 0 .35rem">Contoh respons (data pratinjau)</div>
+                        <pre class="api-example">@ExampleResponse</pre>
+                    </BbCardContent>
+                </BbCard>
+            </div>
+            break;
+    }
+}
+
+@code {
+    [Parameter] public string? ApiId { get; set; }
+
+    private static readonly (int, string)[] Steps = [(1, "Query"), (2, "Parameter & pratinjau"), (3, "Terbitkan")];
+    private static readonly (string, string, string)[] Outputs =
+    [
+        (QueryApiOutputs.Rows, "Daftar baris", "{ data: [ {…}, … ], columns, count, truncated }"),
+        (QueryApiOutputs.Object, "Satu objek", "baris pertama, cocok untuk KPI: { data: {…} }"),
+        (QueryApiOutputs.Csv, "CSV", "file text/csv untuk spreadsheet / ETL"),
+    ];
+    private static readonly IEnumerable<SelectOption<string>> TypeOptions =
+        [new(ParamTypes.Text, "Teks"), new(ParamTypes.Number, "Angka"), new(ParamTypes.Date, "Tanggal"), new(ParamTypes.Boolean, "Boolean")];
+
+    private QueryApiDef def = new();
+    private int step = 1, maxStep = 1;
+    private bool isEdit, busy, slugTouched;
+    private string? error, errorTitle, loadedKey;
+    private QueryResultSet? preview;
+
+    private static IEnumerable<SelectOption<string>> BindingOptions(WidgetParameter p)
+    {
+        yield return new(ParamBindings.Default, "Dari pemanggil");
+        if (p.Type == ParamTypes.Text) { yield return new(ParamBindings.UserDepartment, "Dari akun: departemen"); yield return new(ParamBindings.UserId, "Dari akun: ID pengguna"); }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (ApiId == loadedKey && loadedKey is not null) return;
+        loadedKey = ApiId ?? "";
+        if (ApiId is null || !QueryApiService.CanDesign(Current.Required)) return;
+        if (await Apis.GetAsync(Current.Required, ApiId) is not { } d) { (errorTitle, error) = ("Tidak ditemukan", "API query tidak ditemukan."); return; }
+        def = d; isEdit = true; slugTouched = true; maxStep = 2;
+    }
+
+    private void GoTo(int n) { if (n <= maxStep) { step = n; error = null; } }
+    private void Insert(string text) { var s = def.Config.Sql.TrimEnd(); def.Config.Sql = s + (s.Length == 0 ? "" : " ") + text; }
+    private void SetName(string? v) { def.Name = v ?? string.Empty; if (!slugTouched) def.Slug = QueryApiService.Slugify(def.Name); }
+
+    private void Detect()
+    {
+        error = null;
+        var (err, ps) = QueryApiService.DetectParameters(def.Config.Sql, def.Config.Parameters);
+        if (err is not null) { (errorTitle, error) = ("Query belum bisa dipakai", err); return; }
+        def.Config.Parameters = ps; preview = null;
+        step = maxStep = 2;
+    }
+
+    private async Task RunPreview()
+    {
+        error = null; busy = true;
+        try { preview = await Apis.PreviewAsync(Current.Required, def.Config); maxStep = 3; }
+        catch (Exception ex) when (ex is QueryRejectedException or ReportingUnavailableException or ValidationFailedException)
+        {
+            preview = null; maxStep = 2;
+            (errorTitle, error) = ("Query gagal dijalankan", ex is ValidationFailedException v ? string.Join("; ", v.Errors.Select(e => $"{e.Path}: {e.Message}")) : ex.Message);
+        }
+        finally { busy = false; }
+    }
+
+    private string ExampleQuery
+    {
+        get
+        {
+            var ps = def.Config.Parameters.Where(p => !QueryApiService.IsUserBound(p)).Select(p => $"{p.Name}={Uri.EscapeDataString(p.DefaultValue ?? (p.Type == ParamTypes.Date ? "2026-01-31" : p.Type == ParamTypes.Number ? "0" : "nilai"))}");
+            return ps.Any() ? "?" + string.Join("&", ps) : "";
+        }
+    }
+
+    private string ExampleResponse
+    {
+        get
+        {
+            if (preview is null) return "—";
+            Dictionary<string, object?> Row(object?[] r) => preview.Columns.Select((c, i) => (c.Name, r[i])).ToDictionary(x => x.Name, x => x.Item2);
+            var opt = new JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
+            return def.Config.Output switch
+            {
+                QueryApiOutputs.Object => JsonSerializer.Serialize(new { data = preview.Rows.Count > 0 ? Row(preview.Rows[0]) : null }, opt),
+                QueryApiOutputs.Csv => string.Join(",", preview.Columns.Select(c => c.Name)) + "\n" + string.Join("\n", preview.Rows.Take(3).Select(r => string.Join(",", r.Select(v => Convert.ToString(v, System.Globalization.CultureInfo.InvariantCulture))))),
+                _ => JsonSerializer.Serialize(new { data = preview.Rows.Take(2).Select(Row), count = preview.Rows.Count, truncated = false }, opt),
+            };
+        }
+    }
+
+    private async Task Save()
+    {
+        error = null; busy = true;
+        try
+        {
+            var saved = await Apis.SaveAsync(Current.Required, def);
+            Toasts.Success($"GET /api/query/{saved.Slug}", $"{saved.Name} v{saved.Version} diterbitkan");
+            Nav.NavigateTo("/query-apis");
+        }
+        catch (Exception ex) when (ex is ApiMethodException or QueryRejectedException or ReportingUnavailableException or PermissionDeniedException or ValidationFailedException)
+        {
+            (errorTitle, error) = ("API belum bisa diterbitkan", ex is ValidationFailedException v ? string.Join("; ", v.Errors.Select(e => $"{e.Path}: {e.Message}")) : ex.Message);
+        }
+        finally { busy = false; }
+    }
+}
+
+
+================================================================================
+ 11. [UBAH] src/Framework.Web/Dashboards/WidgetBuilder.razor
+    Lima langkah.
+================================================================================
+
+--- 11a. Di langkah 4, tepat SEBELUM <div class="row"> berisi tombol "Simpan widget", TAMBAHKAN:
+
+                            <Framework.Web.QueryApis.PublishAsApiOption Option="apiOption" DefaultName="@widget.Name" />
+
+--- 11b. Setelah "private WidgetDef widget = new();" TAMBAHKAN:
+
+    private readonly Framework.Web.QueryApis.ApiPublishOption apiOption = new();
+    [Inject] private Framework.Api.QueryApiService QueryApis { get; set; } = default!;
+
+--- 11c. Di OnParametersSetAsync, setelah "widget = w; isEdit = true; maxStep = 2;" TAMBAHKAN:
+
+        await apiOption.LoadAsync(QueryApis, Current.Required, $"widget:{w.Id}");
+
+--- 11d/e. REPLACE seluruh method Save() dengan:
+
+    private async Task Save()
+    {
+        error = null; busy = true;
+        try
+        {
+            var saved = await Dashboards.SaveAsync(Current.Required, widget, pin && !isEdit);
+            // Opsi: query yang sama diterbitkan sebagai API (atau dihapus bila centang dilepas).
+            var apiNote = await apiOption.ApplyAsync(QueryApis, Current.Required, $"widget:{saved.Id}", saved.Name, saved.Description,
+                saved.Config.Sql, saved.Config.Parameters, saved.Config.Roles);
+            Toasts.Success((pin && !isEdit ? "Widget ditempel ke dashboard." : "Widget tersimpan.") + (apiNote is null ? "" : " " + apiNote), $"{saved.Name} v{saved.Version}");
+            Nav.NavigateTo(pin || isEdit ? "/dashboard" : "/dashboard/widgets");
+        }
+        catch (Exception ex) when (ex is QueryRejectedException or ReportingUnavailableException or PermissionDeniedException or Framework.Api.ApiMethodException)
+        {
+            (errorTitle, error) = (ex is Framework.Api.ApiMethodException ? "Widget tersimpan, tetapi API belum bisa diterbitkan" : "Widget belum bisa disimpan", ex.Message);
+            isEdit = isEdit || ex is Framework.Api.ApiMethodException;
+        }
+        finally { busy = false; }
+    }
+
+
+================================================================================
+ 12. [UBAH] src/Framework.Web/ReportTemplates/ReportTemplateBuilder.razor
+    Empat langkah.
+================================================================================
+
+--- 12a. Di langkah 4, setelah blok role (paragraf "Laporan berisi data seluruh tenant…" dan </div> penutupnya), TAMBAHKAN:
+
+                        <Framework.Web.QueryApis.PublishAsApiOption Option="apiOption" DefaultName="@def.Name" />
+
+--- 12b. Setelah "private ReportTemplateDef def = new();" TAMBAHKAN:
+
+    private readonly Framework.Web.QueryApis.ApiPublishOption apiOption = new();
+    [Inject] private Framework.Api.QueryApiService QueryApis { get; set; } = default!;
+
+--- 12c. Di OnParametersSetAsync, setelah "templateName = d.TemplateFileName;" TAMBAHKAN:
+
+        await apiOption.LoadAsync(QueryApis, Current.Required, $"report:{d.Id}");
+
+--- 12d. REPLACE seluruh method Save() dengan:
+
+    private async Task Save()
+    {
+        error = null; busy = true;
+        try
+        {
+            if (templateIsNew) def.TemplateFileName = templateName ?? "template." + def.Config.Format;
+            var saved = await Reports.SaveAsync(Current.Required, def, templateIsNew ? template : null);
+            // Opsi: query detail yang sama diterbitkan sebagai API JSON.
+            var apiNote = await apiOption.ApplyAsync(QueryApis, Current.Required, $"report:{saved.Id}", saved.Name, saved.Description,
+                saved.Config.Sql, saved.Config.Parameters, saved.Config.Roles);
+            Toasts.Success("Pengguna dengan akses kini bisa membuat laporan ini." + (apiNote is null ? "" : " " + apiNote), $"{saved.Name} v{saved.Version} tersimpan");
+            Nav.NavigateTo("/report-templates");
+        }
+        catch (Exception ex) when (ex is TemplateException or QueryRejectedException or ReportingUnavailableException or PermissionDeniedException or Framework.Api.ApiMethodException)
+        {
+            (errorTitle, error) = (ex is Framework.Api.ApiMethodException ? "Template tersimpan, tetapi API belum bisa diterbitkan" : "Template belum bisa disimpan", ex.Message);
+        }
+        finally { busy = false; }
+    }
+
+
+================================================================================
+ 13. [UBAH] src/Framework.Web/Pages/ApiKeysAdmin.razor
+    Aksi: GANTI SELURUH ISI.
+================================================================================
+
+@page "/admin/api-keys"
+@using Framework.Api
+@using Microsoft.AspNetCore.Identity
+@inject ApiKeyService Keys
+@inject ApiMethodRegistry Methods
+@inject QueryApiService QueryApis
+@inject IUserAccountRepository Accounts
+@inject UserManager<UserAccount> Users
+@inject IMetadataProvider Metadata
+@inject CurrentUser Current
+@inject ToastService Toasts
+@inject DialogService Dialogs
+@inject NavigationManager Nav
+@inject TimeProvider Clock
+
+<PageTitle>Kunci API · DocFrame</PageTitle>
+
+@if (!Current.Required.Roles.Contains(UserContext.SystemManager))
+{
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>Halaman ini hanya untuk System Manager.</BbAlertDescription></BbAlert>
+}
+else
+{
+    <header class="page-head">
+        <div>
+            <h1>Kunci API</h1>
+            <p>Untuk integrasi sistem lain. Kunci bertindak sebagai akunnya: role, departemen, dan cakupan data akun itu yang berlaku — lewat aturan yang sama dengan layar aplikasi.</p>
+        </div>
+        @if (!creating) { <BbButton OnClick="StartCreate"><LucideIcon Name="key-round" Size="16" /> Buat kunci</BbButton> }
+    </header>
+
+    @if (token is not null)
+    {
+        <BbAlert Variant="AlertVariant.Warning" Class="props-block">
+            <BbAlertTitle>Simpan kunci ini sekarang — tidak akan ditampilkan lagi</BbAlertTitle>
+            <BbAlertDescription>
+                <code class="temp-password" id="new-token">@token</code>
+                <pre class="api-example">curl -H "Authorization: ApiKey @token" @(BaseUrl)api/data/PurchaseRequest</pre>
+            </BbAlertDescription>
+        </BbAlert>
+    }
+
+    @if (creating)
+    {
+        <BbCard Class="props-block">
+            <BbCardHeader><BbCardTitle Class="card-title">Kunci baru</BbCardTitle></BbCardHeader>
+            <BbCardContent>
+                <div class="stack" style="max-width:56rem">
+                    @if (error is not null) { <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@error</BbAlertDescription></BbAlert> }
+                    <BbField><BbFieldLabel For="k-name">Nama kunci</BbFieldLabel><FormTextInput Id="k-name" Value="@name" ValueChanged="v => name = v ?? string.Empty" Placeholder="mis. Integrasi ERP keuangan" /></BbField>
+
+                    <BbField>
+                        <BbFieldLabel>Akun pemilik kunci</BbFieldLabel>
+                        <BbSelect TValue="string" Value="@accountId" ValueChanged="v => accountId = v ?? NewAccount" AriaLabel="Akun pemilik kunci" Options="AccountOptions" />
+                        <BbFieldDescription>Disarankan akun integrasi khusus (tanpa password), bukan akun manusia.</BbFieldDescription>
+                    </BbField>
+                    @if (accountId == NewAccount)
+                    {
+                        <div class="props-row">
+                            <BbField><BbFieldLabel For="a-name">Nama akun integrasi</BbFieldLabel><FormTextInput Id="a-name" Value="@newName" ValueChanged="v => newName = v ?? string.Empty" Placeholder="mis. Sistem ERP" /></BbField>
+                            <BbField><BbFieldLabel For="a-user">Username</BbFieldLabel><FormTextInput Id="a-user" Value="@newUser" ValueChanged="v => newUser = (v ?? string.Empty).Trim().ToLowerInvariant()" Placeholder="mis. svc.erp" /></BbField>
+                        </div>
+                        <BbField><BbFieldLabel For="a-dept">Departemen (opsional)</BbFieldLabel><FormTextInput Id="a-dept" Value="@newDept" ValueChanged="v => newDept = v" /></BbField>
+                        <div>
+                            <div class="props-sub" style="margin-bottom:.35rem">Role akun integrasi</div>
+                            <div class="wf-roles">
+                                @foreach (var role in MetadataRoles.Known(Metadata.Current).Where(r => r != UserContext.SystemManager))
+                                {
+                                    var r = role;
+                                    <div class="label-row"><BbCheckbox Id="@($"ar-{r}")" Checked="newRoles.Contains(r)" CheckedChanged="v => { if (v) newRoles.Add(r); else newRoles.Remove(r); }" /><BbLabel For="@($"ar-{r}")">@r</BbLabel></div>
+                                }
+                            </div>
+                        </div>
+                    }
+
+                    <div>
+                        <div class="props-sub" style="margin-bottom:.35rem">Cakupan</div>
+                        <div class="label-row"><input type="radio" id="sc-all" name="scope" checked="@(!limited)" @onchange="() => limited = false" /><label for="sc-all">Semua yang diizinkan role akun</label></div>
+                        <div class="label-row"><input type="radio" id="sc-lim" name="scope" checked="@limited" @onchange="() => limited = true" /><label for="sc-lim">Terbatas pada pilihan berikut</label></div>
+                    </div>
+                    @if (limited)
+                    {
+                        <div class="table-wrap">
+                            <table class="perm-table">
+                                <thead><tr><th>DocType (API aktif)</th>@foreach (var op in ApiScopes.DocOperations) { <th class="c">@OpLabel(op)</th> }</tr></thead>
+                                <tbody>
+                                    @foreach (var dt in Metadata.Current.DocTypes.Values.Where(d => d.Def.Api.Enabled && !d.Def.IsChild).OrderBy(d => d.Title))
+                                    {
+                                        var doc = dt;
+                                        <tr>
+                                            <td>@doc.Title <span class="muted small">@doc.Name</span></td>
+                                            @foreach (var op in ApiScopes.DocOperations)
+                                            {
+                                                var scope = $"doc:{doc.Name}:{op}";
+                                                <td class="c"><BbCheckbox Checked="scopes.Contains(scope)" CheckedChanged="v => Toggle(scope, v)" AriaLabel="@scope" /></td>
+                                            }
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                        @if (Methods.Visible(Current.Required).Any())
+                        {
+                            <div class="props-sub">Method</div>
+                            <div class="wf-roles">
+                                @foreach (var m in Methods.Visible(Current.Required))
+                                {
+                                    var scope = $"method:{m.Name}";
+                                    <div class="label-row" title="@m.Description"><BbCheckbox Id="@($"m-{m.Name}")" Checked="scopes.Contains(scope)" CheckedChanged="v => Toggle(scope, v)" /><BbLabel For="@($"m-{m.Name}")"><code>@m.Name</code></BbLabel></div>
+                                }
+                            </div>
+                        }
+                    }
+                    @if (limited && queryApis.Count > 0)
+                    {
+                        <div class="props-sub">API Query</div>
+                        <div class="wf-roles">
+                            @foreach (var q in queryApis)
+                            {
+                                var scope = $"query:{q.Slug}";
+                                <div class="label-row" title="@q.Name"><BbCheckbox Id="@($"q-{q.Slug}")" Checked="scopes.Contains(scope)" CheckedChanged="v => Toggle(scope, v)" /><BbLabel For="@($"q-{q.Slug}")"><code>@q.Slug</code></BbLabel></div>
+                            }
+                        </div>
+                    }
+                    <div class="props-row">
+                        <BbField><BbFieldLabel For="k-exp">Berlaku sampai (opsional)</BbFieldLabel><FormTextInput Id="k-exp" Type="date" Value="@expires" ValueChanged="v => expires = v" /></BbField>
+                        <BbField><BbFieldLabel For="k-ip">IP yang diizinkan (opsional)</BbFieldLabel><FormTextInput Id="k-ip" Value="@ips" ValueChanged="v => ips = v" Placeholder="mis. 10.0.5.0/24, 203.0.113.7" /></BbField>
+                    </div>
+                    <div class="row">
+                        <BbButton Disabled="busy" OnClick="Create"><LucideIcon Name="key-round" Size="16" /> Buat kunci</BbButton>
+                        <BbButton Variant="ButtonVariant.Ghost" OnClick="() => creating = false">Batal</BbButton>
+                    </div>
+                </div>
+            </BbCardContent>
+        </BbCard>
+    }
+
+    <div class="table-wrap">
+        <table class="data">
+            <thead><tr><th>Kunci</th><th>Akun</th><th>Cakupan</th><th>Berlaku sampai</th><th>Terakhir dipakai</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var k in keys)
+                {
+                    var key = k;
+                    var status = key.Status(Clock.GetUtcNow());
+                    <tr>
+                        <td><strong>@key.Name</strong><div class="muted small"><code>dfk_@(key.Id).…</code></div></td>
+                        <td>@(names.GetValueOrDefault(key.UserId) ?? key.UserId)</td>
+                        <td class="small scope-cell">@(key.Scopes.Count == 0 ? "Semua sesuai role" : string.Join(", ", key.Scopes.Take(4)) + (key.Scopes.Count > 4 ? $" +{key.Scopes.Count - 4}" : ""))
+                            @if (key.AllowedIps.Count > 0) { <div class="muted">IP: @string.Join(", ", key.AllowedIps)</div> }</td>
+                        <td class="nowrap">@(key.ExpiresAt is { } e ? Fmt.When(e) : "—")</td>
+                        <td class="nowrap muted">@(key.LastUsedAt is { } u ? $"{Fmt.When(u)} · {key.LastUsedIp}" : "belum pernah")</td>
+                        <td><BbBadge Variant="@(status == "Aktif" ? BadgeVariant.SoftSuccess : BadgeVariant.Soft)">@status</BbBadge></td>
+                        <td>@if (status == "Aktif") { <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="() => Revoke(key)"><LucideIcon Name="ban" Size="15" /> Cabut</BbButton> }</td>
+                    </tr>
+                }
+                @if (keys.Count == 0) { <tr><td colspan="7" class="grid-empty">Belum ada kunci API.</td></tr> }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private const string NewAccount = "__new__";
+    private IReadOnlyList<ApiKey> keys = [];
+    private Dictionary<string, string> names = new();
+    private List<UserAccount> accounts = [];
+    private IReadOnlyList<QueryApiDef> queryApis = [];
+    private bool creating, limited, busy;
+    private string name = "", accountId = NewAccount, newName = "", newUser = "";
+    private string? newDept, expires, ips, error, token;
+    private readonly HashSet<string> newRoles = ["Employee"];
+    private readonly HashSet<string> scopes = new();
+
+    private string BaseUrl => Nav.BaseUri;
+    private IEnumerable<SelectOption<string>> AccountOptions =>
+        new[] { new SelectOption<string>(NewAccount, "＋ Akun integrasi baru") }
+        .Concat(accounts.Where(a => a.IsActive).Select(a => new SelectOption<string>(a.Id, $"{a.FullName} ({a.UserName}){(a.PasswordHash is null ? " · integrasi" : "")}")));
+
+    protected override async Task OnInitializedAsync() => await Reload();
+
+    private async Task Reload()
+    {
+        if (!Current.Required.Roles.Contains(UserContext.SystemManager)) return;
+        keys = await Keys.ListAsync(Current.Required);
+        accounts = (await Accounts.ListAsync(Current.Required.TenantId)).ToList();
+        names = accounts.ToDictionary(a => a.Id, a => a.FullName);
+        if (QueryApis.IsAvailable) queryApis = (await QueryApis.ListAsync(Current.Required)).Where(q => q.Config.Enabled).ToList();
+    }
+
+    private void StartCreate()
+    {
+        creating = true; token = null; error = null; limited = false; scopes.Clear();
+        name = ""; accountId = NewAccount; newName = ""; newUser = ""; newDept = null; expires = null; ips = null;
+    }
+
+    private void Toggle(string scope, bool on) { if (on) scopes.Add(scope); else scopes.Remove(scope); }
+
+    private async Task Create()
+    {
+        error = null; busy = true;
+        try
+        {
+            var owner = accountId;
+            if (accountId == NewAccount)
+            {
+                if (string.IsNullOrWhiteSpace(newName) || !System.Text.RegularExpressions.Regex.IsMatch(newUser, "^[a-z0-9._]{3,40}$"))
+                { error = "Isi nama akun dan username (3–40 karakter: huruf kecil, angka, titik, garis bawah)."; return; }
+                if (newRoles.Count == 0) { error = "Pilih minimal satu role untuk akun integrasi."; return; }
+                // Akun integrasi dibuat TANPA password: tidak bisa login lewat layar, hanya lewat kunci API.
+                var acc = new UserAccount { UserName = newUser, FullName = newName.Trim(), TenantId = Current.Required.TenantId,
+                    Department = string.IsNullOrWhiteSpace(newDept) ? null : newDept.Trim(), Roles = newRoles.ToList() };
+                var result = await Users.CreateAsync(acc);
+                if (!result.Succeeded) { error = string.Join(" ", result.Errors.Select(e => e.Description)); return; }
+                owner = acc.Id;
+            }
+            if (limited && scopes.Count == 0) { error = "Pilih minimal satu cakupan, atau pilih \"Semua yang diizinkan role akun\"."; return; }
+            DateTimeOffset? exp = DateOnly.TryParse(expires, out var d) ? new DateTimeOffset(d.ToDateTime(new TimeOnly(23, 59, 59)), TimeZoneInfo.Local.GetUtcOffset(DateTime.Now)) : null;
+            var (key, t) = await Keys.CreateAsync(Current.Required, new CreateApiKeyRequest(name, owner,
+                limited ? scopes.ToList() : [], (ips ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries), exp));
+            token = t; creating = false;
+            Toasts.Success("Salin kunci sekarang; setelah halaman ditutup kunci tidak bisa dilihat lagi.", $"Kunci \"{key.Name}\" dibuat");
+            await Reload();
+        }
+        catch (Exception ex) when (ex is ApiKeyException or PermissionDeniedException) { error = ex.Message; }
+        finally { busy = false; }
+    }
+
+    private async Task Revoke(ApiKey k)
+    {
+        var ok = await Dialogs.ConfirmAsync($"Cabut kunci \"{k.Name}\"?", "Sistem yang memakai kunci ini langsung ditolak (HTTP 401). Tindakan ini tidak bisa dibatalkan.",
+            new ConfirmDialogOptions { Destructive = true, ConfirmText = "Cabut kunci", CancelText = "Batal" });
+        if (!ok.Confirmed) return;
+        await Keys.RevokeAsync(Current.Required, k.Id);
+        Toasts.Success("Permintaan dengan kunci ini kini ditolak.", "Kunci dicabut");
+        await Reload();
+    }
+
+    private static string OpLabel(string op) => op switch { "list" => "Daftar", "read" => "Baca", "create" => "Buat", "update" => "Ubah", "delete" => "Hapus", _ => "Aksi" };
+}
+
+
+================================================================================
+ 14. [UBAH] _Imports.razor, Layout/DeskLayout.razor, wwwroot/desk.css
+    Tiga langkah.
+================================================================================
+
+--- 14a. _Imports.razor: tambahkan  @using Framework.Web.QueryApis
+
+--- 14b. DeskLayout.razor: setelah item menu "Kunci API", TAMBAHKAN:
+
+                                    <BbSidebarMenuItem>
+                                        <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="query-apis" Tooltip="API Query">
+                                            <LucideIcon Name="braces" Size="18" /><span>API Query</span>
+                                        </BbSidebarMenuButton>
+                                    </BbSidebarMenuItem>
+
+--- 14c. desk.css: TAMBAHKAN di akhir:
+
+/* ---------- API Query ---------- */
+.api-option { border: 1px dashed var(--border); border-radius: var(--radius); padding: .6rem .75rem; background: var(--muted); }
+.api-slug { display: flex; align-items: center; gap: .35rem; margin-top: .4rem; }
+.api-slug > :last-child { flex: 1; min-width: 0; }
+
+
+================================================================================
+ 15. [BARU] tests/Framework.Tests/QueryApiTests.cs
+    Aksi (opsional): BUAT FILE BARU.
+================================================================================
+
+using Framework.Api;
+using Framework.Dashboards;
+using Framework.Documents;
+using Framework.Security;
+using Microsoft.Extensions.DependencyInjection;
+
+/// <summary>API dari query tersimpan (jalur yang sama dengan dashboard & laporan).</summary>
+sealed partial class Tests
+{
+    private QueryApiService QueryApis => sp.GetRequiredService<QueryApiService>();
+
+    private sealed class CountingExecutor(IReportingQueryExecutor inner) : IReportingQueryExecutor
+    {
+        public int Calls;
+        public bool IsAvailable => inner.IsAvailable;
+        public Task<QueryResultSet> ExecuteAsync(string tenantId, string sql, IReadOnlyList<SqlParam> ps, int limit, CancellationToken ct = default, TimeSpan? timeout = null)
+        { Interlocked.Increment(ref Calls); return inner.ExecuteAsync(tenantId, sql, ps, limit, ct, timeout); }
+    }
+
+    private static QueryApiDef PengajuanApi(string slug = "pengajuan-per-dept") => new()
+    {
+        Slug = slug, Name = "Pengajuan per departemen",
+        Config = new()
+        {
+            Sql = "SELECT name AS nomor, requester_name AS pemohon, total FROM reporting.purchase_request WHERE department = @Dept AND (@MinTotal IS NULL OR total >= @MinTotal) ORDER BY name",
+            Parameters =
+            [
+                new() { Name = "Dept", Label = "Departemen", Type = ParamTypes.Text, DefaultValue = "IT" },
+                new() { Name = "MinTotal", Label = "Total minimal", Type = ParamTypes.Number },
+            ],
+            Roles = ["Finance"],
+        },
+    };
+
+    [Test, ReportingTest]
+    public async Task QueryApi_terbit_dipanggil_dengan_parameter_dan_argumen_divalidasi()
+    {
+        var admin = U("admin");
+        var (err, ps) = QueryApiService.DetectParameters(PengajuanApi().Config.Sql, null);
+        Assert.True(err is null && ps.Select(p => p.Name).SequenceEqual(["Dept", "MinTotal"]), "parameter terdeteksi");
+        var saved = await QueryApis.SaveAsync(admin, PengajuanApi());
+        Assert.True(saved.Id.StartsWith("qa_") && saved.Version == 1, "terbit");
+
+        var it = await QueryApis.ExecuteAsync(U("dewi"), saved.Slug, new Dictionary<string, string?>());
+        Assert.Equal(3, it.Data.Rows.Count, "default Dept=IT");
+        var mk = await QueryApis.ExecuteAsync(U("dewi"), saved.Slug, new Dictionary<string, string?> { ["dept"] = "Marketing", ["MinTotal"] = "1000000" });
+        Assert.True(mk.Data.Rows.Count >= 1 && mk.Data.Rows.All(r => (decimal)r[2]! >= 1_000_000m), "parameter dari pemanggil (nama tidak peka huruf besar)");
+
+        var bad = await Assert.Throws<ValidationFailedException>(() => QueryApis.ExecuteAsync(U("dewi"), saved.Slug,
+            new Dictionary<string, string?> { ["Dept"] = "IT", ["tenant"] = "globex", ["MinTotal"] = "banyak" }), "argumen ditolak");
+        Assert.True(bad.Errors.Any(e => e.Path == "tenant" && e.Message.Contains("tidak dikenal")) && bad.Errors.Any(e => e.Path == "MinTotal"), "asing & tipe: " + string.Join("; ", bad.Errors));
+        await Assert.Throws<PermissionDeniedException>(() => QueryApis.ExecuteAsync(U("andi"), saved.Slug, new Dictionary<string, string?>()), "role lain ditolak");
+        await Assert.Throws<KeyNotFoundException>(() => QueryApis.ExecuteAsync(U("dewi"), "tidak-ada", new Dictionary<string, string?>()), "slug tidak ada");
+
+        saved.Config.Enabled = false; await QueryApis.SaveAsync(admin, saved);
+        await Assert.Throws<KeyNotFoundException>(() => QueryApis.ExecuteAsync(U("dewi"), saved.Slug, new Dictionary<string, string?>()), "nonaktif → 404, keberadaan tidak dibocorkan");
+
+        await Assert.Throws<ApiMethodException>(() => QueryApis.SaveAsync(admin, PengajuanApi("Slug Salah!")), "slug tidak valid");
+        var dup = await Assert.Throws<ApiMethodException>(() => QueryApis.SaveAsync(admin, PengajuanApi()), "slug ganda");
+        Assert.True(dup.Message.Contains("sudah dipakai"), dup.Message);
+        await Assert.Throws<PermissionDeniedException>(() => QueryApis.SaveAsync(U("dewi"), PengajuanApi("lain")), "hanya System Manager menerbitkan");
+        await Assert.Throws<QueryRejectedException>(() => QueryApis.SaveAsync(admin, new QueryApiDef { Slug = "rusak", Name = "x", Config = new() { Sql = "DELETE FROM x" } }), "query non-SELECT ditolak saat terbit");
+    }
+
+    [Test, ReportingTest]
+    public async Task QueryApi_parameter_dari_akun_tidak_bisa_ditimpa_pemanggil()
+    {
+        var def = new QueryApiDef
+        {
+            Slug = "pengajuan-departemen-saya", Name = "Pengajuan departemen saya",
+            Config = new() { Sql = "SELECT name, department FROM reporting.purchase_request WHERE department = @Dept", Parameters = [new() { Name = "Dept", Type = ParamTypes.Text, Binding = ParamBindings.UserDepartment }] },
+        };
+        await QueryApis.SaveAsync(U("admin"), def);
+        var budi = await QueryApis.ExecuteAsync(U("budi"), def.Slug, new Dictionary<string, string?>());
+        Assert.True(budi.Data.Rows.Count > 0 && budi.Data.Rows.All(r => (string)r[1]! == "IT"), "manager IT → data IT");
+        var maya = await QueryApis.ExecuteAsync(U("maya"), def.Slug, new Dictionary<string, string?>());
+        Assert.True(maya.Data.Rows.All(r => (string)r[1]! == "Marketing"), "manager Marketing → data Marketing");
+        var hack = await Assert.Throws<ValidationFailedException>(() => QueryApis.ExecuteAsync(U("budi"), def.Slug, new Dictionary<string, string?> { ["Dept"] = "Marketing" }), "menimpa departemen");
+        Assert.True(hack.Errors.Single().Message.Contains("otomatis dari akun"), "pesan jelas: " + hack.Errors.Single().Message);
+    }
+
+    [Test, ReportingTest]
+    public async Task QueryApi_diterbitkan_dari_widget_bertaut_dan_cache_menghemat_query()
+    {
+        var admin = U("admin");
+        var sql = "SELECT department, COUNT(*) AS jumlah FROM reporting.purchase_request GROUP BY department ORDER BY department";
+        var a = await QueryApis.PublishFromAsync(admin, "widget:w_uji", "rekap-departemen", "Rekap per departemen", null, sql, [], ["Finance"]);
+        Assert.True(a.SourceRef == "widget:w_uji" && a.Version == 1, "terbit dari widget");
+        var b = await QueryApis.PublishFromAsync(admin, "widget:w_uji", "rekap-departemen", "Rekap per departemen (v2)", null, sql + " LIMIT 10", [], ["Finance"]);
+        Assert.True(b.Id == a.Id && b.Version == 2 && b.Config.Sql.EndsWith("LIMIT 10"), "simpan ulang widget → API yang sama diperbarui");
+        var other = await Assert.Throws<ApiMethodException>(() => QueryApis.PublishFromAsync(admin, "report:rt_lain", "rekap-departemen", "x", null, sql, [], []), "slug milik sumber lain");
+        Assert.True(other.Message.Contains("sudah dipakai"), other.Message);
+
+        var counting = new CountingExecutor(sp.GetRequiredService<IReportingQueryExecutor>());
+        var cached = new QueryApiService(sp.GetRequiredService<IQueryApiStore>(), counting, TimeProvider.System);
+        b.Config.CacheSeconds = 60; await QueryApis.SaveAsync(admin, b);
+        var r1 = await cached.ExecuteAsync(U("dewi"), "rekap-departemen", new Dictionary<string, string?>());
+        var r2 = await cached.ExecuteAsync(U("dewi"), "rekap-departemen", new Dictionary<string, string?>());
+        Assert.True(!r1.FromCache && r2.FromCache && counting.Calls == 1, $"panggilan kedua dari cache (eksekusi: {counting.Calls})");
+        b.Name = "ubah"; await QueryApis.SaveAsync(admin, b);
+        await cached.ExecuteAsync(U("dewi"), "rekap-departemen", new Dictionary<string, string?>());
+        Assert.Equal(2, counting.Calls, "versi baru → cache lama tidak dipakai");
+    }
+}
+
+
+================================================================================
+ CATATAN PENTING
+================================================================================
+
+- Hasil query berisi data seluruh tenant (aturan "milik sendiri" tidak berlaku di
+  SQL). Batasi role, atau pakai parameter "dari akun" untuk membatasi per departemen.
+- API yang diterbitkan dari widget/laporan menyalin query, parameter, dan role
+  saat sumbernya disimpan. Pengaturan keluaran, batas, cache, dan status diatur
+  di menu API Query dan tidak tertimpa.
+- Cache disimpan di memori per instance aplikasi.
+- Batas baris API memberi tanda truncated: true (tidak diam-diam); untuk data
+  besar, persempit dengan parameter.
+- Tahap berikutnya yang tersisa: dokumentasi OpenAPI otomatis dan webhook keluar.
