@@ -123,87 +123,107 @@ else
         </EmptyTemplate>
     </BbDataGrid>
 
-    <BbDrawer Open="@isDrawerOpen" OpenChanged="@OnDrawerOpenChanged" Direction="DrawerDirection.Right">
-        <BbDrawerContent Class="sm:max-w-md" Style="display:flex;flex-direction:column;max-height:100vh">
+    <AdminDrawer Open="@isDrawerOpen"
+                 OpenChanged="@OnDrawerOpenChanged"
+                 WidthScale="@DrawerWidthScale"
+                 Title="@(edit is null ? "" : isNew ? "Pengguna Baru" : $"Edit: {edit.FullName}")"
+                 Description="@(edit is null ? null : isNew ? "Password sementara dibuat otomatis." : $"Username {edit.UserName} · dibuat {Fmt.When(edit.CreatedAt)}")">
+        <ChildContent>
             @if (edit is not null)
             {
-                <BbDrawerHeader>
-                    <div class="row" style="justify-content:space-between;align-items:flex-start">
-                        <div>
-                            <BbDrawerTitle>@(isNew ? "Pengguna Baru" : $"Edit: {edit.FullName}")</BbDrawerTitle>
-                            <BbDrawerDescription>
-                                @(isNew ? "Password sementara dibuat otomatis." : $"Username {edit.UserName} · dibuat {Fmt.When(edit.CreatedAt)}")
-                            </BbDrawerDescription>
-                        </div>
-                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Tutup drawer" OnClick="CloseDrawer">
-                            <LucideIcon Name="x" Size="16" />
-                        </BbButton>
-                    </div>
-                </BbDrawerHeader>
+                @if (error is not null)
+                {
+                    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@error</BbAlertDescription></BbAlert>
+                }
 
-                <div class="stack" style="padding:1rem 0;overflow-y:auto;flex:1">
-                    @if (error is not null) { <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@error</BbAlertDescription></BbAlert> }
-                    <BbField><BbFieldLabel For="u-name">Nama lengkap</BbFieldLabel><BbInput Id="u-name" @bind-Value="edit.FullName" /></BbField>
+                <div class="form-cols cols-2">
+                    <BbField>
+                        <BbFieldLabel For="u-name">Nama lengkap</BbFieldLabel>
+                        <FormTextInput Id="u-name" Immediate="true" @bind-Value="edit.FullName" Placeholder="mis. Budi Santoso" />
+                    </BbField>
                     @if (isNew)
                     {
                         <BbField>
                             <BbFieldLabel For="u-user">Username</BbFieldLabel>
-                            <BbInput Id="u-user" @bind-Value="edit.UserName" />
-                            <BbFieldDescription>Huruf kecil, angka, titik, atau garis bawah. Menjadi id tetap pengguna (dipakai sebagai pemilik dokumen).</BbFieldDescription>
+                            <FormTextInput Id="u-user" Immediate="true" @bind-Value="edit.UserName" Placeholder="mis. budi" />
+                            <BbFieldDescription>Huruf kecil, angka, titik, atau garis bawah. Menjadi id tetap pengguna.</BbFieldDescription>
                         </BbField>
                     }
-                    <BbField><BbFieldLabel For="u-email">Email</BbFieldLabel><BbInput Id="u-email" Type="InputType.Email" @bind-Value="edit.Email" /></BbField>
-                    <BbField>
-                        <BbFieldLabel For="u-dept">Departemen</BbFieldLabel>
-                        <BbInput Id="u-dept" @bind-Value="edit.Department" />
-                        <BbFieldDescription>Dipakai cakupan data "match:department", mis. atasan hanya melihat pengajuan departemennya.</BbFieldDescription>
-                    </BbField>
-                    @if (Metadata.Current.TryGet("Employee", out _))
+                    else
                     {
                         <BbField>
-                            <BbFieldLabel>Karyawan</BbFieldLabel>
-                            <div class="fill-trigger"><LinkInput Target="Employee" Label="Karyawan" Value="@edit.EmployeeId" ValueChanged="v => edit.EmployeeId = v" ShowLookup="true" /></div>
+                            <BbFieldLabel>Username</BbFieldLabel>
+                            <div class="field-static"><code>@edit.UserName</code></div>
                         </BbField>
                     }
-                    <div class="props-sub">Role</div>
+                </div>
+
+                <div class="form-cols cols-2">
+                    <BbField>
+                        <BbFieldLabel For="u-email">Email</BbFieldLabel>
+                        <FormTextInput Id="u-email" Type="email" Immediate="true" @bind-Value="edit.Email" Placeholder="mis. budi@perusahaan.co.id" />
+                    </BbField>
+                    <BbField>
+                        <BbFieldLabel For="u-dept">Departemen</BbFieldLabel>
+                        <FormTextInput Id="u-dept" Immediate="true" @bind-Value="edit.Department" Placeholder="mis. IT, Finance, HR" />
+                        <BbFieldDescription>Dipakai cakupan data "match:department".</BbFieldDescription>
+                    </BbField>
+                </div>
+
+                @if (Metadata.Current.TryGet("Employee", out _))
+                {
+                    <BbField>
+                        <BbFieldLabel>Karyawan</BbFieldLabel>
+                        <div class="fill-trigger"><LinkInput Target="Employee" Label="Karyawan" Value="@edit.EmployeeId" ValueChanged="v => edit.EmployeeId = v" ShowLookup="true" /></div>
+                    </BbField>
+                }
+
+                <div class="props-sub">Role &amp; Hak Akses</div>
+                <div class="role-check-grid">
                     @foreach (var role in KnownRoles)
                     {
                         var r = role;
                         var self = !isNew && edit.Id == Current.Required.Id && (r == UserContext.SystemManager || r == UserContext.Administrator);
                         <div class="label-row">
                             <BbCheckbox Id="@($"r-{r}")" Checked="edit.Roles.Contains(r)" Disabled="self" CheckedChanged="v => ToggleRole(r, v)" />
-                            <BbLabel For="@($"r-{r}")">@r@(self ? " (tidak bisa dicabut dari akun sendiri)" : "")</BbLabel>
-                        </div>
-                    }
-                    @if (!isNew)
-                    {
-                        <div class="label-row">
-                            <BbCheckbox Id="u-active" Checked="edit.IsActive" Disabled="@(edit.Id == Current.Required.Id)" CheckedChanged="v => edit.IsActive = v" />
-                            <BbLabel For="u-active">Aktif (bisa login)</BbLabel>
+                            <BbLabel For="@($"r-{r}")">@r@(self ? " (diri sendiri)" : "")</BbLabel>
                         </div>
                     }
                 </div>
 
-                <BbDrawerFooter>
-                    <div class="stack" style="gap:.75rem;width:100%">
-                        <div class="row" style="gap:.5rem;width:100%;align-items:center">
-                            <BbButton Disabled="busy" Loading="busy" LoadingText="@(isNew ? "Membuat…" : "Menyimpan…")" OnClick="Save"><LucideIcon Name="check" Size="16" /> @(isNew ? "Buat pengguna" : "Simpan")</BbButton>
-                            <BbButton Variant="ButtonVariant.Ghost" OnClick="CloseDrawer">Batal</BbButton>
-                        </div>
-                        @if (!isNew && edit.LockoutEnd > Clock.GetUtcNow())
-                        {
-                            <div class="row" style="border-top:1px solid var(--border);padding-top:.75rem;gap:.5rem">
-                                <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Disabled="busy" OnClick="Unlock"><LucideIcon Name="lock-open" Size="15" /> Buka kunci</BbButton>
-                            </div>
-                        }
+                @if (!isNew)
+                {
+                    <div class="label-row" style="margin-top:.5rem">
+                        <BbCheckbox Id="u-active" Checked="edit.IsActive" Disabled="@(edit.Id == Current.Required.Id)" CheckedChanged="v => edit.IsActive = v" />
+                        <BbLabel For="u-active">Aktif (bisa login)</BbLabel>
                     </div>
-                </BbDrawerFooter>
+                }
             }
-        </BbDrawerContent>
-    </BbDrawer>
+        </ChildContent>
+        <FooterContent>
+            @if (edit is not null)
+            {
+                <div class="stack" style="gap:.75rem;width:100%">
+                    <div class="row" style="gap:.5rem;width:100%;align-items:center">
+                        <BbButton Disabled="busy" Loading="busy" LoadingText="@(isNew ? "Membuat…" : "Menyimpan…")" OnClick="Save"><LucideIcon Name="check" Size="16" /> @(isNew ? "Buat pengguna" : "Simpan")</BbButton>
+                        <BbButton Variant="ButtonVariant.Ghost" OnClick="CloseDrawer">Batal</BbButton>
+                    </div>
+                    @if (!isNew && edit.LockoutEnd > Clock.GetUtcNow())
+                    {
+                        <div class="row" style="border-top:1px solid var(--border);padding-top:.75rem;gap:.5rem">
+                            <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Disabled="busy" OnClick="Unlock"><LucideIcon Name="lock-open" Size="15" /> Buka kunci</BbButton>
+                        </div>
+                    }
+                </div>
+            }
+        </FooterContent>
+    </AdminDrawer>
 }
 
 @code {
+    /// <summary>Configurable drawer width multiplier (default 2.0 = 2x normal width for User form).</summary>
+    [Parameter] public double DrawerWidthScale { get; set; } = 2.0;
+
     private IReadOnlyList<UserAccount> accounts = [];
     private IReadOnlyList<RoleDef> storedRoles = [];
     private UserAccount? edit;
@@ -221,6 +241,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        if (Current.User is null) return;
         storedRoles = await RoleStore.ListAsync(Current.Required.TenantId);
         await Reload();
     }
@@ -273,39 +294,78 @@ else
     {
         if (edit is null || busy) return;
         error = null;
-        if (string.IsNullOrWhiteSpace(edit.FullName)) { error = "Nama lengkap wajib diisi."; return; }
-        if (edit.Roles.Count == 0) { error = "Pilih minimal satu role."; return; }
+
+        // Validate inputs before toggling busy state and triggering a re-render.
+        if (string.IsNullOrWhiteSpace(edit.FullName))
+        {
+            error = "Nama lengkap wajib diisi.";
+            Toasts.Error(error, "Gagal Menyimpan");
+            return;
+        }
+        if (edit.Roles.Count == 0)
+        {
+            error = "Pilih minimal satu role.";
+            Toasts.Error(error, "Gagal Menyimpan");
+            return;
+        }
+        if (isNew)
+        {
+            edit.UserName = (edit.UserName ?? "").Trim().ToLowerInvariant();
+            if (!System.Text.RegularExpressions.Regex.IsMatch(edit.UserName, "^[a-z0-9._]{3,40}$"))
+            {
+                error = "Username 3–40 karakter: huruf kecil, angka, titik, atau garis bawah.";
+                Toasts.Error(error, "Gagal Menyimpan");
+                return;
+            }
+        }
+        else if (edit.Id == Current.Required.Id && (!edit.IsActive || (!edit.Roles.Contains(UserContext.SystemManager) && !edit.Roles.Contains(UserContext.Administrator))))
+        {
+            error = "Anda tidak bisa menonaktifkan akun sendiri atau mencabut role System Manager / Administrator dari diri sendiri.";
+            Toasts.Error(error, "Gagal Menyimpan");
+            return;
+        }
+
         busy = true;
         StateHasChanged();
         try
         {
-            edit.TenantId = Current.Required.TenantId; // tenant tidak bisa diubah dari UI
+            edit.TenantId = Current.Required.TenantId; // Tenant cannot be changed from UI.
+            edit.FullName = edit.FullName.Trim();
             edit.Department = string.IsNullOrWhiteSpace(edit.Department) ? null : edit.Department.Trim();
             edit.Email = string.IsNullOrWhiteSpace(edit.Email) ? null : edit.Email.Trim();
             if (isNew)
             {
-                edit.UserName = (edit.UserName ?? "").Trim().ToLowerInvariant();
-                if (!System.Text.RegularExpressions.Regex.IsMatch(edit.UserName, "^[a-z0-9._]{3,40}$"))
-                { error = "Username 3–40 karakter: huruf kecil, angka, titik, atau garis bawah."; return; }
                 var password = NewTemporaryPassword();
                 var result = await Users.CreateAsync(edit, password);
-                if (!result.Succeeded) { error = string.Join(" ", result.Errors.Select(e => e.Description)); return; }
+                if (!result.Succeeded)
+                {
+                    error = string.Join(" ", result.Errors.Select(e => e.Description));
+                    Toasts.Error(error, "Gagal Menyimpan");
+                    return;
+                }
                 (tempPassword, tempFor) = (password, edit.UserName);
                 Toasts.Success($"Akun {edit.UserName} dibuat.", "Pengguna baru");
             }
             else
             {
-                if (edit.Id == Current.Required.Id && (!edit.IsActive || !edit.Roles.Contains(UserContext.SystemManager)))
-                { error = "Anda tidak bisa menonaktifkan akun sendiri atau mencabut role System Manager dari diri sendiri."; return; }
                 var result = await Users.UpdateAsync(edit);
-                if (!result.Succeeded) { error = string.Join(" ", result.Errors.Select(e => e.Description)); return; }
-                // Role/departemen/status adalah klaim: ganti security stamp agar sesi yang sedang aktif memuat klaim baru
-                // (atau keluar bila dinonaktifkan) pada validasi berikutnya.
+                if (!result.Succeeded)
+                {
+                    error = string.Join(" ", result.Errors.Select(e => e.Description));
+                    Toasts.Error(error, "Gagal Menyimpan");
+                    return;
+                }
+                // Rotate security stamp so active sessions reload updated role/department/status claims on next validation.
                 await Users.UpdateSecurityStampAsync(edit);
                 Toasts.Success("Perubahan berlaku setelah sesi pengguna diperbarui (maks. beberapa menit).", "Disimpan");
             }
             isDrawerOpen = false;
             await Reload();
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            Toasts.Error(ex.Message, "Gagal Menyimpan");
         }
         finally { busy = false; }
     }

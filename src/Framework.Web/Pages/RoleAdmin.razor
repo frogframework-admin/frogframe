@@ -84,73 +84,66 @@ else
         </EmptyTemplate>
     </BbDataGrid>
 
-    <BbDrawer Open="@isDrawerOpen" OpenChanged="@OnDrawerOpenChanged" Direction="DrawerDirection.Right">
-        <BbDrawerContent Class="sm:max-w-md">
+    <AdminDrawer Open="@isDrawerOpen"
+                 OpenChanged="@OnDrawerOpenChanged"
+                 WidthScale="@DrawerWidthScale"
+                 Title="@(edit is null ? "" : isNew ? "Tambah Role Baru" : $"Edit: {edit.Name}")"
+                 Description="@(edit is null ? null : edit.IsSystem ? "Role sistem bawaan aplikasi (tidak dapat dihapus)." : "Role kustom tenant.")">
+        <ChildContent>
             @if (edit is not null)
             {
-                <BbDrawerHeader>
-                    <div class="row" style="justify-content:space-between;align-items:flex-start">
-                        <div>
-                            <BbDrawerTitle>@(isNew ? "Tambah Role Baru" : $"Edit: {edit.Name}")</BbDrawerTitle>
-                            <BbDrawerDescription>
-                                @(edit.IsSystem ? "Role sistem bawaan aplikasi (tidak dapat dihapus)." : "Role kustom tenant.")
-                            </BbDrawerDescription>
-                        </div>
-                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Tutup drawer" OnClick="CloseDrawer">
-                            <LucideIcon Name="x" Size="16" />
-                        </BbButton>
-                    </div>
-                </BbDrawerHeader>
+                @if (error is not null)
+                {
+                    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@error</BbAlertDescription></BbAlert>
+                }
 
-                <div class="stack" style="padding:1rem 0">
-                    @if (error is not null)
+                <BbField>
+                    <BbFieldLabel For="r-name">Nama Role</BbFieldLabel>
+                    <FormTextInput Id="r-name" Immediate="true" @bind-Value="edit.Name" Disabled="@(!isNew && edit.IsSystem)" Placeholder="mis. HR, Purchasing, Auditor" />
+                    @if (!isNew && edit.IsSystem)
                     {
-                        <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@error</BbAlertDescription></BbAlert>
+                        <BbFieldDescription>Nama role sistem tidak dapat diubah demi menjaga integritas hak akses bawaan.</BbFieldDescription>
                     }
+                </BbField>
 
-                    <BbField>
-                        <BbFieldLabel For="r-name">Nama Role</BbFieldLabel>
-                        <BbInput Id="r-name" @bind-Value="edit.Name" Disabled="@(!isNew && edit.IsSystem)" Placeholder="mis. HR, Purchasing, Auditor" />
-                        @if (!isNew && edit.IsSystem)
-                        {
-                            <BbFieldDescription>Nama role sistem tidak dapat diubah demi menjaga integritas hak akses bawaan.</BbFieldDescription>
-                        }
-                    </BbField>
+                <BbField>
+                    <BbFieldLabel For="r-desc">Deskripsi</BbFieldLabel>
+                    <FormTextInput Id="r-desc" Immediate="true" @bind-Value="edit.Description" Placeholder="mis. Pengelolaan pengadaan dan vendor" />
+                    <BbFieldDescription>Penjelasan fungsi dan cakupan wewenang role ini.</BbFieldDescription>
+                </BbField>
 
-                    <BbField>
-                        <BbFieldLabel For="r-desc">Deskripsi</BbFieldLabel>
-                        <BbInput Id="r-desc" @bind-Value="edit.Description" Placeholder="mis. Pengelolaan pengadaan dan vendor" />
-                        <BbFieldDescription>Penjelasan fungsi dan cakupan wewenang role ini.</BbFieldDescription>
-                    </BbField>
-
-                    @if (edit.IsSystem)
+                @if (edit.IsSystem)
+                {
+                    <BbAlert Variant="AlertVariant.Info" Class="props-block">
+                        <BbAlertDescription>Role ini adalah role inti sistem dan diproteksi agar tidak bisa dihapus.</BbAlertDescription>
+                    </BbAlert>
+                }
+            }
+        </ChildContent>
+        <FooterContent>
+            @if (edit is not null)
+            {
+                <div class="row" style="gap:.5rem;width:100%;align-items:center">
+                    <BbButton Disabled="busy" Loading="busy" LoadingText="Menyimpan…" OnClick="Save"><LucideIcon Name="check" Size="16" /> Simpan</BbButton>
+                    <BbButton Variant="ButtonVariant.Ghost" OnClick="CloseDrawer">Batal</BbButton>
+                    @if (!isNew && !edit.IsSystem && !string.Equals(edit.Name, "Administrator", StringComparison.OrdinalIgnoreCase))
                     {
-                        <BbAlert Variant="AlertVariant.Info" Class="props-block">
-                            <BbAlertDescription>Role ini adalah role inti sistem dan diproteksi agar tidak bisa dihapus.</BbAlertDescription>
-                        </BbAlert>
+                        <span style="margin-left:auto">
+                            <BbButton Variant="ButtonVariant.Destructive" Size="ButtonSize.Small" Disabled="busy" OnClick="() => ConfirmDelete(edit)">
+                                <LucideIcon Name="trash-2" Size="15" /> Hapus
+                            </BbButton>
+                        </span>
                     }
                 </div>
-
-                <BbDrawerFooter>
-                    <div class="row" style="gap:.5rem;width:100%;align-items:center">
-                        <BbButton Disabled="busy" Loading="busy" LoadingText="Menyimpan…" OnClick="Save"><LucideIcon Name="check" Size="16" /> Simpan</BbButton>
-                        <BbButton Variant="ButtonVariant.Ghost" OnClick="CloseDrawer">Batal</BbButton>
-                        @if (!isNew && !edit.IsSystem && !string.Equals(edit.Name, "Administrator", StringComparison.OrdinalIgnoreCase))
-                        {
-                            <span style="margin-left:auto">
-                                <BbButton Variant="ButtonVariant.Destructive" Size="ButtonSize.Small" Disabled="busy" OnClick="() => ConfirmDelete(edit)">
-                                    <LucideIcon Name="trash-2" Size="15" /> Hapus
-                                </BbButton>
-                            </span>
-                        }
-                    </div>
-                </BbDrawerFooter>
             }
-        </BbDrawerContent>
-    </BbDrawer>
+        </FooterContent>
+    </AdminDrawer>
 }
 
 @code {
+    /// <summary>Configurable drawer width multiplier (default 1.0 = normal width).</summary>
+    [Parameter] public double DrawerWidthScale { get; set; } = 1.0;
+
     private IReadOnlyList<RoleDef> roles = [];
     private RoleDef? edit;
     private bool isDrawerOpen;

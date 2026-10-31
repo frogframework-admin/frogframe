@@ -9,6 +9,7 @@ public sealed class NavigationMenuItem
     public string Title { get; set; } = "";
     public string Href { get; set; } = "";
     public string Icon { get; set; } = "file-text";
+    public string? GroupId { get; set; }
     public string GroupName { get; set; } = "Umum";
     public int SortOrder { get; set; } = 100;
     public List<string> AllowedRoles { get; set; } = [];
@@ -19,18 +20,13 @@ public sealed class NavigationMenuItem
     public DateTimeOffset UpdatedAt { get; set; }
 
     /// <summary>
-    /// Menentukan apakah item menu ini dapat dilihat oleh pengguna yang sedang login.
-    /// - Nonaktif -> tidak terlihat oleh siapapun.
-    /// - System Manager -> selalu dapat melihat semua menu aktif.
-    /// - Tanpa AllowedRoles -> universal (terlihat oleh semua pengguna yang login).
-    /// - Memiliki AllowedRoles -> hanya terlihat jika pengguna memiliki minimal satu dari role tersebut.
+    /// Determines whether this menu item is visible to the currently authenticated user.
     /// </summary>
     public bool IsVisibleFor(UserContext? user)
     {
         if (!IsActive || user is null) return false;
         if (user.IsAdmin) return true;
         if (AllowedRoles.Count == 0) return true;
-        return user.Roles.Any(AllowedRoles.Contains);
+        return user.Roles.Any(r => AllowedRoles.Any(ar => string.Equals(ar, r, StringComparison.OrdinalIgnoreCase)));
     }
 }
-

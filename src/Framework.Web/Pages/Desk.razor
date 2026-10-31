@@ -1,84 +1,264 @@
 @page "/"
+@implements IDisposable
+@using Framework.Navigation
 @inject DocumentService Docs
 @inject CurrentUser Current
 @inject IMetadataProvider Metadata
 @inject IPermissionService Perms
+@inject INavigationMenuStore MenuStore
+@inject INotificationStore Notifications
 @inject NavigationManager Nav
+@inject ToastService Toasts
+@inject TimeProvider Clock
 
 <PageTitle>Beranda · DocFrame</PageTitle>
 
-<header class="page-head">
-    <div>
-        <h1>Halo, @Current.Required.FullName.Split(' ')[0]</h1>
-        <p>@string.Join(", ", Current.Required.Roles)@(Current.Required.Attr("department") is { } d ? $" · Departemen {d}" : "")</p>
-    </div>
-</header>
+<div class="launcher-page">
+    <header class="desk-hero">
+        <img class="desk-hero-bg desk-hero-bg-light" src="/_content/Framework.Web/img/desk-hero-light.png" alt="" aria-hidden="true" />
+        <img class="desk-hero-bg desk-hero-bg-dark" src="/_content/Framework.Web/img/desk-hero-dark.png" alt="" aria-hidden="true" />
+        <div class="desk-hero-content">
+            <h1>@GreetingText(), @FirstName(Current.Required.FullName)!</h1>
+            <p>Apa yang ingin Anda kerjakan hari ini?</p>
+            <div class="desk-hero-accent" aria-hidden="true"></div>
+        </div>
+    </header>
 
-<div class="stack">
-    <BbCard>
-        <BbCardHeader>
-            <BbCardTitle Class="card-title">Menunggu tindakan Anda</BbCardTitle>
-            <BbCardDescription>Dokumen yang saat ini bisa Anda proses sesuai role dan cakupan data.</BbCardDescription>
-        </BbCardHeader>
-        <BbCardContent>
-            @if (pending is null)
+    @if (visibleModules.Count == 0)
+    {
+        <BbEmpty Title="Belum ada modul" Description="Akun Anda belum memiliki akses ke modul manapun." Size="EmptySize.Small" />
+    }
+    else
+    {
+        <section class="module-launcher-grid" style="@($"--launcher-cols:{GridColumns};grid-template-columns:repeat({GridColumns}, minmax(0, 1fr))")" aria-label="Daftar Modul">
+            @foreach (var mod in visibleModules)
             {
-                <div class="stack"><BbSkeleton Height="2rem" /><BbSkeleton Height="2rem" /></div>
-            }
-            else if (pending.Count == 0)
-            {
-                <BbEmpty Title="Tidak ada yang menunggu" Description="Semua dokumen yang melibatkan Anda sudah diproses." Size="EmptySize.Small">
-                    <Icon><LucideIcon Name="check" Size="24" /></Icon>
-                </BbEmpty>
-            }
-            else
-            {
-                <div class="table-wrap">
-                    <table class="data">
-                        <thead><tr><th>Dokumen</th><th>Pemohon / judul</th><th class="num">Total</th><th>Status</th><th>Aksi tersedia</th></tr></thead>
-                        <tbody>
-                            @foreach (var (meta, doc, actions) in pending)
-                            {
-                                <tr class="clickable" @onclick="@(() => Nav.NavigateTo($"/app/{meta.Name}/{doc.Name}"))">
-                                    <td><a class="doc-link" href="/app/@meta.Name/@doc.Name">@doc.Name</a><div class="muted small">@meta.Title</div></td>
-                                    <td>@Fmt.Value(null, meta.Def.ListView.TitleField is { } tf ? doc.Get(tf) : null)</td>
-                                    <td class="num">@(meta.ByName.TryGetValue("total", out var tf2) ? Fmt.Value(tf2, doc.Get("total")) : "")</td>
-                                    <td><StatusBadge Label="@Fmt.StateLabel(doc.WorkflowState, doc.DocStatus)" Tone="@Fmt.Tone(meta, doc)" /></td>
-                                    <td class="muted">@string.Join(" · ", actions)</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            }
-        </BbCardContent>
-    </BbCard>
-
-    @*<div class="shortcuts">
-        @foreach (var m in Metadata.Current.DocTypes.Values.Where(m => !m.Def.IsChild && Perms.Can(Current.Required, m, DocActions.Read)))
-        {
-            <BbCard>
-                <BbCardHeader>
-                    <BbCardTitle Class="card-title"><a href="/app/@m.Name" style="color:inherit;text-decoration:none">@m.Title</a></BbCardTitle>
-                    <BbCardDescription>@(m.Def.Description ?? $"Modul {m.Def.Module}")</BbCardDescription>
-                </BbCardHeader>
-                <BbCardFooter>
-                    <div class="row">
-                        <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Href="@($"/app/{m.Name}")">Lihat daftar</BbButton>
-                        @if (Perms.Can(Current.Required, m, DocActions.Create))
-                        {
-                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" Href="@($"/app/{m.Name}/new")"><LucideIcon Name="plus" Size="16" /> Buat baru</BbButton>
-                        }
+                var isActive = activeModuleId == mod.Id;
+                <button type="button" class="module-tile @(isActive ? "active" : "")" @onclick="() => SelectModule(mod)">
+                    <div class="module-tile-icon">
+                        <LucideIcon Name="@(string.IsNullOrWhiteSpace(mod.Icon) ? "layout-grid" : mod.Icon)" Size="20" />
                     </div>
-                </BbCardFooter>
-            </BbCard>
+                    <div class="module-tile-title">@mod.Name</div>
+                    @if (!string.IsNullOrWhiteSpace(mod.Description))
+                    {
+                        <div class="module-tile-desc">@mod.Description</div>
+                    }
+                    @if (isActive)
+                    {
+                        <span class="module-tile-badge">Aktif di sidebar</span>
+                    }
+                </button>
+            }
+        </section>
+    }
+
+    <section class="workspace-summary" aria-label="Workspace saya">
+        <div class="section-head-row">
+            <h2>Workspace saya</h2>
+        </div>
+
+        <div class="workspace-cards-grid">
+            <a class="workspace-stat-card" href="#dokumen-terbaru">
+                <span>Menunggu persetujuan / tindakan Anda</span>
+                <strong class="stat-num primary">@(pending?.Count ?? 0)</strong>
+            </a>
+            <a class="workspace-stat-card" href="/inbox">
+                <span>Tugas &amp; notifikasi belum dibaca</span>
+                <strong class="stat-num">@unreadCount</strong>
+            </a>
+        </div>
+    </section>
+
+    <section id="dokumen-terbaru" class="recent-docs-section" aria-label="Dokumen terbaru">
+        <div class="section-head-row">
+            <h2>Dokumen terbaru</h2>
+            <a class="section-link" href="@SeeAllHref">Lihat semua</a>
+        </div>
+
+        @if (recentDocs is null)
+        {
+            <div class="stack"><BbSkeleton Height="3rem" /><BbSkeleton Height="3rem" /><BbSkeleton Height="3rem" /></div>
         }
-    </div>*@
+        else if (recentDocs.Count == 0)
+        {
+            <div class="desk-table-card desk-empty-box">
+                Belum ada dokumen transaksi yang tercatat.
+            </div>
+        }
+        else
+        {
+            <div class="desk-table-card">
+                <table class="desk-doc-table">
+                    <thead>
+                        <tr>
+                            <th>Dokumen</th>
+                            <th>Pemohon / judul</th>
+                            <th class="num">Total</th>
+                            <th>Status</th>
+                            <th class="act-col">Aksi tersedia</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var (meta, doc, actions) in recentDocs)
+                        {
+                            var docHref = $"/app/{meta.Name}/{doc.Name}";
+                            var (btnText, isPrimary, btnTooltip) = DescribeAction(actions);
+                            <tr class="clickable" @onclick="@(() => Nav.NavigateTo(docHref))">
+                                <td>
+                                    <a class="doc-code" href="@docHref" @onclick:stopPropagation="true">@doc.Name</a>
+                                    <div class="doc-sub">@meta.Title</div>
+                                </td>
+                                <td class="doc-requester">@ResolveTitle(meta, doc)</td>
+                                <td class="num doc-total">@(meta.ByName.TryGetValue("total", out var tf2) ? Fmt.Value(tf2, doc.Get("total")) : "—")</td>
+                                <td>
+                                    <span class="desk-status-pill @StatusPillClass(meta, doc)">
+                                        <span class="dot" aria-hidden="true"></span>
+                                        <span>@Fmt.StateLabel(doc.WorkflowState, doc.DocStatus)</span>
+                                    </span>
+                                </td>
+                                <td class="act-col" @onclick:stopPropagation="true">
+                                    <a class="desk-act-btn @(isPrimary ? "primary" : "outline")" href="@docHref" title="@btnTooltip">
+                                        @btnText
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
 </div>
 
 @code {
-    private IReadOnlyList<(CompiledDocType, Document, IReadOnlyList<string>)>? pending;
+    /// <summary>Number of module cards per row on the launcher grid (default 4).</summary>
+    [Parameter] public int GridColumns { get; set; } = 4;
 
-    protected override async Task OnInitializedAsync() =>
-        pending = await Docs.PendingActionsAsync(Current.Required);
+    private IReadOnlyList<(CompiledDocType Meta, Document Doc, IReadOnlyList<string> Actions)>? pending;
+    private IReadOnlyList<(CompiledDocType Meta, Document Doc, IReadOnlyList<string> Actions)>? recentDocs;
+    private IReadOnlyList<NavigationModule> visibleModules = [];
+    private string? activeModuleId;
+    private int unreadCount;
+
+    private string SeeAllHref =>
+        recentDocs is { Count: > 0 } ? $"/app/{recentDocs[0].Meta.Name}"
+        : Metadata.Current.TryGet("PurchaseRequest", out var pr) && Perms.Can(Current.Required, pr, DocActions.Read) ? "/app/PurchaseRequest"
+        : "/inbox";
+
+    protected override async Task OnInitializedAsync()
+    {
+        Current.ModuleChanged += OnModuleChanged;
+        MenuStore.Changed += OnMenusChanged;
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        if (Current.User is not { } u) return;
+        var allModules = await MenuStore.ListModulesAsync(u.TenantId, onlyActive: true);
+        visibleModules = allModules.Where(m => m.IsVisibleFor(u)).OrderBy(m => m.SortOrder).ThenBy(m => m.Name).ToList();
+
+        if (string.IsNullOrWhiteSpace(Current.ActiveModuleId) || !visibleModules.Any(m => m.Id == Current.ActiveModuleId))
+        {
+            if (visibleModules.Count > 0)
+            {
+                Current.SetActiveModule(visibleModules[0].Id);
+            }
+        }
+        activeModuleId = Current.ActiveModuleId;
+
+        unreadCount = Notifications.ForUser(u.TenantId, u.Id).Count(n => !n.Read);
+        pending = await Docs.PendingActionsAsync(u);
+        var recent = await Docs.RecentDocumentsAsync(u, limit: 6);
+
+        // Merge pending actions and recent documents without duplicates, ordered by newest document name/modification.
+        var combined = pending
+            .Concat(recent)
+            .GroupBy(x => (x.Meta.Name, x.Doc.Name))
+            .Select(g => g.First())
+            .OrderByDescending(x => x.Doc.Modified)
+            .ThenByDescending(x => x.Doc.Name)
+            .Take(6)
+            .ToList();
+        recentDocs = combined;
+    }
+
+    private void SelectModule(NavigationModule mod)
+    {
+        Current.SetActiveModule(mod.Id);
+        activeModuleId = mod.Id;
+        Toasts.Success($"Modul \"{mod.Name}\" telah diaktifkan pada sidebar.", "Modul Dipilih");
+    }
+
+    private void OnModuleChanged()
+    {
+        activeModuleId = Current.ActiveModuleId;
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private void OnMenusChanged()
+    {
+        _ = InvokeAsync(async () =>
+        {
+            await LoadDataAsync();
+            StateHasChanged();
+        });
+    }
+
+    private string GreetingText()
+    {
+        var hour = Clock.GetLocalNow().Hour;
+        return hour switch
+        {
+            >= 4 and < 11 => "Selamat pagi",
+            >= 11 and < 15 => "Selamat siang",
+            >= 15 and < 19 => "Selamat sore",
+            _ => "Selamat malam"
+        };
+    }
+
+    private static string FirstName(string fullName)
+    {
+        if (string.IsNullOrWhiteSpace(fullName)) return "Pengguna";
+        return fullName.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0];
+    }
+
+    private static string ResolveTitle(CompiledDocType meta, Document doc)
+    {
+        if (meta.Def.ListView.TitleField is { } tf)
+        {
+            var val = Fmt.Value(null, doc.Get(tf));
+            if (!string.IsNullOrWhiteSpace(val) && val != "—") return val;
+        }
+        return doc.Owner;
+    }
+
+    private static string StatusPillClass(CompiledDocType meta, Document doc)
+    {
+        var tone = Fmt.Tone(meta, doc);
+        return tone switch
+        {
+            "positive" => "tone-positive",
+            "pending" => "tone-pending",
+            "negative" => "tone-negative",
+            _ => doc.DocStatus == 0 ? "tone-warning" : "tone-neutral"
+        };
+    }
+
+    private static (string Label, bool IsPrimary, string Tooltip) DescribeAction(IReadOnlyList<string> actions)
+    {
+        if (actions.Count == 0)
+            return ("Lihat", false, "Buka detail dokumen");
+        if (actions.Count == 1 && string.Equals(actions[0], "Batalkan", StringComparison.OrdinalIgnoreCase))
+            return ("Batalkan", false, "Batalkan dokumen");
+        if (actions.Count == 1 && string.Equals(actions[0], "Ajukan", StringComparison.OrdinalIgnoreCase))
+            return ("Ajukan", true, "Ajukan dokumen untuk persetujuan");
+        return ("Tinjau", true, string.Join(" · ", actions));
+    }
+
+    public void Dispose()
+    {
+        Current.ModuleChanged -= OnModuleChanged;
+        MenuStore.Changed -= OnMenusChanged;
+    }
 }

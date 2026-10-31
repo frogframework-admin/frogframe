@@ -9,6 +9,7 @@
 @inject NavigationManager Nav
 @inject IEnumerable<DeskMenuItem> MenuItems
 @inject INavigationMenuStore MenuStore
+@inject ToastService Toasts
 
 <BbSidebarProvider DefaultOpen="true">
     <BbSidebar Collapsible="true">
@@ -25,107 +26,128 @@
         <BbSidebarContent>
             @if (Current.User is { } u)
             {
+                var visibleModules = navModules.Where(m => m.IsVisibleFor(u)).OrderBy(m => m.SortOrder).ThenBy(m => m.Name).ToList();
+                var activeMod = ResolveActiveModule(visibleModules);
                 var visibleMenus = navMenus.Where(m => m.IsVisibleFor(u)).ToList();
-                var topMenus = visibleMenus.Where(m => m.GroupName == "Utama").OrderBy(m => m.SortOrder).ToList();
-                var docTypeGroups = MenuGroups(u).ToList();
-                var otherGroups = visibleMenus
-                    .Where(m => m.GroupName != "Utama" && !docTypeGroups.Contains(m.GroupName))
-                    .GroupBy(m => m.GroupName)
-                    .OrderBy(g => g.Min(x => x.SortOrder))
-                    .ToList();
 
-                @if (topMenus.Count > 0)
-                {
-                    <BbSidebarGroup>
-                        <BbSidebarMenu>
-                            @foreach (var item in topMenus)
+                <BbSidebarGroup>
+                    <BbSidebarMenu>
+                        <BbSidebarMenuItem>
+                            <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="" Match="NavLinkMatch.All" Tooltip="Beranda & Pilih Modul">
+                                <LucideIcon Name="house" Size="18" /><span>Beranda</span>
+                            </BbSidebarMenuButton>
+                        </BbSidebarMenuItem>
+                        <BbSidebarMenuItem>
+                            <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="inbox" Match="NavLinkMatch.Prefix" Tooltip="Kotak masuk">
+                                <LucideIcon Name="inbox" Size="18" /><span>Kotak masuk</span>
+                            </BbSidebarMenuButton>
+                            @if (unread > 0)
                             {
-                                <BbSidebarMenuItem>
-                                    <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="@item.Href.TrimStart('/')" Match="@(string.IsNullOrEmpty(item.Href) ? NavLinkMatch.All : NavLinkMatch.Prefix)" Tooltip="@item.Title">
-                                        <LucideIcon Name="@item.Icon" Size="18" /><span>@item.Title</span>
-                                    </BbSidebarMenuButton>
-                                    @if (item.BadgeKey == NavigationMenuDefaults.BadgeInboxUnread && unread > 0)
-                                    {
-                                        <BbSidebarMenuBadge>@unread</BbSidebarMenuBadge>
-                                    }
-                                </BbSidebarMenuItem>
+                                <BbSidebarMenuBadge>@unread</BbSidebarMenuBadge>
                             }
-                        </BbSidebarMenu>
-                    </BbSidebarGroup>
-                }
+                        </BbSidebarMenuItem>
+                        @if (activeMod is not null)
+                        {
+                            <BbSidebarMenuItem>
+                                <BbSidebarMenuButton OnClick="() => isModulePickerOpen = true" Tooltip="@($"Modul aktif: {activeMod.Name} (Klik untuk pindah modul)")" Class="module-switch-btn">
+                                    <LucideIcon Name="@(string.IsNullOrWhiteSpace(activeMod.Icon) ? "layout-grid" : activeMod.Icon)" Size="18" />
+                                    <span>@activeMod.Name</span>
+                                </BbSidebarMenuButton>
+                            </BbSidebarMenuItem>
+                        }
+                    </BbSidebarMenu>
+                </BbSidebarGroup>
 
-                @foreach (var groupName in docTypeGroups)
+                @if (activeMod is not null)
                 {
-                    <BbSidebarGroup>
-                        <BbSidebarGroupLabel>@groupName</BbSidebarGroupLabel>
-                        <BbSidebarGroupContent>
-                            <BbSidebarMenu>
-                                @foreach (var d in ReadableDocTypes(u).Where(d => (d.Def.Module ?? "Umum") == groupName))
-                                {
-                                    <BbSidebarMenuItem>
-                                        <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="@($"app/{d.Name}")" Tooltip="@d.Title">
-                                            <LucideIcon Name="@IconFor(d)" Size="18" /><span>@d.Title</span>
-                                        </BbSidebarMenuButton>
-                                    </BbSidebarMenuItem>
-                                }
-                                @foreach (var item in VisibleMenuItems(u).Where(i => i.Group == groupName))
-                                {
-                                    <BbSidebarMenuItem>
-                                        <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="@item.Href.TrimStart('/')" Tooltip="@item.Title">
-                                            <LucideIcon Name="@item.Icon" Size="18" /><span>@item.Title</span>
-                                        </BbSidebarMenuButton>
-                                    </BbSidebarMenuItem>
-                                }
-                                @foreach (var item in visibleMenus.Where(m => m.GroupName == groupName).OrderBy(m => m.SortOrder))
-                                {
-                                    <BbSidebarMenuItem>
-                                        <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="@item.Href.TrimStart('/')" Tooltip="@item.Title">
-                                            <LucideIcon Name="@item.Icon" Size="18" /><span>@item.Title</span>
-                                        </BbSidebarMenuButton>
-                                        @if (item.BadgeKey == NavigationMenuDefaults.BadgeInboxUnread && unread > 0)
-                                        {
-                                            <BbSidebarMenuBadge>@unread</BbSidebarMenuBadge>
-                                        }
-                                    </BbSidebarMenuItem>
-                                }
-                            </BbSidebarMenu>
-                        </BbSidebarGroupContent>
-                    </BbSidebarGroup>
-                }
+                    var moduleGroups = navGroups
+                        .Where(g => g.IsActive && g.ModuleId == activeMod.Id)
+                        .OrderBy(g => g.SortOrder)
+                        .ThenBy(g => g.Name)
+                        .ToList();
 
-                @foreach (var group in otherGroups)
-                {
-                    <BbSidebarGroup>
-                        <BbSidebarGroupLabel>@group.Key</BbSidebarGroupLabel>
-                        <BbSidebarGroupContent>
-                            <BbSidebarMenu>
-                                @foreach (var item in group.OrderBy(m => m.SortOrder))
-                                {
-                                    <BbSidebarMenuItem>
-                                        <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="@item.Href.TrimStart('/')" Tooltip="@item.Title">
-                                            <LucideIcon Name="@item.Icon" Size="18" /><span>@item.Title</span>
-                                        </BbSidebarMenuButton>
-                                        @if (item.BadgeKey == NavigationMenuDefaults.BadgeInboxUnread && unread > 0)
+                    @foreach (var grp in moduleGroups)
+                    {
+                        var grpMenus = visibleMenus
+                            .Where(m => !string.IsNullOrEmpty(m.Href)
+                                     && !string.Equals(m.Href, "inbox", StringComparison.OrdinalIgnoreCase)
+                                     && (m.GroupId == grp.Id || (string.IsNullOrWhiteSpace(m.GroupId) && string.Equals(m.GroupName, grp.Name, StringComparison.OrdinalIgnoreCase))))
+                            .OrderBy(m => m.SortOrder)
+                            .ToList();
+
+                        var explicitHrefs = grpMenus.Select(m => m.Href.TrimStart('/')).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                        var grpDocTypes = ReadableDocTypes(u)
+                            .Where(d => string.Equals(d.Def.Module ?? "Umum", grp.Name, StringComparison.OrdinalIgnoreCase)
+                                     && !explicitHrefs.Contains($"app/{d.Name}"))
+                            .ToList();
+
+                        var grpDeskItems = VisibleMenuItems(u)
+                            .Where(i => string.Equals(i.Group, grp.Name, StringComparison.OrdinalIgnoreCase)
+                                     && !explicitHrefs.Contains(i.Href.TrimStart('/')))
+                            .ToList();
+
+                        @if (grpDocTypes.Count > 0 || grpDeskItems.Count > 0 || grpMenus.Count > 0)
+                        {
+                            <BbSidebarGroup>
+                                <BbSidebarGroupLabel>@grp.Name</BbSidebarGroupLabel>
+                                <BbSidebarGroupContent>
+                                    <BbSidebarMenu>
+                                        @foreach (var d in grpDocTypes)
                                         {
-                                            <BbSidebarMenuBadge>@unread</BbSidebarMenuBadge>
+                                            <BbSidebarMenuItem>
+                                                <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="@($"app/{d.Name}")" Tooltip="@d.Title">
+                                                    <LucideIcon Name="@IconFor(d)" Size="18" /><span>@d.Title</span>
+                                                </BbSidebarMenuButton>
+                                            </BbSidebarMenuItem>
                                         }
-                                    </BbSidebarMenuItem>
-                                }
-                            </BbSidebarMenu>
-                        </BbSidebarGroupContent>
-                    </BbSidebarGroup>
+                                        @foreach (var item in grpDeskItems)
+                                        {
+                                            <BbSidebarMenuItem>
+                                                <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="@item.Href.TrimStart('/')" Tooltip="@item.Title">
+                                                    <LucideIcon Name="@item.Icon" Size="18" /><span>@item.Title</span>
+                                                </BbSidebarMenuButton>
+                                            </BbSidebarMenuItem>
+                                        }
+                                        @foreach (var item in grpMenus)
+                                        {
+                                            <BbSidebarMenuItem>
+                                                <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="@item.Href.TrimStart('/')" Match="@(string.IsNullOrEmpty(item.Href) ? NavLinkMatch.All : NavLinkMatch.Prefix)" Tooltip="@item.Title">
+                                                    <LucideIcon Name="@item.Icon" Size="18" /><span>@item.Title</span>
+                                                </BbSidebarMenuButton>
+                                                @if (item.BadgeKey == NavigationMenuDefaults.BadgeInboxUnread && unread > 0)
+                                                {
+                                                    <BbSidebarMenuBadge>@unread</BbSidebarMenuBadge>
+                                                }
+                                            </BbSidebarMenuItem>
+                                        }
+                                    </BbSidebarMenu>
+                                </BbSidebarGroupContent>
+                            </BbSidebarGroup>
+                        }
+                    }
                 }
             }
         </BbSidebarContent>
 
         @if (Current.User is { } me)
         {
+            var avatarId = me.Attr("avatar");
             <BbSidebarFooter>
-                <div class="sidebar-user">
-                    <BbAvatar><BbAvatarFallback>@Initials(me.FullName)</BbAvatarFallback></BbAvatar>
+                <button type="button" class="sidebar-user sidebar-user-btn" title="@($"{me.FullName} · Klik untuk informasi pengguna & foto profil")" @onclick="OpenUserProfile">
+                    <div class="sidebar-avatar-box">
+                        @if (!string.IsNullOrWhiteSpace(avatarId))
+                        {
+                            <img src="@($"/files/{avatarId}")" alt="@me.FullName" />
+                        }
+                        else
+                        {
+                            <span>@Initials(me.FullName)</span>
+                        }
+                    </div>
                     <div class="who"><span style="font-weight:600;font-size:.85rem">@me.FullName</span>
                         <span class="muted small">@string.Join(", ", me.Roles.Where(r => r != "Employee").DefaultIfEmpty("Employee"))</span></div>
-                </div>
+                </button>
             </BbSidebarFooter>
         }
     </BbSidebar>
@@ -134,11 +156,35 @@
         <header class="app-header">
             <BbSidebarTrigger />
             <BbSeparator Orientation="SeparatorOrientation.Vertical" Style="height:1.25rem" />
-            <span class="tenant">@(Current.User is { } cu ? $"Tenant {cu.TenantId}" : "Prototipe")</span>
+            @if (Current.User is { } cu)
+            {
+                var visibleMods = navModules.Where(m => m.IsVisibleFor(cu)).OrderBy(m => m.SortOrder).ThenBy(m => m.Name).ToList();
+                var active = ResolveActiveModule(visibleMods);
+                @if (active is not null)
+                {
+                    <button type="button" class="module-pill" title="Klik untuk pindah modul" @onclick="() => isModulePickerOpen = true">
+                        <LucideIcon Name="@(string.IsNullOrWhiteSpace(active.Icon) ? "layout-grid" : active.Icon)" Size="14" />
+                        <span>@active.Name</span>
+                        <LucideIcon Name="chevrons-up-down" Size="13" />
+                    </button>
+                }
+                <span class="tenant">Tenant @cu.TenantId</span>
+            }
+            else
+            {
+                <span class="tenant">Prototipe</span>
+            }
             <span class="spacer"></span>
             @if (Current.User is { } who)
             {
-                <button type="button" class="who-chip" title="@($"{string.Join(", ", who.Roles)} · klik untuk ganti password")" @onclick="ChangePassword">@who.FullName</button>
+                var headerAvatar = who.Attr("avatar");
+                <button type="button" class="who-chip" title="@($"{string.Join(", ", who.Roles)} · Klik untuk informasi pengguna & foto profil")" @onclick="OpenUserProfile">
+                    @if (!string.IsNullOrWhiteSpace(headerAvatar))
+                    {
+                        <img class="who-chip-avatar" src="@($"/files/{headerAvatar}")" alt="@who.FullName" />
+                    }
+                    <span>@who.FullName</span>
+                </button>
             }
             <span class="theme-toggle"><BbDarkModeToggle Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" /></span>
             <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="Logout"><LucideIcon Name="log-out" Size="16" /> Keluar</BbButton>
@@ -156,6 +202,38 @@
     </BbSidebarInset>
 </BbSidebarProvider>
 
+<UserProfileDrawer @bind-Open="isProfileOpen" />
+
+@if (Current.User is { } modalUser)
+{
+    var modalModules = navModules.Where(m => m.IsVisibleFor(modalUser)).OrderBy(m => m.SortOrder).ThenBy(m => m.Name).ToList();
+    var currentMod = ResolveActiveModule(modalModules);
+    <BbDialog Open="@isModulePickerOpen" OpenChanged="v => isModulePickerOpen = v">
+        <BbDialogContent Class="sm:max-w-xl">
+            <BbDialogHeader>
+                <BbDialogTitle>Pilih Modul Kerja</BbDialogTitle>
+                <BbDialogDescription>Pilih satu modul untuk menampilkan group menu dan menu terkait pada sidebar.</BbDialogDescription>
+            </BbDialogHeader>
+            <div class="module-launcher-grid compact">
+                @foreach (var mod in modalModules)
+                {
+                    var isCurrent = currentMod?.Id == mod.Id;
+                    <button type="button" class="module-tile @(isCurrent ? "active" : "")" @onclick="() => SelectModuleFromModal(mod)">
+                        <div class="module-tile-icon">
+                            <LucideIcon Name="@(string.IsNullOrWhiteSpace(mod.Icon) ? "layout-grid" : mod.Icon)" Size="28" />
+                        </div>
+                        <div class="module-tile-title">@mod.Name</div>
+                        @if (!string.IsNullOrWhiteSpace(mod.Description))
+                        {
+                            <div class="module-tile-desc">@mod.Description</div>
+                        }
+                    </button>
+                }
+            </div>
+        </BbDialogContent>
+    </BbDialog>
+}
+
 <BbToastProvider Position="ToastPosition.BottomRight" />
 <BbDialogProvider />
 <BbPortalHost />
@@ -163,11 +241,18 @@
 @code {
     private int unread;
     private PeriodicTimer? timer;
+    private IReadOnlyList<NavigationModule> navModules = [];
+    private IReadOnlyList<NavigationMenuGroup> navGroups = [];
     private IReadOnlyList<NavigationMenuItem> navMenus = [];
+    private bool isModulePickerOpen;
+    private bool isProfileOpen;
+
+    private void OpenUserProfile() => isProfileOpen = true;
 
     protected override void OnInitialized()
     {
         Current.Changed += OnUserChanged;
+        Current.ModuleChanged += OnModuleChanged;
         MenuStore.Changed += OnMenusChanged;
         if (Current.User is null) { RedirectToLogin(); return; }
         RefreshUnread();
@@ -180,9 +265,56 @@
     {
         if (Current.User is { } u)
         {
+            navModules = await MenuStore.ListModulesAsync(u.TenantId, onlyActive: true);
+            navGroups = await MenuStore.ListGroupsAsync(u.TenantId, onlyActive: true);
             navMenus = await MenuStore.ListAsync(u.TenantId, onlyActive: true);
+            EnsureInitialActiveModule(u);
             await InvokeAsync(StateHasChanged);
         }
+    }
+
+    private void EnsureInitialActiveModule(UserContext u)
+    {
+        var visible = navModules.Where(m => m.IsVisibleFor(u)).OrderBy(m => m.SortOrder).ThenBy(m => m.Name).ToList();
+        if (visible.Count == 0) return;
+        if (!string.IsNullOrWhiteSpace(Current.ActiveModuleId) && visible.Any(m => m.Id == Current.ActiveModuleId))
+            return;
+
+        // Try matching the current relative URL to a module so deep links select the right module automatically.
+        var rel = Nav.ToBaseRelativePath(Nav.Uri).Trim('/');
+        if (!string.IsNullOrEmpty(rel))
+        {
+            var matchedMenu = navMenus.FirstOrDefault(m => !string.IsNullOrEmpty(m.Href) && rel.StartsWith(m.Href.Trim('/'), StringComparison.OrdinalIgnoreCase));
+            if (matchedMenu is not null)
+            {
+                var grp = navGroups.FirstOrDefault(g => g.Id == matchedMenu.GroupId || string.Equals(g.Name, matchedMenu.GroupName, StringComparison.OrdinalIgnoreCase));
+                if (grp is not null && visible.Any(m => m.Id == grp.ModuleId))
+                {
+                    Current.SetActiveModule(grp.ModuleId);
+                    return;
+                }
+            }
+        }
+
+        Current.SetActiveModule(visible[0].Id);
+    }
+
+    private NavigationModule? ResolveActiveModule(IReadOnlyList<NavigationModule> visibleModules)
+    {
+        if (visibleModules.Count == 0) return null;
+        return visibleModules.FirstOrDefault(m => m.Id == Current.ActiveModuleId) ?? visibleModules[0];
+    }
+
+    private void SelectModuleFromModal(NavigationModule mod)
+    {
+        Current.SetActiveModule(mod.Id);
+        isModulePickerOpen = false;
+        Toasts.Success($"Sidebar beralih ke modul {mod.Name}.", "Modul Aktif");
+    }
+
+    private void OnModuleChanged()
+    {
+        _ = InvokeAsync(StateHasChanged);
     }
 
     private void OnMenusChanged()
@@ -190,7 +322,7 @@
         _ = LoadMenusAsync();
     }
 
-    /// <summary>Tanpa sesi (belum login, atau sesi dicabut saat validasi ulang) → ke halaman login.</summary>
+    /// <summary>Redirects to login when session is missing or invalidated during periodic security stamp revalidation.</summary>
     private void OnUserChanged()
     {
         if (Current.User is null) InvokeAsync(RedirectToLogin);
@@ -233,19 +365,17 @@
         "PurchaseRequest" => "shopping-cart", _ => "file-text"
     };
 
-    /// <summary>Item menu tambahan dari aplikasi (AddDeskMenuItem), ditampilkan bila pengguna boleh membaca DocType syaratnya.</summary>
+    /// <summary>Additional application menu items registered via AddDeskMenuItem, shown when the user has read access to RequiresReadOf.</summary>
     private IEnumerable<DeskMenuItem> VisibleMenuItems(UserContext u) => MenuItems
         .Where(i => i.RequiresReadOf is null || (Metadata.Current.TryGet(i.RequiresReadOf, out var m) && Perms.Can(u, m, DocActions.Read)))
         .OrderBy(i => i.Order);
-
-    private IEnumerable<string> MenuGroups(UserContext u) =>
-        ReadableDocTypes(u).Select(d => d.Def.Module ?? "Umum").Concat(VisibleMenuItems(u).Select(i => i.Group)).Distinct().Order();
 
     private static string Initials(string name) => string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(p => p[0]));
 
     public void Dispose()
     {
         Current.Changed -= OnUserChanged;
+        Current.ModuleChanged -= OnModuleChanged;
         MenuStore.Changed -= OnMenusChanged;
         timer?.Dispose();
     }

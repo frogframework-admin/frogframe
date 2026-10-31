@@ -110,4 +110,57 @@ sealed partial class Tests
         var sysMenu = all.First(m => m.IsSystem);
         await Assert.Throws<InvalidOperationException>(() => NavMenus.DeleteAsync(sysMenu.Id, tenantId), "Menu sistem tidak boleh dihapus");
     }
+
+    [Test]
+    public async Task NavigationModuleAndGroup_SeedingRoleAccessAndCrud()
+    {
+        var tenantId = "acme";
+        var modules = await NavMenus.ListModulesAsync(tenantId, onlyActive: false);
+        var groups = await NavMenus.ListGroupsAsync(tenantId, onlyActive: false);
+
+        Assert.True(modules.Count >= 4, "Default modules should be seeded");
+        Assert.True(groups.Count >= 6, "Default menu groups should be seeded");
+
+        var employeeUser = U("dewi");
+        var adminUser = U("admin");
+
+        var empModules = modules.Where(m => m.IsVisibleFor(employeeUser)).ToList();
+        var adminModules = modules.Where(m => m.IsVisibleFor(adminUser)).ToList();
+
+        Assert.True(!empModules.Any(m => m.Name == "Administration"), "Regular employee should not see Administration module");
+        Assert.True(adminModules.Any(m => m.Name == "Administration"), "Admin should see Administration module");
+
+        // Create custom module and group
+        var customMod = new NavigationModule
+        {
+            TenantId = tenantId,
+            Name = "Finance",
+            Description = "Financial management",
+            Icon = "wallet",
+            SortOrder = 25,
+            AllowedRoles = ["Finance"],
+            IsActive = true,
+            IsSystem = false
+        };
+        await NavMenus.SaveModuleAsync(customMod);
+
+        var customGrp = new NavigationMenuGroup
+        {
+            TenantId = tenantId,
+            ModuleId = customMod.Id,
+            Name = "Buku Besar",
+            Icon = "book",
+            SortOrder = 10,
+            IsActive = true,
+            IsSystem = false
+        };
+        await NavMenus.SaveGroupAsync(customGrp);
+
+        // Cannot delete module while it still has a group
+        await Assert.Throws<InvalidOperationException>(() => NavMenus.DeleteModuleAsync(customMod.Id, tenantId), "Cannot delete module with child groups");
+
+        await NavMenus.DeleteGroupAsync(customGrp.Id, tenantId);
+        await NavMenus.DeleteModuleAsync(customMod.Id, tenantId);
+        Assert.True(await NavMenus.GetModuleAsync(customMod.Id, tenantId) is null, "Custom module deleted after removing child groups");
+    }
 }

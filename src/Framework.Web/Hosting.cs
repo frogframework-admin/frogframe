@@ -37,9 +37,17 @@ public sealed class CurrentUser
 {
     // Diisi dari klaim login (AuthenticationState) oleh komponen Routes; lihat ClaimsUserMapper.
     public UserContext? User { get; private set; }
+    public string? ActiveModuleId { get; private set; }
     public event Action? Changed;
+    public event Action? ModuleChanged;
     public UserContext Required => User ?? throw new PermissionDeniedException("Belum masuk");
     public void Set(UserContext? user) { User = user; Changed?.Invoke(); }
+    public void SetActiveModule(string? moduleId)
+    {
+        if (ActiveModuleId == moduleId) return;
+        ActiveModuleId = moduleId;
+        ModuleChanged?.Invoke();
+    }
 }
 
 

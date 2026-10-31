@@ -20,6 +20,8 @@ public sealed class UserAccount
     public string? Department { get; set; }
     /// <summary>Nama dokumen Employee yang terhubung (mis. "EMP-0001").</summary>
     public string? EmployeeId { get; set; }
+    /// <summary>File ID of the user's uploaded profile photo stored in IFileStore.</summary>
+    public string? AvatarId { get; set; }
     public List<string> Roles { get; set; } = [];
     public bool IsActive { get; set; } = true;
 
@@ -41,6 +43,7 @@ public sealed class UserAccount
         var a = new Dictionary<string, string>();
         if (!string.IsNullOrWhiteSpace(Department)) a["department"] = Department;
         if (!string.IsNullOrWhiteSpace(EmployeeId)) a["employee"] = EmployeeId;
+        if (!string.IsNullOrWhiteSpace(AvatarId)) a["avatar"] = AvatarId;
         return a;
     }
 }

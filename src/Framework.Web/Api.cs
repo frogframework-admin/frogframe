@@ -34,7 +34,10 @@ public static class DocApi
             var file = await sp.GetRequiredService<IFileStore>().GetAsync(user.TenantId, id, http.RequestAborted);
             if (file is not { } f) return Results.NotFound();
             bool allowed;
-            if (f.Record.DocName is null) allowed = f.Record.UploadedBy == user.Id;
+            if (f.Record.DocName is null || f.Record.DocType == "UserAccount")
+            {
+                allowed = f.Record.DocType == "UserAccount" || f.Record.UploadedBy == user.Id;
+            }
             else
             {
                 try

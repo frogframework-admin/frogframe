@@ -18,12 +18,14 @@ public static class DocFrameClaims
     public const string FullName = "docframe:full_name";
     public const string Department = "docframe:department";
     public const string Employee = "docframe:employee";
+    public const string Avatar = "docframe:avatar";
 
     /// <summary>Atribut UserContext ↔ klaim. Tambah baris di sini untuk atribut baru (mis. cost center).</summary>
     public static readonly IReadOnlyDictionary<string, string> AttributeClaims = new Dictionary<string, string>
     {
         ["department"] = Department,
         ["employee"] = Employee,
+        ["avatar"] = Avatar,
     };
 }
 

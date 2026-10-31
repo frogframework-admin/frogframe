@@ -20,7 +20,7 @@ else
     <header class="page-head">
         <div>
             <h1>Master Menu Navigasi</h1>
-            <p>Kelola menu sidebar aplikasi untuk tenant @Current.Required.TenantId. Atur grup, urutan, ikon, dan batasan hak akses per peran.</p>
+            <p>Kelola menu sidebar aplikasi untuk tenant @Current.Required.TenantId. Setiap menu terhubung ke satu group menu di dalam modul.</p>
         </div>
         <div class="row" style="gap:.5rem">
             <BbButton Variant="ButtonVariant.Outline" OnClick="ResetDefaults"><LucideIcon Name="rotate-ccw" Size="16" /> Seed Default</BbButton>
@@ -62,11 +62,21 @@ else
                 </CellTemplate>
             </BbDataGridPropertyColumn>
 
-            <BbDataGridPropertyColumn TData="NavigationMenuItem" TProp="string" Property="m => m.GroupName" Title="Grup" Width="8rem" Sortable="true" Filterable="true">
-                <CellTemplate Context="item">
-                    <BbBadge Variant="BadgeVariant.Outline">@item.GroupName</BbBadge>
-                </CellTemplate>
-            </BbDataGridPropertyColumn>
+            <BbDataGridTemplateColumn TData="NavigationMenuItem" Title="Modul & Group Menu" Width="14rem" Sortable="true" SortBy="m => m.GroupName">
+                <ChildContent Context="item">
+                    @{
+                        var grp = ResolveGroup(item);
+                        var mod = grp is not null ? modules.FirstOrDefault(x => x.Id == grp.ModuleId) : null;
+                    }
+                    <div class="row" style="gap:.35rem;flex-wrap:wrap">
+                        @if (mod is not null)
+                        {
+                            <BbBadge Variant="BadgeVariant.Soft">@mod.Name</BbBadge>
+                        }
+                        <BbBadge Variant="BadgeVariant.Outline">@(grp?.Name ?? item.GroupName)</BbBadge>
+                    </div>
+                </ChildContent>
+            </BbDataGridTemplateColumn>
 
             <BbDataGridTemplateColumn TData="NavigationMenuItem" Title="Hak Akses">
                 <ChildContent Context="item">
@@ -128,72 +138,74 @@ else
         </EmptyTemplate>
     </BbDataGrid>
 
-    <BbDrawer Open="@isDrawerOpen" OpenChanged="@OnDrawerOpenChanged" Direction="DrawerDirection.Right">
-        <BbDrawerContent Class="sm:max-w-md" Style="display:flex;flex-direction:column;max-height:100vh">
+    <AdminDrawer Open="@isDrawerOpen"
+                 OpenChanged="@OnDrawerOpenChanged"
+                 WidthScale="@DrawerWidthScale"
+                 Title="@(edit is null ? "" : isNew ? "Tambah Menu Baru" : $"Edit: {edit.Title}")"
+                 Description="@(edit is null ? null : edit.IsSystem ? "Menu bawaan sistem (tidak dapat dihapus, tapi dapat diatur judul, ikon, group menu, dan urutannya)." : "Menu kustom aplikasi.")">
+        <ChildContent>
             @if (edit is not null)
             {
-                <BbDrawerHeader>
-                    <div class="row" style="justify-content:space-between;align-items:flex-start">
-                        <div>
-                            <BbDrawerTitle>@(isNew ? "Tambah Menu Baru" : $"Edit: {edit.Title}")</BbDrawerTitle>
-                            <BbDrawerDescription>
-                                @(edit.IsSystem ? "Menu bawaan sistem (tidak dapat dihapus, tapi dapat diatur judul, ikon, dan urutannya)." : "Menu kustom aplikasi.")
-                            </BbDrawerDescription>
-                        </div>
-                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Tutup drawer" OnClick="CloseDrawer">
-                            <LucideIcon Name="x" Size="16" />
-                        </BbButton>
-                    </div>
-                </BbDrawerHeader>
+                @if (error is not null)
+                {
+                    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@error</BbAlertDescription></BbAlert>
+                }
 
-                <div class="stack" style="padding:1rem 0;overflow-y:auto;flex:1">
-                    @if (error is not null)
-                    {
-                        <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@error</BbAlertDescription></BbAlert>
-                    }
-
+                <div class="form-cols cols-2">
                     <BbField>
                         <BbFieldLabel For="m-title">Judul Menu</BbFieldLabel>
-                        <BbInput Id="m-title" @bind-Value="edit.Title" Placeholder="mis. Beranda, Pengadaan" />
-                    </BbField>
-
-                    <BbField>
-                        <BbFieldLabel For="m-href">URL / Path</BbFieldLabel>
-                        <BbInput Id="m-href" @bind-Value="edit.Href" Placeholder="mis. dashboard, admin/users, atau kosongkan untuk Beranda" />
-                        <BbFieldDescription>Path relatif aplikasi, mis. "dashboard" atau "app/Employee". Kosongkan untuk halaman beranda.</BbFieldDescription>
-                    </BbField>
-
-                    <BbField>
-                        <BbFieldLabel For="m-icon">Ikon Lucide</BbFieldLabel>
-                        <div class="row" style="gap:.5rem;align-items:center;flex-wrap:nowrap">
-                            <BbInput Id="m-icon" @bind-Value="edit.Icon" Placeholder="mis. house, users, file-text" />
-                            <div style="display:flex;align-items:center;justify-content:center;width:2.5rem;height:2.5rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--muted);flex-shrink:0">
-                                <LucideIcon Name="@(string.IsNullOrWhiteSpace(edit.Icon) ? "file-text" : edit.Icon)" Size="18" />
-                            </div>
-                        </div>
-                        <BbFieldDescription>Nama ikon dari Lucide Icons (mis. house, users, key-round, braces, settings-2, chart-column, inbox).</BbFieldDescription>
-                    </BbField>
-
-                    <BbField>
-                        <BbFieldLabel For="m-group">Grup Menu</BbFieldLabel>
-                        <BbInput Id="m-group" @bind-Value="edit.GroupName" Placeholder="mis. Utama, Sistem, Laporan, HR" />
-                        <BbFieldDescription>Menu dengan grup yang sama akan dikelompokkan di sidebar.</BbFieldDescription>
+                        <FormTextInput Id="m-title" Immediate="true" @bind-Value="edit.Title" Placeholder="mis. Beranda, Pengadaan" />
                     </BbField>
 
                     <BbField>
                         <BbFieldLabel For="m-order">Urutan (Sort Order)</BbFieldLabel>
-                        <FormTextInput Id="m-order" Type="number" Value="@edit.SortOrder.ToString()" ValueChanged="v => edit.SortOrder = int.TryParse(v, out var n) ? n : edit.SortOrder" />
+                        <FormTextInput Id="m-order" Type="number" Immediate="true" Value="@edit.SortOrder.ToString()" ValueChanged="v => edit.SortOrder = int.TryParse(v, out var n) ? n : edit.SortOrder" />
                         <BbFieldDescription>Angka lebih kecil tampil lebih di atas (mis. 10, 20, 30, dst.).</BbFieldDescription>
+                    </BbField>
+                </div>
+
+                <div class="form-cols cols-2">
+                    <BbField>
+                        <BbFieldLabel For="m-href">URL / Path</BbFieldLabel>
+                        <FormTextInput Id="m-href" Immediate="true" @bind-Value="edit.Href" Placeholder="mis. dashboard, admin/users" />
+                        <BbFieldDescription>Path relatif aplikasi, mis. "dashboard" atau "app/Employee".</BbFieldDescription>
+                    </BbField>
+
+                    <BbField>
+                        <BbFieldLabel For="m-group">Group Menu (di dalam Modul)</BbFieldLabel>
+                        <select id="m-group" class="auth-input" value="@edit.GroupId" @onchange="OnGroupSelected">
+                            @foreach (var grp in groups)
+                            {
+                                var modName = modules.FirstOrDefault(m => m.Id == grp.ModuleId)?.Name ?? "Modul";
+                                <option value="@grp.Id">@modName — @grp.Name</option>
+                            }
+                        </select>
+                        <BbFieldDescription>Pilih group menu tempat item menu ini ditampilkan.</BbFieldDescription>
+                    </BbField>
+                </div>
+
+                <div class="form-cols cols-2">
+                    <BbField>
+                        <BbFieldLabel For="m-icon">Ikon Lucide</BbFieldLabel>
+                        <div class="row" style="gap:.5rem;align-items:center;flex-wrap:nowrap">
+                            <FormTextInput Id="m-icon" Immediate="true" @bind-Value="edit.Icon" Placeholder="mis. house, users, file-text" />
+                            <div style="display:flex;align-items:center;justify-content:center;width:2.5rem;height:2.5rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--muted);flex-shrink:0">
+                                <LucideIcon Name="@(string.IsNullOrWhiteSpace(edit.Icon) ? "file-text" : edit.Icon)" Size="18" />
+                            </div>
+                        </div>
+                        <BbFieldDescription>Nama ikon dari Lucide Icons (mis. house, users, key-round, settings-2).</BbFieldDescription>
                     </BbField>
 
                     <BbField>
                         <BbFieldLabel For="m-badge">Kunci Badge (Opsional)</BbFieldLabel>
-                        <BbInput Id="m-badge" @bind-Value="edit.BadgeKey" Placeholder="mis. inbox_unread" />
-                        <BbFieldDescription>Isi "inbox_unread" bila ingin menampilkan badge jumlah notifikasi belum dibaca.</BbFieldDescription>
+                        <FormTextInput Id="m-badge" Immediate="true" @bind-Value="edit.BadgeKey" Placeholder="mis. inbox_unread" />
+                        <BbFieldDescription>Isi "inbox_unread" untuk menampilkan badge notifikasi belum dibaca.</BbFieldDescription>
                     </BbField>
+                </div>
 
-                    <div class="props-sub">Batasan Hak Akses (Role)</div>
-                    <p class="muted small">Jika tidak ada role yang dipilih, menu dapat dilihat oleh <strong>Semua Karyawan</strong>.</p>
+                <div class="props-sub">Batasan Hak Akses (Role)</div>
+                <p class="muted small">Jika tidak ada role yang dipilih, menu dapat dilihat oleh <strong>Semua Karyawan</strong> yang memiliki akses ke modul induknya.</p>
+                <div class="role-check-grid">
                     @foreach (var r in AvailableRoles)
                     {
                         var role = r;
@@ -202,33 +214,40 @@ else
                             <BbLabel For="@($"role-{role}")">@role</BbLabel>
                         </div>
                     }
-
-                    <div class="label-row" style="margin-top:.5rem">
-                        <BbCheckbox Id="m-active" Checked="edit.IsActive" CheckedChanged="v => edit.IsActive = v" />
-                        <BbLabel For="m-active">Aktif (ditampilkan di sidebar)</BbLabel>
-                    </div>
                 </div>
 
-                <BbDrawerFooter>
-                    <div class="row" style="gap:.5rem;width:100%;align-items:center">
-                        <BbButton Disabled="busy" Loading="busy" LoadingText="Menyimpan…" OnClick="Save"><LucideIcon Name="check" Size="16" /> Simpan</BbButton>
-                        <BbButton Variant="ButtonVariant.Ghost" OnClick="CloseDrawer">Batal</BbButton>
-                        @if (!isNew && !edit.IsSystem)
-                        {
-                            <span style="margin-left:auto">
-                                <BbButton Variant="ButtonVariant.Destructive" Size="ButtonSize.Small" Disabled="busy" OnClick="() => ConfirmDelete(edit)">
-                                    <LucideIcon Name="trash-2" Size="15" /> Hapus
-                                </BbButton>
-                            </span>
-                        }
-                    </div>
-                </BbDrawerFooter>
+                <div class="label-row" style="margin-top:.5rem">
+                    <BbCheckbox Id="m-active" Checked="edit.IsActive" CheckedChanged="v => edit.IsActive = v" />
+                    <BbLabel For="m-active">Aktif (ditampilkan di sidebar)</BbLabel>
+                </div>
             }
-        </BbDrawerContent>
-    </BbDrawer>
+        </ChildContent>
+        <FooterContent>
+            @if (edit is not null)
+            {
+                <div class="row" style="gap:.5rem;width:100%;align-items:center">
+                    <BbButton Disabled="busy" Loading="busy" LoadingText="Menyimpan…" OnClick="Save"><LucideIcon Name="check" Size="16" /> Simpan</BbButton>
+                    <BbButton Variant="ButtonVariant.Ghost" OnClick="CloseDrawer">Batal</BbButton>
+                    @if (!isNew && !edit.IsSystem)
+                    {
+                        <span style="margin-left:auto">
+                            <BbButton Variant="ButtonVariant.Destructive" Size="ButtonSize.Small" Disabled="busy" OnClick="() => ConfirmDelete(edit)">
+                                <LucideIcon Name="trash-2" Size="15" /> Hapus
+                            </BbButton>
+                        </span>
+                    }
+                </div>
+            }
+        </FooterContent>
+    </AdminDrawer>
 }
 
 @code {
+    /// <summary>Configurable drawer width multiplier (default 2.0 = 2x normal width for Menu form).</summary>
+    [Parameter] public double DrawerWidthScale { get; set; } = 2.0;
+
+    private IReadOnlyList<NavigationModule> modules = [];
+    private IReadOnlyList<NavigationMenuGroup> groups = [];
     private IReadOnlyList<NavigationMenuItem> menus = [];
     private IReadOnlyList<RoleDef> storedRoles = [];
     private NavigationMenuItem? edit;
@@ -251,13 +270,33 @@ else
 
     private async Task Reload()
     {
-        menus = await MenuStore.ListAsync(Current.Required.TenantId, onlyActive: false);
+        var tenantId = Current.Required.TenantId;
+        modules = await MenuStore.ListModulesAsync(tenantId, onlyActive: false);
+        groups = await MenuStore.ListGroupsAsync(tenantId, onlyActive: false);
+        menus = await MenuStore.ListAsync(tenantId, onlyActive: false);
+    }
+
+    private NavigationMenuGroup? ResolveGroup(NavigationMenuItem item) =>
+        groups.FirstOrDefault(g => g.Id == item.GroupId)
+        ?? groups.FirstOrDefault(g => string.Equals(g.Name, item.GroupName, StringComparison.OrdinalIgnoreCase));
+
+    private void OnGroupSelected(ChangeEventArgs e)
+    {
+        if (edit is null) return;
+        var gid = e.Value as string;
+        var grp = groups.FirstOrDefault(g => g.Id == gid);
+        if (grp is not null)
+        {
+            edit.GroupId = grp.Id;
+            edit.GroupName = grp.Name;
+        }
     }
 
     private void StartCreate()
     {
         error = null;
         isNew = true;
+        var defaultGroup = groups.FirstOrDefault();
         edit = new NavigationMenuItem
         {
             Id = Guid.NewGuid().ToString("N"),
@@ -265,7 +304,8 @@ else
             Title = "",
             Href = "",
             Icon = "file-text",
-            GroupName = "Umum",
+            GroupId = defaultGroup?.Id,
+            GroupName = defaultGroup?.Name ?? "Umum",
             SortOrder = (menus.Count > 0 ? menus.Max(m => m.SortOrder) + 10 : 100),
             AllowedRoles = [],
             IsActive = true,
@@ -278,6 +318,7 @@ else
     {
         error = null;
         isNew = false;
+        var resolvedGrp = ResolveGroup(item);
         edit = new NavigationMenuItem
         {
             Id = item.Id,
@@ -285,7 +326,8 @@ else
             Title = item.Title,
             Href = item.Href,
             Icon = item.Icon,
-            GroupName = item.GroupName,
+            GroupId = resolvedGrp?.Id ?? item.GroupId,
+            GroupName = resolvedGrp?.Name ?? item.GroupName,
             SortOrder = item.SortOrder,
             AllowedRoles = [.. item.AllowedRoles],
             IsSystem = item.IsSystem,
@@ -331,6 +373,7 @@ else
         if (string.IsNullOrWhiteSpace(edit.Title))
         {
             error = "Judul menu tidak boleh kosong.";
+            Toasts.Error(error, "Gagal Menyimpan");
             return;
         }
 
@@ -348,6 +391,7 @@ else
         catch (Exception ex)
         {
             error = ex.Message;
+            Toasts.Error(ex.Message, "Gagal Menyimpan");
         }
         finally
         {
@@ -414,4 +458,3 @@ else
         }
     }
 }
-

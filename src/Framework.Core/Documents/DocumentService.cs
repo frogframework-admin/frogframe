@@ -217,6 +217,41 @@ public sealed class DocumentService(
         return result;
     }
 
+    /// <summary>Recent documents visible to the user (prioritizing workflow/submittable documents) along with available workflow actions.</summary>
+    public async Task<IReadOnlyList<(CompiledDocType Meta, Document Doc, IReadOnlyList<string> Actions)>> RecentDocumentsAsync(
+        UserContext user, int limit = 8, CancellationToken ct = default)
+    {
+        var candidates = new List<(CompiledDocType Meta, Document Doc, IReadOnlyList<string> Actions)>();
+        var docTypes = Meta.DocTypes.Values
+            .Where(m => !m.Def.IsChild && permissions.Can(user, m, DocActions.Read))
+            .OrderByDescending(m => m.Workflow is not null || m.Def.Document.AllowSubmit)
+            .ThenBy(m => m.Name)
+            .ToList();
+
+        var transactional = docTypes.Where(m => m.Workflow is not null || m.Def.Document.AllowSubmit).ToList();
+        var targets = transactional.Count > 0 ? transactional : docTypes;
+
+        foreach (var meta in targets)
+        {
+            var scope = permissions.ScopeFor(user, meta, DocActions.Read);
+            var sort = new List<SortDef> { new() { Field = StandardFields.Modified, Direction = "desc" } };
+            var res = await store.QueryAsync(new StoreQuery(user.TenantId, meta.Name, scope, [], null, [], sort, 0, limit), ct);
+            foreach (var d in res.Items)
+            {
+                var actions = meta.Workflow is not null
+                    ? workflow.Available(meta, d, user).Select(t => t.Def.Action).ToList()
+                    : [];
+                candidates.Add((meta, RedactForRead(user, meta, d), actions));
+            }
+        }
+
+        return candidates
+            .OrderByDescending(x => x.Doc.Modified)
+            .ThenByDescending(x => x.Doc.Name)
+            .Take(limit)
+            .ToList();
+    }
+
     public async Task<IReadOnlyList<LinkOption>> SearchLinkAsync(UserContext user, string target, string? q, CancellationToken ct = default)
     {
         var meta = TopLevel(target);

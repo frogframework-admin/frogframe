@@ -1,0 +1,252 @@
+@* User profile drawer showing current user account details and allowing profile photo upload. *@
+@using Framework.Files
+@using Framework.Security
+@using Framework.Web.Identity
+@using Microsoft.AspNetCore.Identity
+@inject UserManager<UserAccount> Users
+@inject FileService Files
+@inject CurrentUser Current
+@inject NavigationManager Nav
+@inject ToastService Toasts
+
+<AdminDrawer Open="@Open"
+             OpenChanged="@OpenChanged"
+             WidthScale="@WidthScale"
+             Title="Informasi Pengguna"
+             Description="Profil akun, hak akses role, dan foto profil Anda.">
+    <ChildContent>
+        @if (error is not null)
+        {
+            <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@error</BbAlertDescription></BbAlert>
+        }
+
+        @if (account is null)
+        {
+            <div class="stack"><BbSkeleton Height="5rem" /><BbSkeleton Height="2.5rem" /><BbSkeleton Height="2.5rem" /></div>
+        }
+        else
+        {
+            <div class="profile-photo-card">
+                <div class="profile-avatar-frame">
+                    @if (!string.IsNullOrWhiteSpace(account.AvatarId))
+                    {
+                        <img src="@($"/files/{account.AvatarId}")" alt="@account.FullName" />
+                    }
+                    else
+                    {
+                        <span>@Initials(account.FullName)</span>
+                    }
+                </div>
+                <div class="profile-photo-actions">
+                    <div style="font-weight:600;font-size:.95rem">@account.FullName</div>
+                    <div class="muted small">@@@account.UserName · Tenant @account.TenantId</div>
+                    <div class="row" style="gap:.4rem;margin-top:.5rem">
+                        <label class="image-pick @(uploading ? "busy" : "")">
+                            <InputFile accept="image/png,image/jpeg,image/webp,image/gif" OnChange="UploadPhoto" disabled="@(uploading || busy)" />
+                            <LucideIcon Name="camera" Size="15" /> @(uploading ? "Mengunggah…" : string.IsNullOrWhiteSpace(account.AvatarId) ? "Unggah Foto" : "Ganti Foto")
+                        </label>
+                        @if (!string.IsNullOrWhiteSpace(account.AvatarId) && !uploading)
+                        {
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" Disabled="busy" OnClick="RemovePhoto">
+                                <LucideIcon Name="trash-2" Size="14" /> Hapus Foto
+                            </BbButton>
+                        }
+                    </div>
+                    <div class="muted small" style="margin-top:.25rem">PNG, JPEG, WebP, atau GIF · maks. 2 MB</div>
+                </div>
+            </div>
+
+            <BbField>
+                <BbFieldLabel For="prof-name">Nama Lengkap</BbFieldLabel>
+                <FormTextInput Id="prof-name" Immediate="true" @bind-Value="account.FullName" Placeholder="Nama lengkap Anda" />
+            </BbField>
+
+            <BbField>
+                <BbFieldLabel For="prof-email">Email</BbFieldLabel>
+                <FormTextInput Id="prof-email" Type="email" Immediate="true" @bind-Value="account.Email" Placeholder="mis. nama@perusahaan.co.id" />
+            </BbField>
+
+            <div class="form-cols cols-2">
+                <BbField>
+                    <BbFieldLabel>Username</BbFieldLabel>
+                    <div class="field-static"><code>@account.UserName</code></div>
+                </BbField>
+                <BbField>
+                    <BbFieldLabel>Tenant</BbFieldLabel>
+                    <div class="field-static">@account.TenantId</div>
+                </BbField>
+            </div>
+
+            <div class="form-cols cols-2">
+                <BbField>
+                    <BbFieldLabel>Departemen</BbFieldLabel>
+                    <div class="field-static">@(string.IsNullOrWhiteSpace(account.Department) ? "—" : account.Department)</div>
+                </BbField>
+                <BbField>
+                    <BbFieldLabel>ID Karyawan</BbFieldLabel>
+                    <div class="field-static">
+                        @if (!string.IsNullOrWhiteSpace(account.EmployeeId))
+                        {
+                            <a href="@($"/app/Employee/{account.EmployeeId}")" @onclick="() => OpenChanged.InvokeAsync(false)">@account.EmployeeId</a>
+                        }
+                        else
+                        {
+                            <span>—</span>
+                        }
+                    </div>
+                </BbField>
+            </div>
+
+            <BbField>
+                <BbFieldLabel>Role &amp; Hak Akses</BbFieldLabel>
+                <div class="row" style="gap:.35rem;padding-top:.15rem">
+                    @foreach (var r in account.Roles)
+                    {
+                        <BbBadge Variant="BadgeVariant.Soft">@r</BbBadge>
+                    }
+                </div>
+            </BbField>
+
+            <BbField>
+                <BbFieldLabel>Informasi Akun</BbFieldLabel>
+                <div class="muted small">
+                    Dibuat @Fmt.When(account.CreatedAt)
+                    @if (account.LastLoginAt is { } last)
+                    {
+                        <span> · Login terakhir @Fmt.When(last)</span>
+                    }
+                </div>
+            </BbField>
+        }
+    </ChildContent>
+    <FooterContent>
+        <div class="stack" style="gap:.65rem;width:100%">
+            <div class="row" style="gap:.5rem;width:100%;align-items:center">
+                <BbButton Disabled="@(busy || uploading || account is null)" Loading="busy" LoadingText="Menyimpan…" OnClick="SaveProfile">
+                    <LucideIcon Name="check" Size="16" /> Simpan Profil
+                </BbButton>
+                <BbButton Variant="ButtonVariant.Outline" OnClick="GoToChangePassword">
+                    <LucideIcon Name="key-round" Size="15" /> Ganti Password
+                </BbButton>
+                <BbButton Variant="ButtonVariant.Ghost" OnClick="() => OpenChanged.InvokeAsync(false)">Tutup</BbButton>
+            </div>
+        </div>
+    </FooterContent>
+</AdminDrawer>
+
+@code {
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public EventCallback<bool> OpenChanged { get; set; }
+    [Parameter] public double WidthScale { get; set; } = 2.0;
+
+    private UserAccount? account;
+    private bool wasOpen;
+    private bool busy;
+    private bool uploading;
+    private string? error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Open && !wasOpen)
+        {
+            wasOpen = true;
+            error = null;
+            if (Current.User is { } u)
+            {
+                account = await Users.FindByIdAsync(u.Id);
+            }
+        }
+        else if (!Open)
+        {
+            wasOpen = false;
+        }
+    }
+
+    private async Task UploadPhoto(InputFileChangeEventArgs e)
+    {
+        if (account is null || Current.User is null) return;
+        error = null;
+        if (e.File.Size > FileService.MaxImageBytes)
+        {
+            error = "Ukuran foto maksimal 2 MB.";
+            Toasts.Error(error, "Gagal Mengunggah Foto");
+            return;
+        }
+
+        uploading = true;
+        StateHasChanged();
+        try
+        {
+            await using var stream = e.File.OpenReadStream(FileService.MaxImageBytes + 1);
+            var fileId = await Files.UploadAvatarAsync(Current.Required, stream);
+            account.AvatarId = fileId;
+            Toasts.Success("Foto berhasil diunggah. Klik Simpan Profil untuk menerapkan.", "Foto Siap");
+        }
+        catch (Exception ex) when (ex is FileRejectedException or PermissionDeniedException or IOException)
+        {
+            error = ex is IOException ? "Ukuran foto maksimal 2 MB." : ex.Message;
+            Toasts.Error(error, "Gagal Mengunggah Foto");
+        }
+        finally
+        {
+            uploading = false;
+        }
+    }
+
+    private void RemovePhoto()
+    {
+        if (account is null) return;
+        account.AvatarId = null;
+    }
+
+    private async Task SaveProfile()
+    {
+        if (account is null || busy) return;
+        error = null;
+        if (string.IsNullOrWhiteSpace(account.FullName))
+        {
+            error = "Nama lengkap tidak boleh kosong.";
+            Toasts.Error(error, "Gagal Menyimpan");
+            return;
+        }
+
+        busy = true;
+        StateHasChanged();
+        try
+        {
+            account.FullName = account.FullName.Trim();
+            account.Email = string.IsNullOrWhiteSpace(account.Email) ? null : account.Email.Trim();
+
+            var res = await Users.UpdateAsync(account);
+            if (!res.Succeeded)
+            {
+                error = string.Join(" ", res.Errors.Select(e => e.Description));
+                Toasts.Error(error, "Gagal Menyimpan");
+                return;
+            }
+
+            // Update active circuit UserContext immediately so sidebar and header reflect new name and photo.
+            Current.Set(ClaimsUserMapper.FromAccount(account));
+            Toasts.Success("Informasi profil dan foto berhasil diperbarui.", "Profil Disimpan");
+            await OpenChanged.InvokeAsync(false);
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            Toasts.Error(ex.Message, "Gagal Menyimpan");
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private void GoToChangePassword()
+    {
+        Nav.NavigateTo("/account/password", forceLoad: true);
+    }
+
+    private static string Initials(string name) =>
+        string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(p => p[0]));
+}
+

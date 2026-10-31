@@ -101,4 +101,34 @@ public sealed class FileService(IFileStore store, IMetadataProvider metadata, IP
         await store.SaveAsync(record, bytes, ct);
         return record.Id;
     }
+
+    /// <summary>Uploads and validates a user profile photo (avatar) for the specified user account.</summary>
+    public async Task<string> UploadAvatarAsync(UserContext user, Stream content, CancellationToken ct = default)
+    {
+        using var ms = new MemoryStream();
+        var buffer = new byte[81920];
+        int read;
+        while ((read = await content.ReadAsync(buffer, ct)) > 0)
+        {
+            ms.Write(buffer, 0, read);
+            if (ms.Length > MaxImageBytes) throw new FileRejectedException("Ukuran gambar maksimal 2 MB");
+        }
+        var bytes = ms.ToArray();
+        var type = SniffImage(bytes) ?? throw new FileRejectedException("Format tidak didukung. Gunakan PNG, JPEG, WebP, atau GIF.");
+        var record = new FileRecord
+        {
+            Id = "f_" + Guid.NewGuid().ToString("N"),
+            TenantId = user.TenantId,
+            UploadedBy = user.Id,
+            ContentType = type,
+            Size = bytes.Length,
+            Sha256 = Convert.ToHexString(SHA256.HashData(bytes)),
+            CreatedAt = clock.GetUtcNow(),
+            DocType = "UserAccount",
+            DocName = user.Id,
+            Field = "avatar"
+        };
+        await store.SaveAsync(record, bytes, ct);
+        return record.Id;
+    }
 }

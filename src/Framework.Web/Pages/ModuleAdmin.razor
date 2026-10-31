@@ -1,0 +1,409 @@
+@page "/admin/modules"
+@using Framework.Navigation
+@using Framework.Security
+@using Framework.Web.Admin
+@inject INavigationMenuStore MenuStore
+@inject IRoleStore RoleStore
+@inject IMetadataProvider Metadata
+@inject CurrentUser Current
+@inject ToastService Toasts
+@inject DialogService Dialogs
+
+<PageTitle>Master Modul · DocFrame</PageTitle>
+
+@if (!Current.Required.IsAdmin)
+{
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>Halaman ini hanya untuk Administrator / System Manager.</BbAlertDescription></BbAlert>
+}
+else
+{
+    <header class="page-head">
+        <div>
+            <h1>Master Modul</h1>
+            <p>Kelola modul utama aplikasi dan hak akses modul berdasarkan role pengguna. Setiap modul terdiri dari satu atau lebih group menu.</p>
+        </div>
+        <div class="row" style="gap:.5rem">
+            <BbButton Variant="ButtonVariant.Outline" Disabled="busy" OnClick="ResetDefaults"><LucideIcon Name="rotate-ccw" Size="16" /> Seed Default</BbButton>
+            <BbButton OnClick="StartCreate"><LucideIcon Name="plus" Size="16" /> Tambah modul</BbButton>
+        </div>
+    </header>
+
+    <BbDataGrid TData="NavigationModule"
+                Items="@modules"
+                ShowSearch="true"
+                SearchPlaceholder="Cari modul..."
+                ShowPagination="true"
+                InitialPageSize="10"
+                TableContainerClass="table-wrap"
+                RowClass="@(m => edit?.Id == m.Id ? "selected" : "")">
+        <Columns>
+            <BbDataGridPropertyColumn TData="NavigationModule" TProp="int" Property="m => m.SortOrder" Title="Urutan" Width="5rem" Sortable="true">
+                <CellTemplate Context="item">
+                    <code>@item.SortOrder</code>
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridPropertyColumn TData="NavigationModule" TProp="string" Property="m => m.Name" Title="Modul" Width="18rem" Sortable="true" Filterable="true">
+                <CellTemplate Context="item">
+                    <div class="row" style="gap:.6rem;align-items:center;flex-wrap:nowrap">
+                        <div style="display:grid;place-items:center;width:2rem;height:2rem;border-radius:var(--radius);background:var(--muted);flex-shrink:0">
+                            <LucideIcon Name="@(string.IsNullOrWhiteSpace(item.Icon) ? "layout-grid" : item.Icon)" Size="16" />
+                        </div>
+                        <div style="min-width:0">
+                            <strong>@item.Name</strong>
+                            @if (!string.IsNullOrWhiteSpace(item.Description))
+                            {
+                                <div class="muted small" style="white-space:normal">@item.Description</div>
+                            }
+                        </div>
+                    </div>
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridTemplateColumn TData="NavigationModule" Title="Group Menu" Width="9rem">
+                <ChildContent Context="item">
+                    @{
+                        var grpCount = groups.Count(g => g.ModuleId == item.Id);
+                    }
+                    <BbBadge Variant="BadgeVariant.Outline">@grpCount group</BbBadge>
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+
+            <BbDataGridTemplateColumn TData="NavigationModule" Title="Hak Akses Role">
+                <ChildContent Context="item">
+                    @if (item.AllowedRoles.Count == 0)
+                    {
+                        <BbBadge Variant="BadgeVariant.SoftSuccess">Semua Pengguna</BbBadge>
+                    }
+                    else
+                    {
+                        <div class="row" style="gap:.25rem;flex-wrap:wrap">
+                            @foreach (var r in item.AllowedRoles)
+                            {
+                                <BbBadge Variant="BadgeVariant.Soft">@r</BbBadge>
+                            }
+                        </div>
+                    }
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+
+            <BbDataGridTemplateColumn TData="NavigationModule" Title="Status" Width="9rem" Sortable="true" SortBy="m => m.IsActive">
+                <ChildContent Context="item">
+                    <div class="row" style="gap:.25rem;flex-wrap:nowrap">
+                        @if (item.IsSystem)
+                        {
+                            <BbBadge Variant="BadgeVariant.Soft">Sistem</BbBadge>
+                        }
+                        @if (item.IsActive)
+                        {
+                            <BbBadge Variant="BadgeVariant.SoftSuccess">Aktif</BbBadge>
+                        }
+                        else
+                        {
+                            <BbBadge Variant="BadgeVariant.Secondary">Nonaktif</BbBadge>
+                        }
+                    </div>
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+
+            <BbDataGridTemplateColumn TData="NavigationModule" Title="Aksi" Width="6.5rem" NoWrap="true">
+                <ChildContent Context="item">
+                    <div style="display:inline-flex;align-items:center;gap:.25rem;flex-wrap:nowrap" @onclick:stopPropagation="true">
+                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Edit modul" OnClick="() => StartEdit(item)">
+                            <LucideIcon Name="pencil" Size="15" />
+                        </BbButton>
+                        @if (!item.IsSystem)
+                        {
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Hapus modul" OnClick="() => ConfirmDelete(item)">
+                                <LucideIcon Name="trash-2" Size="15" />
+                            </BbButton>
+                        }
+                    </div>
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+        </Columns>
+        <EmptyTemplate>
+            <div style="padding:2rem;text-align:center;color:var(--muted-foreground)">
+                Tidak ada modul yang ditemukan.
+            </div>
+        </EmptyTemplate>
+    </BbDataGrid>
+
+    <AdminDrawer Open="@isDrawerOpen"
+                 OpenChanged="@OnDrawerOpenChanged"
+                 WidthScale="@DrawerWidthScale"
+                 Title="@(edit is null ? "" : isNew ? "Tambah Modul Baru" : $"Edit: {edit.Name}")"
+                 Description="@(edit is null ? null : edit.IsSystem ? "Modul bawaan sistem (tidak dapat dihapus, namun dapat diatur nama, ikon, urutan, dan hak aksesnya)." : "Modul kustom aplikasi.")">
+        <ChildContent>
+            @if (edit is not null)
+            {
+                @if (error is not null)
+                {
+                    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@error</BbAlertDescription></BbAlert>
+                }
+
+                <div class="form-cols cols-2">
+                    <BbField>
+                        <BbFieldLabel For="mod-name">Nama Modul</BbFieldLabel>
+                        <FormTextInput Id="mod-name" Immediate="true" @bind-Value="edit.Name" Placeholder="mis. Human Resources, Finance, Inventory" />
+                    </BbField>
+
+                    <BbField>
+                        <BbFieldLabel For="mod-order">Urutan (Sort Order)</BbFieldLabel>
+                        <FormTextInput Id="mod-order" Type="number" Immediate="true" Value="@edit.SortOrder.ToString()" ValueChanged="v => edit.SortOrder = int.TryParse(v, out var n) ? n : edit.SortOrder" />
+                        <BbFieldDescription>Angka lebih kecil tampil lebih dahulu (mis. 10, 20, 30).</BbFieldDescription>
+                    </BbField>
+                </div>
+
+                <BbField>
+                    <BbFieldLabel For="mod-desc">Deskripsi</BbFieldLabel>
+                    <FormTextInput Id="mod-desc" Immediate="true" @bind-Value="edit.Description" Placeholder="mis. Pengelolaan keuangan dan akuntansi" />
+                    <BbFieldDescription>Ringkasan singkat fungsi modul yang ditampilkan pada halaman pemilihan modul.</BbFieldDescription>
+                </BbField>
+
+                <BbField>
+                    <BbFieldLabel For="mod-icon">Ikon Lucide</BbFieldLabel>
+                    <div class="row" style="gap:.5rem;align-items:center;flex-wrap:nowrap">
+                        <FormTextInput Id="mod-icon" Immediate="true" @bind-Value="edit.Icon" Placeholder="mis. users, shopping-cart, wallet, package, chart-column, settings" />
+                        <div style="display:flex;align-items:center;justify-content:center;width:2.5rem;height:2.5rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--muted);flex-shrink:0">
+                            <LucideIcon Name="@(string.IsNullOrWhiteSpace(edit.Icon) ? "layout-grid" : edit.Icon)" Size="18" />
+                        </div>
+                    </div>
+                    <BbFieldDescription>Nama ikon dari Lucide Icons (mis. users, shopping-cart, wallet, package, chart-column, settings).</BbFieldDescription>
+                </BbField>
+
+                <div class="props-sub">Hak Akses Modul (Role Pengguna)</div>
+                <p class="muted small">Pilih role yang diizinkan mengakses modul ini (bisa lebih dari satu). Jika tidak ada yang dicentang, modul dapat diakses oleh <strong>Semua Pengguna</strong>.</p>
+                <div class="role-check-grid">
+                    @foreach (var r in AvailableRoles)
+                    {
+                        var role = r;
+                        <div class="label-row">
+                            <BbCheckbox Id="@($"mod-role-{role}")" Checked="edit.AllowedRoles.Contains(role)" CheckedChanged="v => ToggleRole(role, v)" />
+                            <BbLabel For="@($"mod-role-{role}")">@role</BbLabel>
+                        </div>
+                    }
+                </div>
+
+                <div class="label-row" style="margin-top:.5rem">
+                    <BbCheckbox Id="mod-active" Checked="edit.IsActive" CheckedChanged="v => edit.IsActive = v" />
+                    <BbLabel For="mod-active">Aktif (ditampilkan di halaman pemilihan modul)</BbLabel>
+                </div>
+            }
+        </ChildContent>
+        <FooterContent>
+            @if (edit is not null)
+            {
+                <div class="row" style="gap:.5rem;width:100%;align-items:center">
+                    <BbButton Disabled="busy" Loading="busy" LoadingText="Menyimpan…" OnClick="Save"><LucideIcon Name="check" Size="16" /> Simpan</BbButton>
+                    <BbButton Variant="ButtonVariant.Ghost" OnClick="CloseDrawer">Batal</BbButton>
+                    @if (!isNew && !edit.IsSystem)
+                    {
+                        <span style="margin-left:auto">
+                            <BbButton Variant="ButtonVariant.Destructive" Size="ButtonSize.Small" Disabled="busy" OnClick="() => ConfirmDelete(edit)">
+                                <LucideIcon Name="trash-2" Size="15" /> Hapus
+                            </BbButton>
+                        </span>
+                    }
+                </div>
+            }
+        </FooterContent>
+    </AdminDrawer>
+}
+
+@code {
+    /// <summary>Configurable drawer width multiplier (default 2.0 = 2x normal width for Module form).</summary>
+    [Parameter] public double DrawerWidthScale { get; set; } = 2.0;
+
+    private IReadOnlyList<NavigationModule> modules = [];
+    private IReadOnlyList<NavigationMenuGroup> groups = [];
+    private IReadOnlyList<RoleDef> storedRoles = [];
+    private NavigationModule? edit;
+    private bool isDrawerOpen;
+    private bool isNew;
+    private bool busy;
+    private string? error;
+
+    private IEnumerable<string> AvailableRoles => MetadataRoles.Known(Metadata.Current)
+        .Append(UserContext.Administrator)
+        .Concat(storedRoles.Select(r => r.Name))
+        .Distinct()
+        .Order();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Current.User is null) return;
+        storedRoles = await RoleStore.ListAsync(Current.Required.TenantId);
+        await Reload();
+    }
+
+    private async Task Reload()
+    {
+        var tenantId = Current.Required.TenantId;
+        modules = await MenuStore.ListModulesAsync(tenantId, onlyActive: false);
+        groups = await MenuStore.ListGroupsAsync(tenantId, onlyActive: false);
+    }
+
+    private void StartCreate()
+    {
+        error = null;
+        isNew = true;
+        edit = new NavigationModule
+        {
+            Id = Guid.NewGuid().ToString("N"),
+            TenantId = Current.Required.TenantId,
+            Name = "",
+            Description = "",
+            Icon = "layout-grid",
+            SortOrder = modules.Count > 0 ? modules.Max(m => m.SortOrder) + 10 : 10,
+            AllowedRoles = [],
+            IsActive = true,
+            IsSystem = false
+        };
+        isDrawerOpen = true;
+    }
+
+    private void StartEdit(NavigationModule item)
+    {
+        error = null;
+        isNew = false;
+        edit = new NavigationModule
+        {
+            Id = item.Id,
+            TenantId = item.TenantId,
+            Name = item.Name,
+            Description = item.Description,
+            Icon = item.Icon,
+            SortOrder = item.SortOrder,
+            AllowedRoles = [.. item.AllowedRoles],
+            IsSystem = item.IsSystem,
+            IsActive = item.IsActive,
+            CreatedAt = item.CreatedAt,
+            UpdatedAt = item.UpdatedAt
+        };
+        isDrawerOpen = true;
+    }
+
+    private void CloseDrawer()
+    {
+        isDrawerOpen = false;
+    }
+
+    private void OnDrawerOpenChanged(bool open)
+    {
+        isDrawerOpen = open;
+        if (!open)
+        {
+            edit = null;
+            error = null;
+        }
+    }
+
+    private void ToggleRole(string role, bool isChecked)
+    {
+        if (edit is null) return;
+        if (isChecked)
+        {
+            if (!edit.AllowedRoles.Contains(role)) edit.AllowedRoles.Add(role);
+        }
+        else
+        {
+            edit.AllowedRoles.Remove(role);
+        }
+    }
+
+    private async Task Save()
+    {
+        if (edit is null || busy) return;
+        if (string.IsNullOrWhiteSpace(edit.Name))
+        {
+            error = "Nama modul tidak boleh kosong.";
+            Toasts.Error(error, "Gagal Menyimpan");
+            return;
+        }
+
+        edit.Name = edit.Name.Trim();
+        edit.Description = string.IsNullOrWhiteSpace(edit.Description) ? null : edit.Description.Trim();
+        edit.Icon = string.IsNullOrWhiteSpace(edit.Icon) ? "layout-grid" : edit.Icon.Trim();
+
+        busy = true;
+        error = null;
+        StateHasChanged();
+
+        try
+        {
+            await MenuStore.SaveModuleAsync(edit);
+            Toasts.Success($"Modul \"{edit.Name}\" berhasil disimpan.", "Berhasil Disimpan");
+            isDrawerOpen = false;
+            await Reload();
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            Toasts.Error(ex.Message, "Gagal Menyimpan");
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task ConfirmDelete(NavigationModule item)
+    {
+        if (item.IsSystem)
+        {
+            Toasts.Error("Modul sistem bawaan tidak dapat dihapus.", "Tidak Diizinkan");
+            return;
+        }
+
+        var res = await Dialogs.ConfirmAsync(
+            $"Hapus modul \"{item.Name}\"?",
+            "Modul ini akan dihapus apabila tidak lagi memiliki group menu. Tindakan ini tidak bisa dibatalkan.",
+            new ConfirmDialogOptions { Destructive = true, ConfirmText = "Hapus Modul", CancelText = "Batal" });
+
+        if (!res.Confirmed) return;
+
+        busy = true;
+        try
+        {
+            await MenuStore.DeleteModuleAsync(item.Id, item.TenantId);
+            if (edit?.Id == item.Id) isDrawerOpen = false;
+            Toasts.Success($"Modul \"{item.Name}\" berhasil dihapus.", "Modul Dihapus");
+            await Reload();
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error(ex.Message, "Gagal Menghapus Modul");
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task ResetDefaults()
+    {
+        var res = await Dialogs.ConfirmAsync(
+            "Seed / Pulihkan Modul Wajib?",
+            "Sistem akan memeriksa dan menambahkan modul, group menu, serta menu wajib bawaan yang belum ada di database.",
+            new ConfirmDialogOptions { ConfirmText = "Jalankan Seed", CancelText = "Batal" });
+
+        if (!res.Confirmed) return;
+
+        busy = true;
+        try
+        {
+            await MenuStore.EnsureDefaultMenusAsync(Current.Required.TenantId);
+            Toasts.Success("Modul dan group menu default berhasil diperiksa dan di-seed.", "Seed Berhasil");
+            await Reload();
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error(ex.Message, "Gagal Seed Modul");
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+}

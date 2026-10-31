@@ -1,0 +1,69 @@
+@* Reusable side drawer form wrapper with configurable width multiplier (default 1.0 = 24rem; 2.0 = 48rem)
+   and a top-right pinned close button that never wraps below long titles or descriptions. *@
+@using System.Globalization
+
+<BbDrawer Open="@Open" OpenChanged="@OpenChanged" Direction="DrawerDirection.Right">
+    <BbDrawerContent Class="@DrawerClass" TrapFocus="false" style="@DrawerStyle">
+        <BbDrawerHeader Class="admin-drawer-header">
+            <div class="admin-drawer-header-row">
+                <div class="admin-drawer-header-text">
+                    <BbDrawerTitle>@Title</BbDrawerTitle>
+                    @if (!string.IsNullOrWhiteSpace(Description))
+                    {
+                        <BbDrawerDescription>@Description</BbDrawerDescription>
+                    }
+                </div>
+                <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" Class="admin-drawer-close" AriaLabel="Tutup drawer" OnClick="Close">
+                    <LucideIcon Name="x" Size="16" />
+                </BbButton>
+            </div>
+        </BbDrawerHeader>
+
+        <div class="stack admin-drawer-body">
+            @ChildContent
+        </div>
+
+        @if (FooterContent is not null)
+        {
+            <BbDrawerFooter>
+                @FooterContent
+            </BbDrawerFooter>
+        }
+    </BbDrawerContent>
+</BbDrawer>
+
+@code {
+    private const double BaseWidthRem = 24.0;
+
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public EventCallback<bool> OpenChanged { get; set; }
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public string? Description { get; set; }
+
+    /// <summary>
+    /// Width multiplier relative to the default 24rem drawer width (1.0 = 24rem normal, 2.0 = 48rem 2x normal).
+    /// </summary>
+    [Parameter] public double WidthScale { get; set; } = 1.0;
+
+    /// <summary>
+    /// Optional explicit CSS width (e.g. "40rem" or "640px"). Overrides <see cref="WidthScale"/> when specified.
+    /// </summary>
+    [Parameter] public string? Width { get; set; }
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public RenderFragment? FooterContent { get; set; }
+
+    private string ResolvedMaxWidth =>
+        !string.IsNullOrWhiteSpace(Width)
+            ? Width!
+            : string.Create(CultureInfo.InvariantCulture, $"{Math.Max(0.5, WidthScale) * BaseWidthRem:0.##}rem");
+
+    private string DrawerClass =>
+        WidthScale >= 1.99 ? "admin-drawer-content admin-drawer-2x" : "admin-drawer-content";
+
+    private string DrawerStyle =>
+        $"display:flex;flex-direction:column;max-height:100vh;width:min({ResolvedMaxWidth}, 95vw) !important;max-width:min({ResolvedMaxWidth}, 95vw) !important;--drawer-max-width:{ResolvedMaxWidth};";
+
+    private Task Close() => OpenChanged.InvokeAsync(false);
+}
+

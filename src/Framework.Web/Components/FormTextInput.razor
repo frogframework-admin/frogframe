@@ -3,9 +3,19 @@
    modul JavaScript yang baru terpasang setelah render (OnAfterRenderAsync); ketikan sebelum modul siap — mis.
    di jaringan lambat — tidak sampai ke server walau terlihat di layar. *@
 
-<input id="@Id" type="@Type" class="@Css" value="@Value" placeholder="@Placeholder" disabled="@Disabled"
-       aria-invalid="@(Invalid ? "true" : null)" aria-label="@AriaLabel" @attributes="AdditionalAttributes"
-       @onchange="e => ValueChanged.InvokeAsync(e.Value as string)" />
+@if (Immediate)
+{
+    <input id="@Id" type="@Type" class="@Css" value="@Value" placeholder="@Placeholder" disabled="@Disabled"
+           aria-invalid="@(Invalid ? "true" : null)" aria-label="@AriaLabel" @attributes="AdditionalAttributes"
+           @oninput="e => ValueChanged.InvokeAsync(e.Value as string)"
+           @onchange="e => ValueChanged.InvokeAsync(e.Value as string)" />
+}
+else
+{
+    <input id="@Id" type="@Type" class="@Css" value="@Value" placeholder="@Placeholder" disabled="@Disabled"
+           aria-invalid="@(Invalid ? "true" : null)" aria-label="@AriaLabel" @attributes="AdditionalAttributes"
+           @onchange="e => ValueChanged.InvokeAsync(e.Value as string)" />
+}
 
 @code {
     [Parameter] public string? Id { get; set; }
@@ -15,6 +25,7 @@
     [Parameter] public string? Placeholder { get; set; }
     [Parameter] public bool Disabled { get; set; }
     [Parameter] public bool Invalid { get; set; }
+    [Parameter] public bool Immediate { get; set; }
     [Parameter] public string? AriaLabel { get; set; }
     [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? AdditionalAttributes { get; set; }
 
