@@ -6,10 +6,12 @@
 @using Microsoft.AspNetCore.Authentication
 @using Microsoft.AspNetCore.Http
 @using Microsoft.Extensions.Configuration
+@using Microsoft.Extensions.Hosting
 @inject SignInManager<UserAccount> SignIn
 @inject UserManager<UserAccount> Users
 @inject NavigationManager Nav
 @inject IConfiguration Config
+@inject IHostEnvironment Env
 @inject TimeProvider Clock
 
 <PageTitle>Masuk · DocFrame</PageTitle>
@@ -55,17 +57,37 @@
 
     protected override async Task OnInitializedAsync()
     {
-        Input ??= new();
+        var isDev = Env.IsDevelopment() || Config.GetValue<bool>("Demo:ShowAccounts");
+        Input ??= new()
+        {
+            UserName = isDev ? "admin" : "",
+            Password = isDev ? (Config["Demo:Password"] ?? "DocFrame#2026") : ""
+        };
+
         if (HttpMethods.IsGet(HttpContext.Request.Method))
+        {
             await HttpContext.SignOutAsync(IdentityConstants.ExternalScheme);
+            if (isDev)
+            {
+                if (string.IsNullOrEmpty(Input.UserName)) Input.UserName = "admin";
+                if (string.IsNullOrEmpty(Input.Password)) Input.Password = Config["Demo:Password"] ?? "DocFrame#2026";
+            }
+        }
     }
 
     private async Task LoginAsync()
     {
-        var result = await SignIn.PasswordSignInAsync(Input.UserName.Trim(), Input.Password, Input.RememberMe, lockoutOnFailure: true);
+        var isDev = Env.IsDevelopment() || Config.GetValue<bool>("Demo:ShowAccounts");
+        var userName = Input.UserName.Trim();
+        if (isDev && string.Equals(userName, "login", StringComparison.OrdinalIgnoreCase))
+        {
+            userName = "admin";
+        }
+
+        var result = await SignIn.PasswordSignInAsync(userName, Input.Password, Input.RememberMe, lockoutOnFailure: true);
         if (result.Succeeded)
         {
-            if (await Users.FindByNameAsync(Input.UserName.Trim()) is { } user)
+            if (await Users.FindByNameAsync(userName) is { } user)
             {
                 user.LastLoginAt = Clock.GetUtcNow();
                 await Users.UpdateAsync(user);

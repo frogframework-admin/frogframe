@@ -1,12 +1,15 @@
 @* Panel properti field di editor DocType. Setiap perubahan memicu kompilasi ulang draft (OnChanged). *@
 
-<div class="props-head">
-    <div>
-        <div class="props-title">@(string.IsNullOrWhiteSpace(Field.Label) ? Field.Name : Field.Label)</div>
-        <div class="muted small"><code>@Field.Name</code> · @Field.Type</div>
+@if (ShowHeader)
+{
+    <div class="props-head">
+        <div>
+            <div class="props-title">@(string.IsNullOrWhiteSpace(Field.Label) ? Field.Name : Field.Label)</div>
+            <div class="muted small"><code>@Field.Name</code> · @Field.Type</div>
+        </div>
+        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Tutup panel properti" OnClick="OnClose"><LucideIcon Name="x" Size="16" /></BbButton>
     </div>
-    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Tutup panel properti" OnClick="OnClose"><LucideIcon Name="x" Size="16" /></BbButton>
-</div>
+}
 
 @if (FieldErrors.Any())
 {
@@ -151,6 +154,7 @@
     [Parameter] public EventCallback OnChanged { get; set; }
     [Parameter] public EventCallback OnRemove { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public bool ShowHeader { get; set; } = true;
 
     private bool IsExisting => OriginalName is not null;
     private IEnumerable<MetadataError> FieldErrors => Errors.Where(e => e.Path == $"fields.{Field.Name}" || e.Path.StartsWith($"fields.{Field.Name}."));

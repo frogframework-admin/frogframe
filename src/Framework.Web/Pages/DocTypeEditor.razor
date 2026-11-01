@@ -95,6 +95,7 @@ else
             {
                 <BbTabsTrigger Value="access"><LucideIcon Name="shield-check" Size="15" /> Akses &amp; alur</BbTabsTrigger>
             }
+            <BbTabsTrigger Value="settings"><LucideIcon Name="sliders" Size="15" /> Pengaturan DocType</BbTabsTrigger>
             <BbTabsTrigger Value="json"><LucideIcon Name="braces" Size="15" /> JSON</BbTabsTrigger>
         </BbTabsList>
 
@@ -165,7 +166,8 @@ else
                                                      @ondragstart="() => StartMove(f)" @ondragend="EndDrag"
                                                      @ondragover:preventDefault="true" @ondragenter="() => Hint(sec, col, idx)"
                                                      @ondrop="() => Drop(sec, col, idx)" @ondrop:stopPropagation="true"
-                                                     @onclick="() => Select(f, sec)" @onclick:stopPropagation="true">
+                                                     @onclick="() => Select(f, sec)" @onclick:stopPropagation="true"
+                                                     @onkeydown="@(e => { if (e.Key is "Enter" or " ") Select(f, sec); })">
                                                     <LucideIcon Name="grip-vertical" Size="14" Class="grip" />
                                                     <div class="d-field-main">
                                                         <div class="d-field-label">@(string.IsNullOrWhiteSpace(f.Label) ? f.Name : f.Label)@if (f.RequiredWhen is not null) { <span class="req" title="@(f.RequiredWhen == "true" ? "Wajib" : $"Wajib bila {f.RequiredWhen}")">*</span> }</div>
@@ -178,7 +180,7 @@ else
                                                             @if (f.InListView) { <span title="Kolom di daftar">daftar</span> }
                                                         </div>
                                                     </div>
-                                                    <div class="d-field-actions">
+                                                    <div class="d-field-actions" @onclick:stopPropagation="true">
                                                         <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@($"Geser {f.Name} ke atas")" OnClick="() => Mutate(() => design.MoveBy(f, -1))"><LucideIcon Name="chevron-up" Size="14" /></BbButton>
                                                         <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@($"Geser {f.Name} ke bawah")" OnClick="() => Mutate(() => design.MoveBy(f, 1))"><LucideIcon Name="chevron-down" Size="14" /></BbButton>
                                                         <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@($"Hapus {f.Name}")" OnClick="() => RemoveField(f)"><LucideIcon Name="trash-2" Size="14" /></BbButton>
@@ -194,51 +196,6 @@ else
                         <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick="() => Mutate(() => currentSection = design.AddSection(ct))"><LucideIcon Name="plus" Size="15" /> Tambah section</BbButton>
                     }
                 </section>
-
-                <aside class="props" aria-label="Properti">
-                    @if (selected is not null && snapshot is not null || selected is not null && lastGoodSnapshot is not null)
-                    {
-                        <FieldProperties Field="selected" Design="design" Snapshot="(snapshot ?? lastGoodSnapshot)!" Errors="errors"
-                                         OriginalName="@OriginalName(selected)" OnChanged="Recompile" OnRemove="() => RemoveField(selected)" OnClose="() => selected = null" />
-                    }
-                    else
-                    {
-                        <div class="props-head"><div><div class="props-title">Pengaturan DocType</div><div class="muted small"><code>@design.Def.Name</code></div></div></div>
-                        <div class="props-group">
-                            <BbField><BbFieldLabel For="d-title">Judul</BbFieldLabel><BbInput Id="d-title" Value="@design.Def.Title" ValueChanged="v => Mutate(() => design.Def.Title = v ?? string.Empty)" /></BbField>
-                            <BbField><BbFieldLabel For="d-desc">Deskripsi</BbFieldLabel><BbTextarea Id="d-desc" Value="@design.Def.Description" UpdateTiming="UpdateTiming.OnChange" ValueChanged="v => Mutate(() => design.Def.Description = string.IsNullOrWhiteSpace(v) ? null : v)" /></BbField>
-                            @if (!design.Def.IsChild)
-                            {
-                                <BbField><BbFieldLabel For="d-module">Modul</BbFieldLabel><BbInput Id="d-module" Value="@design.Def.Module" ValueChanged="v => Mutate(() => design.Def.Module = string.IsNullOrWhiteSpace(v) ? null : v.Trim())" /></BbField>
-                                <BbField IsInvalid="@errors.Any(e => e.Path == "naming.pattern")">
-                                    <BbFieldLabel For="d-naming">Pola nomor dokumen</BbFieldLabel>
-                                    <BbInput Id="d-naming" Class="code-input" Value="@design.Def.Naming.Pattern" ValueChanged="v => Mutate(() => design.Def.Naming.Pattern = v ?? string.Empty)" />
-                                    <BbFieldDescription>Token: {YYYY}, {MM}, {#####} (nomor seri).</BbFieldDescription>
-                                </BbField>
-                            }
-                        </div>
-                        @if (!design.Def.IsChild)
-                        {
-                            <div class="props-group">
-                                <div class="props-group-title">Daftar (list view)</div>
-                                <p class="muted small" style="margin:0">Kolom daftar diatur per field ("Tampilkan sebagai kolom di daftar").</p>
-                                <div class="props-sub">Bisa dicari</div>
-                                @foreach (var f in design.AllFields.Where(f => f.Type is "Data" or "Text" or "Email" or "Select" or "Link"))
-                                {
-                                    var fld = f;
-                                    <div class="label-row"><BbCheckbox Id="@($"s-{fld.Name}")" Checked="design.Def.ListView.SearchFields.Contains(fld.Name)" CheckedChanged="v => Mutate(() => Toggle(design.Def.ListView.SearchFields, fld.Name, v))" /><BbLabel For="@($"s-{fld.Name}")">@fld.Label</BbLabel></div>
-                                }
-                                <div class="props-sub">Filter</div>
-                                @foreach (var f in design.AllFields.Where(f => f.Type is not ("Table" or "Text")))
-                                {
-                                    var fld = f;
-                                    <div class="label-row"><BbCheckbox Id="@($"f-{fld.Name}")" Checked="design.Def.ListView.Filters.Contains(fld.Name)" CheckedChanged="v => Mutate(() => Toggle(design.Def.ListView.Filters, fld.Name, v))" /><BbLabel For="@($"f-{fld.Name}")">@fld.Label</BbLabel></div>
-                                }
-                            </div>
-                        }
-                        <p class="muted small">Akses dan workflow diatur di tab <strong>Akses &amp; alur</strong>; aturan lintas-field dan format cetak di tab <strong>JSON</strong>.</p>
-                    }
-                </aside>
             </div>
         </BbTabsContent>
 
@@ -288,6 +245,52 @@ else
             }
         </BbTabsContent>
 
+        <BbTabsContent Value="settings">
+            <div class="stack" style="margin-top:.75rem">
+                <BbCard>
+                    <BbCardHeader>
+                        <BbCardTitle Class="card-title">Pengaturan DocType</BbCardTitle>
+                        <BbCardDescription><code>@design.Def.Name</code> · Versi draft v@(version)</BbCardDescription>
+                    </BbCardHeader>
+                    <BbCardContent>
+                        <div class="props-group" style="border-top:none;padding-top:0">
+                            <BbField><BbFieldLabel For="d-title">Judul</BbFieldLabel><BbInput Id="d-title" Value="@design.Def.Title" ValueChanged="v => Mutate(() => design.Def.Title = v ?? string.Empty)" /></BbField>
+                            <BbField><BbFieldLabel For="d-desc">Deskripsi</BbFieldLabel><BbTextarea Id="d-desc" Value="@design.Def.Description" UpdateTiming="UpdateTiming.OnChange" ValueChanged="v => Mutate(() => design.Def.Description = string.IsNullOrWhiteSpace(v) ? null : v)" /></BbField>
+                            @if (!design.Def.IsChild)
+                            {
+                                <BbField><BbFieldLabel For="d-module">Modul</BbFieldLabel><BbInput Id="d-module" Value="@design.Def.Module" ValueChanged="v => Mutate(() => design.Def.Module = string.IsNullOrWhiteSpace(v) ? null : v.Trim())" /></BbField>
+                                <BbField IsInvalid="@errors.Any(e => e.Path == "naming.pattern")">
+                                    <BbFieldLabel For="d-naming">Pola nomor dokumen</BbFieldLabel>
+                                    <BbInput Id="d-naming" Class="code-input" Value="@design.Def.Naming.Pattern" ValueChanged="v => Mutate(() => design.Def.Naming.Pattern = v ?? string.Empty)" />
+                                    <BbFieldDescription>Token: {YYYY}, {MM}, {#####} (nomor seri).</BbFieldDescription>
+                                </BbField>
+                            }
+                        </div>
+                        @if (!design.Def.IsChild)
+                        {
+                            <div class="props-group">
+                                <div class="props-group-title">Daftar (list view)</div>
+                                <p class="muted small" style="margin:0">Kolom daftar diatur per field ("Tampilkan sebagai kolom di daftar").</p>
+                                <div class="props-sub">Bisa dicari</div>
+                                @foreach (var f in design.AllFields.Where(f => f.Type is "Data" or "Text" or "Email" or "Select" or "Link"))
+                                {
+                                    var fld = f;
+                                    <div class="label-row"><BbCheckbox Id="@($"s-{fld.Name}")" Checked="design.Def.ListView.SearchFields.Contains(fld.Name)" CheckedChanged="v => Mutate(() => Toggle(design.Def.ListView.SearchFields, fld.Name, v))" /><BbLabel For="@($"s-{fld.Name}")">@fld.Label</BbLabel></div>
+                                }
+                                <div class="props-sub">Filter</div>
+                                @foreach (var f in design.AllFields.Where(f => f.Type is not ("Table" or "Text")))
+                                {
+                                    var fld = f;
+                                    <div class="label-row"><BbCheckbox Id="@($"f-{fld.Name}")" Checked="design.Def.ListView.Filters.Contains(fld.Name)" CheckedChanged="v => Mutate(() => Toggle(design.Def.ListView.Filters, fld.Name, v))" /><BbLabel For="@($"f-{fld.Name}")">@fld.Label</BbLabel></div>
+                                }
+                            </div>
+                        }
+                        <p class="muted small">Akses dan workflow diatur di tab <strong>Akses &amp; alur</strong>; aturan lintas-field dan format cetak di tab <strong>JSON</strong>.</p>
+                    </BbCardContent>
+                </BbCard>
+            </div>
+        </BbTabsContent>
+
         <BbTabsContent Value="json">
             <div class="stack" style="margin-top:.75rem">
                 <p class="muted small" style="margin:0">Definisi lengkap draft. Untuk hal yang belum ada di editor visual (aturan lintas-field, format cetak). Perubahan di sini diterapkan ke desain dengan tombol di bawah.</p>
@@ -298,10 +301,33 @@ else
             </div>
         </BbTabsContent>
     </BbTabs>
+
+    <AdminDrawer Open="@isDrawerOpen"
+                 OpenChanged="@OnDrawerOpenChanged"
+                 WidthScale="@DrawerWidthScale"
+                 Title="@DrawerTitle"
+                 Description="@DrawerDescription">
+        <ChildContent>
+            @if (selected is not null && (snapshot is not null || lastGoodSnapshot is not null))
+            {
+                <FieldProperties Field="selected"
+                                 Design="design"
+                                 Snapshot="(snapshot ?? lastGoodSnapshot)!"
+                                 Errors="errors"
+                                 ShowHeader="false"
+                                 OriginalName="@OriginalName(selected)"
+                                 OnChanged="Recompile"
+                                 OnRemove="() => RemoveField(selected)"
+                                 OnClose="CloseDrawer" />
+            }
+        </ChildContent>
+    </AdminDrawer>
 }
 
 @code {
     [Parameter] public string DocTypeName { get; set; } = "";
+    /// <summary>Configurable drawer width multiplier (default 2.0 = 2x normal width).</summary>
+    [Parameter] public double DrawerWidthScale { get; set; } = 2.0;
 
     private DocTypeDesign? design;
     private DocTypeDef? active;
@@ -310,6 +336,7 @@ else
     private DesignerTab? currentTab;
     private DesignerSection? currentSection;
     private FieldDef? selected;
+    private bool isDrawerOpen;
     private IReadOnlyList<MetadataError> errors = [];
     private MetadataSnapshot? snapshot, lastGoodSnapshot;
     private PublishPreview? preview;
@@ -317,6 +344,31 @@ else
     private string view = "design";
     private string json = "";
     private string? jsonError;
+
+    private string DrawerTitle =>
+        selected is not null
+            ? (string.IsNullOrWhiteSpace(selected.Label) ? selected.Name : selected.Label)
+            : "";
+
+    private string? DrawerDescription =>
+        selected is not null
+            ? $"{selected.Name} · {selected.Type}"
+            : null;
+
+    private void CloseDrawer()
+    {
+        isDrawerOpen = false;
+        selected = null;
+    }
+
+    private void OnDrawerOpenChanged(bool open)
+    {
+        isDrawerOpen = open;
+        if (!open)
+        {
+            selected = null;
+        }
+    }
 
     // Drag & drop
     private string? dragType;
@@ -351,6 +403,7 @@ else
         currentTab = design.Tabs[0];
         currentSection = currentTab.Sections.FirstOrDefault();
         selected = null; preview = null; ack = false;
+        isDrawerOpen = false;
         Recompile();
     }
 
@@ -378,6 +431,7 @@ else
         if (v is null) return;
         if (v == "json") { json = MetadataJson.Serialize(design!.ToDef(version)); jsonError = null; }
         view = v;
+        if (v != "design") isDrawerOpen = false;
     }
 
     // ---------- field ----------
@@ -385,6 +439,7 @@ else
     private void Select(FieldDef f, DesignerSection sec)
     {
         selected = f; currentSection = sec;
+        isDrawerOpen = true;
         // Ingat nama asli field lama, agar peringatan ganti nama tetap benar setelah nama diketik ulang.
         if (active!.Fields.Any(a => a.Name == f.Name)) originalNames.TryAdd(f, f.Name);
     }
@@ -395,6 +450,7 @@ else
         if (sec is null || lastGoodSnapshot is null) return;
         var f = design!.AddField(type, sec, 0, null, lastGoodSnapshot);
         selected = f;
+        isDrawerOpen = true;
         Recompile();
     }
 
@@ -413,7 +469,11 @@ else
             if (!ok.Confirmed) return;
         }
         design!.Remove(f);
-        if (selected == f) selected = null;
+        if (selected == f)
+        {
+            selected = null;
+            isDrawerOpen = false;
+        }
         Recompile();
     }
 
@@ -430,6 +490,7 @@ else
         if (dragField is { } f) { design!.Move(f, sec, col, index); selected = f; }
         else if (dragType is { } type && lastGoodSnapshot is not null) selected = design!.AddField(type, sec, col, index, lastGoodSnapshot);
         currentSection = sec;
+        isDrawerOpen = true;
         EndDrag();
         Recompile();
     }
@@ -456,6 +517,7 @@ else
             if (def.Name != DocTypeName) { jsonError = $"Nama DocType tidak boleh diubah di sini (harus '{DocTypeName}')."; return; }
             design = DocTypeDesign.From(def);
             currentTab = design.Tabs[0]; currentSection = currentTab.Sections.FirstOrDefault(); selected = null;
+            isDrawerOpen = false;
             jsonError = null;
             Recompile();
             Toasts.Success("JSON diterapkan ke desain.", "Diterapkan");

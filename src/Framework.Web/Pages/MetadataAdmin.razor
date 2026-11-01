@@ -1,9 +1,11 @@
 @page "/admin/metadata"
 @page "/admin/metadata/{Selected}"
+@implements IDisposable
 @using System.Text.Json
 @inject MetadataRegistry Registry
 @inject CurrentUser Current
 @inject ToastService Toasts
+@inject NavigationManager Nav
 
 <PageTitle>Metadata · DocFrame</PageTitle>
 
@@ -16,26 +18,118 @@ else
     <header class="page-head">
         <div>
             <h1>Metadata DocType</h1>
-            <p>Draft → periksa (validasi + diff) → publish sebagai versi immutable. Dokumen lama tetap mencatat versi skemanya.</p>
+            <p>Kelola definisi DocType, versi skema, workflow, dan struktur form aplikasi.</p>
         </div>
         <BbButton Href="/admin/metadata/new"><LucideIcon Name="plus" Size="16" /> Buat DocType</BbButton>
     </header>
 
-    <div class="admin-grid">
-        <BbCard>
-            <nav class="admin-nav" aria-label="Daftar DocType">
-                @foreach (var d in Registry.Current.DocTypes.Values.OrderBy(d => d.Name))
-                {
-                    <a class="@(d.Name == Selected ? "active" : "")" href="/admin/metadata/@d.Name">
-                        <span>@d.Name</span><span class="muted small">v@(d.Version)@(d.Def.IsChild ? " · child" : "")</span>
-                    </a>
-                }
-            </nav>
-        </BbCard>
+    <BbDataGrid TData="DocTypeRow"
+                Items="@docTypes"
+                ShowSearch="true"
+                SearchPlaceholder="Cari DocType..."
+                ShowPagination="true"
+                InitialPageSize="15"
+                TableContainerClass="table-wrap">
+        <Columns>
+            <BbDataGridPropertyColumn TData="DocTypeRow" TProp="string" Property="d => d.Title" Title="Nama DocType" Sortable="true" Filterable="true">
+                <CellTemplate Context="item">
+                    <div>
+                        <div style="display:flex;align-items:center;gap:.4rem">
+                            <a href="@($"/admin/metadata/{item.Name}/editor")" style="font-weight:600;color:inherit;text-decoration:none" class="hover:underline">
+                                @item.Title
+                            </a>
+                            @if (item.IsChild)
+                            {
+                                <BbBadge Variant="BadgeVariant.Outline" Class="small">Child</BbBadge>
+                            }
+                        </div>
+                        <div class="muted small"><code>@item.Name</code></div>
+                    </div>
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
 
-        @if (Selected is not null && Registry.Current.TryGet(Selected, out var meta))
-        {
-            <div class="stack">
+            <BbDataGridPropertyColumn TData="DocTypeRow" TProp="int" Property="d => d.Version" Title="Versi" Width="6rem" Sortable="true">
+                <CellTemplate Context="item">
+                    <BbBadge Variant="BadgeVariant.Outline">v@(item.Version)</BbBadge>
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridTemplateColumn TData="DocTypeRow" Title="Status" Width="7.5rem" Sortable="true" SortBy="d => (int)d.Status">
+                <ChildContent Context="item">
+                    @if (item.Status == MetadataStatus.Published)
+                    {
+                        <BbBadge Variant="BadgeVariant.SoftSuccess">Aktif</BbBadge>
+                    }
+                    else
+                    {
+                        <BbBadge Variant="BadgeVariant.Outline">@item.Status</BbBadge>
+                    }
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+
+            <BbDataGridTemplateColumn TData="DocTypeRow" Title="Dipublikasikan" Width="12rem" Sortable="true" SortBy="d => d.PublishedAt">
+                <ChildContent Context="item">
+                    <span class="nowrap @(item.PublishedAt is null ? "muted" : "")" title="@(item.PublishedAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? "")">
+                        @(item.PublishedAt is { } t ? Fmt.When(t) : "—")
+                    </span>
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+
+            <BbDataGridPropertyColumn TData="DocTypeRow" TProp="string" Property="d => d.CreatedBy" Title="Dibuat Oleh" Width="10rem" Sortable="true" Filterable="true">
+                <CellTemplate Context="item">
+                    <span class="@(string.IsNullOrWhiteSpace(item.CreatedBy) ? "muted" : "")">
+                        @(string.IsNullOrWhiteSpace(item.CreatedBy) ? "—" : item.CreatedBy)
+                    </span>
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridPropertyColumn TData="DocTypeRow" TProp="string" Property="d => d.Workflow" Title="Workflow" Width="12rem" Sortable="true" Filterable="true">
+                <CellTemplate Context="item">
+                    @if (!string.IsNullOrWhiteSpace(item.Workflow))
+                    {
+                        <BbBadge Variant="BadgeVariant.Soft">@item.Workflow</BbBadge>
+                    }
+                    else
+                    {
+                        <span class="muted">—</span>
+                    }
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridTemplateColumn TData="DocTypeRow" Title="Aksi" Width="8.5rem" NoWrap="true">
+                <ChildContent Context="item">
+                    <div style="display:inline-flex;align-items:center;gap:.35rem;flex-wrap:nowrap" @onclick:stopPropagation="true">
+                        <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Href="@($"/admin/metadata/{item.Name}/editor")" Title="Edit visual">
+                            <LucideIcon Name="pencil" Size="14" /> Edit
+                        </BbButton>
+                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Riwayat versi &amp; JSON" Title="Riwayat versi &amp; JSON" OnClick="() => OpenDetail(item.Name)">
+                            <LucideIcon Name="history" Size="15" />
+                        </BbButton>
+                    </div>
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+        </Columns>
+        <EmptyTemplate>
+            <div style="padding:2rem;text-align:center;color:var(--muted-foreground)">
+                Tidak ada DocType yang ditemukan.
+            </div>
+        </EmptyTemplate>
+    </BbDataGrid>
+
+    <AdminDrawer Open="@isDrawerOpen"
+                 OpenChanged="@OnDrawerOpenChanged"
+                 WidthScale="2.0"
+                 Title="@(selectedMeta is null ? "" : $"{selectedMeta.Title} ({selectedMeta.Name})")"
+                 Description="@(selectedMeta is null ? null : $"Versi aktif v{selectedMeta.Version} · {(selectedMeta.Def.IsChild ? "Child table" : "DocType standar")}")">
+        <ChildContent>
+            @if (selectedMeta is not null)
+            {
+                <div class="row" style="margin-bottom:.75rem">
+                    <BbButton Href="@($"/admin/metadata/{selectedMeta.Name}/editor")">
+                        <LucideIcon Name="pencil-ruler" Size="16" /> Buka di Editor Visual
+                    </BbButton>
+                </div>
+
                 <BbCard>
                     <BbCardHeader><BbCardTitle Class="card-title">Riwayat versi</BbCardTitle></BbCardHeader>
                     <BbCardContent>
@@ -43,7 +137,7 @@ else
                             <table class="data">
                                 <thead><tr><th>Versi</th><th>Status</th><th>Dipublikasikan</th><th>Perubahan</th></tr></thead>
                                 <tbody>
-                                    @foreach (var v in Registry.History(Selected).OrderByDescending(v => v.Version))
+                                    @foreach (var v in Registry.History(selectedMeta.Name).OrderByDescending(v => v.Version))
                                     {
                                         <tr>
                                             <td>v@(v.Version)</td>
@@ -58,23 +152,23 @@ else
                     </BbCardContent>
                 </BbCard>
 
-                @if (!meta.Def.IsChild)
+                @if (!selectedMeta.Def.IsChild)
                 {
-                    var wfName = meta.Def.Workflow;
+                    var wfName = selectedMeta.Def.Workflow;
                     <BbCard>
                         <BbCardHeader>
                             <BbCardTitle Class="card-title">Workflow</BbCardTitle>
-                            <BbCardDescription>@(wfName is null ? "Belum memakai workflow." : $"Memakai {wfName} v{meta.Workflow?.Def.Version}.")</BbCardDescription>
+                            <BbCardDescription>@(wfName is null ? "Belum memakai workflow." : $"Memakai {wfName} v{selectedMeta.Workflow?.Def.Version}.")</BbCardDescription>
                         </BbCardHeader>
                         <BbCardContent>
-                            @if (meta.Workflow is { } cw)
+                            @if (selectedMeta.Workflow is { } cw)
                             {
                                 <WorkflowDiagram Workflow="cw.Def" />
                                 <div class="row" style="margin-top:.75rem"><BbButton Variant="ButtonVariant.Outline" Href="@($"/admin/workflows/{cw.Def.Name}/editor")"><LucideIcon Name="git-branch" Size="16" /> Edit workflow</BbButton></div>
                             }
                             else
                             {
-                                <BbButton Variant="ButtonVariant.Outline" Href="@($"/admin/workflows/new?doctype={meta.Name}")"><LucideIcon Name="git-branch-plus" Size="16" /> Buat workflow</BbButton>
+                                <BbButton Variant="ButtonVariant.Outline" Href="@($"/admin/workflows/new?doctype={selectedMeta.Name}")"><LucideIcon Name="git-branch-plus" Size="16" /> Buat workflow</BbButton>
                             }
                         </BbCardContent>
                     </BbCard>
@@ -82,27 +176,17 @@ else
 
                 <BbCard>
                     <BbCardHeader>
-                        <BbCardTitle Class="card-title">Editor visual</BbCardTitle>
-                        <BbCardDescription>Susun field dengan drag-drop, atur tab dan section, lalu coba form di pratinjau sebelum publish.</BbCardDescription>
-                    </BbCardHeader>
-                    <BbCardContent>
-                        <BbButton Href="@($"/admin/metadata/{Selected}/editor")"><LucideIcon Name="pencil-ruler" Size="16" /> Buka editor visual</BbButton>
-                    </BbCardContent>
-                </BbCard>
-
-                <BbCard>
-                    <BbCardHeader>
-                        <BbCardTitle Class="card-title">Draft v@(meta.Version + 1) (JSON)</BbCardTitle>
+                        <BbCardTitle Class="card-title">Draft v@(selectedMeta.Version + 1) (JSON)</BbCardTitle>
                         <BbCardDescription>Coba ubah label (aman), tambah opsi Select, ubah <code>requiredWhen</code>, atau hapus field (berisiko), lalu periksa diff-nya.</BbCardDescription>
                     </BbCardHeader>
                     <BbCardContent>
                         <div class="stack">
                             <div class="code"><BbTextarea Value="@draft" ValueChanged="SetDraft" UpdateTiming="UpdateTiming.OnChange"
-                                        AriaLabel="JSON metadata" AdditionalAttributes="@(new Dictionary<string, object> { ["rows"] = 22, ["spellcheck"] = "false" })" /></div>
+                                        AriaLabel="JSON metadata" AdditionalAttributes="@(new Dictionary<string, object> { ["rows"] = 16, ["spellcheck"] = "false" })" /></div>
                             <div class="row">
                                 <BbButton Variant="ButtonVariant.Outline" OnClick="Check"><LucideIcon Name="search" Size="16" /> Periksa draft</BbButton>
                                 <BbButton Disabled="@(preview is not { Valid: true } || (preview.Risk == ChangeRisk.Risky && !ack))" OnClick="Publish">
-                                    Publikasikan v@(meta.Version + 1)
+                                    Publikasikan v@(selectedMeta.Version + 1)
                                 </BbButton>
                                 @if (preview is { Risk: ChangeRisk.Risky, Valid: true })
                                 {
@@ -133,39 +217,128 @@ else
                         </div>
                     </BbCardContent>
                 </BbCard>
-            </div>
-        }
-        else
-        {
-            <BbEmpty Title="Pilih DocType" Description="Pilih DocType di kiri untuk melihat riwayat versi dan membuat draft." />
-        }
-    </div>
+            }
+        </ChildContent>
+    </AdminDrawer>
 }
 
 @code {
     [Parameter] public string? Selected { get; set; }
+
+    private sealed class DocTypeRow
+    {
+        public string Name { get; set; } = "";
+        public string Title { get; set; } = "";
+        public int Version { get; set; }
+        public bool IsChild { get; set; }
+        public MetadataStatus Status { get; set; } = MetadataStatus.Published;
+        public DateTimeOffset? PublishedAt { get; set; }
+        public string? PublishedBy { get; set; }
+        public string? CreatedBy { get; set; }
+        public string? Workflow { get; set; }
+    }
+
+    private List<DocTypeRow> docTypes = [];
+    private bool isDrawerOpen;
+    private CompiledDocType? selectedMeta;
     private string draft = "";
     private PublishPreview? preview;
     private bool ack;
     private string? message;
 
-    // Blazor memanggil OnParametersSet setiap kali layout induk dirender ulang (mis. jumlah notifikasi berubah).
-    // Muat ulang hanya bila parameter rute benar-benar berubah, agar isian/draft pengguna tidak hilang.
+    protected override void OnInitialized()
+    {
+        Registry.Published += OnRegistryPublished;
+        LoadRows();
+    }
+
+    private void OnRegistryPublished(MetadataSnapshot _)
+    {
+        InvokeAsync(() =>
+        {
+            LoadRows();
+            if (selectedMeta is not null && Registry.Current.TryGet(selectedMeta.Name, out var updated))
+            {
+                selectedMeta = updated;
+                ResetDraft();
+            }
+            StateHasChanged();
+        });
+    }
+
     private string? loadedKey = "\0";
     protected override void OnParametersSet()
     {
         if (Selected == loadedKey) return;
         loadedKey = Selected;
-        ResetDraft();
+        if (!string.IsNullOrEmpty(Selected) && Registry.Current.TryGet(Selected, out var meta))
+        {
+            selectedMeta = meta;
+            ResetDraft();
+            isDrawerOpen = true;
+        }
+    }
+
+    private void LoadRows()
+    {
+        var list = new List<DocTypeRow>();
+        foreach (var d in Registry.Current.DocTypes.Values.OrderBy(d => d.Name))
+        {
+            var history = Registry.History(d.Name);
+            var active = history.FirstOrDefault(v => v.Version == d.Version && v.Status == MetadataStatus.Published)
+                         ?? history.OrderByDescending(v => v.Version).FirstOrDefault();
+            var first = history.OrderBy(v => v.Version).FirstOrDefault();
+
+            var publishedAt = active?.PublishedAt;
+            var publishedBy = active?.PublishedBy;
+            var createdBy = first?.PublishedBy ?? publishedBy;
+
+            list.Add(new DocTypeRow
+            {
+                Name = d.Name,
+                Title = d.Title,
+                Version = d.Version,
+                IsChild = d.Def.IsChild,
+                Status = active?.Status ?? MetadataStatus.Published,
+                PublishedAt = publishedAt,
+                PublishedBy = publishedBy,
+                CreatedBy = createdBy,
+                Workflow = d.Def.Workflow
+            });
+        }
+        docTypes = list;
+    }
+
+    private void OpenDetail(string docTypeName)
+    {
+        Selected = docTypeName;
+        loadedKey = docTypeName;
+        if (Registry.Current.TryGet(docTypeName, out var meta))
+        {
+            selectedMeta = meta;
+            ResetDraft();
+            isDrawerOpen = true;
+        }
+    }
+
+    private void OnDrawerOpenChanged(bool open)
+    {
+        isDrawerOpen = open;
+        if (!open)
+        {
+            selectedMeta = null;
+            Selected = null;
+            loadedKey = null;
+        }
     }
 
     private void ResetDraft()
     {
         preview = null; message = null; ack = false;
-        if (Selected is not null && Registry.Current.TryGet(Selected, out var meta))
+        if (selectedMeta is not null)
         {
-            var copy = JsonSerializer.Deserialize<DocTypeDef>(MetadataJson.Serialize(meta.Def), MetadataJson.Options)!;
-            copy.Version = meta.Version + 1;
+            var copy = JsonSerializer.Deserialize<DocTypeDef>(MetadataJson.Serialize(selectedMeta.Def), MetadataJson.Options)!;
+            copy.Version = selectedMeta.Version + 1;
             draft = MetadataJson.Serialize(copy);
         }
     }
@@ -194,11 +367,21 @@ else
         {
             var v = Registry.Publish(def, Current.Required.Id, ack);
             Toasts.Success("Form dan list langsung memakai versi ini.", $"{v.DocType} v{v.Version} dipublikasikan");
-            ResetDraft();
+            LoadRows();
+            if (Registry.Current.TryGet(def.Name, out var updated))
+            {
+                selectedMeta = updated;
+                ResetDraft();
+            }
         }
         catch (Exception ex) when (ex is MetadataCompilationException or InvalidOperationException)
         {
             message = ex.Message;
         }
+    }
+
+    public void Dispose()
+    {
+        Registry.Published -= OnRegistryPublished;
     }
 }

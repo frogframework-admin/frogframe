@@ -712,9 +712,14 @@ table.data tbody tr.excluded td { opacity: .45; cursor: not-allowed; }
 .link-row > :first-child { flex: 1; min-width: 0; }
 
 /* ---------- Editor DocType visual ---------- */
-.designer { display: grid; grid-template-columns: 12.5rem minmax(0, 1fr) 20rem; gap: 1rem; align-items: start; margin-top: .75rem; }
+.designer { display: grid; grid-template-columns: 12.5rem minmax(0, 1fr); gap: 1rem; align-items: start; margin-top: .75rem; }
 .palette, .props { position: sticky; top: 4.25rem; max-height: calc(100vh - 5.5rem); overflow-y: auto; background: var(--card);
   border: 1px solid var(--border); border-radius: var(--radius); padding: .75rem; }
+.admin-drawer-body .props-group:first-child,
+.admin-drawer-body .props-group:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
 .palette-item { display: flex; align-items: center; gap: .55rem; padding: .45rem .55rem; margin-bottom: .3rem; border: 1px solid var(--border);
   border-radius: calc(var(--radius) - 2px); background: var(--background); font-size: .8125rem; cursor: grab; user-select: none; }
 .palette-item:hover { border-color: var(--ring); background: var(--accent); color: var(--accent-foreground); }
@@ -841,11 +846,16 @@ table.data tbody tr.selected td, .users-grid tr.selected td, tr.selected td { ba
 .perm-table td { padding: .35rem .3rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
 .perm-table td.c { text-align: center; }
 @media (max-width: 1100px) { .wf-grid { grid-template-columns: minmax(0, 1fr); } }
-.new-doctype { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 1rem; align-items: start; max-width: 64rem; }
+.new-doctype { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 1rem; align-items: stretch; max-width: 64rem; }
+.new-doctype > * { height: 100%; display: flex; flex-direction: column; }
+.new-doctype > * > :last-child { flex: 1; }
 .checklist { list-style: none; padding: 0; margin: 0 0 .75rem; display: grid; gap: .45rem; font-size: .875rem; }
 .checklist li { display: flex; gap: .5rem; align-items: flex-start; }
 .checklist li svg { color: var(--tone-positive); margin-top: .15rem; flex-shrink: 0; }
-@media (max-width: 900px) { .new-doctype { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 900px) {
+  .new-doctype { grid-template-columns: minmax(0, 1fr); }
+  .new-doctype > * { height: auto; }
+}
 .wf-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 .wf-states td:first-child { min-width: 9rem; width: 40%; }
 .wf-states td:nth-child(2), .wf-states td:nth-child(3) { min-width: 7.5rem; }
