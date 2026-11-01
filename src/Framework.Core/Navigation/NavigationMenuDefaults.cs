@@ -232,6 +232,22 @@ public static class NavigationMenuDefaults
         },
         new()
         {
+            Id = $"menu_{tenantId}_workflows",
+            TenantId = tenantId,
+            Title = "Workflows",
+            Href = "admin/workflows",
+            Icon = "git-branch",
+            GroupId = GroupSistemId(tenantId),
+            GroupName = "System",
+            SortOrder = 105,
+            AllowedRoles = [UserContext.SystemManager],
+            IsSystem = true,
+            IsActive = true,
+            CreatedAt = now,
+            UpdatedAt = now
+        },
+        new()
+        {
             Id = $"menu_{tenantId}_query_apis",
             TenantId = tenantId,
             Title = "Query APIs",

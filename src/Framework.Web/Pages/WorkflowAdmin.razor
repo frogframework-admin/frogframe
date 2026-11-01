@@ -1,0 +1,71 @@
+@page "/admin/workflows"
+@inject MetadataRegistry Registry
+@inject CurrentUser Current
+
+<PageTitle>Workflows · DocFrame</PageTitle>
+
+@if (!Current.Required.Roles.Contains(UserContext.SystemManager))
+{
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>This page is only accessible to System Managers.</BbAlertDescription></BbAlert>
+}
+else
+{
+    <header class="page-head">
+        <div>
+            <h1>Workflows</h1>
+            <p>Create and publish workflows independently, then link them to a DocType when ready.</p>
+        </div>
+        <BbButton Href="/admin/workflows/new"><LucideIcon Name="plus" Size="16" /> New workflow</BbButton>
+    </header>
+
+    @if (Workflows.Count == 0)
+    {
+        <BbEmpty Title="No workflows yet" Description="Create a workflow independently, then link it to a DocType when you are ready." />
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="data">
+                <thead><tr><th>Workflow</th><th>Version</th><th>DocType</th><th>Relationship</th><th>Actions</th></tr></thead>
+                <tbody>
+                    @foreach (var workflow in Workflows)
+                    {
+                        <tr>
+                            <td><a href="@($"/admin/workflows/{workflow.Name}/editor")" style="font-weight:600;color:inherit">@workflow.Name</a></td>
+                            <td><BbBadge Variant="BadgeVariant.Outline">v@workflow.Version</BbBadge></td>
+                            <td>@(workflow.DocType ?? "—")</td>
+                            <td>
+                                @if (IsLinked(workflow))
+                                {
+                                    <BbBadge Variant="BadgeVariant.SoftSuccess">Linked</BbBadge>
+                                }
+                                else if (string.IsNullOrWhiteSpace(workflow.DocType))
+                                {
+                                    <BbBadge Variant="BadgeVariant.Outline">Standalone</BbBadge>
+                                }
+                                else
+                                {
+                                    <BbBadge Variant="BadgeVariant.Secondary">Not attached</BbBadge>
+                                }
+                            </td>
+                            <td>
+                                <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Href="@($"/admin/workflows/{workflow.Name}/editor")">
+                                    <LucideIcon Name="pencil" Size="14" /> Edit / link
+                                </BbButton>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+}
+
+@code {
+    private IReadOnlyList<WorkflowDef> Workflows => Registry.Workflows.OrderBy(w => w.Name, StringComparer.OrdinalIgnoreCase).ToList();
+
+    private bool IsLinked(WorkflowDef workflow) =>
+        !string.IsNullOrWhiteSpace(workflow.DocType)
+        && Registry.Current.TryGet(workflow.DocType, out var doc)
+        && doc.Def.Workflow == workflow.Name;
+}

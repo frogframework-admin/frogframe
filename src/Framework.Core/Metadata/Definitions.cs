@@ -182,7 +182,7 @@ public sealed class ApiDef
 public sealed class WorkflowDef
 {
     public string Name { get; set; } = "";
-    public string DocType { get; set; } = "";
+    public string? DocType { get; set; }
     public int Version { get; set; } = 1;
     public string InitialState { get; set; } = "";
     public List<WorkflowStateDef> States { get; set; } = [];

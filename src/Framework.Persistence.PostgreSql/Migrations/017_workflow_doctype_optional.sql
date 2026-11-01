@@ -1,0 +1,1 @@
+ALTER TABLE docframe_workflow_versions ALTER COLUMN doctype DROP NOT NULL;

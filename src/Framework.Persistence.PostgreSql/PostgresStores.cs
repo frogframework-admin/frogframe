@@ -347,7 +347,7 @@ public sealed class PostgresMetadataVersionStore(NpgsqlDataSource db) : IMetadat
         using var r = cmd.ExecuteReader();
         var list = new List<WorkflowVersion>();
         while (r.Read())
-            list.Add(new WorkflowVersion(r.GetString(0), r.GetString(1), r.GetInt32(2), MetadataJson.ParseWorkflow(r.GetString(3)),
+            list.Add(new WorkflowVersion(r.GetString(0), r.IsDBNull(1) ? null : r.GetString(1), r.GetInt32(2), MetadataJson.ParseWorkflow(r.GetString(3)),
                 Enum.Parse<MetadataStatus>(r.GetString(4)), r.GetString(5), r.GetFieldValue<DateTimeOffset>(6),
                 JsonSerializer.Deserialize<List<MetadataChange>>(r.GetString(7)) ?? []));
         return list;
@@ -365,7 +365,7 @@ public sealed class PostgresMetadataVersionStore(NpgsqlDataSource db) : IMetadat
         using (var ins = new NpgsqlCommand(
             "INSERT INTO docframe_workflow_versions (name, doctype, version, definition, status, published_by, published_at, changes) VALUES ($1,$2,$3,$4::jsonb,$5,$6,$7,$8::jsonb)", conn, tx))
         {
-            ins.Parameters.AddWithValue(v.Name); ins.Parameters.AddWithValue(v.DocType); ins.Parameters.AddWithValue(v.Version);
+            ins.Parameters.AddWithValue(v.Name); ins.Parameters.AddWithValue((object?)v.DocType ?? DBNull.Value); ins.Parameters.AddWithValue(v.Version);
             ins.Parameters.AddWithValue(MetadataJson.Serialize(v.Def)); ins.Parameters.AddWithValue(v.Status.ToString());
             ins.Parameters.AddWithValue(v.PublishedBy); ins.Parameters.AddWithValue(v.PublishedAt);
             ins.Parameters.AddWithValue(JsonSerializer.Serialize(v.Changes));

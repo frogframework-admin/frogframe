@@ -236,7 +236,20 @@ else
                             }
                             else
                             {
-                                <BbButton Href="@($"/admin/workflows/new?doctype={design.Def.Name}")"><LucideIcon Name="git-branch-plus" Size="16" /> Create workflow</BbButton>
+                                <div class="stack" style="gap:.65rem">
+                                    @if (AvailableWorkflows.Any())
+                                    {
+                                        <BbField>
+                                            <BbFieldLabel>Link an existing workflow</BbFieldLabel>
+                                            <BbSelect TValue="string" Value="@(workflowToLink ?? "")" ValueChanged="v => workflowToLink = string.IsNullOrWhiteSpace(v) ? null : v" Options="WorkflowOptions" AriaLabel="Workflow to link" />
+                                        </BbField>
+                                        <BbButton Variant="ButtonVariant.Outline" Disabled="@(string.IsNullOrWhiteSpace(workflowToLink))" OnClick="LinkWorkflow">
+                                            <LucideIcon Name="link" Size="16" /> Link selected workflow
+                                        </BbButton>
+                                    }
+                                    <BbButton Href="@($"/admin/workflows/new?doctype={design.Def.Name}")"><LucideIcon Name="git-branch-plus" Size="16" /> Create workflow</BbButton>
+                                    <BbButton Variant="ButtonVariant.Ghost" Href="/admin/workflows">Manage all workflows</BbButton>
+                                </div>
                             }
                         </BbCardContent>
                     </BbCard>
@@ -380,6 +393,18 @@ else
         [new("1", "1 column"), new("2", "2 columns"), new("3", "3 columns")];
 
     private WorkflowDef? ActiveWorkflow => design?.Def.Workflow is { } n ? Registry.Workflows.FirstOrDefault(w => w.Name == n) : null;
+    private string? workflowToLink;
+    private IEnumerable<WorkflowDef> AvailableWorkflows => Registry.Workflows
+        .Where(w => w.Name != design?.Def.Workflow
+                    && (string.IsNullOrWhiteSpace(w.DocType) || w.DocType == design?.Def.Name));
+    private IEnumerable<SelectOption<string>> WorkflowOptions => new[] { new SelectOption<string>("", "Choose a workflow") }
+        .Concat(AvailableWorkflows.OrderBy(w => w.Name).Select(w => new SelectOption<string>(w.Name, w.Name)));
+
+    private void LinkWorkflow()
+    {
+        if (string.IsNullOrWhiteSpace(workflowToLink) || design is null) return;
+        Nav.NavigateTo($"/admin/workflows/{Uri.EscapeDataString(workflowToLink)}/editor?doctype={Uri.EscapeDataString(design.Def.Name)}");
+    }
 
     private IEnumerable<MetadataError> GeneralErrors => errors.Where(e => !e.Path.StartsWith("fields.") || design!.AllFields.All(f => !e.Path.StartsWith($"fields.{f.Name}")));
 
@@ -396,6 +421,7 @@ else
     private void Load()
     {
         if (!Registry.Current.TryGet(DocTypeName, out var meta)) { design = null; return; }
+        workflowToLink = null;
         active = meta.Def;
         version = meta.Version + 1;
         design = DocTypeDesign.From(meta.Def);

@@ -21,9 +21,12 @@ else
 {
     <BbBreadcrumb Class="crumbs">
         <BbBreadcrumbList>
-            <BbBreadcrumbItem><BbBreadcrumbLink Href="/admin/metadata">Metadata</BbBreadcrumbLink></BbBreadcrumbItem>
-            <BbBreadcrumbSeparator />
-            <BbBreadcrumbItem><BbBreadcrumbLink Href="@($"/admin/metadata/{wf.DocType}")">@wf.DocType</BbBreadcrumbLink></BbBreadcrumbItem>
+            <BbBreadcrumbItem><BbBreadcrumbLink Href="/admin/workflows">Workflows</BbBreadcrumbLink></BbBreadcrumbItem>
+            @if (!string.IsNullOrWhiteSpace(wf.DocType))
+            {
+                <BbBreadcrumbSeparator />
+                <BbBreadcrumbItem><BbBreadcrumbLink Href="@($"/admin/metadata/{wf.DocType}")">@wf.DocType</BbBreadcrumbLink></BbBreadcrumbItem>
+            }
             <BbBreadcrumbSeparator />
             <BbBreadcrumbItem><BbBreadcrumbPage>Workflow</BbBreadcrumbPage></BbBreadcrumbItem>
         </BbBreadcrumbList>
@@ -33,7 +36,9 @@ else
         <div>
             <h1>@(isNew ? "New workflow" : wf.Name) <span class="muted" style="font-weight:500">· @(isNew ? "v1" : $"draft v{wf.Version}")</span></h1>
             <p>
-                Approval workflow for <strong>@DocTitle</strong>.
+                @if (!string.IsNullOrWhiteSpace(wf.DocType)) { <span>Workflow for <strong>@DocTitle</strong>.</span> }
+                else if (targetDocType is not null) { <span>Standalone workflow; ready to link to <strong>@DocTitle</strong> when published.</span> }
+                else { <span>Standalone workflow. You can link it to a DocType when ready.</span> }
                 @if (errors.Count > 0) { <BbBadge Variant="BadgeVariant.SoftDestructive">@errors.Count issue(s)</BbBadge> }
                 else { <BbBadge Variant="BadgeVariant.SoftSuccess">Valid draft</BbBadge> }
                 @if (dirty) { <BbBadge Variant="BadgeVariant.Warning">Unpublished</BbBadge> }
@@ -48,7 +53,26 @@ else
         </div>
     </header>
 
-    @if (NeedsAttach)
+    @if (string.IsNullOrWhiteSpace(wf.DocType))
+    {
+        <BbCard Class="props-block">
+            <BbCardContent>
+                <BbField>
+                    <BbFieldLabel>Link to DocType (optional)</BbFieldLabel>
+                    <BbSelect TValue="string" Value="@(targetDocType ?? "")" ValueChanged="SetTargetDocType" Options="DocTypeOptions" AriaLabel="DocType to link" />
+                    <BbFieldDescription>Workflow conditions that reference DocType fields are checked after you select and link a DocType.</BbFieldDescription>
+                </BbField>
+                @if (CanAttach)
+                {
+                    <div class="label-row" style="margin-top:.75rem">
+                        <BbCheckbox Id="attach" Checked="attach" CheckedChanged="v => { attach = v; Recompile(); }" />
+                        <BbLabel For="attach">Link to @DocTitle when publishing@(OwnerWorkflow is { } ow ? $" (replacing workflow {ow})" : "")</BbLabel>
+                    </div>
+                }
+            </BbCardContent>
+        </BbCard>
+    }
+    else if (CanAttach)
     {
         <div class="label-row props-block">
             <BbCheckbox Id="attach" Checked="attach" CheckedChanged="v => { attach = v; Recompile(); }" />
@@ -198,6 +222,9 @@ else
 
     private WorkflowDef? wf;
     private string originalJson = "";
+    private string? targetDocType;
+    private string? originalTargetDocType;
+    private bool originalAttach;
     private bool isNew, attach, dirty, ack;
     private int? selected;
     private string? loadError;
@@ -211,9 +238,12 @@ else
 
     private IEnumerable<SelectOption<string>> StateOptions => wf!.States.Where(s => !string.IsNullOrWhiteSpace(s.Name)).Select(s => new SelectOption<string>(s.Name, s.Name));
     private IReadOnlyList<string> Roles => MetadataRoles.Known(Registry.Current, wf!.Transitions.SelectMany(t => t.AllowedRoles));
-    private string DocTitle => Registry.Current.TryGet(wf!.DocType, out var d) ? d.Title : wf!.DocType;
-    private string? OwnerWorkflow => Registry.Current.TryGet(wf!.DocType, out var d) && d.Def.Workflow is { } w && w != wf.Name ? w : null;
-    private bool NeedsAttach => Registry.Current.TryGet(wf!.DocType, out var d) && d.Def.Workflow != wf.Name;
+    private IEnumerable<SelectOption<string>> DocTypeOptions => new[] { new SelectOption<string>("", "Choose a DocType") }
+        .Concat(Registry.Current.DocTypes.Values.Where(d => !d.Def.IsChild).OrderBy(d => d.Title).Select(d => new SelectOption<string>(d.Name, d.Title)));
+    private string? EffectiveDocType => string.IsNullOrWhiteSpace(wf?.DocType) ? targetDocType : wf.DocType;
+    private string DocTitle => EffectiveDocType is { } n && Registry.Current.TryGet(n, out var d) ? d.Title : EffectiveDocType ?? "not linked";
+    private string? OwnerWorkflow => EffectiveDocType is { } n && Registry.Current.TryGet(n, out var d) && d.Def.Workflow is { } w && w != wf!.Name ? w : null;
+    private bool CanAttach => EffectiveDocType is { } n && Registry.Current.TryGet(n, out var d) && d.Def.Workflow != wf!.Name;
 
     // Blazor memanggil OnParametersSet setiap kali layout induk dirender ulang (mis. jumlah notifikasi berubah).
     // Muat ulang hanya bila parameter rute benar-benar berubah, agar isian/draft pengguna tidak hilang.
@@ -229,31 +259,39 @@ else
     private void Init()
     {
         loadError = null; preview = null; ack = false; selected = null;
+        targetDocType = null;
         if (WorkflowName is not null)
         {
             var active = Registry.Workflows.FirstOrDefault(w => w.Name == WorkflowName);
             if (active is null) { wf = null; return; }
             wf = Clone(active); wf.Version = active.Version + 1; isNew = false;
-            attach = NeedsAttach;
+            targetDocType = wf.DocType;
+            if (string.IsNullOrWhiteSpace(targetDocType) && ForDocType is not null
+                && Registry.Current.TryGet(ForDocType, out var doc) && !doc.Def.IsChild)
+                targetDocType = doc.Name;
+            attach = CanAttach;
         }
         else
         {
-            if (ForDocType is null || !Registry.Current.TryGet(ForDocType, out var doc) || doc.Def.IsChild)
-            { wf = null; loadError = "Select a DocType (not a child table) to create a workflow."; return; }
-            wf = Template(doc); isNew = true; attach = true;
+            if (ForDocType is not null && Registry.Current.TryGet(ForDocType, out var doc) && !doc.Def.IsChild)
+                targetDocType = doc.Name;
+            wf = Template(targetDocType); isNew = true; attach = false;
         }
         originalJson = MetadataJson.Serialize(wf);
+        originalTargetDocType = targetDocType;
+        originalAttach = attach;
         Recompile();
     }
 
-    /// <summary>Template awal yang langsung valid: Draft → Diajukan → Disetujui / Ditolak.</summary>
-    private WorkflowDef Template(CompiledDocType doc)
+    /// <summary>Template awal: Draft → Diajukan → Disetujui / Ditolak.</summary>
+    private WorkflowDef Template(string? docType)
     {
-        var name = doc.Name + "Approval";
-        for (var i = 2; Registry.Workflows.Any(w => w.Name == name); i++) name = $"{doc.Name}Approval{i}";
+        var baseName = string.IsNullOrWhiteSpace(docType) ? "NewWorkflow" : docType + "Approval";
+        var name = baseName;
+        for (var i = 2; Registry.Workflows.Any(w => w.Name == name); i++) name = $"{baseName}{i}";
         return new WorkflowDef
         {
-            Name = name, DocType = doc.Name, Version = 1, InitialState = "Draft",
+            Name = name, Version = 1, InitialState = "Draft",
             States =
             [
                 new() { Name = "Draft", DocStatus = 0, Tone = "neutral" },
@@ -274,9 +312,23 @@ else
 
     private void Recompile()
     {
-        (_, errors) = Registry.CompileWorkflowDraft(wf!, attach);
-        dirty = isNew || MetadataJson.Serialize(wf) != originalJson;
+        (_, errors) = Registry.CompileWorkflowDraft(DraftForCompile(), attach);
+        dirty = isNew || MetadataJson.Serialize(wf) != originalJson || targetDocType != originalTargetDocType || attach != originalAttach;
         preview = null; ack = false;
+    }
+
+    private WorkflowDef DraftForCompile()
+    {
+        var draft = Clone(wf!);
+        if (string.IsNullOrWhiteSpace(draft.DocType) && attach)
+            draft.DocType = targetDocType;
+        return draft;
+    }
+
+    private void SetTargetDocType(string? value)
+    {
+        targetDocType = string.IsNullOrWhiteSpace(value) ? null : value;
+        Recompile();
     }
 
     private void Mutate(Action change) { change(); Recompile(); }
@@ -338,14 +390,14 @@ else
         if (!on) t.AllowedRoles.Remove(role);
     }
 
-    private void Check() => preview = Registry.PreviewWorkflow(wf!, attach);
+    private void Check() => preview = Registry.PreviewWorkflow(DraftForCompile(), attach);
 
     private void Publish()
     {
         try
         {
-            var v = Registry.PublishWorkflow(wf!, Current.Required.Id, ack, attach);
-            Toasts.Success(attach ? $"Attached to {wf!.DocType}; documents will now use this workflow." : "New version is active.", $"Workflow {v.Name} v{v.Version} published");
+            var v = Registry.PublishWorkflow(DraftForCompile(), Current.Required.Id, ack, attach);
+            Toasts.Success(attach ? $"Attached to {v.DocType}; documents will now use this workflow." : "Workflow published independently.", $"Workflow {v.Name} v{v.Version} published");
             if (isNew) Nav.NavigateTo($"/admin/workflows/{v.Name}/editor");
             else Init();
         }

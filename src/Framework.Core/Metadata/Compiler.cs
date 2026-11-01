@@ -152,13 +152,13 @@ public sealed partial class MetadataCompiler(IFieldTypeRegistry fieldTypes, Func
     }
 
     private ParsedExpression? ParseExpr(string? src, string source, string path, List<MetadataError> errors,
-        ISet<string> allowedRoots)
+        ISet<string> allowedRoots, bool validateRoots = true)
     {
         if (string.IsNullOrWhiteSpace(src)) return null;
         try
         {
             var parsed = new ExpressionParser(functions).Parse(src);
-            foreach (var root in parsed.RootNames.Where(r => !allowedRoots.Contains(r)))
+            foreach (var root in parsed.RootNames.Where(r => validateRoots && !allowedRoots.Contains(r)))
                 errors.Add(new(source, path, $"Ekspresi merujuk nama tidak dikenal '{root}'"));
             return parsed;
         }
@@ -423,11 +423,14 @@ public sealed partial class MetadataCompiler(IFieldTypeRegistry fieldTypes, Func
     {
         var src = $"Workflow {wf.Name}@v{wf.Version}";
         var start = errors.Count;
-        if (!defs.TryGetValue(wf.DocType, out var docType))
+        DocTypeDef? docType = null;
+        if (!string.IsNullOrWhiteSpace(wf.DocType) && !defs.TryGetValue(wf.DocType, out docType))
         {
             errors.Add(new(src, "docType", $"DocType '{wf.DocType}' tidak ditemukan"));
             return null;
         }
+        if (docType?.IsChild == true)
+            errors.Add(new(src, "docType", "Workflow hanya dapat dikaitkan ke DocType utama"));
         if (!System.Text.RegularExpressions.Regex.IsMatch(wf.Name, "^[A-Za-z][A-Za-z0-9_]{1,63}$"))
             errors.Add(new(src, "name", "Nama workflow harus huruf/angka tanpa spasi, mis. PengajuanApproval"));
         foreach (var dup in wf.Transitions.GroupBy(t => (t.From, t.Action)).Where(g => g.Count() > 1))
@@ -442,7 +445,7 @@ public sealed partial class MetadataCompiler(IFieldTypeRegistry fieldTypes, Func
         if (!states.TryGetValue(wf.InitialState, out var init) || init.DocStatus != 0)
             errors.Add(new(src, "initialState", "Initial state harus ada dan ber-docStatus 0"));
 
-        var roots = new HashSet<string>(docType.Fields.Select(f => f.Name)) { "user" };
+        var roots = new HashSet<string>(docType?.Fields.Select(f => f.Name) ?? []) { "user" };
         roots.UnionWith(StandardFields.All);
         var transitions = new List<CompiledTransition>();
         foreach (var t in wf.Transitions)
@@ -454,7 +457,7 @@ public sealed partial class MetadataCompiler(IFieldTypeRegistry fieldTypes, Func
             if (t.AllowedRoles.Count == 0) errors.Add(new(src, path, "Minimal satu role diizinkan"));
             if (states.TryGetValue(t.From, out var fs) && states.TryGetValue(t.To, out var ts) && ts.DocStatus < fs.DocStatus)
                 errors.Add(new(src, path, "Transisi tidak boleh menurunkan docStatus; gunakan amend"));
-            transitions.Add(new CompiledTransition { Def = t, Condition = ParseExpr(t.Condition, src, $"{path}.condition", errors, roots) });
+            transitions.Add(new CompiledTransition { Def = t, Condition = ParseExpr(t.Condition, src, $"{path}.condition", errors, roots, validateRoots: docType is not null) });
         }
         if (errors.Count > start) return null;
         return new CompiledWorkflow { Def = wf, States = states, Transitions = transitions };
@@ -527,7 +530,7 @@ public static class WorkflowDiff
     public static IReadOnlyList<MetadataChange> Compare(WorkflowDef? oldWf, WorkflowDef newWf)
     {
         var changes = new List<MetadataChange>();
-        if (oldWf is null) { changes.Add(new(ChangeRisk.Safe, newWf.Name, $"Workflow baru untuk {newWf.DocType}")); return changes; }
+        if (oldWf is null) { changes.Add(new(ChangeRisk.Safe, newWf.Name, "Workflow baru")); return changes; }
         var oldStates = oldWf.States.ToDictionary(x => x.Name);
         var newStates = newWf.States.ToDictionary(x => x.Name);
         foreach (var (name, os) in oldStates)
@@ -564,7 +567,7 @@ public static class WorkflowDiff
     }
 }
 
-public sealed record WorkflowVersion(string Name, string DocType, int Version, WorkflowDef Def, MetadataStatus Status,
+public sealed record WorkflowVersion(string Name, string? DocType, int Version, WorkflowDef Def, MetadataStatus Status,
     string PublishedBy, DateTimeOffset PublishedAt, IReadOnlyList<MetadataChange> Changes);
 
 public sealed record MetadataVersion(string DocType, int Version, DocTypeDef Def, MetadataStatus Status,
@@ -698,7 +701,7 @@ public sealed class MetadataRegistry : IMetadataProvider
         var wfs = _workflows.Where(w => w.Name != draft.Name).Append(draft).ToList();
         var docs = _current.DocTypes.Values.Select(c => c.Def).ToList();
         DocTypeDef? attached = null;
-        var owner = docs.FirstOrDefault(d => d.Name == draft.DocType);
+        var owner = string.IsNullOrWhiteSpace(draft.DocType) ? null : docs.FirstOrDefault(d => d.Name == draft.DocType);
         if (attach && owner is not null && owner.Workflow != draft.Name)
         {
             attached = MetadataJson.ParseDocType(MetadataJson.Serialize(owner));
@@ -713,6 +716,8 @@ public sealed class MetadataRegistry : IMetadataProvider
     {
         lock (_gate)
         {
+            if (attach && string.IsNullOrWhiteSpace(draft.DocType))
+                return (null, [new(draft.Name, "docType", "Pilih DocType sebelum mengaitkan workflow")]);
             var (docs, wfs, _) = WithWorkflow(draft, attach);
             try { return (_compiler.Compile(docs, wfs), []); }
             catch (MetadataCompilationException ex) { return (null, ex.Errors); }
@@ -725,8 +730,10 @@ public sealed class MetadataRegistry : IMetadataProvider
         var existing = _workflows.FirstOrDefault(w => w.Name == draft.Name);
         if (existing is not null && draft.Version <= existing.Version)
             errors.Add(new(draft.Name, "version", $"Versi harus lebih besar dari versi aktif ({existing.Version})"));
-        if (existing is not null && existing.DocType != draft.DocType)
+        if (existing is not null && !string.IsNullOrWhiteSpace(existing.DocType) && existing.DocType != draft.DocType)
             errors.Add(new(draft.Name, "docType", "DocType pemilik workflow tidak boleh diganti; buat workflow baru"));
+        if (attach && string.IsNullOrWhiteSpace(draft.DocType))
+            errors.Add(new(draft.Name, "docType", "Pilih DocType sebelum mengaitkan workflow"));
         var (docs, wfs, attached) = WithWorkflow(draft, attach);
         var changes = WorkflowDiff.Compare(existing, draft).ToList();
         if (attached is not null)

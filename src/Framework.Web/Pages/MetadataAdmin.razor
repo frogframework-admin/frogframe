@@ -168,7 +168,10 @@ else
                             }
                             else
                             {
-                                <BbButton Variant="ButtonVariant.Outline" Href="@($"/admin/workflows/new?doctype={selectedMeta.Name}")"><LucideIcon Name="git-branch-plus" Size="16" /> Create workflow</BbButton>
+                                <div class="row">
+                                    <BbButton Variant="ButtonVariant.Outline" Href="@($"/admin/workflows/new?doctype={selectedMeta.Name}")"><LucideIcon Name="git-branch-plus" Size="16" /> Create workflow</BbButton>
+                                    <BbButton Variant="ButtonVariant.Ghost" Href="/admin/workflows">Manage workflows</BbButton>
+                                </div>
                             }
                         </BbCardContent>
                     </BbCard>

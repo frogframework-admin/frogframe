@@ -799,6 +799,36 @@ sealed partial class Tests
     }
 
     [Test]
+    public Task Workflow_dapat_diterbitkan_terpisah_lalu_dihubungkan()
+    {
+        var reg = sp.GetRequiredService<MetadataRegistry>();
+        var wf = new WorkflowDef
+        {
+            Name = "StandaloneReview", Version = 1, InitialState = "Draft",
+            States = [new() { Name = "Draft", DocStatus = 0 }, new() { Name = "Reviewed", DocStatus = 1 }],
+            Transitions = [new() { From = "Draft", To = "Reviewed", Action = "Review", AllowedRoles = ["Employee"], Condition = "owner == user.id" }],
+        };
+
+        var standalonePreview = reg.PreviewWorkflow(wf, attach: false);
+        Assert.True(standalonePreview.Valid, "workflow tanpa DocType valid: " + string.Join("; ", standalonePreview.Errors));
+        var published = reg.PublishWorkflow(wf, "admin", acknowledgeRisk: false, attach: false);
+        Assert.True(published.DocType is null, "workflow diterbitkan tanpa DocType");
+        Assert.True(reg.Current.Get("Vendor").Def.Workflow != wf.Name, "DocType tidak berubah saat publish independen");
+
+        var linked = MetadataJson.ParseWorkflow(MetadataJson.Serialize(reg.Workflows.Single(x => x.Name == wf.Name)));
+        linked.Version = 2;
+        linked.DocType = "Vendor";
+        var attachPreview = reg.PreviewWorkflow(linked, attach: true);
+        Assert.True(attachPreview.Valid, "workflow dapat dipasang ke DocType: " + string.Join("; ", attachPreview.Errors));
+        reg.PublishWorkflow(linked, "admin", acknowledgeRisk: true, attach: true);
+
+        Assert.Equal("Vendor", reg.Workflows.Single(x => x.Name == wf.Name).DocType, "workflow sekarang terikat ke Vendor");
+        Assert.Equal(wf.Name, reg.Current.Get("Vendor").Def.Workflow, "DocType menggunakan workflow yang dipilih");
+        Assert.Equal(2, reg.WorkflowHistory(wf.Name).Count, "riwayat workflow menyimpan kedua versi");
+        return Task.CompletedTask;
+    }
+
+    [Test]
     public Task Workflow_validasi_aksi_ganda_dan_nama()
     {
         var reg = sp.GetRequiredService<MetadataRegistry>();

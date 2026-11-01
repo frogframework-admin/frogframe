@@ -26,6 +26,9 @@ sealed partial class Tests
         var metadata = items.FirstOrDefault(x => x.Href == "admin/metadata");
         Assert.True(metadata is not null && metadata.IsSystem && metadata.AllowedRoles.Contains(UserContext.SystemManager), "Metadata DocType harus di-seed");
 
+        var workflows = items.FirstOrDefault(x => x.Href == "admin/workflows");
+        Assert.True(workflows is not null && workflows.IsSystem && workflows.AllowedRoles.Contains(UserContext.SystemManager), "Workflow harus di-seed untuk System Manager");
+
         var queryApis = items.FirstOrDefault(x => x.Href == "query-apis");
         Assert.True(queryApis is not null && queryApis.IsSystem && queryApis.AllowedRoles.Contains(UserContext.SystemManager), "API Query harus di-seed");
 
@@ -61,6 +64,7 @@ sealed partial class Tests
 
         // Karyawan biasa TIDAK boleh melihat menu sistem admin
         Assert.True(!empVisible.Any(x => x.Href == "admin/metadata"), "Karyawan dilarang melihat Metadata DocType");
+        Assert.True(!empVisible.Any(x => x.Href == "admin/workflows"), "Karyawan dilarang melihat Workflow admin");
         Assert.True(!empVisible.Any(x => x.Href == "query-apis"), "Karyawan dilarang melihat API Query");
         Assert.True(!empVisible.Any(x => x.Href == "admin/api-keys"), "Karyawan dilarang melihat Kunci API");
         Assert.True(!empVisible.Any(x => x.Href == "admin/users"), "Karyawan dilarang melihat Pengguna");
@@ -68,6 +72,7 @@ sealed partial class Tests
 
         // Admin dapat melihat semua menu
         Assert.True(adminVisible.Any(x => x.Href == "admin/metadata"), "Admin dapat melihat Metadata DocType");
+        Assert.True(adminVisible.Any(x => x.Href == "admin/workflows"), "Admin dapat melihat Workflow");
         Assert.True(adminVisible.Any(x => x.Href == "admin/menus"), "Admin dapat melihat Kelola Menu");
     }
 
