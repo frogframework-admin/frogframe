@@ -44,35 +44,6 @@ else if (meta is not null)
         }
     </header>
 
-    <div class="filters" role="search">
-        <div class="filter search">
-            <span>Cari</span>
-            <BbInput Value="@search" ValueChanged="OnSearch" UpdateTiming="UpdateTiming.Debounced" DebounceInterval="300"
-                     Placeholder="@($"{string.Join(" / ", meta.Def.ListView.SearchFields.Select(LabelOf))}…")" AriaLabel="Cari" />
-        </div>
-        @foreach (var fName in meta.Def.ListView.Filters)
-        {
-            var f = fName;
-            <div class="filter">
-                <span>@LabelOf(f)</span>
-                @if (FilterOptions(f) is { } opts)
-                {
-                    <BbSelect TValue="string" Value="@(filters.TryGetValue(f, out var cur) ? cur.Value as string : "")" ValueChanged="v => SetFilter(f, v)"
-                              Options="opts" AriaLabel="@LabelOf(f)" />
-                }
-                else if (meta.ByName.TryGetValue(f, out var cf) && cf.Def.Type == "Date")
-                {
-                    <BbDatePicker Value="@(filters.TryGetValue(f, out var dc) ? DateTime.Parse((string)dc.Value!) : null)"
-                                  ValueChanged="d => SetFilter(f, d?.ToString(DateFmt))" Placeholder="Sejak tanggal" DateFormat="d MMM yyyy" AriaLabel="@LabelOf(f)" />
-                }
-                else
-                {
-                    <BbInput ValueChanged="v => SetFilter(f, v)" UpdateTiming="UpdateTiming.OnChange" AriaLabel="@LabelOf(f)" />
-                }
-            </div>
-        }
-    </div>
-
     @if (error is not null)
     {
         <BbAlert Variant="AlertVariant.Danger" Class="crumbs"><BbAlertDescription>@error</BbAlertDescription></BbAlert>
@@ -81,13 +52,6 @@ else if (meta is not null)
     @if (result is null)
     {
         <div class="stack"><BbSkeleton Height="2.5rem" /><BbSkeleton Height="2.5rem" /><BbSkeleton Height="2.5rem" /></div>
-    }
-    else if (result.Items.Count == 0)
-    {
-        <BbEmpty Title="@($"Belum ada {meta.Title.ToLower()} yang cocok")"
-                 Description="@(filters.Count > 0 || !string.IsNullOrEmpty(search) ? "Ubah atau kosongkan filter untuk melihat dokumen lain." : "Dokumen yang Anda buat atau yang dibagikan ke peran Anda akan muncul di sini.")">
-            <Icon><LucideIcon Name="search" Size="28" /></Icon>
-        </BbEmpty>
     }
     else
     {
@@ -102,12 +66,48 @@ else if (meta is not null)
                     PageSizes="@([10, 20, 50, 100])"
                     TableContainerClass="table-wrap">
             <Toolbar>
-                <div class="row" style="justify-content:flex-end;width:100%;margin-bottom:.5rem">
-                    <BbDataGridColumnVisibility TData="Dictionary<string, object?>" />
+                <div class="filters" role="search" style="margin-bottom:.75rem;width:100%">
+                    <div class="filter search">
+                        <span>Cari</span>
+                        <BbInput Value="@search" ValueChanged="OnSearch" UpdateTiming="UpdateTiming.Debounced" DebounceInterval="300"
+                                 Placeholder="@($"{string.Join(" / ", meta.Def.ListView.SearchFields.Select(LabelOf))}…")" AriaLabel="Cari" />
+                    </div>
+                    @foreach (var fName in meta.Def.ListView.Filters)
+                    {
+                        var f = fName;
+                        <div class="filter">
+                            <span>@LabelOf(f)</span>
+                            @if (FilterOptions(f) is { } opts)
+                            {
+                                <BbSelect TValue="string" Value="@(filters.TryGetValue(f, out var cur) ? cur.Value as string : "")" ValueChanged="v => SetFilter(f, v)"
+                                          Options="opts" AriaLabel="@LabelOf(f)" />
+                            }
+                            else if (meta.ByName.TryGetValue(f, out var cf) && cf.Def.Type == "Date")
+                            {
+                                <BbDatePicker Value="@(filters.TryGetValue(f, out var dc) ? DateTime.Parse((string)dc.Value!) : null)"
+                                              ValueChanged="d => SetFilter(f, d?.ToString(DateFmt))" Placeholder="Sejak tanggal" DateFormat="d MMM yyyy" AriaLabel="@LabelOf(f)" />
+                            }
+                            else
+                            {
+                                <BbInput ValueChanged="v => SetFilter(f, v)" UpdateTiming="UpdateTiming.OnChange" AriaLabel="@LabelOf(f)" />
+                            }
+                        </div>
+                    }
+                    <div style="margin-left:auto;align-self:flex-end">
+                        <BbDataGridColumnVisibility TData="Dictionary<string, object?>" />
+                    </div>
                 </div>
             </Toolbar>
+            <EmptyTemplate>
+                <div style="padding:2.5rem 1rem">
+                    <BbEmpty Title="@($"Belum ada {meta.Title.ToLower()} yang cocok")"
+                             Description="@(filters.Count > 0 || !string.IsNullOrEmpty(search) ? "Ubah atau kosongkan filter untuk melihat dokumen lain." : "Dokumen yang Anda buat atau yang dibagikan ke peran Anda akan muncul di sini.")">
+                        <Icon><LucideIcon Name="search" Size="28" /></Icon>
+                    </BbEmpty>
+                </div>
+            </EmptyTemplate>
             <Columns>
-                <BbDataGridTemplateColumn TData="Dictionary<string, object?>" Id="_select" Width="3rem" Hideable="false" Resizable="false">
+                <BbDataGridTemplateColumn TData="Dictionary<string, object?>" Id="_select" Title="" Width="3rem" Hideable="false" Resizable="false">
                     <HeaderTemplate>
                         <div @onclick:stopPropagation="true">
                             <BbCheckbox Checked="@IsAllSelected"
