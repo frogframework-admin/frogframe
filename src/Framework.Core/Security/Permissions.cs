@@ -17,6 +17,9 @@ public sealed record UserContext(
     public bool IsAdmin => Roles.Contains(SystemManager) || Roles.Contains(Administrator);
     public bool HasRole(string role) => Roles.Contains(role) || IsAdmin && role != "*";
     public string? Attr(string key) => Attributes.TryGetValue(key, out var v) ? v : null;
+
+    public static UserContext System(string tenantId = "acme") =>
+        new("system", "System", tenantId, new HashSet<string> { SystemManager, Administrator }, new Dictionary<string, string>());
 }
 
 public sealed class PermissionDeniedException(string message) : Exception(message);

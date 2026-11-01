@@ -69,6 +69,7 @@ public sealed class DocumentService(
     private sealed class HookDocumentReader(DocumentService service, UserContext user) : IDocumentService
     {
         public Task<Document> GetAsync(string docType, string name, CancellationToken ct = default) => service.GetAsync(user, docType, name, ct);
+        public Task<object?> GetFieldAsync(string docType, string name, string fieldName, CancellationToken ct = default) => service.GetFieldAsync(user, docType, name, fieldName, ct);
     }
 
     private sealed class HookLookup(IDocumentService docs) : IDocumentLookup
@@ -123,6 +124,20 @@ public sealed class DocumentService(
         RunVisualHooks(meta, "OnLoad", hookContext, null);
         await hooks.RunAsync(DocHookStage.OnLoad, hookContext, ct);
         return RedactForRead(user, meta, view);
+    }
+
+    public async Task<object?> GetFieldAsync(UserContext user, string docType, string name, string fieldName, CancellationToken ct = default)
+    {
+        var meta = TopLevel(docType);
+        permissions.Demand(user, meta, DocActions.Read);
+        var doc = await LoadInScopeAsync(user, meta, name, ct);
+        if (meta.ByName.TryGetValue(fieldName, out var field))
+        {
+            if (!permissions.CanReadField(user, meta, field))
+                return null;
+            return doc.Data.TryGetValue(fieldName, out var v) ? v : null;
+        }
+        return doc.Get(fieldName);
     }
 
     /// <summary>Memuat dokumen dalam tenant user. Dokumen di luar scope dilaporkan "tidak ditemukan" agar tidak membocorkan keberadaannya (anti-IDOR).</summary>
@@ -427,6 +442,7 @@ public sealed class DocumentService(
             }
         }
         await store.CommitAsync(uow, ct);
+        foreach (var p in prepared) p.Doc.TransientMessages.AddRange(p.Ctx.Messages);
         return prepared.Select(p => RedactForRead(user, p.Meta, p.Doc)).ToList();
     }
 
@@ -475,11 +491,19 @@ public sealed class DocumentService(
             throw new PermissionDeniedException($"Anda tidak boleh menghapus {name}");
         if (!meta.Def.Document.AllowDelete || current.DocStatus != DocStatus.Draft)
             throw new InvalidStateException("Hanya dokumen draft yang dapat dihapus");
+
+        var deleteEvents = new List<OutboxMessage>();
+        var deleteContext = CreateHookContext(meta, user, current, null, deleteEvents);
+        await hooks.RunAsync(DocHookStage.BeforeDelete, deleteContext, ct);
+
         var uow = new UnitOfWork();
         uow.Deletes.Add((user.TenantId, docType, name, expectedVersion));
         uow.Audits.Add(Audit(current, user, "Dihapus", []));
         uow.Outbox.Add(Event(current, "document.deleted", user));
+        uow.Outbox.AddRange(deleteEvents);
         await store.CommitAsync(uow, ct);
+
+        await hooks.RunAsync(DocHookStage.AfterDelete, deleteContext, ct);
     }
 
     /// <summary>Menjalankan aksi workflow, atau submit/cancel/amend untuk DocType tanpa workflow.</summary>
@@ -539,7 +563,11 @@ public sealed class DocumentService(
             foreach (var h in handlers.For<IBeforeSubmit>(docType)) await h.BeforeSubmitAsync(ctx, ct);
         }
         if (doc.DocStatus == DocStatus.Cancelled && current.DocStatus != DocStatus.Cancelled)
+        {
             foreach (var h in handlers.For<IBeforeCancel>(docType)) await h.BeforeCancelAsync(ctx, ct);
+            var cancelContext = CreateHookContext(meta, user, doc, current, ctx.Events, action, fromState, toState, ctx.Messages);
+            await hooks.RunAsync(DocHookStage.OnCancel, cancelContext, ct);
+        }
         ThrowIfErrors(ctx);
 
         var uow = new UnitOfWork();
@@ -573,6 +601,8 @@ public sealed class DocumentService(
             AmendedFrom = source.Name, Data = Document.DeepCopy(source.Data)
         };
         var ctx = new DocumentContext { Meta = meta, Doc = doc, Previous = source, User = user, Operation = DocumentOperation.Amend, Lookup = new TenantLookup(store, user.TenantId) };
+        var amendContext = CreateHookContext(meta, user, source, null, ctx.Events, messages: ctx.Messages);
+        await hooks.RunAsync(DocHookStage.OnAmend, amendContext, ct, amendedDraft: doc);
         var uow = new UnitOfWork();
         uow.Upserts.Add((doc, null));
         ctx.Events.Add(Event(doc, "document.amended", user));
@@ -740,19 +770,21 @@ public sealed class DocumentService(
         if (audit is not null && ctx.Meta.Def.Document.TrackChanges) uow.Audits.Add(audit);
         uow.Outbox.AddRange(ctx.Events);
         await store.CommitAsync(uow, ct); // event eksternal baru diproses setelah commit melalui outbox
+        doc.TransientMessages.AddRange(ctx.Messages);
     }
 
     private HookContext CreateHookContext(DocumentContext ctx) =>
-        CreateHookContext(ctx.Meta, ctx.User, ctx.Doc, ctx.Previous, ctx.Events);
+        CreateHookContext(ctx.Meta, ctx.User, ctx.Doc, ctx.Previous, ctx.Events, messages: ctx.Messages);
 
     private HookContext CreateHookContext(CompiledDocType meta, UserContext user, Document doc, Document? previous,
-        List<OutboxMessage> events, string? action = null, string? fromState = null, string? toState = null)
+        List<OutboxMessage> events, string? action = null, string? fromState = null, string? toState = null, List<string>? messages = null)
     {
         IDocumentService docs = new HookDocumentReader(this, user);
         return new HookContext
         {
             User = user, Meta = meta, Doc = doc, Previous = previous,
             Lookup = new HookLookup(docs), Docs = docs, Events = events,
+            Messages = messages ?? [],
             Action = action, FromState = fromState, ToState = toState,
         };
     }

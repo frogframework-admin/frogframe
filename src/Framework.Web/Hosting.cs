@@ -39,6 +39,21 @@ internal sealed class DocumentHookLogger(ILogger<DocumentHookLogger> logger) : I
         logger.LogError(exception, "Document hook {HookName} failed for DocType {DocType} at stage {Stage}", hookType.FullName, docType, stage);
 }
 
+internal sealed class WebSchedulerLogger(ILogger<WebSchedulerLogger> logger) : ISchedulerLogger
+{
+    public void LogJobStarting(string jobName, string tenantId, DateTimeOffset scheduledTime) =>
+        logger.LogInformation("Executing scheduled job {JobName} for tenant {TenantId} at {ScheduledTime}", jobName, tenantId, scheduledTime);
+
+    public void LogJobCompleted(string jobName, string tenantId) =>
+        logger.LogInformation("Completed scheduled job {JobName} for tenant {TenantId}", jobName, tenantId);
+
+    public void LogJobFailed(Exception exception, string jobName, string tenantId) =>
+        logger.LogError(exception, "Scheduled job {JobName} failed for tenant {TenantId}", jobName, tenantId);
+
+    public void LogLockFailed(Exception exception, string jobName, string tenantId) =>
+        logger.LogWarning(exception, "Failed to acquire lock for scheduled job {JobName} on tenant {TenantId}", jobName, tenantId);
+}
+
 /// <summary>User aktif pada scope (request API atau sirkuit Blazor).</summary>
 public sealed class CurrentUser
 {
@@ -179,6 +194,14 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<OutboxProcessor>();
         services.AddSingleton<ReportService>();
         services.AddHostedService<OutboxWorker>();
+
+        // Background Scheduler
+        services.TryAddSingleton<ISchedulerLogger, WebSchedulerLogger>();
+        services.TryAddSingleton<IDistributedLock, InMemoryDistributedLock>();
+        services.TryAddSingleton<ITenantProvider, DefaultTenantProvider>();
+        services.AddSingleton<ScheduledJobRunner>();
+        services.AddHostedService<SchedulerWorker>();
+
         services.AddScoped<CurrentUser>();
 
         // Cetak & PDF
@@ -192,6 +215,8 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddDocHandler<T>(this IServiceCollection s) where T : class, IDocumentHandler => s.AddSingleton<IDocumentHandler, T>();
     public static IServiceCollection AddDocHook<TDoc, THook>(this IServiceCollection s) where THook : class =>
         s.AddSingleton<THook>().AddSingleton<IDocHookRegistration>(sp => new DocHookRegistration<TDoc, THook>(sp.GetRequiredService<THook>()));
+    public static IServiceCollection AddFormAction<TDoc, TAction>(this IServiceCollection s) where TAction : class, Framework.Actions.IFormAction<TDoc> =>
+        s.AddSingleton<Framework.Actions.IFormAction, TAction>();
     public static IServiceCollection AddFieldValidator<T>(this IServiceCollection s) where T : class, IFieldValidator => s.AddSingleton<IFieldValidator, T>();
     public static IServiceCollection AddEventHandler<T>(this IServiceCollection s) where T : class, IEventHandler => s.AddSingleton<IEventHandler, T>();
     public static IServiceCollection AddReport<T>(this IServiceCollection s) where T : class, IReportProvider => s.AddSingleton<IReportProvider, T>();
@@ -199,6 +224,13 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddDeskMenuItem(this IServiceCollection s, DeskMenuItem item) => s.AddSingleton(item);
     /// <summary>Membuka method C# sebagai API: POST /api/method/{nama}.</summary>
     public static IServiceCollection AddApiMethod<T>(this IServiceCollection s) where T : class, IApiMethod => s.AddSingleton<IApiMethod, T>();
+    public static IServiceCollection AddScheduledJob<TJob>(this IServiceCollection s) where TJob : class, IScheduledJob
+    {
+        s.TryAddSingleton<IDistributedLock, InMemoryDistributedLock>();
+        s.TryAddSingleton<ITenantProvider, DefaultTenantProvider>();
+        s.AddSingleton<IScheduledJob, TJob>();
+        return s;
+    }
     public const string ApiRateLimit = "docframe-api";
 }
 
@@ -232,6 +264,37 @@ public sealed class OutboxWorker(OutboxProcessor processor, ILogger<OutboxWorker
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 log.LogError(ex, "Outbox worker gagal");
+            }
+        }
+    }
+}
+
+public sealed class SchedulerWorker(
+    ScheduledJobRunner runner,
+    TimeProvider clock,
+    ILogger<SchedulerWorker> log,
+    IConfiguration? config = null) : BackgroundService
+{
+    private TimeSpan Interval => TimeSpan.FromSeconds(Math.Max(5, config?.GetValue("Scheduler:PollIntervalSeconds", 15) ?? 15));
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        using var timer = new PeriodicTimer(Interval);
+        while (await timer.WaitForNextTickAsync(stoppingToken))
+        {
+            try
+            {
+                var now = clock.GetUtcNow();
+                var result = await runner.RunDueJobsAsync(now, stoppingToken);
+                if (result.Executed > 0 || result.Failed > 0)
+                {
+                    log.LogInformation("Scheduler: {Executed} executed, {Failed} failed, {Skipped} locked",
+                        result.Executed, result.Failed, result.SkippedLocked);
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                log.LogError(ex, "Scheduler worker encountered an error");
             }
         }
     }

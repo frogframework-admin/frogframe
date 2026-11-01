@@ -26,6 +26,8 @@ public sealed class Document
     public int? WorkflowVersion { get; set; }
     public string? AmendedFrom { get; set; }
     public Dictionary<string, object?> Data { get; set; } = new();
+    /// <summary>Transient messages emitted by hooks (e.g. msgprint) during the operation lifecycle.</summary>
+    public List<string> TransientMessages { get; } = [];
 
     public object? Get(string key) => key switch
     {
@@ -40,13 +42,18 @@ public sealed class Document
         _ => Data.TryGetValue(key, out var v) ? v : null
     };
 
-    public Document Clone() => new()
+    public Document Clone()
     {
-        DocType = DocType, Name = Name, TenantId = TenantId, Owner = Owner, DocStatus = DocStatus,
-        WorkflowState = WorkflowState, Created = Created, Modified = Modified, ModifiedBy = ModifiedBy,
-        Version = Version, SchemaVersion = SchemaVersion, WorkflowVersion = WorkflowVersion,
-        AmendedFrom = AmendedFrom, Data = DeepCopy(Data)
-    };
+        var copy = new Document
+        {
+            DocType = DocType, Name = Name, TenantId = TenantId, Owner = Owner, DocStatus = DocStatus,
+            WorkflowState = WorkflowState, Created = Created, Modified = Modified, ModifiedBy = ModifiedBy,
+            Version = Version, SchemaVersion = SchemaVersion, WorkflowVersion = WorkflowVersion,
+            AmendedFrom = AmendedFrom, Data = DeepCopy(Data)
+        };
+        copy.TransientMessages.AddRange(TransientMessages);
+        return copy;
+    }
 
     public static Dictionary<string, object?> DeepCopy(IReadOnlyDictionary<string, object?> src) =>
         src.ToDictionary(kv => kv.Key, kv => kv.Value is List<Dictionary<string, object?>> rows
@@ -97,10 +104,13 @@ public sealed class DocumentContext
     public required IDocumentLookup Lookup { get; init; }
     public string? Comment { get; init; }
     public List<FieldError> Errors { get; } = [];
+    /// <summary>Transient non-fatal notification messages emitted during document operations.</summary>
+    public List<string> Messages { get; } = [];
     /// <summary>Event domain yang akan ditulis ke outbox dalam transaksi yang sama.</summary>
     public List<OutboxMessage> Events { get; } = [];
 
     public void AddError(string path, string message) => Errors.Add(new FieldError(path, message));
+    public void AddMessage(string message) => Messages.Add(message);
 }
 
 /// <summary>Akses baca terbatas tenant yang diberikan ke handler (tanpa melewati batas tenant).</summary>

@@ -8,6 +8,8 @@
 @inject NavigationManager Nav
 @inject DialogService Dialogs
 @inject ToastService Toasts
+@inject IEnumerable<Framework.Actions.IFormAction> RegisteredFormActions
+@inject IServiceProvider Sp
 
 <PageTitle>@(IsNew ? $"New {meta?.Title}" : Name) · DocFrame</PageTitle>
 
@@ -57,6 +59,13 @@ else if (meta is not null && doc is not null)
             <BbButton Variant="@Fmt.ButtonFor(act.Tone)" Disabled="@(busy || dirty)" OnClick="() => RunAction(act)"
                       AdditionalAttributes="@(new Dictionary<string, object> { ["title"] = dirty ? "Save changes first" : $"Move to {act.ToState}" })">
                 <LucideIcon Name="@IconFor(act)" Size="16" /> @ActionLabel(act.Action)
+            </BbButton>
+        }
+        @foreach (var ca in CustomActions)
+        {
+            var customAct = ca;
+            <BbButton Variant="@Fmt.ButtonFor(customAct.Tone)" Disabled="@(busy || dirty)" OnClick="() => RunCustomAction(customAct)">
+                <LucideIcon Name="@customAct.Icon" Size="16" /> @customAct.Label
             </BbButton>
         }
         @if (!IsNew)
@@ -239,6 +248,51 @@ else if (meta is not null && doc is not null)
         "negative" => "ban", "positive" => "check", _ when a.Action == DocActions.Amend => "rotate-ccw", _ => "send"
     };
 
+    private IEnumerable<Framework.Actions.IFormAction> CustomActions =>
+        !IsNew && doc is not null && User is not null
+            ? (RegisteredFormActions ?? []).Where(a => string.Equals(a.DocType, DocType, StringComparison.Ordinal) && a.IsVisible(User, doc))
+            : [];
+
+    private async Task RunCustomAction(Framework.Actions.IFormAction action)
+    {
+        if (busy || doc is null || meta is null) return;
+        busy = true;
+        try
+        {
+            var ctx = new Framework.Actions.FormActionContext
+            {
+                User = User,
+                Meta = meta,
+                Doc = doc,
+                Docs = Docs,
+                Services = Sp
+            };
+            var result = await action.ExecuteAsync(ctx, CancellationToken.None);
+            if (!string.IsNullOrWhiteSpace(result.Message))
+            {
+                if (result.Success) Toasts.Success(result.Message, action.Label);
+                else Toasts.Error(result.Message, action.Label);
+            }
+            if (!string.IsNullOrWhiteSpace(result.RedirectUrl))
+            {
+                Nav.NavigateTo(result.RedirectUrl);
+                return;
+            }
+            if (result.RefreshDocument)
+            {
+                await Load();
+            }
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error(ex.Message, action.Label);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
     // Blazor memanggil OnParametersSet setiap kali layout induk dirender ulang (mis. jumlah notifikasi berubah).
     // Muat ulang hanya bila parameter rute benar-benar berubah, agar isian/draft pengguna tidak hilang.
     private string? loadedKey;
@@ -338,12 +392,16 @@ else if (meta is not null && doc is not null)
             if (IsNew)
             {
                 var saved = await Docs.InsertAsync(User, DocType, payload);
+                if (saved.TransientMessages.Count > 0)
+                    foreach (var msg in saved.TransientMessages) Toasts.Info(msg);
                 Toasts.Success($"{saved.Name} saved as draft.", "Saved");
                 Nav.NavigateTo($"/app/{DocType}/{saved.Name}");
                 return;
             }
             if (payload.Count == 0) return;
-            await Docs.UpdateAsync(User, DocType, Name, doc!.Version, payload);
+            var updated = await Docs.UpdateAsync(User, DocType, Name, doc!.Version, payload);
+            if (updated.TransientMessages.Count > 0)
+                foreach (var msg in updated.TransientMessages) Toasts.Info(msg);
             await Load();
             Toasts.Success("Changes saved.", Name);
         }
@@ -372,6 +430,8 @@ else if (meta is not null && doc is not null)
         try
         {
             var result = await Docs.RunActionAsync(User, DocType, Name, a.Action, doc!.Version, comment);
+            if (result.TransientMessages.Count > 0)
+                foreach (var msg in result.TransientMessages) Toasts.Info(msg);
             if (result.Name != Name)
             {
                 Toasts.Success($"Revision draft {result.Name} created.", "Amend");

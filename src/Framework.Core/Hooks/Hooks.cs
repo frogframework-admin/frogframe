@@ -7,6 +7,7 @@ namespace Framework.Hooks;
 public interface IDocumentService
 {
     Task<Document> GetAsync(string docType, string name, CancellationToken ct = default);
+    Task<object?> GetFieldAsync(string docType, string name, string fieldName, CancellationToken ct = default);
 }
 
 public interface IDocHookLogger
@@ -23,6 +24,7 @@ public sealed class HookContext
     public required IDocumentLookup Lookup { get; init; }
     public required IDocumentService Docs { get; init; }
     public required List<OutboxMessage> Events { get; init; }
+    public List<string> Messages { get; init; } = [];
     public string? Action { get; init; }
     public string? FromState { get; init; }
     public string? ToState { get; init; }
@@ -64,7 +66,39 @@ public interface IBeforeTransition<TDoc>
     Task BeforeTransitionAsync(HookContext context, CancellationToken ct);
 }
 
-public enum DocHookStage { BeforeValidate, BeforeInsert, BeforeUpdate, AfterSave, OnLoad, BeforeTransition }
+public interface IBeforeDelete<TDoc>
+{
+    Task BeforeDeleteAsync(HookContext context, CancellationToken ct);
+}
+
+public interface IAfterDelete<TDoc>
+{
+    Task AfterDeleteAsync(HookContext context, CancellationToken ct);
+}
+
+public interface IOnCancel<TDoc>
+{
+    Task OnCancelAsync(HookContext context, CancellationToken ct);
+}
+
+public interface IOnAmend<TDoc>
+{
+    Task OnAmendAsync(HookContext context, Document amendedDraft, CancellationToken ct);
+}
+
+public enum DocHookStage
+{
+    BeforeValidate,
+    BeforeInsert,
+    BeforeUpdate,
+    AfterSave,
+    OnLoad,
+    BeforeTransition,
+    BeforeDelete,
+    AfterDelete,
+    OnCancel,
+    OnAmend
+}
 
 public interface IDocHookRegistration
 {
@@ -72,7 +106,7 @@ public interface IDocHookRegistration
     int Order { get; }
     Type HookType { get; }
     bool Supports(DocHookStage stage);
-    Task InvokeAsync(DocHookStage stage, HookContext context, IReadOnlyList<FieldChange>? changes, CancellationToken ct);
+    Task InvokeAsync(DocHookStage stage, HookContext context, IReadOnlyList<FieldChange>? changes, Document? amendedDraft, CancellationToken ct);
 }
 
 public sealed class DocHookRegistration<TDoc, THook>(THook hook) : IDocHookRegistration where THook : class
@@ -89,10 +123,14 @@ public sealed class DocHookRegistration<TDoc, THook>(THook hook) : IDocHookRegis
         DocHookStage.AfterSave => hook is IAfterSave<TDoc>,
         DocHookStage.OnLoad => hook is IOnLoad<TDoc>,
         DocHookStage.BeforeTransition => hook is IBeforeTransition<TDoc>,
+        DocHookStage.BeforeDelete => hook is IBeforeDelete<TDoc>,
+        DocHookStage.AfterDelete => hook is IAfterDelete<TDoc>,
+        DocHookStage.OnCancel => hook is IOnCancel<TDoc>,
+        DocHookStage.OnAmend => hook is IOnAmend<TDoc>,
         _ => false,
     };
 
-    public Task InvokeAsync(DocHookStage stage, HookContext context, IReadOnlyList<FieldChange>? changes, CancellationToken ct) => stage switch
+    public Task InvokeAsync(DocHookStage stage, HookContext context, IReadOnlyList<FieldChange>? changes, Document? amendedDraft, CancellationToken ct) => stage switch
     {
         DocHookStage.BeforeValidate when hook is IBeforeValidate<TDoc> h => h.BeforeValidateAsync(context, ct),
         DocHookStage.BeforeInsert when hook is IBeforeInsert<TDoc> h => h.BeforeInsertAsync(context, ct),
@@ -100,11 +138,15 @@ public sealed class DocHookRegistration<TDoc, THook>(THook hook) : IDocHookRegis
         DocHookStage.AfterSave when hook is IAfterSave<TDoc> h => h.AfterSaveAsync(context, ct),
         DocHookStage.OnLoad when hook is IOnLoad<TDoc> h => h.OnLoadAsync(context, ct),
         DocHookStage.BeforeTransition when hook is IBeforeTransition<TDoc> h => h.BeforeTransitionAsync(context, ct),
+        DocHookStage.BeforeDelete when hook is IBeforeDelete<TDoc> h => h.BeforeDeleteAsync(context, ct),
+        DocHookStage.AfterDelete when hook is IAfterDelete<TDoc> h => h.AfterDeleteAsync(context, ct),
+        DocHookStage.OnCancel when hook is IOnCancel<TDoc> h => h.OnCancelAsync(context, ct),
+        DocHookStage.OnAmend when hook is IOnAmend<TDoc> h => h.OnAmendAsync(context, amendedDraft!, ct),
         _ => Task.CompletedTask,
     };
 }
 
 public sealed class DocumentHookException(Exception innerException)
-    : Exception("Terjadi kesalahan saat menjalankan hook dokumen. Silakan coba lagi atau hubungi administrator.", innerException);
+    : Exception("An error occurred while executing document hooks. Please try again or contact your administrator.", innerException);
 
 public sealed class HookRecursionException(string message) : InvalidOperationException(message);

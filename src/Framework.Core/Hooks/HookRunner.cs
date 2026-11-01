@@ -16,10 +16,10 @@ public sealed class HookRunner(IEnumerable<IDocHookRegistration> registrations, 
         for (var frame = current; frame is not null; frame = frame.Parent)
             if (string.Equals(frame.DocType, docType, StringComparison.Ordinal)
                 && string.Equals(frame.Name, name, StringComparison.Ordinal))
-                throw new HookRecursionException($"Siklus hook terdeteksi untuk dokumen {docType} '{name}'.");
+                throw new HookRecursionException($"Recursive hook call detected for document {docType} '{name}'.");
 
         if (_depth.Value >= MaxDepth)
-            throw new HookRecursionException($"Kedalaman panggilan hook melebihi batas maksimum {MaxDepth}.");
+            throw new HookRecursionException($"Hook call depth exceeded maximum limit of {MaxDepth}.");
 
         var priorDepth = _depth.Value;
         _depth.Value = priorDepth + 1;
@@ -27,7 +27,7 @@ public sealed class HookRunner(IEnumerable<IDocHookRegistration> registrations, 
         return new Scope(this, priorDepth, current);
     }
 
-    public async Task RunAsync(DocHookStage stage, HookContext context, CancellationToken ct, IReadOnlyList<FieldChange>? changes = null)
+    public async Task RunAsync(DocHookStage stage, HookContext context, CancellationToken ct, IReadOnlyList<FieldChange>? changes = null, Document? amendedDraft = null)
     {
         foreach (var registration in registrations
                      .Where(r => string.Equals(r.DocType, context.Meta.Name, StringComparison.Ordinal) && r.Supports(stage))
@@ -35,7 +35,7 @@ public sealed class HookRunner(IEnumerable<IDocHookRegistration> registrations, 
         {
             try
             {
-                await registration.InvokeAsync(stage, context, changes, ct);
+                await registration.InvokeAsync(stage, context, changes, amendedDraft, ct);
             }
             catch (Exception ex) when (ex is not ValidationFailedException and not OperationCanceledException and not DocumentHookException and not HookRecursionException)
             {
