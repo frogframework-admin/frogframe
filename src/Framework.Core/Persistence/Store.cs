@@ -79,6 +79,12 @@ public interface IOutboxStore
     Task<int> PruneAsync(DateTimeOffset processedBefore, int max, CancellationToken ct = default);
 }
 
+public interface IDatabaseHealthCheck
+{
+    string ProviderName => "database";
+    Task<bool> CheckHealthAsync(CancellationToken ct = default);
+}
+
 public interface INotificationStore
 {
     /// <summary>Idempoten berdasarkan Id.</summary>
@@ -91,8 +97,11 @@ public interface INotificationStore
 /// Store in-memory untuk prototipe (strategi "tabel generik + payload", RFC §7A).
 /// Satu lock global mensimulasikan transaksi serializable. Ganti dengan implementasi EF Core/Dapper untuk produksi.
 /// </summary>
-public sealed class InMemoryDocumentStore : IDocumentStore, IOutboxStore
+public sealed class InMemoryDocumentStore : IDocumentStore, IOutboxStore, IDatabaseHealthCheck
 {
+    public string ProviderName => "in-memory";
+    public Task<bool> CheckHealthAsync(CancellationToken ct = default) => Task.FromResult(true);
+
     private readonly object _gate = new();
     private readonly Dictionary<(string Tenant, string DocType, string Name), Document> _docs = new();
     private readonly Dictionary<(string Tenant, string DocType, string Prefix), int> _series = new();

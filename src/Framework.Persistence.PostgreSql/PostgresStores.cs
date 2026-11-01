@@ -14,8 +14,17 @@ namespace Framework.Persistence.PostgreSql;
 /// Store PostgreSQL untuk dokumen, audit, outbox, dan nomor seri. Satu CommitAsync = satu transaksi database:
 /// dokumen, audit, dan event outbox tersimpan bersama atau tidak sama sekali (RFC §6, §12).
 /// </summary>
-public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider services) : IDocumentStore, IOutboxStore
+public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider services) : IDocumentStore, IOutboxStore, IDatabaseHealthCheck
 {
+    public string ProviderName => "postgresql";
+
+    public async Task<bool> CheckHealthAsync(CancellationToken ct = default)
+    {
+        await using var cmd = db.CreateCommand("SELECT 1");
+        var res = await cmd.ExecuteScalarAsync(ct).ConfigureAwait(false);
+        return res is not null;
+    }
+
     // IMetadataProvider di-resolve saat dipakai (bukan di konstruktor) karena MetadataRegistry sendiri
     // bergantung pada store metadata di database yang sama.
     private IMetadataProvider Metadata => services.GetRequiredService<IMetadataProvider>();
@@ -577,6 +586,7 @@ public static class PostgreSqlServiceCollectionExtensions
         services.AddSingleton<PostgresDocumentStore>();
         services.Replace(ServiceDescriptor.Singleton<IDocumentStore>(sp => sp.GetRequiredService<PostgresDocumentStore>()));
         services.Replace(ServiceDescriptor.Singleton<IOutboxStore>(sp => sp.GetRequiredService<PostgresDocumentStore>()));
+        services.Replace(ServiceDescriptor.Singleton<IDatabaseHealthCheck>(sp => sp.GetRequiredService<PostgresDocumentStore>()));
         services.Replace(ServiceDescriptor.Singleton<INotificationStore, PostgresNotificationStore>());
         services.Replace(ServiceDescriptor.Singleton<IMetadataVersionStore, PostgresMetadataVersionStore>());
         services.Replace(ServiceDescriptor.Singleton<Framework.Security.IUserAccountRepository, PostgresUserAccountRepository>());

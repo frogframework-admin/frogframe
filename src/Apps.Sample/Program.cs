@@ -73,7 +73,27 @@ builder.Services.AddApiMethod<AjukanMassalMethod>();
 // Menu tambahan di grup HR (tampil bagi yang boleh membaca data Karyawan).
 builder.Services.AddDeskMenuItem(new DeskMenuItem("HR", "Struktur Organisasi", "/hr/struktur-organisasi", "network", RequiresReadOf: "Employee"));
 
+// Hardening HTTP production: ForwardedHeaders & HSTS
+builder.Services.AddDocFrameHttpHardening(builder.Configuration);
+
 var app = builder.Build();
+
+// 1. Reverse proxy forwarded headers (Docker, Traefik, Nginx, ALB)
+app.UseForwardedHeaders();
+
+// 2. Exception handling & HSTS
+if (!app.Environment.IsDevelopment())
+{
+    app.UseDocFrameExceptionHandler();
+    app.UseHsts();
+}
+else
+{
+    app.UseDeveloperExceptionPage();
+}
+
+// 3. Global security headers (nosniff, SAMEORIGIN, CSP, Referrer, Permissions)
+app.UseDocFrameSecurityHeaders();
 
 // Bahasa & format Indonesia untuk UI (nama bulan di date picker, dsb.).
 // Penyimpanan dan API tetap memakai format invarian (yyyy-MM-dd, titik desimal).
@@ -86,23 +106,12 @@ app.UseRateLimiter(); // batas permintaan /api per kunci API / pengguna (Api:Rat
 app.UseAntiforgery();
 app.MapStaticAssets();
 
+// Health checks liveness & readiness
+app.MapDocFrameHealthChecks();
 app.MapDocFrameworkApi();
 app.MapRazorComponents<App>()
    .AddInteractiveServerRenderMode()
    .AddAdditionalAssemblies(typeof(DeskLayout).Assembly);
-
-// Health check untuk load balancer / monitoring.
-app.MapGet("/health", async (IServiceProvider sp, CancellationToken ct) =>
-{
-    if (sp.GetService<NpgsqlDataSource>() is not { } db) return Results.Ok(new { status = "ok", storage = "in-memory" });
-    try
-    {
-        await using var cmd = db.CreateCommand("SELECT 1");
-        await cmd.ExecuteScalarAsync(ct);
-        return Results.Ok(new { status = "ok", storage = "postgresql" });
-    }
-    catch (Exception ex) { return Results.Json(new { status = "unhealthy", storage = "postgresql", error = ex.Message }, statusCode: 503); }
-});
 
 if (usePostgres)
 {

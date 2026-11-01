@@ -116,6 +116,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<InMemoryDocumentStore>();
         services.TryAddSingleton<IDocumentStore>(sp => sp.GetRequiredService<InMemoryDocumentStore>());
         services.TryAddSingleton<IOutboxStore>(sp => sp.GetRequiredService<InMemoryDocumentStore>());
+        services.TryAddSingleton<IDatabaseHealthCheck>(sp => sp.GetRequiredService<InMemoryDocumentStore>());
         services.TryAddSingleton<INotificationStore, InMemoryNotificationStore>();
         services.TryAddSingleton<IFileStore, InMemoryFileStore>();
         // Dashboard SQL: default tidak tersedia (butuh PostgreSQL + koneksi read-only; lihat AddDocFrameworkReporting).

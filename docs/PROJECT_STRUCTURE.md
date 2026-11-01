@@ -322,6 +322,7 @@ src/Framework.Web/
 ├── wwwroot/
 │   ├── desk.css                 # Application layout, print A4 styles, org chart, and editor styles
 │   └── theme.css                # OKLCH light/dark shadcn/ui theme variables for Blazor Blueprint
+├── HttpHardening.cs             # Production HTTP hardening: ForwardedHeaders, HSTS, security headers, RFC 7807 handler, sanitized health checks
 └── WebServiceCollectionExtensions.cs # AddDocFrameWeb() and MapDocFrame() setup
 ```
 
