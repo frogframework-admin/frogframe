@@ -11,7 +11,7 @@
 @inject ToastService Toasts
 @inject TimeProvider Clock
 
-<PageTitle>Beranda · DocFrame</PageTitle>
+<PageTitle>Home · DocFrame</PageTitle>
 
 <div class="launcher-page">
     <header class="desk-hero">
@@ -19,18 +19,18 @@
         <img class="desk-hero-bg desk-hero-bg-dark" src="/_content/Framework.Web/img/desk-hero-dark.png" alt="" aria-hidden="true" />
         <div class="desk-hero-content">
             <h1>@GreetingText(), @FirstName(Current.Required.FullName)!</h1>
-            <p>Apa yang ingin Anda kerjakan hari ini?</p>
+            <p>What would you like to work on today?</p>
             <div class="desk-hero-accent" aria-hidden="true"></div>
         </div>
     </header>
 
     @if (visibleModules.Count == 0)
     {
-        <BbEmpty Title="Belum ada modul" Description="Akun Anda belum memiliki akses ke modul manapun." Size="EmptySize.Small" />
+        <BbEmpty Title="No modules yet" Description="Your account does not have access to any modules yet." Size="EmptySize.Small" />
     }
     else
     {
-        <section class="module-launcher-grid" style="@($"--launcher-cols:{GridColumns};grid-template-columns:repeat({GridColumns}, minmax(0, 1fr))")" aria-label="Daftar Modul">
+        <section class="module-launcher-grid" style="@($"--launcher-cols:{GridColumns};grid-template-columns:repeat({GridColumns}, minmax(0, 1fr))")" aria-label="Module List">
             @foreach (var mod in visibleModules)
             {
                 var isActive = activeModuleId == mod.Id;
@@ -49,27 +49,27 @@
         </section>
     }
 
-    <section class="workspace-summary" aria-label="Workspace saya">
+    <section class="workspace-summary" aria-label="My workspace">
         <div class="section-head-row">
-            <h2>Workspace saya</h2>
+            <h2>My workspace</h2>
         </div>
 
         <div class="workspace-cards-grid">
-            <a class="workspace-stat-card" href="#dokumen-terbaru">
-                <span>Menunggu persetujuan / tindakan Anda</span>
+            <a class="workspace-stat-card" href="#recent-docs">
+                <span>Awaiting your approval / action</span>
                 <strong class="stat-num primary">@(pending?.Count ?? 0)</strong>
             </a>
             <a class="workspace-stat-card" href="/inbox">
-                <span>Tugas &amp; notifikasi belum dibaca</span>
+                <span>Tasks &amp; unread notifications</span>
                 <strong class="stat-num">@unreadCount</strong>
             </a>
         </div>
     </section>
 
-    <section id="dokumen-terbaru" class="recent-docs-section" aria-label="Dokumen terbaru">
+    <section id="recent-docs" class="recent-docs-section" aria-label="Recent documents">
         <div class="section-head-row">
-            <h2>Dokumen terbaru</h2>
-            <a class="section-link" href="@SeeAllHref">Lihat semua</a>
+            <h2>Recent documents</h2>
+            <a class="section-link" href="@SeeAllHref">View all</a>
         </div>
 
         @if (recentDocs is null)
@@ -79,7 +79,7 @@
         else if (recentDocs.Count == 0)
         {
             <div class="desk-table-card desk-empty-box">
-                Belum ada dokumen transaksi yang tercatat.
+                No transaction documents recorded yet.
             </div>
         }
         else
@@ -88,11 +88,11 @@
                 <table class="desk-doc-table">
                     <thead>
                         <tr>
-                            <th>Dokumen</th>
-                            <th>Pemohon / judul</th>
+                            <th>Document</th>
+                            <th>Requester / title</th>
                             <th class="num">Total</th>
                             <th>Status</th>
-                            <th class="act-col">Aksi tersedia</th>
+                            <th class="act-col">Available actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -184,7 +184,7 @@
     {
         Current.SetActiveModule(mod.Id);
         activeModuleId = mod.Id;
-        Toasts.Success($"Modul \"{mod.Name}\" telah diaktifkan pada sidebar.", "Modul Dipilih");
+        Toasts.Success($"Module \"{mod.Name}\" is now active in the sidebar.", "Module Selected");
     }
 
     private void OnModuleChanged()
@@ -207,16 +207,16 @@
         var hour = Clock.GetLocalNow().Hour;
         return hour switch
         {
-            >= 4 and < 11 => "Selamat pagi",
-            >= 11 and < 15 => "Selamat siang",
-            >= 15 and < 19 => "Selamat sore",
-            _ => "Selamat malam"
+            >= 4 and < 11 => "Good morning",
+            >= 11 and < 15 => "Good afternoon",
+            >= 15 and < 19 => "Good evening",
+            _ => "Good evening"
         };
     }
 
     private static string FirstName(string fullName)
     {
-        if (string.IsNullOrWhiteSpace(fullName)) return "Pengguna";
+        if (string.IsNullOrWhiteSpace(fullName)) return "User";
         return fullName.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0];
     }
 
@@ -245,12 +245,12 @@
     private static (string Label, bool IsPrimary, string Tooltip) DescribeAction(IReadOnlyList<string> actions)
     {
         if (actions.Count == 0)
-            return ("Lihat", false, "Buka detail dokumen");
-        if (actions.Count == 1 && string.Equals(actions[0], "Batalkan", StringComparison.OrdinalIgnoreCase))
-            return ("Batalkan", false, "Batalkan dokumen");
-        if (actions.Count == 1 && string.Equals(actions[0], "Ajukan", StringComparison.OrdinalIgnoreCase))
-            return ("Ajukan", true, "Ajukan dokumen untuk persetujuan");
-        return ("Tinjau", true, string.Join(" · ", actions));
+            return ("View", false, "Open document details");
+        if (actions.Count == 1 && (string.Equals(actions[0], "Batalkan", StringComparison.OrdinalIgnoreCase) || string.Equals(actions[0], "Cancel", StringComparison.OrdinalIgnoreCase)))
+            return ("Cancel", false, "Cancel document");
+        if (actions.Count == 1 && (string.Equals(actions[0], "Ajukan", StringComparison.OrdinalIgnoreCase) || string.Equals(actions[0], "Submit", StringComparison.OrdinalIgnoreCase)))
+            return ("Submit", true, "Submit document for approval");
+        return ("Review", true, string.Join(" · ", actions));
     }
 
     public void Dispose()

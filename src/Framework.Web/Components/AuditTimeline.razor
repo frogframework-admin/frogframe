@@ -1,6 +1,6 @@
 @if (Entries.Count == 0)
 {
-    <BbEmpty Title="Belum ada riwayat" Description="Perubahan dan transisi status akan tercatat di sini." Size="EmptySize.Small" />
+    <BbEmpty Title="No history yet" Description="Changes and status transitions will be recorded here." Size="EmptySize.Small" />
 }
 else
 {
@@ -25,11 +25,11 @@ else
                             {
                                 <li><span class="f">@c.Field</span>
                                     @if (c.Old is not null) { <del>@c.Old</del> <span aria-hidden="true"> › </span> }
-                                    <ins>@(c.New ?? "kosong")</ins></li>
+                                    <ins>@(c.New ?? "empty")</ins></li>
                             }
                         </ul>
                     }
-                    <BbTimelineDescription>skema v@(e.SchemaVersion)@(e.WorkflowVersion is { } wv ? $" · workflow v{wv}" : "")</BbTimelineDescription>
+                    <BbTimelineDescription>schema v@(e.SchemaVersion)@(e.WorkflowVersion is { } wv ? $" · workflow v{wv}" : "")</BbTimelineDescription>
                 </BbTimelineContent>
             </BbTimelineItem>
         }
@@ -41,12 +41,20 @@ else
 
     private static TimelineColor Color(AuditEntry e) => e.ToState switch
     {
-        "Ditolak" or "Dibatalkan" or "Cancelled" => TimelineColor.Destructive,
+        "Ditolak" or "Dibatalkan" or "Cancelled" or "Rejected" => TimelineColor.Destructive,
         null => TimelineColor.Muted,
         _ => TimelineColor.Primary
     };
 
     private static string Describe(AuditEntry e) => e.ToState is not null
-        ? $"menjalankan “{e.Action}”: {e.FromState} → {e.ToState}"
-        : e.Action.ToLowerInvariant() switch { "dibuat" => "membuat dokumen", "diubah" => "mengubah dokumen", "amend" => "membuat amandemen", "dihapus" => "menghapus dokumen", "dicetak" => "mencetak dokumen", var a => a };
+        ? $"executed “{e.Action}”: {e.FromState} → {e.ToState}"
+        : e.Action.ToLowerInvariant() switch
+        {
+            "dibuat" or "created" => "created document",
+            "diubah" or "updated" or "modified" => "updated document",
+            "amend" or "amended" => "created amendment",
+            "dihapus" or "deleted" => "deleted document",
+            "dicetak" or "printed" => "printed document",
+            var a => a
+        };
 }

@@ -1,5 +1,5 @@
-@* Field gambar: unggah (PNG/JPEG/WebP/GIF, maks. 2 MB, dicek dari isi file), pratinjau, ganti, hapus.
-   File disimpan lewat FileService; nilai field = id file. Tampilan lewat /files/{id} (cek tenant + izin dokumen). *@
+@* Image field: upload (PNG/JPEG/WebP/GIF, max 2 MB, verified from file content), preview, replace, delete.
+   Files are stored via FileService; field value = file id. Rendered via /files/{id} (checks tenant + doc permissions). *@
 @using Framework.Files
 @using Microsoft.AspNetCore.Components.Forms
 @inject FileService Files
@@ -21,13 +21,13 @@
         <div class="image-actions">
             <label class="image-pick @(busy ? "busy" : "")">
                 <InputFile id="@Id" accept="image/png,image/jpeg,image/webp,image/gif" OnChange="Upload" disabled="@busy" />
-                <LucideIcon Name="image-plus" Size="15" /> @(busy ? "Mengunggah…" : Value is null ? "Unggah" : "Ganti")
+                <LucideIcon Name="image-plus" Size="15" /> @(busy ? "Uploading…" : Value is null ? "Upload" : "Change")
             </label>
             @if (Value is not null && !busy)
             {
-                <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="() => ValueChanged.InvokeAsync(null)">Hapus</BbButton>
+                <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="() => ValueChanged.InvokeAsync(null)">Remove</BbButton>
             }
-            @if (!Compact) { <span class="muted small">PNG, JPEG, WebP, atau GIF · maks. 2 MB</span> }
+            @if (!Compact) { <span class="muted small">PNG, JPEG, WebP, or GIF · max. 2 MB</span> }
             @if (error is not null) { <span class="image-error" role="alert">@error</span> }
         </div>
     }
@@ -48,7 +48,7 @@
     private async Task Upload(InputFileChangeEventArgs e)
     {
         error = null;
-        if (e.File.Size > FileService.MaxImageBytes) { error = "Ukuran gambar maksimal 2 MB."; return; }
+        if (e.File.Size > FileService.MaxImageBytes) { error = "Image size must be at most 2 MB."; return; }
         busy = true;
         try
         {
@@ -58,7 +58,7 @@
         }
         catch (Exception ex) when (ex is FileRejectedException or PermissionDeniedException or IOException)
         {
-            error = ex is IOException ? "Ukuran gambar maksimal 2 MB." : ex.Message;
+            error = ex is IOException ? "Image size must be at most 2 MB." : ex.Message;
         }
         finally { busy = false; }
     }

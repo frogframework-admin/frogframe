@@ -14,7 +14,7 @@
                         @f.Label@if (f.Def.RequiredWhen is "true" && !ReadOnly) { <span class="req" aria-hidden="true"> *</span> }
                     </th>
                 }
-                @if (!ReadOnly) { <th class="row-act"><span class="sr-only">Aksi</span></th> }
+                @if (!ReadOnly) { <th class="row-act"><span class="sr-only">Actions</span></th> }
             </tr>
         </thead>
         <tbody>
@@ -39,7 +39,7 @@
                     @if (!ReadOnly)
                     {
                         <td class="row-act">
-                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@($"Hapus baris {i + 1}")" OnClick="() => Remove(idx)">
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@($"Delete row {i + 1}")" OnClick="() => Remove(idx)">
                                 <LucideIcon Name="trash-2" Size="16" />
                             </BbButton>
                         </td>
@@ -48,7 +48,7 @@
             }
             @if (Rows.Count == 0)
             {
-                <tr><td colspan="@(ChildMeta.Fields.Count + 2)" class="grid-empty">Belum ada baris.@(ReadOnly ? "" : " Tambahkan item pertama.")</td></tr>
+                <tr><td colspan="@(ChildMeta.Fields.Count + 2)" class="grid-empty">No rows yet.@(ReadOnly ? "" : " Add the first item.")</td></tr>
             }
         </tbody>
     </table>
@@ -59,11 +59,11 @@
         @if (Lookup is not null)
         {
             <BbButton Size="ButtonSize.Small" OnClick="() => lookupOpen = true">
-                <LucideIcon Name="list-plus" Size="16" /> @(Lookup.ButtonLabel ?? $"Tambah dari daftar {LookupTarget}")
+                <LucideIcon Name="list-plus" Size="16" /> @(Lookup.ButtonLabel ?? $"Add from {LookupTarget} list")
             </BbButton>
         }
         <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick="Add">
-            <LucideIcon Name="plus" Size="16" /> Tambah baris
+            <LucideIcon Name="plus" Size="16" /> Add row
         </BbButton>
     </div>
     @if (Lookup is not null && LookupTarget is not null)

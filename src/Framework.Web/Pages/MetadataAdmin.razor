@@ -11,27 +11,27 @@
 
 @if (!Current.Required.Roles.Contains(UserContext.SystemManager))
 {
-    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>Halaman ini hanya untuk System Manager.</BbAlertDescription></BbAlert>
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>This page is only accessible to System Managers.</BbAlertDescription></BbAlert>
 }
 else
 {
     <header class="page-head">
         <div>
-            <h1>Metadata DocType</h1>
-            <p>Kelola definisi DocType, versi skema, workflow, dan struktur form aplikasi.</p>
+            <h1>DocType Metadata</h1>
+            <p>Manage DocType definitions, schema versions, workflows, and application form structures.</p>
         </div>
-        <BbButton Href="/admin/metadata/new"><LucideIcon Name="plus" Size="16" /> Buat DocType</BbButton>
+        <BbButton Href="/admin/metadata/new"><LucideIcon Name="plus" Size="16" /> New DocType</BbButton>
     </header>
 
     <BbDataGrid TData="DocTypeRow"
                 Items="@docTypes"
                 ShowSearch="true"
-                SearchPlaceholder="Cari DocType..."
+                SearchPlaceholder="Search DocTypes..."
                 ShowPagination="true"
                 InitialPageSize="15"
                 TableContainerClass="table-wrap">
         <Columns>
-            <BbDataGridPropertyColumn TData="DocTypeRow" TProp="string" Property="d => d.Title" Title="Nama DocType" Sortable="true" Filterable="true">
+            <BbDataGridPropertyColumn TData="DocTypeRow" TProp="string" Property="d => d.Title" Title="DocType Name" Sortable="true" Filterable="true">
                 <CellTemplate Context="item">
                     <div>
                         <div style="display:flex;align-items:center;gap:.4rem">
@@ -48,7 +48,7 @@ else
                 </CellTemplate>
             </BbDataGridPropertyColumn>
 
-            <BbDataGridPropertyColumn TData="DocTypeRow" TProp="int" Property="d => d.Version" Title="Versi" Width="6rem" Sortable="true">
+            <BbDataGridPropertyColumn TData="DocTypeRow" TProp="int" Property="d => d.Version" Title="Version" Width="6rem" Sortable="true">
                 <CellTemplate Context="item">
                     <BbBadge Variant="BadgeVariant.Outline">v@(item.Version)</BbBadge>
                 </CellTemplate>
@@ -58,7 +58,7 @@ else
                 <ChildContent Context="item">
                     @if (item.Status == MetadataStatus.Published)
                     {
-                        <BbBadge Variant="BadgeVariant.SoftSuccess">Aktif</BbBadge>
+                        <BbBadge Variant="BadgeVariant.SoftSuccess">Active</BbBadge>
                     }
                     else
                     {
@@ -67,7 +67,7 @@ else
                 </ChildContent>
             </BbDataGridTemplateColumn>
 
-            <BbDataGridTemplateColumn TData="DocTypeRow" Title="Dipublikasikan" Width="12rem" Sortable="true" SortBy="d => d.PublishedAt">
+            <BbDataGridTemplateColumn TData="DocTypeRow" Title="Published" Width="12rem" Sortable="true" SortBy="d => d.PublishedAt">
                 <ChildContent Context="item">
                     <span class="nowrap @(item.PublishedAt is null ? "muted" : "")" title="@(item.PublishedAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? "")">
                         @(item.PublishedAt is { } t ? Fmt.When(t) : "—")
@@ -75,7 +75,7 @@ else
                 </ChildContent>
             </BbDataGridTemplateColumn>
 
-            <BbDataGridPropertyColumn TData="DocTypeRow" TProp="string" Property="d => d.CreatedBy" Title="Dibuat Oleh" Width="10rem" Sortable="true" Filterable="true">
+            <BbDataGridPropertyColumn TData="DocTypeRow" TProp="string" Property="d => d.CreatedBy" Title="Created By" Width="10rem" Sortable="true" Filterable="true">
                 <CellTemplate Context="item">
                     <span class="@(string.IsNullOrWhiteSpace(item.CreatedBy) ? "muted" : "")">
                         @(string.IsNullOrWhiteSpace(item.CreatedBy) ? "—" : item.CreatedBy)
@@ -96,13 +96,13 @@ else
                 </CellTemplate>
             </BbDataGridPropertyColumn>
 
-            <BbDataGridTemplateColumn TData="DocTypeRow" Title="Aksi" Width="8.5rem" NoWrap="true">
+            <BbDataGridTemplateColumn TData="DocTypeRow" Title="Actions" Width="8.5rem" NoWrap="true">
                 <ChildContent Context="item">
                     <div style="display:inline-flex;align-items:center;gap:.35rem;flex-wrap:nowrap" @onclick:stopPropagation="true">
-                        <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Href="@($"/admin/metadata/{item.Name}/editor")" Title="Edit visual">
+                        <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Href="@($"/admin/metadata/{item.Name}/editor")" Title="Visual editor">
                             <LucideIcon Name="pencil" Size="14" /> Edit
                         </BbButton>
-                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Riwayat versi &amp; JSON" Title="Riwayat versi &amp; JSON" OnClick="() => OpenDetail(item.Name)">
+                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Version history &amp; JSON" Title="Version history &amp; JSON" OnClick="() => OpenDetail(item.Name)">
                             <LucideIcon Name="history" Size="15" />
                         </BbButton>
                     </div>
@@ -111,7 +111,7 @@ else
         </Columns>
         <EmptyTemplate>
             <div style="padding:2rem;text-align:center;color:var(--muted-foreground)">
-                Tidak ada DocType yang ditemukan.
+                No DocTypes found.
             </div>
         </EmptyTemplate>
     </BbDataGrid>
@@ -120,28 +120,28 @@ else
                  OpenChanged="@OnDrawerOpenChanged"
                  WidthScale="2.0"
                  Title="@(selectedMeta is null ? "" : $"{selectedMeta.Title} ({selectedMeta.Name})")"
-                 Description="@(selectedMeta is null ? null : $"Versi aktif v{selectedMeta.Version} · {(selectedMeta.Def.IsChild ? "Child table" : "DocType standar")}")">
+                 Description="@(selectedMeta is null ? null : $"Active version v{selectedMeta.Version} · {(selectedMeta.Def.IsChild ? "Child table" : "Standard DocType")}")">
         <ChildContent>
             @if (selectedMeta is not null)
             {
                 <div class="row" style="margin-bottom:.75rem">
                     <BbButton Href="@($"/admin/metadata/{selectedMeta.Name}/editor")">
-                        <LucideIcon Name="pencil-ruler" Size="16" /> Buka di Editor Visual
+                        <LucideIcon Name="pencil-ruler" Size="16" /> Open in Visual Editor
                     </BbButton>
                 </div>
 
                 <BbCard>
-                    <BbCardHeader><BbCardTitle Class="card-title">Riwayat versi</BbCardTitle></BbCardHeader>
+                    <BbCardHeader><BbCardTitle Class="card-title">Version History</BbCardTitle></BbCardHeader>
                     <BbCardContent>
                         <div class="table-wrap">
                             <table class="data">
-                                <thead><tr><th>Versi</th><th>Status</th><th>Dipublikasikan</th><th>Perubahan</th></tr></thead>
+                                <thead><tr><th>Version</th><th>Status</th><th>Published</th><th>Changes</th></tr></thead>
                                 <tbody>
                                     @foreach (var v in Registry.History(selectedMeta.Name).OrderByDescending(v => v.Version))
                                     {
                                         <tr>
                                             <td>v@(v.Version)</td>
-                                            <td>@if (v.Status == MetadataStatus.Published) { <BbBadge Variant="BadgeVariant.SoftSuccess">Aktif</BbBadge> } else { <BbBadge Variant="BadgeVariant.Outline">Usang</BbBadge> }</td>
+                                            <td>@if (v.Status == MetadataStatus.Published) { <BbBadge Variant="BadgeVariant.SoftSuccess">Active</BbBadge> } else { <BbBadge Variant="BadgeVariant.Outline">Deprecated</BbBadge> }</td>
                                             <td class="nowrap">@v.PublishedBy, @Fmt.When(v.PublishedAt)</td>
                                             <td>@string.Join("; ", v.Changes.Select(c => c.Description).Take(3))@(v.Changes.Count > 3 ? $" (+{v.Changes.Count - 3})" : "")</td>
                                         </tr>
@@ -158,7 +158,7 @@ else
                     <BbCard>
                         <BbCardHeader>
                             <BbCardTitle Class="card-title">Workflow</BbCardTitle>
-                            <BbCardDescription>@(wfName is null ? "Belum memakai workflow." : $"Memakai {wfName} v{selectedMeta.Workflow?.Def.Version}.")</BbCardDescription>
+                            <BbCardDescription>@(wfName is null ? "No workflow configured." : $"Using {wfName} v{selectedMeta.Workflow?.Def.Version}.")</BbCardDescription>
                         </BbCardHeader>
                         <BbCardContent>
                             @if (selectedMeta.Workflow is { } cw)
@@ -168,7 +168,7 @@ else
                             }
                             else
                             {
-                                <BbButton Variant="ButtonVariant.Outline" Href="@($"/admin/workflows/new?doctype={selectedMeta.Name}")"><LucideIcon Name="git-branch-plus" Size="16" /> Buat workflow</BbButton>
+                                <BbButton Variant="ButtonVariant.Outline" Href="@($"/admin/workflows/new?doctype={selectedMeta.Name}")"><LucideIcon Name="git-branch-plus" Size="16" /> Create workflow</BbButton>
                             }
                         </BbCardContent>
                     </BbCard>
@@ -177,20 +177,20 @@ else
                 <BbCard>
                     <BbCardHeader>
                         <BbCardTitle Class="card-title">Draft v@(selectedMeta.Version + 1) (JSON)</BbCardTitle>
-                        <BbCardDescription>Coba ubah label (aman), tambah opsi Select, ubah <code>requiredWhen</code>, atau hapus field (berisiko), lalu periksa diff-nya.</BbCardDescription>
+                        <BbCardDescription>Modify labels (safe), add Select options, change <code>requiredWhen</code>, or delete fields (risky), then inspect the diff.</BbCardDescription>
                     </BbCardHeader>
                     <BbCardContent>
                         <div class="stack">
                             <div class="code"><BbTextarea Value="@draft" ValueChanged="SetDraft" UpdateTiming="UpdateTiming.OnChange"
                                         AriaLabel="JSON metadata" AdditionalAttributes="@(new Dictionary<string, object> { ["rows"] = 16, ["spellcheck"] = "false" })" /></div>
                             <div class="row">
-                                <BbButton Variant="ButtonVariant.Outline" OnClick="Check"><LucideIcon Name="search" Size="16" /> Periksa draft</BbButton>
+                                <BbButton Variant="ButtonVariant.Outline" OnClick="Check"><LucideIcon Name="search" Size="16" /> Inspect draft</BbButton>
                                 <BbButton Disabled="@(preview is not { Valid: true } || (preview.Risk == ChangeRisk.Risky && !ack))" OnClick="Publish">
-                                    Publikasikan v@(selectedMeta.Version + 1)
+                                    Publish v@(selectedMeta.Version + 1)
                                 </BbButton>
                                 @if (preview is { Risk: ChangeRisk.Risky, Valid: true })
                                 {
-                                    <div class="label-row"><BbCheckbox Id="ack" @bind-Checked="ack" /><BbLabel For="ack">Saya sudah meninjau perubahan berisiko</BbLabel></div>
+                                    <div class="label-row"><BbCheckbox Id="ack" @bind-Checked="ack" /><BbLabel For="ack">I have reviewed risky changes</BbLabel></div>
                                 }
                             </div>
                             @if (message is not null) { <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@message</BbAlertDescription></BbAlert> }
@@ -199,7 +199,7 @@ else
                                 @if (preview.Errors.Count > 0)
                                 {
                                     <BbAlert Variant="AlertVariant.Danger">
-                                        <BbAlertTitle>Draft tidak lolos validasi</BbAlertTitle>
+                                        <BbAlertTitle>Draft failed validation</BbAlertTitle>
                                         <BbAlertDescription><ul class="error-list">@foreach (var e in preview.Errors) { <li><code>@e.Path</code> @e.Message</li> }</ul></BbAlertDescription>
                                     </BbAlert>
                                 }
@@ -212,7 +212,7 @@ else
                                         }
                                     </ul>
                                 }
-                                else if (preview.Valid) { <p class="muted small">Tidak ada perubahan dibanding versi aktif.</p> }
+                                else if (preview.Valid) { <p class="muted small">No changes compared to the active version.</p> }
                             }
                         </div>
                     </BbCardContent>
@@ -345,13 +345,13 @@ else
 
     private void SetDraft(string? v) { draft = v ?? ""; preview = null; }
 
-    private static string RiskLabel(ChangeRisk r) => r switch { ChangeRisk.Safe => "Aman", ChangeRisk.NeedsTransform => "Perlu transformasi", _ => "Berisiko" };
+    private static string RiskLabel(ChangeRisk r) => r switch { ChangeRisk.Safe => "Safe", ChangeRisk.NeedsTransform => "Needs transform", _ => "Risky" };
     private static BadgeVariant RiskVariant(ChangeRisk r) => r switch { ChangeRisk.Safe => BadgeVariant.SoftSuccess, ChangeRisk.NeedsTransform => BadgeVariant.Warning, _ => BadgeVariant.SoftDestructive };
 
     private DocTypeDef? Parse()
     {
         try { return MetadataJson.ParseDocType(draft); }
-        catch (JsonException ex) { message = $"JSON tidak valid: {ex.Message}"; preview = null; return null; }
+        catch (JsonException ex) { message = $"Invalid JSON: {ex.Message}"; preview = null; return null; }
     }
 
     private void Check()
@@ -366,7 +366,7 @@ else
         try
         {
             var v = Registry.Publish(def, Current.Required.Id, ack);
-            Toasts.Success("Form dan list langsung memakai versi ini.", $"{v.DocType} v{v.Version} dipublikasikan");
+            Toasts.Success("Forms and lists will now use this version immediately.", $"{v.DocType} v{v.Version} published");
             LoadRows();
             if (Registry.Current.TryGet(def.Name, out var updated))
             {

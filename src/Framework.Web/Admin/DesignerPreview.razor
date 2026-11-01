@@ -1,25 +1,25 @@
-@* Pratinjau form dari draft yang sedang diedit. Memakai komponen form yang sama dengan aplikasi
-   (FieldInput, ChildTable) dan engine yang sama dengan server (kondisi, rumus, validasi). Data uji tidak disimpan. *@
+@* Form preview of the draft currently being edited. Uses the same form components as the application
+   (FieldInput, ChildTable) and the same engine as the server (conditions, formulas, validation). Test data is not saved. *@
 @inject DocumentEvaluator Evaluator
 @inject ValidationEngine Validation
 @inject IDocumentStore Store
 @inject CurrentUser Current
 
 <div class="preview-bar">
-    <span class="muted small">Isi form untuk mencoba kondisi tampil/wajib dan rumus. Data uji tidak disimpan.</span>
+    <span class="muted small">Fill out the form to test display/required conditions and formulas. Test data is not saved.</span>
     <span class="spacer"></span>
-    <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick="Validate"><LucideIcon Name="circle-check" Size="16" /> Uji validasi</BbButton>
-    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="Reset"><LucideIcon Name="rotate-ccw" Size="16" /> Reset data uji</BbButton>
+    <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick="Validate"><LucideIcon Name="circle-check" Size="16" /> Test validation</BbButton>
+    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="Reset"><LucideIcon Name="rotate-ccw" Size="16" /> Reset test data</BbButton>
 </div>
 
 @if (validated && errors.Count == 0)
 {
-    <BbAlert Variant="AlertVariant.Success" Class="props-block"><BbAlertDescription>Data uji lolos semua validasi.</BbAlertDescription></BbAlert>
+    <BbAlert Variant="AlertVariant.Success" Class="props-block"><BbAlertDescription>Test data passed all validations.</BbAlertDescription></BbAlert>
 }
 else if (errors.Count > 0)
 {
     <BbAlert Variant="AlertVariant.Danger" Class="props-block">
-        <BbAlertTitle>@errors.Count kesalahan validasi</BbAlertTitle>
+        <BbAlertTitle>@errors.Count validation @(errors.Count == 1 ? "error" : "errors")</BbAlertTitle>
         <BbAlertDescription><ul class="error-list">@foreach (var e in errors) { <li>@e.Value</li> }</ul></BbAlertDescription>
     </BbAlert>
 }
@@ -43,7 +43,7 @@ else if (errors.Count > 0)
                                     <div class="form-col">
                                         @foreach (var f in col.Fields)
                                         {
-                                            var st = Evaluator.StateOf(f, model, User);
+                                             var st = Evaluator.StateOf(f, model, User);
                                             if (!st.Visible) continue;
                                             var err = errors.GetValueOrDefault(f.Name);
                                             <BbField IsInvalid="@(err is not null)">
@@ -51,7 +51,7 @@ else if (errors.Count > 0)
                                                 {
                                                     <BbFieldLabel For="@($"pv-{f.Name}")">
                                                         <span class="label-row">@f.Label@if (st.Required) { <span class="req">*</span> }
-                                                            @if (f.IsDerived) { <BbBadge Variant="BadgeVariant.Soft">otomatis</BbBadge> }
+                                                            @if (f.IsDerived) { <BbBadge Variant="BadgeVariant.Soft">computed</BbBadge> }
                                                             @if (f.Def.PermLevel > 0) { <BbBadge Variant="BadgeVariant.Outline">level @f.Def.PermLevel</BbBadge> }
                                                         </span>
                                                     </BbFieldLabel>
@@ -81,9 +81,9 @@ else if (errors.Count > 0)
 </BbTabs>
 
 @code {
-    /// <summary>DocType hasil kompilasi draft.</summary>
+    /// <summary>Compiled DocType from draft.</summary>
     [Parameter, EditorRequired] public CompiledDocType Meta { get; set; } = default!;
-    /// <summary>Snapshot draft (untuk child table dan resolusi rumus).</summary>
+    /// <summary>Draft snapshot (for child tables and formula resolution).</summary>
     [Parameter, EditorRequired] public MetadataSnapshot Snapshot { get; set; } = default!;
 
     private UserContext User => Current.Required;

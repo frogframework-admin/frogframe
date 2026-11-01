@@ -1,4 +1,4 @@
-@* Data grid hasil query (pratinjau dan widget tipe Tabel). *@
+@* Data grid of query results (preview and Table widget type). *@
 @using System.Globalization
 @using Framework.Dashboards
 
@@ -12,19 +12,19 @@
                     @for (var i = 0; i < Result.Columns.Count; i++)
                     {
                         var v = row[i];
-                        <td class="@(Result.Columns[i].Kind == "number" ? "num" : "")">@(v switch { null => "—", decimal d => d.ToString("#,0.##", Id), bool b => b ? "Ya" : "Tidak", _ => v.ToString() })</td>
+                        <td class="@(Result.Columns[i].Kind == "number" ? "num" : "")">@(v switch { null => "—", decimal d => d.ToString("#,0.##", CultureInfo.InvariantCulture), bool b => b ? "Yes" : "No", _ => v.ToString() })</td>
                     }
                 </tr>
             }
-            @if (Result.Rows.Count == 0) { <tr><td colspan="@Math.Max(Result.Columns.Count, 1)" class="grid-empty">Query berhasil, tidak ada baris.</td></tr> }
+            @if (Result.Rows.Count == 0) { <tr><td colspan="@Math.Max(Result.Columns.Count, 1)" class="grid-empty">Query executed successfully, no rows returned.</td></tr> }
         </tbody>
     </table>
 </div>
 @if (ShowFooter)
 {
     <div class="result-footer muted small">
-        @Result.Rows.Count baris · @Result.Columns.Count kolom · @Result.ElapsedMs ms
-        @if (Result.Truncated) { <BbBadge Variant="BadgeVariant.Warning">dibatasi @Result.Rows.Count baris pertama</BbBadge> }
+        @Result.Rows.Count rows · @Result.Columns.Count columns · @Result.ElapsedMs ms
+        @if (Result.Truncated) { <BbBadge Variant="BadgeVariant.Warning">limited to first @Result.Rows.Count rows</BbBadge> }
     </div>
 }
 
@@ -32,6 +32,5 @@
     [Parameter, EditorRequired] public QueryResultSet Result { get; set; } = default!;
     [Parameter] public string MaxHeight { get; set; } = "24rem";
     [Parameter] public bool ShowFooter { get; set; }
-    private static readonly CultureInfo Id = CultureInfo.GetCultureInfo("id-ID");
-    private static string KindLabel(string k) => k switch { "number" => "angka", "date" => "tanggal", "boolean" => "ya/tidak", _ => "teks" };
+    private static string KindLabel(string k) => k switch { "number" => "number", "date" => "date", "boolean" => "yes/no", _ => "text" };
 }

@@ -5,8 +5,8 @@ using Framework.Security;
 namespace Framework.Web.QueryApis;
 
 /// <summary>
-/// Opsi "Terbitkan juga sebagai API" di wizard widget dashboard & template laporan: query dan parameter yang sama
-/// diterbitkan di /api/query/{slug} dan ikut diperbarui setiap kali sumbernya disimpan. Dicentang lalu dilepas = API dihapus.
+/// Option to "Also publish as API" in the dashboard widget & report template wizard: same query and parameters
+/// published at /api/query/{slug} and updated whenever the source is saved. Checking then unchecking deletes the API.
 /// </summary>
 public sealed class ApiPublishOption
 {
@@ -22,7 +22,7 @@ public sealed class ApiPublishOption
         Slug = Linked?.Slug ?? "";
     }
 
-    /// <summary>Menerapkan pilihan setelah sumber disimpan. Mengembalikan keterangan untuk notifikasi (null = tidak ada perubahan).</summary>
+    /// <summary>Applies options after the source is saved. Returns a notification message (null = no change).</summary>
     public async Task<string?> ApplyAsync(QueryApiService apis, UserContext u, string sourceRef, string name, string? description,
         string sql, IReadOnlyList<WidgetParameter> parameters, IReadOnlyList<string> roles)
     {
@@ -30,11 +30,11 @@ public sealed class ApiPublishOption
         {
             var d = await apis.PublishFromAsync(u, sourceRef, Slug, name, description, sql, parameters, roles);
             Linked = d;
-            return $"API /api/query/{d.Slug} diperbarui (v{d.Version}).";
+            return $"API /api/query/{d.Slug} updated (v{d.Version}).";
         }
         if (Linked is null) return null;
         await apis.DeleteAsync(u, Linked.Id);
         Linked = null;
-        return "API dari sumber ini dihapus.";
+        return "API linked to this source was deleted.";
     }
 }

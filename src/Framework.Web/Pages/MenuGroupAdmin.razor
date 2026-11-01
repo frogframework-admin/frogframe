@@ -6,41 +6,41 @@
 @inject ToastService Toasts
 @inject DialogService Dialogs
 
-<PageTitle>Master Group Menu · DocFrame</PageTitle>
+<PageTitle>Master Menu Groups · DocFrame</PageTitle>
 
 @if (!Current.Required.IsAdmin)
 {
-    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>Halaman ini hanya untuk Administrator / System Manager.</BbAlertDescription></BbAlert>
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>This page is only accessible to Administrators / System Managers.</BbAlertDescription></BbAlert>
 }
 else
 {
     <header class="page-head">
         <div>
-            <h1>Master Group Menu</h1>
-            <p>Kelola pengelompokan menu di dalam setiap modul. Setiap group menu terhubung ke satu modul dan menampung daftar menu.</p>
+            <h1>Master Menu Groups</h1>
+            <p>Manage menu grouping within each module. Each menu group belongs to one module and contains navigation menu items.</p>
         </div>
         <div class="row" style="gap:.5rem">
-            <BbButton Variant="ButtonVariant.Outline" Disabled="busy" OnClick="ResetDefaults"><LucideIcon Name="rotate-ccw" Size="16" /> Seed Default</BbButton>
-            <BbButton OnClick="StartCreate"><LucideIcon Name="plus" Size="16" /> Tambah group menu</BbButton>
+            <BbButton Variant="ButtonVariant.Outline" Disabled="busy" OnClick="ResetDefaults"><LucideIcon Name="rotate-ccw" Size="16" /> Seed Defaults</BbButton>
+            <BbButton OnClick="StartCreate"><LucideIcon Name="plus" Size="16" /> Add menu group</BbButton>
         </div>
     </header>
 
     <BbDataGrid TData="NavigationMenuGroup"
                 Items="@groups"
                 ShowSearch="true"
-                SearchPlaceholder="Cari group menu..."
+                SearchPlaceholder="Search menu groups..."
                 ShowPagination="true"
                 InitialPageSize="10"
                 TableContainerClass="table-wrap"
                 RowClass="@(g => edit?.Id == g.Id ? "selected" : "")">
         <Columns>
-            <BbDataGridPropertyColumn TData="NavigationMenuGroup" TProp="int" Property="g => g.SortOrder" Title="Urutan" Width="5rem" Sortable="true">
+            <BbDataGridPropertyColumn TData="NavigationMenuGroup" TProp="int" Property="g => g.SortOrder" Title="Order" Width="5rem" Sortable="true">
                 <CellTemplate Context="item">
                     <code>@item.SortOrder</code>
                 </CellTemplate>
             </BbDataGridPropertyColumn>
 
-            <BbDataGridPropertyColumn TData="NavigationMenuGroup" TProp="string" Property="g => g.Name" Title="Group Menu" Width="15rem" Sortable="true" Filterable="true">
+            <BbDataGridPropertyColumn TData="NavigationMenuGroup" TProp="string" Property="g => g.Name" Title="Menu Group" Width="15rem" Sortable="true" Filterable="true">
                 <CellTemplate Context="item">
                     <div class="row" style="gap:.5rem;align-items:center;flex-wrap:nowrap">
                         <LucideIcon Name="@(string.IsNullOrWhiteSpace(item.Icon) ? "folder" : item.Icon)" Size="16" />
@@ -49,7 +49,7 @@ else
                 </CellTemplate>
             </BbDataGridPropertyColumn>
 
-            <BbDataGridTemplateColumn TData="NavigationMenuGroup" Title="Modul Induk" Sortable="true" SortBy="g => ModuleName(g.ModuleId)">
+            <BbDataGridTemplateColumn TData="NavigationMenuGroup" Title="Parent Module" Sortable="true" SortBy="g => ModuleName(g.ModuleId)">
                 <ChildContent Context="item">
                     @{
                         var mod = modules.FirstOrDefault(m => m.Id == item.ModuleId);
@@ -70,12 +70,12 @@ else
                 </ChildContent>
             </BbDataGridTemplateColumn>
 
-            <BbDataGridTemplateColumn TData="NavigationMenuGroup" Title="Jumlah Menu" Width="9rem">
+            <BbDataGridTemplateColumn TData="NavigationMenuGroup" Title="Menu Count" Width="9rem">
                 <ChildContent Context="item">
                     @{
                         var cnt = menus.Count(m => m.GroupId == item.Id || (string.IsNullOrWhiteSpace(m.GroupId) && string.Equals(m.GroupName, item.Name, StringComparison.OrdinalIgnoreCase)));
                     }
-                    <BbBadge Variant="BadgeVariant.Outline">@cnt menu</BbBadge>
+                    <BbBadge Variant="BadgeVariant.Outline">@cnt menus</BbBadge>
                 </ChildContent>
             </BbDataGridTemplateColumn>
 
@@ -84,29 +84,29 @@ else
                     <div class="row" style="gap:.25rem;flex-wrap:nowrap">
                         @if (item.IsSystem)
                         {
-                            <BbBadge Variant="BadgeVariant.Soft">Sistem</BbBadge>
+                            <BbBadge Variant="BadgeVariant.Soft">System</BbBadge>
                         }
                         @if (item.IsActive)
                         {
-                            <BbBadge Variant="BadgeVariant.SoftSuccess">Aktif</BbBadge>
+                            <BbBadge Variant="BadgeVariant.SoftSuccess">Active</BbBadge>
                         }
                         else
                         {
-                            <BbBadge Variant="BadgeVariant.Secondary">Nonaktif</BbBadge>
+                            <BbBadge Variant="BadgeVariant.Secondary">Inactive</BbBadge>
                         }
                     </div>
                 </ChildContent>
             </BbDataGridTemplateColumn>
 
-            <BbDataGridTemplateColumn TData="NavigationMenuGroup" Title="Aksi" Width="6.5rem" NoWrap="true">
+            <BbDataGridTemplateColumn TData="NavigationMenuGroup" Title="Actions" Width="6.5rem" NoWrap="true">
                 <ChildContent Context="item">
                     <div style="display:inline-flex;align-items:center;gap:.25rem;flex-wrap:nowrap" @onclick:stopPropagation="true">
-                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Edit group menu" OnClick="() => StartEdit(item)">
+                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Edit menu group" OnClick="() => StartEdit(item)">
                             <LucideIcon Name="pencil" Size="15" />
                         </BbButton>
                         @if (!item.IsSystem)
                         {
-                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Hapus group menu" OnClick="() => ConfirmDelete(item)">
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Delete menu group" OnClick="() => ConfirmDelete(item)">
                                 <LucideIcon Name="trash-2" Size="15" />
                             </BbButton>
                         }
@@ -116,7 +116,7 @@ else
         </Columns>
         <EmptyTemplate>
             <div style="padding:2rem;text-align:center;color:var(--muted-foreground)">
-                Tidak ada group menu yang ditemukan.
+                No menu groups found.
             </div>
         </EmptyTemplate>
     </BbDataGrid>
@@ -124,8 +124,8 @@ else
     <AdminDrawer Open="@isDrawerOpen"
                  OpenChanged="@OnDrawerOpenChanged"
                  WidthScale="@DrawerWidthScale"
-                 Title="@(edit is null ? "" : isNew ? "Tambah Group Menu" : $"Edit: {edit.Name}")"
-                 Description="@(edit is null ? null : edit.IsSystem ? "Group menu bawaan sistem (tidak dapat dihapus, namun dapat diatur modul induk, nama, ikon, dan urutannya)." : "Group menu kustom aplikasi.")">
+                 Title="@(edit is null ? "" : isNew ? "Add Menu Group" : $"Edit: {edit.Name}")"
+                 Description="@(edit is null ? null : edit.IsSystem ? "Built-in system menu group (cannot be deleted, but parent module, name, icon, and sort order can be edited)." : "Custom application menu group.")">
         <ChildContent>
             @if (edit is not null)
             {
@@ -136,29 +136,29 @@ else
 
                 <div class="form-cols cols-2">
                     <BbField>
-                        <BbFieldLabel For="grp-module">Modul Induk</BbFieldLabel>
+                        <BbFieldLabel For="grp-module">Parent Module</BbFieldLabel>
                         <select id="grp-module" class="auth-input" value="@edit.ModuleId" @onchange="e => edit.ModuleId = e.Value as string ?? string.Empty">
-                            <option value="">— Pilih Modul —</option>
+                            <option value="">— Select Module —</option>
                             @foreach (var m in modules)
                             {
                                 <option value="@m.Id">@m.Name</option>
                             }
                         </select>
-                        <BbFieldDescription>Modul tempat group menu ini ditampilkan pada sidebar.</BbFieldDescription>
+                        <BbFieldDescription>The module where this menu group is displayed on the sidebar.</BbFieldDescription>
                     </BbField>
 
                     <BbField>
-                        <BbFieldLabel For="grp-name">Nama Group Menu</BbFieldLabel>
-                        <FormTextInput Id="grp-name" Immediate="true" @bind-Value="edit.Name" Placeholder="mis. Transaksi, Master Data, Organisasi, Laporan" />
-                        <BbFieldDescription>Nama sub-bagian yang muncul di sidebar di bawah modul aktif.</BbFieldDescription>
+                        <BbFieldLabel For="grp-name">Menu Group Name</BbFieldLabel>
+                        <FormTextInput Id="grp-name" Immediate="true" @bind-Value="edit.Name" Placeholder="e.g. Transactions, Master Data, Organization, Reports" />
+                        <BbFieldDescription>Sub-section heading displayed on the sidebar under the active module.</BbFieldDescription>
                     </BbField>
                 </div>
 
                 <div class="form-cols cols-2">
                     <BbField>
-                        <BbFieldLabel For="grp-icon">Ikon Lucide</BbFieldLabel>
+                        <BbFieldLabel For="grp-icon">Lucide Icon</BbFieldLabel>
                         <div class="row" style="gap:.5rem;align-items:center;flex-wrap:nowrap">
-                            <FormTextInput Id="grp-icon" Immediate="true" @bind-Value="edit.Icon" Placeholder="mis. folder, users, shopping-cart, database" />
+                            <FormTextInput Id="grp-icon" Immediate="true" @bind-Value="edit.Icon" Placeholder="e.g. folder, users, shopping-cart, database" />
                             <div style="display:flex;align-items:center;justify-content:center;width:2.5rem;height:2.5rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--muted);flex-shrink:0">
                                 <LucideIcon Name="@(string.IsNullOrWhiteSpace(edit.Icon) ? "folder" : edit.Icon)" Size="18" />
                             </div>
@@ -166,15 +166,15 @@ else
                     </BbField>
 
                     <BbField>
-                        <BbFieldLabel For="grp-order">Urutan (Sort Order)</BbFieldLabel>
+                        <BbFieldLabel For="grp-order">Order (Sort Order)</BbFieldLabel>
                         <FormTextInput Id="grp-order" Type="number" Immediate="true" Value="@edit.SortOrder.ToString()" ValueChanged="v => edit.SortOrder = int.TryParse(v, out var n) ? n : edit.SortOrder" />
-                        <BbFieldDescription>Angka lebih kecil tampil lebih di atas dalam modul yang sama (mis. 10, 20, 30).</BbFieldDescription>
+                        <BbFieldDescription>Lower numbers appear higher within the same module (e.g. 10, 20, 30).</BbFieldDescription>
                     </BbField>
                 </div>
 
                 <div class="label-row" style="margin-top:.5rem">
                     <BbCheckbox Id="grp-active" Checked="edit.IsActive" CheckedChanged="v => edit.IsActive = v" />
-                    <BbLabel For="grp-active">Aktif (ditampilkan di sidebar)</BbLabel>
+                    <BbLabel For="grp-active">Active (displayed in sidebar)</BbLabel>
                 </div>
             }
         </ChildContent>
@@ -182,13 +182,13 @@ else
             @if (edit is not null)
             {
                 <div class="row" style="gap:.5rem;width:100%;align-items:center">
-                    <BbButton Disabled="busy" Loading="busy" LoadingText="Menyimpan…" OnClick="Save"><LucideIcon Name="check" Size="16" /> Simpan</BbButton>
-                    <BbButton Variant="ButtonVariant.Ghost" OnClick="CloseDrawer">Batal</BbButton>
+                    <BbButton Disabled="busy" Loading="busy" LoadingText="Saving…" OnClick="Save"><LucideIcon Name="check" Size="16" /> Save</BbButton>
+                    <BbButton Variant="ButtonVariant.Ghost" OnClick="CloseDrawer">Cancel</BbButton>
                     @if (!isNew && !edit.IsSystem)
                     {
                         <span style="margin-left:auto">
                             <BbButton Variant="ButtonVariant.Destructive" Size="ButtonSize.Small" Disabled="busy" OnClick="() => ConfirmDelete(edit)">
-                                <LucideIcon Name="trash-2" Size="15" /> Hapus
+                                <LucideIcon Name="trash-2" Size="15" /> Delete
                             </BbButton>
                         </span>
                     }
@@ -286,14 +286,14 @@ else
         if (edit is null || busy) return;
         if (string.IsNullOrWhiteSpace(edit.ModuleId))
         {
-            error = "Pilih modul induk terlebih dahulu.";
-            Toasts.Error(error, "Gagal Menyimpan");
+            error = "Please select a parent module.";
+            Toasts.Error(error, "Failed to Save");
             return;
         }
         if (string.IsNullOrWhiteSpace(edit.Name))
         {
-            error = "Nama group menu tidak boleh kosong.";
-            Toasts.Error(error, "Gagal Menyimpan");
+            error = "Menu group name cannot be empty.";
+            Toasts.Error(error, "Failed to Save");
             return;
         }
 
@@ -307,14 +307,14 @@ else
         try
         {
             await MenuStore.SaveGroupAsync(edit);
-            Toasts.Success($"Group menu \"{edit.Name}\" berhasil disimpan.", "Berhasil Disimpan");
+            Toasts.Success($"Menu group \"{edit.Name}\" successfully saved.", "Successfully Saved");
             isDrawerOpen = false;
             await Reload();
         }
         catch (Exception ex)
         {
             error = ex.Message;
-            Toasts.Error(ex.Message, "Gagal Menyimpan");
+            Toasts.Error(ex.Message, "Failed to Save");
         }
         finally
         {
@@ -326,14 +326,14 @@ else
     {
         if (item.IsSystem)
         {
-            Toasts.Error("Group menu sistem bawaan tidak dapat dihapus.", "Tidak Diizinkan");
+            Toasts.Error("Built-in system menu groups cannot be deleted.", "Not Allowed");
             return;
         }
 
         var res = await Dialogs.ConfirmAsync(
-            $"Hapus group menu \"{item.Name}\"?",
-            "Group menu ini akan dihapus apabila tidak lagi memiliki item menu. Tindakan ini tidak bisa dibatalkan.",
-            new ConfirmDialogOptions { Destructive = true, ConfirmText = "Hapus Group", CancelText = "Batal" });
+            $"Delete menu group \"{item.Name}\"?",
+            "This menu group will be deleted if it no longer contains menu items. This action cannot be undone.",
+            new ConfirmDialogOptions { Destructive = true, ConfirmText = "Delete Group", CancelText = "Cancel" });
 
         if (!res.Confirmed) return;
 
@@ -342,12 +342,12 @@ else
         {
             await MenuStore.DeleteGroupAsync(item.Id, item.TenantId);
             if (edit?.Id == item.Id) isDrawerOpen = false;
-            Toasts.Success($"Group menu \"{item.Name}\" berhasil dihapus.", "Group Dihapus");
+            Toasts.Success($"Menu group \"{item.Name}\" successfully deleted.", "Group Deleted");
             await Reload();
         }
         catch (Exception ex)
         {
-            Toasts.Error(ex.Message, "Gagal Menghapus Group");
+            Toasts.Error(ex.Message, "Failed to Delete Group");
         }
         finally
         {
@@ -358,9 +358,9 @@ else
     private async Task ResetDefaults()
     {
         var res = await Dialogs.ConfirmAsync(
-            "Seed / Pulihkan Group Menu Wajib?",
-            "Sistem akan memeriksa dan menambahkan modul, group menu, serta menu wajib bawaan yang belum ada di database.",
-            new ConfirmDialogOptions { ConfirmText = "Jalankan Seed", CancelText = "Batal" });
+            "Seed / Restore Default Menu Groups?",
+            "The system will verify and seed missing modules, menu groups, and built-in menus into the database.",
+            new ConfirmDialogOptions { ConfirmText = "Run Seed", CancelText = "Cancel" });
 
         if (!res.Confirmed) return;
 
@@ -368,12 +368,12 @@ else
         try
         {
             await MenuStore.EnsureDefaultMenusAsync(Current.Required.TenantId);
-            Toasts.Success("Group menu default berhasil diperiksa dan di-seed.", "Seed Berhasil");
+            Toasts.Success("Default menu groups successfully verified and seeded.", "Seed Successful");
             await Reload();
         }
         catch (Exception ex)
         {
-            Toasts.Error(ex.Message, "Gagal Seed Group Menu");
+            Toasts.Error(ex.Message, "Failed to Seed Menu Groups");
         }
         finally
         {

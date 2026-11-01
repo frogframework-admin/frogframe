@@ -7,21 +7,21 @@
 @inject ToastService Toasts
 @inject NavigationManager Nav
 
-<PageTitle>@(isEdit ? "Edit widget" : "Widget baru") · DocFrame</PageTitle>
+<PageTitle>@(isEdit ? "Edit widget" : "New widget") · DocFrame</PageTitle>
 
 <BbBreadcrumb Class="crumbs">
     <BbBreadcrumbList>
         <BbBreadcrumbItem><BbBreadcrumbLink Href="/dashboard">Dashboard</BbBreadcrumbLink></BbBreadcrumbItem>
         <BbBreadcrumbSeparator />
-        <BbBreadcrumbItem><BbBreadcrumbLink Href="/dashboard/widgets">Widget</BbBreadcrumbLink></BbBreadcrumbItem>
+        <BbBreadcrumbItem><BbBreadcrumbLink Href="/dashboard/widgets">Widgets</BbBreadcrumbLink></BbBreadcrumbItem>
         <BbBreadcrumbSeparator />
-        <BbBreadcrumbItem><BbBreadcrumbPage>@(isEdit ? widget.Name : "Baru")</BbBreadcrumbPage></BbBreadcrumbItem>
+        <BbBreadcrumbItem><BbBreadcrumbPage>@(isEdit ? widget.Name : "New")</BbBreadcrumbPage></BbBreadcrumbItem>
     </BbBreadcrumbList>
 </BbBreadcrumb>
 
 @if (!DashboardService.CanDesign(Current.Required))
 {
-    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>Merancang widget hanya untuk System Manager.</BbAlertDescription></BbAlert>
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>Designing widgets is only available to System Managers.</BbAlertDescription></BbAlert>
 }
 else if (!Dashboards.IsAvailable)
 {
@@ -29,18 +29,18 @@ else if (!Dashboards.IsAvailable)
 }
 else if (notFound)
 {
-    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>Widget tidak ditemukan.</BbAlertDescription></BbAlert>
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>Widget not found.</BbAlertDescription></BbAlert>
 }
 else
 {
     <header class="page-head">
         <div>
-            <h1>@(isEdit ? $"Edit widget: {widget.Name}" : "Widget baru")</h1>
-            <p>Query SQL ke view pelaporan (read-only, terbatas tenant Anda) → parameter → visual → simpan ke dashboard.</p>
+            <h1>@(isEdit ? $"Edit widget: {widget.Name}" : "New widget")</h1>
+            <p>SQL query against reporting views (read-only, tenant-isolated) → parameters → visual → pin to dashboard.</p>
         </div>
     </header>
 
-    <ol class="wizard-steps" aria-label="Langkah">
+    <ol class="wizard-steps" aria-label="Steps">
         @foreach (var (n, title) in Steps)
         {
             var num = n;
@@ -63,21 +63,21 @@ else
             <div class="builder-grid">
                 <BbCard>
                     <BbCardHeader>
-                        <BbCardTitle Class="card-title">1. Sumber data &amp; query</BbCardTitle>
-                        <BbCardDescription>Hanya satu perintah SELECT (atau WITH … SELECT). Parameter ditulis <code>@@NamaParameter</code>. Filter opsional: <code>(@@Dept IS NULL OR department = @@Dept)</code>.</BbCardDescription>
+                        <BbCardTitle Class="card-title">1. Data source &amp; query</BbCardTitle>
+                        <BbCardDescription>Single SELECT statement (or WITH … SELECT). Write parameters as <code>@@ParamName</code>. Optional filter: <code>(@@Dept IS NULL OR department = @@Dept)</code>.</BbCardDescription>
                     </BbCardHeader>
                     <BbCardContent>
-                        <FormTextArea Id="sql" Value="@widget.Config.Sql" ValueChanged="v => widget.Config.Sql = v ?? string.Empty" Rows="14" AriaLabel="Query SQL" />
+                        <FormTextArea Id="sql" Value="@widget.Config.Sql" ValueChanged="v => widget.Config.Sql = v ?? string.Empty" Rows="14" AriaLabel="SQL Query" />
                         <div class="row" style="margin-top:.75rem">
-                            <BbButton OnClick="Detect"><LucideIcon Name="scan-search" Size="16" /> Lanjut: deteksi parameter</BbButton>
-                            <span class="muted small">@widget.Config.Sql.Length / @SqlGuard.MaxLength karakter</span>
+                            <BbButton OnClick="Detect"><LucideIcon Name="scan-search" Size="16" /> Next: detect parameters</BbButton>
+                            <span class="muted small">@widget.Config.Sql.Length / @SqlGuard.MaxLength characters</span>
                         </div>
                     </BbCardContent>
                 </BbCard>
                 <BbCard>
                     <BbCardHeader>
-                        <BbCardTitle Class="card-title">View yang tersedia</BbCardTitle>
-                        <BbCardDescription>Klik nama view atau kolom untuk menyisipkan ke akhir query.</BbCardDescription>
+                        <BbCardTitle Class="card-title">Available views</BbCardTitle>
+                        <BbCardDescription>Click a view or column name to append it to the query.</BbCardDescription>
                     </BbCardHeader>
                     <BbCardContent>
                         <div class="catalog">
@@ -104,15 +104,15 @@ else
         case 2:
             <BbCard>
                 <BbCardHeader>
-                    <BbCardTitle Class="card-title">2. Parameter &amp; pratinjau data</BbCardTitle>
-                    <BbCardDescription>@(widget.Config.Parameters.Count == 0 ? "Query ini tidak memakai parameter." : "Tentukan tipe dan nilai uji tiap parameter. \"Diikat ke\" menentukan sumber nilai saat widget tampil di dashboard.")</BbCardDescription>
+                    <BbCardTitle Class="card-title">2. Parameters &amp; data preview</BbCardTitle>
+                    <BbCardDescription>@(widget.Config.Parameters.Count == 0 ? "This query does not use parameters." : "Define type and test value for each parameter. \"Bound to\" specifies the value source when displayed on the dashboard.")</BbCardDescription>
                 </BbCardHeader>
                 <BbCardContent>
                     @if (widget.Config.Parameters.Count > 0)
                     {
                         <div class="table-wrap">
                             <table class="perm-table">
-                                <thead><tr><th>Parameter</th><th>Label</th><th>Tipe</th><th>Nilai uji / default</th><th>Diikat ke (dashboard)</th></tr></thead>
+                                <thead><tr><th>Parameter</th><th>Label</th><th>Type</th><th>Test / default value</th><th>Bound to (dashboard)</th></tr></thead>
                                 <tbody>
                                     @foreach (var prm in widget.Config.Parameters)
                                     {
@@ -120,16 +120,16 @@ else
                                         <tr>
                                             <td><code>@@@p.Name</code></td>
                                             <td style="min-width:9rem"><FormTextInput Value="@p.Label" ValueChanged="v => p.Label = v ?? p.Name" AriaLabel="@($"Label {p.Name}")" /></td>
-                                            <td style="min-width:8rem"><BbSelect TValue="string" Value="@p.Type" ValueChanged="v => SetType(p, v)" Options="TypeOptions" AriaLabel="@($"Tipe {p.Name}")" /></td>
+                                            <td style="min-width:8rem"><BbSelect TValue="string" Value="@p.Type" ValueChanged="v => SetType(p, v)" Options="TypeOptions" AriaLabel="@($"Type {p.Name}")" /></td>
                                             <td style="min-width:11rem">
                                                 @if (p.Type == ParamTypes.Boolean)
                                                 {
-                                                    <BbSelect TValue="string" Value="@(p.DefaultValue ?? "")" ValueChanged="v => p.DefaultValue = string.IsNullOrEmpty(v) ? null : v" Options="BoolOptions" AriaLabel="@($"Nilai {p.Name}")" />
+                                                    <BbSelect TValue="string" Value="@(p.DefaultValue ?? "")" ValueChanged="v => p.DefaultValue = string.IsNullOrEmpty(v) ? null : v" Options="BoolOptions" AriaLabel="@($"Value {p.Name}")" />
                                                 }
                                                 else
                                                 {
                                                     <FormTextInput Id="@($"pv-{p.Name}")" Type="@(p.Type == ParamTypes.Date ? "date" : p.Type == ParamTypes.Number ? "number" : "text")" Value="@p.DefaultValue"
-                                                                   ValueChanged="v => p.DefaultValue = string.IsNullOrWhiteSpace(v) ? null : v" AriaLabel="@($"Nilai {p.Name}")" />
+                                                                   ValueChanged="v => p.DefaultValue = string.IsNullOrWhiteSpace(v) ? null : v" AriaLabel="@($"Value {p.Name}")" />
                                                 }
                                             </td>
                                             <td style="min-width:13rem"><BbSelect TValue="string" Value="@p.Binding" ValueChanged="v => p.Binding = v ?? ParamBindings.Default" Options="BindingOptions(p)" AriaLabel="@($"Binding {p.Name}")" /></td>
@@ -138,13 +138,13 @@ else
                                 </tbody>
                             </table>
                         </div>
-                        <p class="muted small">Nilai kosong dikirim sebagai NULL. Nilai selalu dikirim sebagai parameter ke database, tidak pernah digabung ke teks SQL.</p>
+                        <p class="muted small">Empty values are sent as NULL. Parameter values are sent safely as database parameters and never concatenated directly into SQL text.</p>
                     }
                     <div class="row" style="margin:.75rem 0">
-                        <BbButton Disabled="busy" OnClick="RunPreview"><LucideIcon Name="play" Size="16" /> @(busy ? "Menjalankan…" : "Jalankan pratinjau")</BbButton>
-                        <BbButton Variant="ButtonVariant.Ghost" OnClick="() => GoTo(1)">Kembali ke query</BbButton>
+                        <BbButton Disabled="busy" OnClick="RunPreview"><LucideIcon Name="play" Size="16" /> @(busy ? "Running…" : "Run preview")</BbButton>
+                        <BbButton Variant="ButtonVariant.Ghost" OnClick="() => GoTo(1)">Back to query</BbButton>
                         <span class="spacer"></span>
-                        <BbButton Disabled="@(preview is null)" OnClick="() => GoTo(3)">Lanjut: visual <LucideIcon Name="arrow-right" Size="16" /></BbButton>
+                        <BbButton Disabled="@(preview is null)" OnClick="() => GoTo(3)">Next: visual <LucideIcon Name="arrow-right" Size="16" /></BbButton>
                     </div>
                     @if (preview is not null) { <ResultGrid Result="preview" ShowFooter="true" /> }
                 </BbCardContent>
@@ -155,11 +155,11 @@ else
             <div class="builder-grid">
                 <BbCard>
                     <BbCardHeader>
-                        <BbCardTitle Class="card-title">3. Jenis grafik &amp; pemetaan kolom</BbCardTitle>
-                        <BbCardDescription>Sumbu X = kategori/label (teks atau tanggal). Sumbu Y = nilai, wajib kolom angka.</BbCardDescription>
+                        <BbCardTitle Class="card-title">3. Chart type &amp; column mapping</BbCardTitle>
+                        <BbCardDescription>X Axis = category/label (text or date). Y Axis = value, must be a numeric column.</BbCardDescription>
                     </BbCardHeader>
                     <BbCardContent>
-                        <div class="chart-types" role="radiogroup" aria-label="Jenis grafik">
+                        <div class="chart-types" role="radiogroup" aria-label="Chart type">
                             @foreach (var t in ChartTypes.All)
                             {
                                 var type = t;
@@ -171,20 +171,20 @@ else
                         @if (Visual.Type is not (ChartTypes.Table or ChartTypes.Number))
                         {
                             <BbField Style="margin-top:1rem">
-                                <BbFieldLabel>Sumbu X (kategori)</BbFieldLabel>
-                                <BbSelect TValue="string" Value="@Visual.XColumn" ValueChanged="v => Visual.XColumn = v" AriaLabel="Sumbu X"
+                                <BbFieldLabel>X Axis (category)</BbFieldLabel>
+                                <BbSelect TValue="string" Value="@Visual.XColumn" ValueChanged="v => Visual.XColumn = v" AriaLabel="X Axis"
                                           Options="@(preview!.Columns.Select(c => new SelectOption<string>(c.Name, $"{c.Name} ({KindLabel(c.Kind)})")))" />
                             </BbField>
                         }
                         @if (Visual.Type != ChartTypes.Table)
                         {
                             <div style="margin-top:1rem">
-                                <div class="props-sub" style="margin-bottom:.4rem">Sumbu Y (nilai)@(Visual.Type is ChartTypes.Bar or ChartTypes.Line ? " — boleh lebih dari satu" : " — satu kolom")</div>
+                                <div class="props-sub" style="margin-bottom:.4rem">Y Axis (value)@(Visual.Type is ChartTypes.Bar or ChartTypes.Line ? " — multiple allowed" : " — single column")</div>
                                 <div class="wf-roles">
                                     @foreach (var col in preview!.Columns)
                                     {
                                         var c = col;
-                                        <div class="label-row" title="@(c.Kind != "number" ? "Bukan kolom angka" : null)">
+                                        <div class="label-row" title="@(c.Kind != "number" ? "Not a numeric column" : null)">
                                             <BbCheckbox Id="@($"y-{c.Name}")" Checked="Visual.YColumns.Contains(c.Name)" Disabled="@(c.Kind != "number")" CheckedChanged="v => ToggleY(c.Name, v)" />
                                             <BbLabel For="@($"y-{c.Name}")">@c.Name</BbLabel>
                                         </div>
@@ -197,17 +197,17 @@ else
                             <BbAlert Variant="AlertVariant.Warning" Style="margin-top:1rem"><BbAlertDescription><ul class="error-list">@foreach (var e in VisualErrors) { <li>@e</li> }</ul></BbAlertDescription></BbAlert>
                         }
                         <div class="row" style="margin-top:1rem">
-                            <BbButton Variant="ButtonVariant.Ghost" OnClick="() => GoTo(2)">Kembali</BbButton>
+                            <BbButton Variant="ButtonVariant.Ghost" OnClick="() => GoTo(2)">Back</BbButton>
                             <span class="spacer"></span>
-                            <BbButton Disabled="@(VisualErrors.Count > 0)" OnClick="() => GoTo(4)">Lanjut: simpan <LucideIcon Name="arrow-right" Size="16" /></BbButton>
+                            <BbButton Disabled="@(VisualErrors.Count > 0)" OnClick="() => GoTo(4)">Next: save <LucideIcon Name="arrow-right" Size="16" /></BbButton>
                         </div>
                     </BbCardContent>
                 </BbCard>
                 <BbCard>
-                    <BbCardHeader><BbCardTitle Class="card-title">Pratinjau</BbCardTitle><BbCardDescription>Memakai data dari langkah 2.</BbCardDescription></BbCardHeader>
+                    <BbCardHeader><BbCardTitle Class="card-title">Preview</BbCardTitle><BbCardDescription>Using data from step 2.</BbCardDescription></BbCardHeader>
                     <BbCardContent>
                         @if (VisualErrors.Count == 0) { <ChartView Result="preview" Visual="Visual" Width="440" /> }
-                        else { <div class="chart-empty"><span>Lengkapi pemetaan kolom untuk melihat pratinjau</span></div> }
+                        else { <div class="chart-empty"><span>Complete column mapping to view preview</span></div> }
                     </BbCardContent>
                 </BbCard>
             </div>
@@ -216,13 +216,13 @@ else
         case 4:
             <div class="builder-grid">
                 <BbCard>
-                    <BbCardHeader><BbCardTitle Class="card-title">4. Simpan &amp; terbitkan</BbCardTitle></BbCardHeader>
+                    <BbCardHeader><BbCardTitle Class="card-title">4. Save &amp; publish</BbCardTitle></BbCardHeader>
                     <BbCardContent>
                         <div class="stack">
-                            <BbField><BbFieldLabel For="w-name">Nama widget</BbFieldLabel><FormTextInput Id="w-name" Value="@widget.Name" ValueChanged="v => widget.Name = v ?? string.Empty" /></BbField>
-                            <BbField><BbFieldLabel For="w-desc">Deskripsi</BbFieldLabel><FormTextArea Id="w-desc" Value="@widget.Description" ValueChanged="v => widget.Description = string.IsNullOrWhiteSpace(v) ? null : v" Rows="2" /></BbField>
+                            <BbField><BbFieldLabel For="w-name">Widget name</BbFieldLabel><FormTextInput Id="w-name" Value="@widget.Name" ValueChanged="v => widget.Name = v ?? string.Empty" /></BbField>
+                            <BbField><BbFieldLabel For="w-desc">Description</BbFieldLabel><FormTextArea Id="w-desc" Value="@widget.Description" ValueChanged="v => widget.Description = string.IsNullOrWhiteSpace(v) ? null : v" Rows="2" /></BbField>
                             <div>
-                                <div class="props-sub" style="margin-bottom:.4rem">Boleh dilihat oleh (kosong = semua pengguna)</div>
+                                <div class="props-sub" style="margin-bottom:.4rem">Viewable by (empty = all users)</div>
                                 <div class="wf-roles">
                                     @foreach (var role in MetadataRoles.Known(Metadata.Current, widget.Config.Roles))
                                     {
@@ -230,23 +230,23 @@ else
                                         <div class="label-row"><BbCheckbox Id="@($"r-{r}")" Checked="widget.Config.Roles.Contains(r)" CheckedChanged="v => ToggleRole(r, v)" /><BbLabel For="@($"r-{r}")">@r</BbLabel></div>
                                     }
                                 </div>
-                                <p class="muted small" style="margin-top:.4rem">Widget menampilkan data seluruh tenant (aturan "milik sendiri" tidak berlaku di SQL). Batasi role untuk data sensitif.</p>
+                                <p class="muted small" style="margin-top:.4rem">Widgets display tenant-wide data ("own records" restriction does not apply in SQL). Restrict roles for sensitive data.</p>
                             </div>
                             @if (!isEdit)
                             {
-                                <div class="label-row"><BbCheckbox Id="w-pin" @bind-Checked="pin" /><BbLabel For="w-pin">Tempel (pin) ke dashboard utama</BbLabel></div>
+                                <div class="label-row"><BbCheckbox Id="w-pin" @bind-Checked="pin" /><BbLabel For="w-pin">Pin to main dashboard</BbLabel></div>
                             }
                             <Framework.Web.QueryApis.PublishAsApiOption Option="apiOption" DefaultName="@widget.Name" />
                             <div class="row">
-                                <BbButton Variant="ButtonVariant.Ghost" OnClick="() => GoTo(3)">Kembali</BbButton>
+                                <BbButton Variant="ButtonVariant.Ghost" OnClick="() => GoTo(3)">Back</BbButton>
                                 <span class="spacer"></span>
-                                <BbButton Disabled="@(busy || string.IsNullOrWhiteSpace(widget.Name))" OnClick="Save"><LucideIcon Name="save" Size="16" /> @(busy ? "Menyimpan…" : "Simpan widget")</BbButton>
+                                <BbButton Disabled="@(busy || string.IsNullOrWhiteSpace(widget.Name))" OnClick="Save"><LucideIcon Name="save" Size="16" /> @(busy ? "Saving…" : "Save widget")</BbButton>
                             </div>
                         </div>
                     </BbCardContent>
                 </BbCard>
                 <BbCard>
-                    <BbCardHeader><BbCardTitle Class="card-title">@(string.IsNullOrWhiteSpace(widget.Name) ? "Pratinjau" : widget.Name)</BbCardTitle>@if (widget.Description is not null) { <BbCardDescription>@widget.Description</BbCardDescription> }</BbCardHeader>
+                    <BbCardHeader><BbCardTitle Class="card-title">@(string.IsNullOrWhiteSpace(widget.Name) ? "Preview" : widget.Name)</BbCardTitle>@if (widget.Description is not null) { <BbCardDescription>@widget.Description</BbCardDescription> }</BbCardHeader>
                     <BbCardContent><ChartView Result="preview" Visual="Visual" Width="440" /></BbCardContent>
                 </BbCard>
             </div>
@@ -257,7 +257,7 @@ else
 @code {
     [Parameter] public string? WidgetId { get; set; }
 
-    private static readonly (int, string)[] Steps = [(1, "Query"), (2, "Parameter & pratinjau"), (3, "Visual"), (4, "Simpan")];
+    private static readonly (int, string)[] Steps = [(1, "Query"), (2, "Parameters & preview"), (3, "Visual"), (4, "Save")];
     private WidgetDef widget = new();
     private readonly Framework.Web.QueryApis.ApiPublishOption apiOption = new();
     [Inject] private Framework.Api.QueryApiService QueryApis { get; set; } = default!;
@@ -269,22 +269,22 @@ else
     private string? loadedKey;
 
     private static readonly IEnumerable<SelectOption<string>> TypeOptions =
-        [new(ParamTypes.Text, "Teks"), new(ParamTypes.Number, "Angka"), new(ParamTypes.Date, "Tanggal"), new(ParamTypes.Boolean, "Boolean")];
-    private static readonly IEnumerable<SelectOption<string>> BoolOptions = [new("", "(kosong)"), new("true", "Ya (true)"), new("false", "Tidak (false)")];
+        [new(ParamTypes.Text, "Text"), new(ParamTypes.Number, "Number"), new(ParamTypes.Date, "Date"), new(ParamTypes.Boolean, "Boolean")];
+    private static readonly IEnumerable<SelectOption<string>> BoolOptions = [new("", "(empty)"), new("true", "Yes (true)"), new("false", "No (false)")];
 
     private static IEnumerable<SelectOption<string>> BindingOptions(WidgetParameter p)
     {
-        yield return new(ParamBindings.Default, "Nilai default (tetap)");
-        if (p.Type == ParamTypes.Date) { yield return new(ParamBindings.GlobalStart, "Filter dashboard: tanggal mulai"); yield return new(ParamBindings.GlobalEnd, "Filter dashboard: tanggal akhir"); }
+        yield return new(ParamBindings.Default, "Default value (fixed)");
+        if (p.Type == ParamTypes.Date) { yield return new(ParamBindings.GlobalStart, "Dashboard filter: start date"); yield return new(ParamBindings.GlobalEnd, "Dashboard filter: end date"); }
         if (p.Type == ParamTypes.Text)
         {
-            yield return new(ParamBindings.GlobalDepartment, "Filter dashboard: departemen");
-            yield return new(ParamBindings.UserDepartment, "Departemen pengguna yang melihat");
-            yield return new(ParamBindings.UserId, "ID pengguna yang melihat");
+            yield return new(ParamBindings.GlobalDepartment, "Dashboard filter: department");
+            yield return new(ParamBindings.UserDepartment, "Viewer's department");
+            yield return new(ParamBindings.UserId, "Viewer's user ID");
         }
     }
 
-    private IReadOnlyList<string> VisualErrors => preview is null ? ["Jalankan pratinjau dulu"] : DashboardService.ValidateVisual(Visual, preview.Columns);
+    private IReadOnlyList<string> VisualErrors => preview is null ? ["Run preview first"] : DashboardService.ValidateVisual(Visual, preview.Columns);
 
     protected override async Task OnParametersSetAsync()
     {
@@ -309,7 +309,7 @@ else
     {
         error = null;
         var (analysis, parameters) = DashboardService.DetectParameters(widget.Config.Sql, widget.Config.Parameters);
-        if (!analysis.Ok) { (errorTitle, error) = ("Query belum bisa dipakai", analysis.Error); return; }
+        if (!analysis.Ok) { (errorTitle, error) = ("Query cannot be used yet", analysis.Error); return; }
         widget.Config.Parameters = parameters;
         preview = null;
         step = maxStep = 2;
@@ -334,12 +334,12 @@ else
         catch (Exception ex) when (ex is QueryRejectedException or ReportingUnavailableException)
         {
             preview = null; maxStep = 2;
-            (errorTitle, error) = ("Query gagal dijalankan", ex.Message);
+            (errorTitle, error) = ("Query execution failed", ex.Message);
         }
         finally { busy = false; }
     }
 
-    /// <summary>Pemetaan awal otomatis: X = kolom teks/tanggal pertama, Y = kolom angka pertama.</summary>
+    /// <summary>Initial automatic mapping: X = first text/date column, Y = first number column.</summary>
     private void AutoMap()
     {
         var cols = preview!.Columns;
@@ -378,24 +378,24 @@ else
         try
         {
             var saved = await Dashboards.SaveAsync(Current.Required, widget, pin && !isEdit);
-            // Opsi: query yang sama diterbitkan sebagai API (atau dihapus bila centang dilepas).
+            // Option: same query published as API (or deleted if unchecked).
             var apiNote = await apiOption.ApplyAsync(QueryApis, Current.Required, $"widget:{saved.Id}", saved.Name, saved.Description,
                 saved.Config.Sql, saved.Config.Parameters, saved.Config.Roles);
-            Toasts.Success((pin && !isEdit ? "Widget ditempel ke dashboard." : "Widget tersimpan.") + (apiNote is null ? "" : " " + apiNote), $"{saved.Name} v{saved.Version}");
+            Toasts.Success((pin && !isEdit ? "Widget pinned to dashboard." : "Widget saved.") + (apiNote is null ? "" : " " + apiNote), $"{saved.Name} v{saved.Version}");
             Nav.NavigateTo(pin || isEdit ? "/dashboard" : "/dashboard/widgets");
         }
         catch (Exception ex) when (ex is QueryRejectedException or ReportingUnavailableException or PermissionDeniedException or Framework.Api.ApiMethodException)
         {
-            (errorTitle, error) = (ex is Framework.Api.ApiMethodException ? "Widget tersimpan, tetapi API belum bisa diterbitkan" : "Widget belum bisa disimpan", ex.Message);
+            (errorTitle, error) = (ex is Framework.Api.ApiMethodException ? "Widget saved, but API could not be published" : "Widget could not be saved", ex.Message);
             isEdit = isEdit || ex is Framework.Api.ApiMethodException;
         }
         finally { busy = false; }
     }
 
-    private static string KindLabel(string k) => k switch { "number" => "angka", "date" => "tanggal", "boolean" => "ya/tidak", _ => "teks" };
+    private static string KindLabel(string k) => k switch { "number" => "number", "date" => "date", "boolean" => "yes/no", _ => "text" };
     public static string ChartLabel(string t) => t switch
     {
-        ChartTypes.Bar => "Batang", ChartTypes.Line => "Garis", ChartTypes.Pie => "Pie", ChartTypes.Doughnut => "Doughnut",
-        ChartTypes.Number => "Angka tunggal", _ => "Tabel data"
+        ChartTypes.Bar => "Bar", ChartTypes.Line => "Line", ChartTypes.Pie => "Pie", ChartTypes.Doughnut => "Doughnut",
+        ChartTypes.Number => "Single number", _ => "Data table"
     };
 }

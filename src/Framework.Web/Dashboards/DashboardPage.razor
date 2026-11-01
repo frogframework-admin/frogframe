@@ -10,12 +10,12 @@
 <PageTitle>Dashboard · DocFrame</PageTitle>
 
 <header class="page-head">
-    <div><h1>Dashboard</h1><p>Widget dari query pelaporan. Filter di bawah diterapkan ke widget yang parameternya diikat ke filter dashboard.</p></div>
+    <div><h1>Dashboard</h1><p>Widgets from reporting queries. The filters below apply to widgets bound to dashboard filters.</p></div>
     @if (designer)
     {
         <div class="row">
-            <BbButton Variant="ButtonVariant.Outline" Href="/dashboard/widgets"><LucideIcon Name="layout-list" Size="16" /> Kelola widget</BbButton>
-            <BbButton Href="/dashboard/widgets/new"><LucideIcon Name="plus" Size="16" /> Widget baru</BbButton>
+            <BbButton Variant="ButtonVariant.Outline" Href="/dashboard/widgets"><LucideIcon Name="layout-list" Size="16" /> Manage widgets</BbButton>
+            <BbButton Href="/dashboard/widgets/new"><LucideIcon Name="plus" Size="16" /> New widget</BbButton>
         </div>
     }
 </header>
@@ -27,22 +27,22 @@
 else
 {
     <div class="dash-filters">
-        <BbField><BbFieldLabel For="f-start">Dari tanggal</BbFieldLabel><FormTextInput Id="f-start" Type="date" Value="@startText" ValueChanged="v => startText = v" /></BbField>
-        <BbField><BbFieldLabel For="f-end">Sampai tanggal</BbFieldLabel><FormTextInput Id="f-end" Type="date" Value="@endText" ValueChanged="v => endText = v" /></BbField>
+        <BbField><BbFieldLabel For="f-start">From date</BbFieldLabel><FormTextInput Id="f-start" Type="date" Value="@startText" ValueChanged="v => startText = v" /></BbField>
+        <BbField><BbFieldLabel For="f-end">To date</BbFieldLabel><FormTextInput Id="f-end" Type="date" Value="@endText" ValueChanged="v => endText = v" /></BbField>
         @if (departments.Count > 0)
         {
             <BbField>
-                <BbFieldLabel>Departemen</BbFieldLabel>
-                <BbSelect TValue="string" Value="@department" ValueChanged="v => department = v ?? string.Empty" AriaLabel="Departemen"
-                          Options="@(departments.Prepend(new SelectOption<string>("", "Semua departemen")))" />
+                <BbFieldLabel>Department</BbFieldLabel>
+                <BbSelect TValue="string" Value="@department" ValueChanged="v => department = v ?? string.Empty" AriaLabel="Department"
+                          Options="@(departments.Prepend(new SelectOption<string>("", "All departments")))" />
             </BbField>
         }
-        <BbButton Disabled="loading" OnClick="Load"><LucideIcon Name="refresh-cw" Size="16" /> @(loading ? "Memuat…" : "Terapkan")</BbButton>
+        <BbButton Disabled="loading" OnClick="Load"><LucideIcon Name="refresh-cw" Size="16" /> @(loading ? "Loading…" : "Apply")</BbButton>
     </div>
 
     @if (cards.Count == 0 && !loading)
     {
-        <BbEmpty Title="Belum ada widget di dashboard" Description="@(designer ? "Buat widget baru lalu tempelkan ke dashboard." : "Hubungi administrator untuk menambahkan widget.")" />
+        <BbEmpty Title="No widgets on dashboard yet" Description="@(designer ? "Create a new widget and pin it to the dashboard." : "Contact an administrator to add widgets.")" />
     }
     <div class="dash-grid">
         @foreach (var card in cards)
@@ -57,11 +57,11 @@ else
                     @if (designer)
                     {
                         <div class="dash-card-actions">
-                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Geser ke kiri" OnClick="() => Move(c, -1)"><LucideIcon Name="arrow-left" Size="15" /></BbButton>
-                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Geser ke kanan" OnClick="() => Move(c, 1)"><LucideIcon Name="arrow-right" Size="15" /></BbButton>
-                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@(c.Item.Span < 3 ? "Perlebar" : "Persempit")" OnClick="() => Resize(c)"><LucideIcon Name="@(c.Item.Span < 3 ? "maximize-2" : "minimize-2")" Size="15" /></BbButton>
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Move left" OnClick="() => Move(c, -1)"><LucideIcon Name="arrow-left" Size="15" /></BbButton>
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Move right" OnClick="() => Move(c, 1)"><LucideIcon Name="arrow-right" Size="15" /></BbButton>
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@(c.Item.Span < 3 ? "Expand" : "Narrow")" OnClick="() => Resize(c)"><LucideIcon Name="@(c.Item.Span < 3 ? "maximize-2" : "minimize-2")" Size="15" /></BbButton>
                             <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Edit widget" OnClick="@(() => Nav.NavigateTo($"/dashboard/widgets/{c.Widget.Id}"))"><LucideIcon Name="pencil" Size="15" /></BbButton>
-                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Lepas dari dashboard" OnClick="() => Unpin(c)"><LucideIcon Name="pin-off" Size="15" /></BbButton>
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Unpin from dashboard" OnClick="() => Unpin(c)"><LucideIcon Name="pin-off" Size="15" /></BbButton>
                         </div>
                     }
                 </div>
@@ -76,7 +76,7 @@ else
                 else
                 {
                     <ChartView Result="c.Run.Result" Visual="c.Widget.Config.Visual" Width="@(c.Item.Span switch { 1 => 360, 2 => 720, _ => 1080 })" />
-                    @if (c.Run.Result!.Truncated) { <p class="muted small">Ditampilkan @c.Run.Result.Rows.Count baris pertama.</p> }
+                    @if (c.Run.Result!.Truncated) { <p class="muted small">Showing first @c.Run.Result.Rows.Count rows.</p> }
                 }
             </section>
         }
@@ -132,8 +132,8 @@ else
             cards = list;
             StateHasChanged();
             var filters = Filters;
-            // Widget dijalankan paralel; masing-masing memakai koneksinya sendiri dan dibatasi statement_timeout.
-            // Kegagalan satu widget tampil sebagai pesan di kartunya, tidak menghentikan kartu lain.
+            // Widgets run in parallel; each uses its own connection limited by statement_timeout.
+            // Failure of one widget shows as an alert inside its card, without stopping other cards.
             await Task.WhenAll(cards.Select(async c =>
             {
                 try { c.Run = await Dashboards.RunWidgetAsync(Current.Required, c.Widget, filters); }
@@ -146,7 +146,7 @@ else
     private async Task SaveLayout()
     {
         try { await Dashboards.SaveLayoutAsync(Current.Required, layout); }
-        catch (PermissionDeniedException ex) { Toasts.Error(ex.Message, "Gagal"); }
+        catch (PermissionDeniedException ex) { Toasts.Error(ex.Message, "Failed"); }
     }
 
     private async Task Move(Card c, int delta)
@@ -169,6 +169,6 @@ else
     {
         await Dashboards.UnpinAsync(Current.Required, c.Widget.Id);
         layout.Items.Remove(c.Item); cards.Remove(c);
-        Toasts.Success("Widget masih tersimpan di Kelola widget.", $"{c.Widget.Name} dilepas");
+        Toasts.Success("Widget is still available in Manage widgets.", $"{c.Widget.Name} unpinned");
     }
 }

@@ -36,7 +36,7 @@ else
             break;
         case "select":
             <BbSelect TValue="string" Value="@(Value as string)" ValueChanged="v => Emit(v)" AriaLabel="@Field.Label"
-                      Options="@(Field.Def.Options!.Select(o => new SelectOption<string>(o, o)))" Placeholder="Pilih…"
+                      Options="@(Field.Def.Options!.Select(o => new SelectOption<string>(o, o)))" Placeholder="Select…"
                       AdditionalAttributes="IdAttr" />
             break;
         case "link":

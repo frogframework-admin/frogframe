@@ -1,6 +1,6 @@
-@* Diagram state machine dari WorkflowDef (SVG). Tata letak otomatis: kolom = jarak terpendek dari state awal. *@
+@* State machine diagram from WorkflowDef (SVG). Automatic layout: column = shortest distance from initial state. *@
 
-<div class="wf-diagram" role="img" aria-label="@($"Diagram workflow {Workflow.Name}: {Workflow.States.Count} state, {Workflow.Transitions.Count} transisi")">
+<div class="wf-diagram" role="img" aria-label="@($"Workflow diagram {Workflow.Name}: {Workflow.States.Count} states, {Workflow.Transitions.Count} transitions")">
     <svg viewBox="0 0 @width @height" width="100%" style="max-width:@(width)px" preserveAspectRatio="xMinYMin meet" xmlns="http://www.w3.org/2000/svg">
         <defs>
             <marker id="wf-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -24,7 +24,7 @@
             <g class="wf-node tone-@n.Tone @(n.Name == Workflow.InitialState ? "initial" : "")">
                 <rect x="@n.X" y="@n.Y" width="@NodeW" height="@NodeH" rx="8" />
                 <text x="@(n.X + NodeW / 2)" y="@(n.Y + 19)" text-anchor="middle" class="wf-node-name">@Trim(n.Name, 18)</text>
-                <text x="@(n.X + NodeW / 2)" y="@(n.Y + 34)" text-anchor="middle" class="wf-node-meta">@StatusLabel(n.DocStatus)@(n.Name == Workflow.InitialState ? " · awal" : "")</text>
+                <text x="@(n.X + NodeW / 2)" y="@(n.Y + 34)" text-anchor="middle" class="wf-node-meta">@StatusLabel(n.DocStatus)@(n.Name == Workflow.InitialState ? " · initial" : "")</text>
             </g>
         }
     </svg>
@@ -144,12 +144,12 @@
                 path = $"M {F(x1)} {F(y1)} C {F(x1)} {F(y1 + depth)}, {F(x2)} {F(y2 + depth)}, {F(x2)} {F(y2 + 2)}";
                 lx = (x1 + x2) / 2; ly = Math.Max(y1, y2) + depth * 0.75;
             }
-            var label = Trim(string.IsNullOrWhiteSpace(t.Action) ? "(tanpa nama)" : t.Action, 19);
+            var label = Trim(string.IsNullOrWhiteSpace(t.Action) ? "(unnamed)" : t.Action, 19);
             edges.Add(new Edge(i, path, label, lx, ly, label.Length * 6.2 + 12));
         }
     }
 
     private static string F(double v) => v.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
     private static string Trim(string s, int max) => s.Length <= max ? s : s[..(max - 1)] + "…";
-    private static string StatusLabel(int docStatus) => docStatus switch { 0 => "dapat diubah", 1 => "terkunci", _ => "dibatalkan" };
+    private static string StatusLabel(int docStatus) => docStatus switch { 0 => "editable", 1 => "locked", _ => "cancelled" };
 }

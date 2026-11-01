@@ -5,7 +5,7 @@
 @inject CurrentUser Current
 @inject IJSRuntime JS
 
-<PageTitle>Cetak @Name · DocFrame</PageTitle>
+<PageTitle>Print @Name · DocFrame</PageTitle>
 
 <style>
     body { background: var(--muted); }
@@ -23,19 +23,19 @@
 
 @if (Current.User is null)
 {
-    <div class="print-stage"><BbAlert Variant="AlertVariant.Warning"><BbAlertDescription>Masuk terlebih dahulu untuk mencetak dokumen.</BbAlertDescription></BbAlert></div>
+    <div class="print-stage"><BbAlert Variant="AlertVariant.Warning"><BbAlertDescription>Please log in first to print this document.</BbAlertDescription></BbAlert></div>
 }
 else if (error is not null)
 {
-    <div class="print-stage"><BbAlert Variant="AlertVariant.Danger"><BbAlertTitle>Tidak dapat dicetak</BbAlertTitle><BbAlertDescription>@error</BbAlertDescription></BbAlert></div>
+    <div class="print-stage"><BbAlert Variant="AlertVariant.Danger"><BbAlertTitle>Unable to print</BbAlertTitle><BbAlertDescription>@error</BbAlertDescription></BbAlert></div>
 }
 else if (model is not null)
 {
     <div class="print-toolbar">
-        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" Href="@($"/app/{DocType}/{Name}")"><LucideIcon Name="arrow-left" Size="16" /> Kembali</BbButton>
+        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" Href="@($"/app/{DocType}/{Name}")"><LucideIcon Name="arrow-left" Size="16" /> Back</BbButton>
         <span class="t">@model.Title @model.DocName</span>
-        <BbButton OnClick="PrintNow"><LucideIcon Name="printer" Size="16" /> Cetak</BbButton>
-        <BbButton Variant="ButtonVariant.Outline" Href="@($"/api/print/{DocType}/{Name}/pdf")"><LucideIcon Name="file-down" Size="16" /> Unduh PDF</BbButton>
+        <BbButton OnClick="PrintNow"><LucideIcon Name="printer" Size="16" /> Print</BbButton>
+        <BbButton Variant="ButtonVariant.Outline" Href="@($"/api/print/{DocType}/{Name}/pdf")"><LucideIcon Name="file-down" Size="16" /> Download PDF</BbButton>
     </div>
     <div class="print-stage"><PrintDocument Model="model" /></div>
 }
@@ -65,7 +65,7 @@ else
 
     private async Task PrintNow()
     {
-        await Docs.LogPrintAsync(Current.Required, DocType, Name, "Cetak browser");
+        await Docs.LogPrintAsync(Current.Required, DocType, Name, "Browser print");
         await JS.InvokeVoidAsync("print");
     }
 }

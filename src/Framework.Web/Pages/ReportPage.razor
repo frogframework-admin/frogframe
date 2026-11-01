@@ -5,17 +5,17 @@
 @inject IPermissionService Perms
 @inject IMetadataProvider Metadata
 
-<PageTitle>Laporan · DocFrame</PageTitle>
+<PageTitle>Reports · DocFrame</PageTitle>
 
 @if (ReportName is null)
 {
-    <header class="page-head"><div><h1>Laporan</h1><p>Report provider C# terdaftar; scope tenant dan baris sama dengan list view.</p></div></header>
+    <header class="page-head"><div><h1>Reports</h1><p>Registered C# report providers; tenant and row scope match list view.</p></div></header>
     <div class="shortcuts">
         @foreach (var r in Reports.AvailableFor(Current.Required))
         {
             <BbCard>
                 <BbCardHeader><BbCardTitle Class="card-title">@r.Title</BbCardTitle><BbCardDescription>@r.Description</BbCardDescription></BbCardHeader>
-                <BbCardFooter><BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Href="@($"/reports/{r.Name}")">Buka laporan</BbButton></BbCardFooter>
+                <BbCardFooter><BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Href="@($"/reports/{r.Name}")">Open report</BbButton></BbCardFooter>
             </BbCard>
         }
     </div>
@@ -24,7 +24,7 @@ else if (report is not null)
 {
     <BbBreadcrumb Class="crumbs">
         <BbBreadcrumbList>
-            <BbBreadcrumbItem><BbBreadcrumbLink Href="/reports">Laporan</BbBreadcrumbLink></BbBreadcrumbItem>
+            <BbBreadcrumbItem><BbBreadcrumbLink Href="/reports">Reports</BbBreadcrumbLink></BbBreadcrumbItem>
             <BbBreadcrumbSeparator />
             <BbBreadcrumbItem><BbBreadcrumbPage>@report.Title</BbBreadcrumbPage></BbBreadcrumbItem>
         </BbBreadcrumbList>
@@ -34,7 +34,7 @@ else if (report is not null)
         @if (canExport)
         {
             <BbButton Variant="ButtonVariant.Outline" Href="@ExportUrl" AdditionalAttributes="@(new Dictionary<string, object> { ["download"] = "" })">
-                <LucideIcon Name="download" Size="16" /> Ekspor CSV
+                <LucideIcon Name="download" Size="16" /> Export CSV
             </BbButton>
         }
     </header>
@@ -47,11 +47,11 @@ else if (report is not null)
                 @if (f.Options is { } opts)
                 {
                     <BbSelect TValue="string" Value="@(filters.GetValueOrDefault(key) ?? "")" ValueChanged="v => Set(key, v)" AriaLabel="@f.Label"
-                              Options="@(opts.Select(o => new SelectOption<string>(o, o)).Prepend(new SelectOption<string>("", "Semua")))" />
+                              Options="@(opts.Select(o => new SelectOption<string>(o, o)).Prepend(new SelectOption<string>("", "All")))" />
                 }
                 else
                 {
-                    <BbDatePicker Value="@(filters.GetValueOrDefault(key) is { } d ? DateTime.Parse(d) : null)" DateFormat="d MMM yyyy" Placeholder="Semua"
+                    <BbDatePicker Value="@(filters.GetValueOrDefault(key) is { } d ? DateTime.Parse(d) : null)" DateFormat="d MMM yyyy" Placeholder="All"
                                   ValueChanged="v => Set(key, v?.ToString(DateFmt))" AriaLabel="@f.Label" />
                 }
             </div>
@@ -62,7 +62,7 @@ else if (report is not null)
     {
         @if (result.Rows.Count == 0)
         {
-            <BbEmpty Title="Tidak ada data untuk filter ini" Description="Perlebar rentang tanggal atau kosongkan filter prioritas." />
+            <BbEmpty Title="No data found for these filters" Description="Widen the date range or clear priority filters." />
         }
         else
         {
@@ -81,7 +81,7 @@ else if (report is not null)
                     </tbody>
                 </table>
             </div>
-            <p class="muted small" style="margin-top:.75rem">Angka hanya mencakup dokumen yang boleh Anda lihat.</p>
+            <p class="muted small" style="margin-top:.75rem">Numbers only include documents you have permission to view.</p>
         }
     }
 }

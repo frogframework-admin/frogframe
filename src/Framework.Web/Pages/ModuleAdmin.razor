@@ -9,41 +9,41 @@
 @inject ToastService Toasts
 @inject DialogService Dialogs
 
-<PageTitle>Master Modul · DocFrame</PageTitle>
+<PageTitle>Master Modules · DocFrame</PageTitle>
 
 @if (!Current.Required.IsAdmin)
 {
-    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>Halaman ini hanya untuk Administrator / System Manager.</BbAlertDescription></BbAlert>
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>This page is only accessible to Administrators / System Managers.</BbAlertDescription></BbAlert>
 }
 else
 {
     <header class="page-head">
         <div>
-            <h1>Master Modul</h1>
-            <p>Kelola modul utama aplikasi dan hak akses modul berdasarkan role pengguna. Setiap modul terdiri dari satu atau lebih group menu.</p>
+            <h1>Master Modules</h1>
+            <p>Manage primary application modules and module access permissions based on user roles. Each module consists of one or more menu groups.</p>
         </div>
         <div class="row" style="gap:.5rem">
-            <BbButton Variant="ButtonVariant.Outline" Disabled="busy" OnClick="ResetDefaults"><LucideIcon Name="rotate-ccw" Size="16" /> Seed Default</BbButton>
-            <BbButton OnClick="StartCreate"><LucideIcon Name="plus" Size="16" /> Tambah modul</BbButton>
+            <BbButton Variant="ButtonVariant.Outline" Disabled="busy" OnClick="ResetDefaults"><LucideIcon Name="rotate-ccw" Size="16" /> Seed Defaults</BbButton>
+            <BbButton OnClick="StartCreate"><LucideIcon Name="plus" Size="16" /> Add module</BbButton>
         </div>
     </header>
 
     <BbDataGrid TData="NavigationModule"
                 Items="@modules"
                 ShowSearch="true"
-                SearchPlaceholder="Cari modul..."
+                SearchPlaceholder="Search modules..."
                 ShowPagination="true"
                 InitialPageSize="10"
                 TableContainerClass="table-wrap"
                 RowClass="@(m => edit?.Id == m.Id ? "selected" : "")">
         <Columns>
-            <BbDataGridPropertyColumn TData="NavigationModule" TProp="int" Property="m => m.SortOrder" Title="Urutan" Width="5rem" Sortable="true">
+            <BbDataGridPropertyColumn TData="NavigationModule" TProp="int" Property="m => m.SortOrder" Title="Order" Width="5rem" Sortable="true">
                 <CellTemplate Context="item">
                     <code>@item.SortOrder</code>
                 </CellTemplate>
             </BbDataGridPropertyColumn>
 
-            <BbDataGridPropertyColumn TData="NavigationModule" TProp="string" Property="m => m.Name" Title="Modul" Width="18rem" Sortable="true" Filterable="true">
+            <BbDataGridPropertyColumn TData="NavigationModule" TProp="string" Property="m => m.Name" Title="Module" Width="18rem" Sortable="true" Filterable="true">
                 <CellTemplate Context="item">
                     <div class="row" style="gap:.6rem;align-items:center;flex-wrap:nowrap">
                         <div style="display:grid;place-items:center;width:2rem;height:2rem;border-radius:var(--radius);background:var(--muted);flex-shrink:0">
@@ -60,20 +60,20 @@ else
                 </CellTemplate>
             </BbDataGridPropertyColumn>
 
-            <BbDataGridTemplateColumn TData="NavigationModule" Title="Group Menu" Width="9rem">
+            <BbDataGridTemplateColumn TData="NavigationModule" Title="Menu Groups" Width="9rem">
                 <ChildContent Context="item">
                     @{
                         var grpCount = groups.Count(g => g.ModuleId == item.Id);
                     }
-                    <BbBadge Variant="BadgeVariant.Outline">@grpCount group</BbBadge>
+                    <BbBadge Variant="BadgeVariant.Outline">@grpCount groups</BbBadge>
                 </ChildContent>
             </BbDataGridTemplateColumn>
 
-            <BbDataGridTemplateColumn TData="NavigationModule" Title="Hak Akses Role">
+            <BbDataGridTemplateColumn TData="NavigationModule" Title="Role Permissions">
                 <ChildContent Context="item">
                     @if (item.AllowedRoles.Count == 0)
                     {
-                        <BbBadge Variant="BadgeVariant.SoftSuccess">Semua Pengguna</BbBadge>
+                        <BbBadge Variant="BadgeVariant.SoftSuccess">All Users</BbBadge>
                     }
                     else
                     {
@@ -92,29 +92,29 @@ else
                     <div class="row" style="gap:.25rem;flex-wrap:nowrap">
                         @if (item.IsSystem)
                         {
-                            <BbBadge Variant="BadgeVariant.Soft">Sistem</BbBadge>
+                            <BbBadge Variant="BadgeVariant.Soft">System</BbBadge>
                         }
                         @if (item.IsActive)
                         {
-                            <BbBadge Variant="BadgeVariant.SoftSuccess">Aktif</BbBadge>
+                            <BbBadge Variant="BadgeVariant.SoftSuccess">Active</BbBadge>
                         }
                         else
                         {
-                            <BbBadge Variant="BadgeVariant.Secondary">Nonaktif</BbBadge>
+                            <BbBadge Variant="BadgeVariant.Secondary">Inactive</BbBadge>
                         }
                     </div>
                 </ChildContent>
             </BbDataGridTemplateColumn>
 
-            <BbDataGridTemplateColumn TData="NavigationModule" Title="Aksi" Width="6.5rem" NoWrap="true">
+            <BbDataGridTemplateColumn TData="NavigationModule" Title="Actions" Width="6.5rem" NoWrap="true">
                 <ChildContent Context="item">
                     <div style="display:inline-flex;align-items:center;gap:.25rem;flex-wrap:nowrap" @onclick:stopPropagation="true">
-                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Edit modul" OnClick="() => StartEdit(item)">
+                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Edit module" OnClick="() => StartEdit(item)">
                             <LucideIcon Name="pencil" Size="15" />
                         </BbButton>
                         @if (!item.IsSystem)
                         {
-                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Hapus modul" OnClick="() => ConfirmDelete(item)">
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Delete module" OnClick="() => ConfirmDelete(item)">
                                 <LucideIcon Name="trash-2" Size="15" />
                             </BbButton>
                         }
@@ -124,7 +124,7 @@ else
         </Columns>
         <EmptyTemplate>
             <div style="padding:2rem;text-align:center;color:var(--muted-foreground)">
-                Tidak ada modul yang ditemukan.
+                No modules found.
             </div>
         </EmptyTemplate>
     </BbDataGrid>
@@ -132,8 +132,8 @@ else
     <AdminDrawer Open="@isDrawerOpen"
                  OpenChanged="@OnDrawerOpenChanged"
                  WidthScale="@DrawerWidthScale"
-                 Title="@(edit is null ? "" : isNew ? "Tambah Modul Baru" : $"Edit: {edit.Name}")"
-                 Description="@(edit is null ? null : edit.IsSystem ? "Modul bawaan sistem (tidak dapat dihapus, namun dapat diatur nama, ikon, urutan, dan hak aksesnya)." : "Modul kustom aplikasi.")">
+                 Title="@(edit is null ? "" : isNew ? "Add New Module" : $"Edit: {edit.Name}")"
+                 Description="@(edit is null ? null : edit.IsSystem ? "Built-in system module (cannot be deleted, but name, icon, sort order, and permissions can be edited)." : "Custom application module.")">
         <ChildContent>
             @if (edit is not null)
             {
@@ -144,36 +144,36 @@ else
 
                 <div class="form-cols cols-2">
                     <BbField>
-                        <BbFieldLabel For="mod-name">Nama Modul</BbFieldLabel>
-                        <FormTextInput Id="mod-name" Immediate="true" @bind-Value="edit.Name" Placeholder="mis. Human Resources, Finance, Inventory" />
+                        <BbFieldLabel For="mod-name">Module Name</BbFieldLabel>
+                        <FormTextInput Id="mod-name" Immediate="true" @bind-Value="edit.Name" Placeholder="e.g. Human Resources, Finance, Inventory" />
                     </BbField>
 
                     <BbField>
-                        <BbFieldLabel For="mod-order">Urutan (Sort Order)</BbFieldLabel>
+                        <BbFieldLabel For="mod-order">Order (Sort Order)</BbFieldLabel>
                         <FormTextInput Id="mod-order" Type="number" Immediate="true" Value="@edit.SortOrder.ToString()" ValueChanged="v => edit.SortOrder = int.TryParse(v, out var n) ? n : edit.SortOrder" />
-                        <BbFieldDescription>Angka lebih kecil tampil lebih dahulu (mis. 10, 20, 30).</BbFieldDescription>
+                        <BbFieldDescription>Lower numbers appear earlier (e.g. 10, 20, 30).</BbFieldDescription>
                     </BbField>
                 </div>
 
                 <BbField>
-                    <BbFieldLabel For="mod-desc">Deskripsi</BbFieldLabel>
-                    <FormTextInput Id="mod-desc" Immediate="true" @bind-Value="edit.Description" Placeholder="mis. Pengelolaan keuangan dan akuntansi" />
-                    <BbFieldDescription>Ringkasan singkat fungsi modul yang ditampilkan pada halaman pemilihan modul.</BbFieldDescription>
+                    <BbFieldLabel For="mod-desc">Description</BbFieldLabel>
+                    <FormTextInput Id="mod-desc" Immediate="true" @bind-Value="edit.Description" Placeholder="e.g. Financial and accounting management" />
+                    <BbFieldDescription>Brief summary of module purpose shown on the module picker page.</BbFieldDescription>
                 </BbField>
 
                 <BbField>
-                    <BbFieldLabel For="mod-icon">Ikon Lucide</BbFieldLabel>
+                    <BbFieldLabel For="mod-icon">Lucide Icon</BbFieldLabel>
                     <div class="row" style="gap:.5rem;align-items:center;flex-wrap:nowrap">
-                        <FormTextInput Id="mod-icon" Immediate="true" @bind-Value="edit.Icon" Placeholder="mis. users, shopping-cart, wallet, package, chart-column, settings" />
+                        <FormTextInput Id="mod-icon" Immediate="true" @bind-Value="edit.Icon" Placeholder="e.g. users, shopping-cart, wallet, package, chart-column, settings" />
                         <div style="display:flex;align-items:center;justify-content:center;width:2.5rem;height:2.5rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--muted);flex-shrink:0">
                             <LucideIcon Name="@(string.IsNullOrWhiteSpace(edit.Icon) ? "layout-grid" : edit.Icon)" Size="18" />
                         </div>
                     </div>
-                    <BbFieldDescription>Nama ikon dari Lucide Icons (mis. users, shopping-cart, wallet, package, chart-column, settings).</BbFieldDescription>
+                    <BbFieldDescription>Lucide icon name (e.g. users, shopping-cart, wallet, package, chart-column, settings).</BbFieldDescription>
                 </BbField>
 
-                <div class="props-sub">Hak Akses Modul (Role Pengguna)</div>
-                <p class="muted small">Pilih role yang diizinkan mengakses modul ini (bisa lebih dari satu). Jika tidak ada yang dicentang, modul dapat diakses oleh <strong>Semua Pengguna</strong>.</p>
+                <div class="props-sub">Module Permissions (User Roles)</div>
+                <p class="muted small">Select roles authorized to access this module (multiple allowed). If none selected, the module is accessible to <strong>All Users</strong>.</p>
                 <div class="role-check-grid">
                     @foreach (var r in AvailableRoles)
                     {
@@ -187,7 +187,7 @@ else
 
                 <div class="label-row" style="margin-top:.5rem">
                     <BbCheckbox Id="mod-active" Checked="edit.IsActive" CheckedChanged="v => edit.IsActive = v" />
-                    <BbLabel For="mod-active">Aktif (ditampilkan di halaman pemilihan modul)</BbLabel>
+                    <BbLabel For="mod-active">Active (displayed in module selector page)</BbLabel>
                 </div>
             }
         </ChildContent>
@@ -195,13 +195,13 @@ else
             @if (edit is not null)
             {
                 <div class="row" style="gap:.5rem;width:100%;align-items:center">
-                    <BbButton Disabled="busy" Loading="busy" LoadingText="Menyimpan…" OnClick="Save"><LucideIcon Name="check" Size="16" /> Simpan</BbButton>
-                    <BbButton Variant="ButtonVariant.Ghost" OnClick="CloseDrawer">Batal</BbButton>
+                    <BbButton Disabled="busy" Loading="busy" LoadingText="Saving…" OnClick="Save"><LucideIcon Name="check" Size="16" /> Save</BbButton>
+                    <BbButton Variant="ButtonVariant.Ghost" OnClick="CloseDrawer">Cancel</BbButton>
                     @if (!isNew && !edit.IsSystem)
                     {
                         <span style="margin-left:auto">
                             <BbButton Variant="ButtonVariant.Destructive" Size="ButtonSize.Small" Disabled="busy" OnClick="() => ConfirmDelete(edit)">
-                                <LucideIcon Name="trash-2" Size="15" /> Hapus
+                                <LucideIcon Name="trash-2" Size="15" /> Delete
                             </BbButton>
                         </span>
                     }
@@ -317,8 +317,8 @@ else
         if (edit is null || busy) return;
         if (string.IsNullOrWhiteSpace(edit.Name))
         {
-            error = "Nama modul tidak boleh kosong.";
-            Toasts.Error(error, "Gagal Menyimpan");
+            error = "Module name cannot be empty.";
+            Toasts.Error(error, "Failed to Save");
             return;
         }
 
@@ -333,14 +333,14 @@ else
         try
         {
             await MenuStore.SaveModuleAsync(edit);
-            Toasts.Success($"Modul \"{edit.Name}\" berhasil disimpan.", "Berhasil Disimpan");
+            Toasts.Success($"Module \"{edit.Name}\" successfully saved.", "Successfully Saved");
             isDrawerOpen = false;
             await Reload();
         }
         catch (Exception ex)
         {
             error = ex.Message;
-            Toasts.Error(ex.Message, "Gagal Menyimpan");
+            Toasts.Error(ex.Message, "Failed to Save");
         }
         finally
         {
@@ -352,14 +352,14 @@ else
     {
         if (item.IsSystem)
         {
-            Toasts.Error("Modul sistem bawaan tidak dapat dihapus.", "Tidak Diizinkan");
+            Toasts.Error("Built-in system modules cannot be deleted.", "Not Allowed");
             return;
         }
 
         var res = await Dialogs.ConfirmAsync(
-            $"Hapus modul \"{item.Name}\"?",
-            "Modul ini akan dihapus apabila tidak lagi memiliki group menu. Tindakan ini tidak bisa dibatalkan.",
-            new ConfirmDialogOptions { Destructive = true, ConfirmText = "Hapus Modul", CancelText = "Batal" });
+            $"Delete module \"{item.Name}\"?",
+            "This module will be deleted if it no longer contains menu groups. This action cannot be undone.",
+            new ConfirmDialogOptions { Destructive = true, ConfirmText = "Delete Module", CancelText = "Cancel" });
 
         if (!res.Confirmed) return;
 
@@ -368,12 +368,12 @@ else
         {
             await MenuStore.DeleteModuleAsync(item.Id, item.TenantId);
             if (edit?.Id == item.Id) isDrawerOpen = false;
-            Toasts.Success($"Modul \"{item.Name}\" berhasil dihapus.", "Modul Dihapus");
+            Toasts.Success($"Module \"{item.Name}\" successfully deleted.", "Module Deleted");
             await Reload();
         }
         catch (Exception ex)
         {
-            Toasts.Error(ex.Message, "Gagal Menghapus Modul");
+            Toasts.Error(ex.Message, "Failed to Delete Module");
         }
         finally
         {
@@ -384,9 +384,9 @@ else
     private async Task ResetDefaults()
     {
         var res = await Dialogs.ConfirmAsync(
-            "Seed / Pulihkan Modul Wajib?",
-            "Sistem akan memeriksa dan menambahkan modul, group menu, serta menu wajib bawaan yang belum ada di database.",
-            new ConfirmDialogOptions { ConfirmText = "Jalankan Seed", CancelText = "Batal" });
+            "Seed / Restore Default Modules?",
+            "The system will verify and seed missing modules, menu groups, and built-in menus into the database.",
+            new ConfirmDialogOptions { ConfirmText = "Run Seed", CancelText = "Cancel" });
 
         if (!res.Confirmed) return;
 
@@ -394,12 +394,12 @@ else
         try
         {
             await MenuStore.EnsureDefaultMenusAsync(Current.Required.TenantId);
-            Toasts.Success("Modul dan group menu default berhasil diperiksa dan di-seed.", "Seed Berhasil");
+            Toasts.Success("Default modules and menu groups successfully verified and seeded.", "Seed Successful");
             await Reload();
         }
         catch (Exception ex)
         {
-            Toasts.Error(ex.Message, "Gagal Seed Modul");
+            Toasts.Error(ex.Message, "Failed to Seed Modules");
         }
         finally
         {

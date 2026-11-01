@@ -14,10 +14,10 @@
 @inject IHostEnvironment Env
 @inject TimeProvider Clock
 
-<PageTitle>Masuk · DocFrame</PageTitle>
+<PageTitle>Log in · DocFrame</PageTitle>
 
-<h1 class="auth-title">Masuk</h1>
-<p class="auth-sub">Gunakan akun yang diberikan administrator.</p>
+<h1 class="auth-title">Log in</h1>
+<p class="auth-sub">Use the account provided by your administrator.</p>
 
 @if (error is not null)
 {
@@ -36,16 +36,16 @@
         <InputText id="password" type="password" class="auth-input" @bind-Value="Input.Password" autocomplete="current-password" />
         <ValidationMessage For="() => Input.Password" class="auth-error" />
     </div>
-    <label class="auth-check"><InputCheckbox @bind-Value="Input.RememberMe" /> Tetap masuk di perangkat ini</label>
-    <button type="submit" class="auth-button">Masuk</button>
+    <label class="auth-check"><InputCheckbox @bind-Value="Input.RememberMe" /> Remember me on this device</label>
+    <button type="submit" class="auth-button">Log in</button>
 </EditForm>
 
 @if (Config.GetValue<bool>("Demo:ShowAccounts"))
 {
     <details class="auth-demo">
-        <summary>Akun demo (hanya lingkungan pengembangan)</summary>
-        <p>Password semua akun: <code>@Config["Demo:Password"]</code></p>
-        <p><code>andi</code> · <code>sari</code> pemohon · <code>budi</code> · <code>maya</code> atasan · <code>dewi</code> finance · <code>rina</code> pengadaan · <code>admin</code> System Manager · <code>tono</code> tenant globex</p>
+        <summary>Demo accounts (development environment only)</summary>
+        <p>Password for all accounts: <code>@Config["Demo:Password"]</code></p>
+        <p><code>andi</code> · <code>sari</code> requester · <code>budi</code> · <code>maya</code> manager · <code>dewi</code> finance · <code>rina</code> procurement · <code>admin</code> System Manager · <code>tono</code> globex tenant</p>
     </details>
 }
 
@@ -96,9 +96,9 @@
             return;
         }
         // Pesan sengaja tidak membedakan "username tidak ada" dan "password salah".
-        error = result.IsLockedOut ? "Akun terkunci sementara karena terlalu banyak percobaan gagal. Coba lagi dalam 15 menit."
-              : result.IsNotAllowed ? "Akun ini nonaktif. Hubungi administrator."
-              : "Username atau password salah.";
+        error = result.IsLockedOut ? "Account is temporarily locked due to too many failed attempts. Try again in 15 minutes."
+              : result.IsNotAllowed ? "This account is inactive. Please contact the administrator."
+              : "Invalid username or password.";
     }
 
     /// <summary>Hanya URL lokal (mencegah open redirect).</summary>
@@ -107,8 +107,8 @@
 
     private sealed class LoginModel
     {
-        [Required(ErrorMessage = "Username wajib diisi")] public string UserName { get; set; } = "";
-        [Required(ErrorMessage = "Password wajib diisi")] public string Password { get; set; } = "";
+        [Required(ErrorMessage = "Username is required")] public string UserName { get; set; } = "";
+        [Required(ErrorMessage = "Password is required")] public string Password { get; set; } = "";
         public bool RememberMe { get; set; }
     }
 }

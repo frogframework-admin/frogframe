@@ -9,12 +9,12 @@
 @inject DialogService Dialogs
 @inject ToastService Toasts
 
-<PageTitle>@(IsNew ? $"{meta?.Title} baru" : Name) · DocFrame</PageTitle>
+<PageTitle>@(IsNew ? $"New {meta?.Title}" : Name) · DocFrame</PageTitle>
 
 @if (fatal is not null)
 {
     <BbBreadcrumb Class="crumbs"><BbBreadcrumbList><BbBreadcrumbItem><BbBreadcrumbLink Href="@($"/app/{DocType}")">@(meta?.Title ?? DocType)</BbBreadcrumbLink></BbBreadcrumbItem></BbBreadcrumbList></BbBreadcrumb>
-    <BbAlert Variant="AlertVariant.Danger"><BbAlertTitle>Tidak dapat dibuka</BbAlertTitle><BbAlertDescription>@fatal</BbAlertDescription></BbAlert>
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertTitle>Unable to open</BbAlertTitle><BbAlertDescription>@fatal</BbAlertDescription></BbAlert>
 }
 else if (meta is not null && doc is not null)
 {
@@ -22,20 +22,20 @@ else if (meta is not null && doc is not null)
         <BbBreadcrumbList>
             <BbBreadcrumbItem><BbBreadcrumbLink Href="@($"/app/{meta.Name}")">@meta.Title</BbBreadcrumbLink></BbBreadcrumbItem>
             <BbBreadcrumbSeparator />
-            <BbBreadcrumbItem><BbBreadcrumbPage>@(IsNew ? "Baru" : doc.Name)</BbBreadcrumbPage></BbBreadcrumbItem>
+            <BbBreadcrumbItem><BbBreadcrumbPage>@(IsNew ? "New" : doc.Name)</BbBreadcrumbPage></BbBreadcrumbItem>
         </BbBreadcrumbList>
     </BbBreadcrumb>
 
     <header class="doc-head">
         <div>
-            <h1>@(IsNew ? $"{meta.Title} baru" : doc.Name)</h1>
+            <h1>@(IsNew ? $"New {meta.Title}" : doc.Name)</h1>
             <p>
                 @if (!IsNew)
                 {
-                    <span>Dibuat oleh @doc.Owner · diubah @Fmt.When(doc.Modified) · versi @doc.Version</span>
-                    @if (doc.AmendedFrom is not null) { <span> · amandemen dari <a href="/app/@meta.Name/@doc.AmendedFrom">@doc.AmendedFrom</a></span> }
+                    <span>Created by @doc.Owner · modified @Fmt.When(doc.Modified) · version @doc.Version</span>
+                    @if (doc.AmendedFrom is not null) { <span> · amended from <a href="/app/@meta.Name/@doc.AmendedFrom">@doc.AmendedFrom</a></span> }
                 }
-                else { <span>Belum disimpan</span> }
+                else { <span>Not saved yet</span> }
             </p>
         </div>
         @if (!IsNew || meta.Workflow is not null)
@@ -44,41 +44,41 @@ else if (meta is not null && doc is not null)
         }
     </header>
 
-    <div class="toolbar" role="toolbar" aria-label="Aksi dokumen">
+    <div class="toolbar" role="toolbar" aria-label="Document actions">
         @if (Editable)
         {
-            <BbButton Disabled="@(busy || (!IsNew && !dirty))" Loading="@(busy && savingNow)" LoadingText="Menyimpan…" OnClick="Save">
-                <LucideIcon Name="check" Size="16" /> @(IsNew ? "Simpan draft" : dirty ? "Simpan perubahan" : "Tersimpan")
+            <BbButton Disabled="@(busy || (!IsNew && !dirty))" Loading="@(busy && savingNow)" LoadingText="Saving…" OnClick="Save">
+                <LucideIcon Name="check" Size="16" /> @(IsNew ? "Save draft" : dirty ? "Save changes" : "Saved")
             </BbButton>
         }
         @foreach (var a in actions)
         {
             var act = a;
             <BbButton Variant="@Fmt.ButtonFor(act.Tone)" Disabled="@(busy || dirty)" OnClick="() => RunAction(act)"
-                      AdditionalAttributes="@(new Dictionary<string, object> { ["title"] = dirty ? "Simpan perubahan dulu" : $"Pindahkan ke {act.ToState}" })">
+                      AdditionalAttributes="@(new Dictionary<string, object> { ["title"] = dirty ? "Save changes first" : $"Move to {act.ToState}" })">
                 <LucideIcon Name="@IconFor(act)" Size="16" /> @ActionLabel(act.Action)
             </BbButton>
         }
         @if (!IsNew)
         {
             <BbButton Variant="ButtonVariant.Outline" Href="@($"/print/{DocType}/{Name}")" Disabled="@dirty"
-                      AdditionalAttributes="@(new Dictionary<string, object> { ["target"] = "_blank", ["title"] = "Pratinjau cetak A4" })">
-                <LucideIcon Name="printer" Size="16" /> Cetak
+                      AdditionalAttributes="@(new Dictionary<string, object> { ["target"] = "_blank", ["title"] = "A4 print preview" })">
+                <LucideIcon Name="printer" Size="16" /> Print
             </BbButton>
             <BbButton Variant="ButtonVariant.Ghost" Href="@($"/api/print/{DocType}/{Name}/pdf")" Disabled="@dirty"
-                      AdditionalAttributes="@(new Dictionary<string, object> { ["title"] = "Unduh PDF" })">
+                      AdditionalAttributes="@(new Dictionary<string, object> { ["title"] = "Download PDF" })">
                 <LucideIcon Name="file-down" Size="16" /> PDF
             </BbButton>
         }
         @if (!IsNew && doc.DocStatus == DocStatus.Draft && meta.Def.Document.AllowDelete && Perms.Can(User, meta, DocActions.Delete))
         {
             <BbButton Variant="ButtonVariant.Ghost" Disabled="@busy" OnClick="Delete">
-                <LucideIcon Name="trash-2" Size="16" /> Hapus draft
+                <LucideIcon Name="trash-2" Size="16" /> Delete draft
             </BbButton>
         }
         @if (!Editable && !IsNew && doc.DocStatus != DocStatus.Draft)
         {
-            <span class="muted small">Dokumen terkunci karena berstatus @Fmt.StateLabel(doc.WorkflowState, doc.DocStatus).</span>
+            <span class="muted small">Document is locked with status @Fmt.StateLabel(doc.WorkflowState, doc.DocStatus).</span>
         }
     </div>
 
@@ -86,10 +86,10 @@ else if (meta is not null && doc is not null)
     {
         <BbAlert Variant="AlertVariant.Warning" Class="crumbs">
             <ChildContent>
-                <BbAlertTitle>Konflik versi</BbAlertTitle>
+                <BbAlertTitle>Version conflict</BbAlertTitle>
                 <BbAlertDescription>@conflict</BbAlertDescription>
             </ChildContent>
-            <Actions><BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick="Load">Muat ulang versi terbaru</BbButton></Actions>
+            <Actions><BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick="Load">Reload latest version</BbButton></Actions>
         </BbAlert>
     }
     @if (banner is not null)
@@ -99,7 +99,7 @@ else if (meta is not null && doc is not null)
     @if (errors.Count > 0)
     {
         <BbAlert Variant="AlertVariant.Danger" Class="crumbs">
-            <BbAlertTitle>Periksa @errors.Count isian berikut sebelum menyimpan</BbAlertTitle>
+            <BbAlertTitle>Please check the following @errors.Count field(s) before saving</BbAlertTitle>
             <BbAlertDescription>
                 <ul class="error-list">@foreach (var e in errors) { <li><a href="#@Anchor(e.Key)">@e.Value</a></li> }</ul>
             </BbAlertDescription>
@@ -112,7 +112,7 @@ else if (meta is not null && doc is not null)
             {
                 <BbTabsTrigger Value="@t.Title">@t.Title@if (TabErrorCount(t) is > 0 and var n) { <span class="tab-count">@n</span> }</BbTabsTrigger>
             }
-            @if (!IsNew) { <BbTabsTrigger Value="@HistoryTab">Riwayat</BbTabsTrigger> }
+            @if (!IsNew) { <BbTabsTrigger Value="@HistoryTab">History</BbTabsTrigger> }
         </BbTabsList>
 
         @foreach (var tab in meta.Layout.Where(TabVisible))
@@ -140,9 +140,9 @@ else if (meta is not null && doc is not null)
                                                         {
                                                             <BbFieldLabel For="@f.Name">
                                                                 <span class="label-row">
-                                                                    @f.Label@if (st.Required && !ro) { <span class="req" aria-label="wajib">*</span> }
-                                                                    @if (f.IsDerived) { <BbBadge Variant="BadgeVariant.Soft">@(f.Compute is not null ? "otomatis" : $"dari {f.FetchFrom!.Value.LinkField}")</BbBadge> }
-                                                                    @if (f.Def.PermLevel > 0) { <BbBadge Variant="BadgeVariant.Outline">terbatas</BbBadge> }
+                                                                    @f.Label@if (st.Required && !ro) { <span class="req" aria-label="required">*</span> }
+                                                                    @if (f.IsDerived) { <BbBadge Variant="BadgeVariant.Soft">@(f.Compute is not null ? "computed" : $"from {f.FetchFrom!.Value.LinkField}")</BbBadge> }
+                                                                    @if (f.Def.PermLevel > 0) { <BbBadge Variant="BadgeVariant.Outline">restricted</BbBadge> }
                                                                 </span>
                                                             </BbFieldLabel>
                                                         }
@@ -231,7 +231,7 @@ else if (meta is not null && doc is not null)
 
     private static string ActionLabel(string action) => action switch
     {
-        DocActions.Submit => "Submit", DocActions.Cancel => "Batalkan", DocActions.Amend => "Amend (buat revisi)", _ => action
+        DocActions.Submit => "Submit", DocActions.Cancel => "Cancel", DocActions.Amend => "Amend (create revision)", _ => action
     };
 
     private static string IconFor(ActionView a) => a.Tone switch
@@ -253,7 +253,7 @@ else if (meta is not null && doc is not null)
     private async Task Load()
     {
         fatal = null; banner = null; conflict = null; errors.Clear();
-        if (!Metadata.Current.TryGet(DocType, out var m) || m.Def.IsChild) { fatal = $"DocType '{DocType}' tidak ditemukan."; return; }
+        if (!Metadata.Current.TryGet(DocType, out var m) || m.Def.IsChild) { fatal = $"DocType '{DocType}' not found."; return; }
         meta = m;
         try
         {
@@ -305,7 +305,7 @@ else if (meta is not null && doc is not null)
         {
             var root = key.Split('[', '.')[0];
             var changed = JsonSerializer.Serialize(model.GetValueOrDefault(root)) != (errorSnapshot.GetValueOrDefault(root) ?? "null");
-            var noLongerRequired = meta!.ByName.TryGetValue(root, out var f) && errors[key].Contains("wajib") && !State(f).Required;
+            var noLongerRequired = meta!.ByName.TryGetValue(root, out var f) && (errors[key].Contains("wajib") || errors[key].Contains("required")) && !State(f).Required;
             if (changed || noLongerRequired) errors.Remove(key);
         }
         dirty = Snapshot() != original;
@@ -338,14 +338,14 @@ else if (meta is not null && doc is not null)
             if (IsNew)
             {
                 var saved = await Docs.InsertAsync(User, DocType, payload);
-                Toasts.Success($"{saved.Name} tersimpan sebagai draft.", "Tersimpan");
+                Toasts.Success($"{saved.Name} saved as draft.", "Saved");
                 Nav.NavigateTo($"/app/{DocType}/{saved.Name}");
                 return;
             }
             if (payload.Count == 0) return;
             await Docs.UpdateAsync(User, DocType, Name, doc!.Version, payload);
             await Load();
-            Toasts.Success("Perubahan tersimpan.", Name);
+            Toasts.Success("Changes saved.", Name);
         }
         catch (Exception ex) { HandleError(ex); }
         finally { busy = savingNow = false; }
@@ -358,12 +358,12 @@ else if (meta is not null && doc is not null)
         {
             // Validasi komentar dilakukan di sini (bukan Required pada prompt): BbInput meng-commit nilai saat blur,
             // sehingga Required membuat tombol konfirmasi tetap nonaktif selama pengguna masih mengetik.
-            var prompt = await Dialogs.PromptAsync($"{a.Action} {doc!.Name}?", "Tulis alasan atau catatan. Komentar ini dikirim ke pemohon dan tercatat di riwayat.",
-                new PromptDialogOptions { Placeholder = "Alasan…", ConfirmText = a.Action, CancelText = "Batal", MaxLength = 1000 });
+            var prompt = await Dialogs.PromptAsync($"{a.Action} {doc!.Name}?", "Write a reason or note. This comment will be sent to the requester and recorded in history.",
+                new PromptDialogOptions { Placeholder = "Reason…", ConfirmText = a.Action, CancelText = "Cancel", MaxLength = 1000 });
             if (prompt.Cancelled) return;
             if (string.IsNullOrWhiteSpace(prompt.Value))
             {
-                Toasts.Error($"Aksi “{a.Action}” wajib disertai alasan. Tidak ada yang diubah.", "Komentar kosong");
+                Toasts.Error($"Action “{a.Action}” requires a reason. Nothing was changed.", "Empty comment");
                 return;
             }
             comment = prompt.Value.Trim();
@@ -374,12 +374,12 @@ else if (meta is not null && doc is not null)
             var result = await Docs.RunActionAsync(User, DocType, Name, a.Action, doc!.Version, comment);
             if (result.Name != Name)
             {
-                Toasts.Success($"Draft revisi {result.Name} dibuat.", "Amend");
+                Toasts.Success($"Revision draft {result.Name} created.", "Amend");
                 Nav.NavigateTo($"/app/{DocType}/{result.Name}");
                 return;
             }
             await Load();
-            Toasts.Success($"Status sekarang {Fmt.StateLabel(result.WorkflowState, result.DocStatus)}.", $"{ActionLabel(a.Action)} berhasil");
+            Toasts.Success($"Status is now {Fmt.StateLabel(result.WorkflowState, result.DocStatus)}.", $"{ActionLabel(a.Action)} succeeded");
         }
         catch (Exception ex) { HandleError(ex); }
         finally { busy = false; }
@@ -387,14 +387,14 @@ else if (meta is not null && doc is not null)
 
     private async Task Delete()
     {
-        var confirm = await Dialogs.ConfirmAsync($"Hapus {Name}?", "Draft ini akan dihapus. Riwayat penghapusan tetap tercatat.",
-            new ConfirmDialogOptions { Destructive = true, ConfirmText = "Hapus draft", CancelText = "Batal" });
+        var confirm = await Dialogs.ConfirmAsync($"Delete {Name}?", "This draft will be deleted. Deletion history remains recorded.",
+            new ConfirmDialogOptions { Destructive = true, ConfirmText = "Delete draft", CancelText = "Cancel" });
         if (!confirm.Confirmed) return;
         busy = true;
         try
         {
             await Docs.DeleteAsync(User, DocType, Name, doc!.Version);
-            Toasts.Success($"{Name} dihapus.", "Dihapus");
+            Toasts.Success($"{Name} deleted.", "Deleted");
             Nav.NavigateTo($"/app/{DocType}");
         }
         catch (Exception ex) { HandleError(ex); }

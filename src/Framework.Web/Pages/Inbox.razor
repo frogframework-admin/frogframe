@@ -5,16 +5,16 @@
 @inject NavigationManager Nav
 @implements IDisposable
 
-<PageTitle>Kotak masuk · DocFrame</PageTitle>
+<PageTitle>Inbox · DocFrame</PageTitle>
 
 <header class="page-head">
-    <div><h1>Kotak masuk</h1><p>Notifikasi dikirim worker outbox setelah transaksi dokumen berhasil di-commit.</p></div>
+    <div><h1>Inbox</h1><p>Notifications are sent by the outbox worker after document transactions are committed.</p></div>
 </header>
 
 <div class="stack">
     @if (items.Count == 0)
     {
-        <BbEmpty Title="Belum ada notifikasi" Description="Notifikasi muncul saat dokumen yang melibatkan Anda berpindah status.">
+        <BbEmpty Title="No notifications yet" Description="Notifications will appear when documents involving you change status.">
             <Icon><LucideIcon Name="inbox" Size="28" /></Icon>
         </BbEmpty>
     }
@@ -40,11 +40,11 @@
     @if (Current.Required.Roles.Contains(UserContext.SystemManager))
     {
         <BbCard>
-            <BbCardHeader><BbCardTitle Class="card-title">Outbox</BbCardTitle><BbCardDescription>Diagnostik: event terbaru tenant ini dan status pengirimannya.</BbCardDescription></BbCardHeader>
+            <BbCardHeader><BbCardTitle Class="card-title">Outbox</BbCardTitle><BbCardDescription>Diagnostics: recent events for this tenant and their delivery status.</BbCardDescription></BbCardHeader>
             <BbCardContent>
                 <div class="table-wrap">
                     <table class="data">
-                        <thead><tr><th>Event</th><th>Dokumen</th><th class="num">Percobaan</th><th>Status</th></tr></thead>
+                        <thead><tr><th>Event</th><th>Document</th><th class="num">Attempts</th><th>Status</th></tr></thead>
                         <tbody>
                             @foreach (var m in Outbox.Snapshot().Where(m => m.TenantId == Current.Required.TenantId).OrderByDescending(m => m.CreatedAt).Take(15))
                             {
@@ -54,8 +54,8 @@
                                     <td class="num">@m.Attempts</td>
                                     <td>
                                         @if (m.DeadLettered) { <BbBadge Variant="BadgeVariant.SoftDestructive">dead-letter</BbBadge> }
-                                        else if (m.ProcessedAt is not null) { <BbBadge Variant="BadgeVariant.SoftSuccess">terkirim</BbBadge> }
-                                        else { <BbBadge Variant="BadgeVariant.Soft">antre</BbBadge> }
+                                        else if (m.ProcessedAt is not null) { <BbBadge Variant="BadgeVariant.SoftSuccess">delivered</BbBadge> }
+                                        else { <BbBadge Variant="BadgeVariant.Soft">queued</BbBadge> }
                                     </td>
                                 </tr>
                             }

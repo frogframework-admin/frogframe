@@ -514,7 +514,7 @@ sealed partial class Tests
         var model = await sp.GetRequiredService<PrintService>().BuildAsync(U("sari"), PR, "PR-2026-00004");
         var html = await sp.GetRequiredService<PrintHtmlRenderer>().RenderAsync(model);
         Assert.True(html.StartsWith("<!DOCTYPE html>") && html.Contains("@page"), "dokumen HTML dengan CSS A4");
-        Assert.True(html.Contains("PR-2026-00004") && html.Contains("Terbilang:") && html.Contains("Maya Lestari"), "isi dokumen");
+        Assert.True(html.Contains("PR-2026-00004") && (html.Contains("In words:") || html.Contains("Terbilang:")) && html.Contains("Maya Lestari"), "isi dokumen");
         Assert.True(!html.Contains("http://") && !html.Contains("https://"), "tanpa sumber eksternal");
     }
 

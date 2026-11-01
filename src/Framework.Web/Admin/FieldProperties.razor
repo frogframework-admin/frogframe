@@ -1,4 +1,4 @@
-@* Panel properti field di editor DocType. Setiap perubahan memicu kompilasi ulang draft (OnChanged). *@
+@* Field properties panel in DocType editor. Every change triggers draft recompilation (OnChanged). *@
 
 @if (ShowHeader)
 {
@@ -7,7 +7,7 @@
             <div class="props-title">@(string.IsNullOrWhiteSpace(Field.Label) ? Field.Name : Field.Label)</div>
             <div class="muted small"><code>@Field.Name</code> · @Field.Type</div>
         </div>
-        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Tutup panel properti" OnClick="OnClose"><LucideIcon Name="x" Size="16" /></BbButton>
+        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Close properties panel" OnClick="OnClose"><LucideIcon Name="x" Size="16" /></BbButton>
     </div>
 }
 
@@ -19,30 +19,30 @@
 }
 
 <div class="props-group">
-    <div class="props-group-title">Dasar</div>
+    <div class="props-group-title">Basic</div>
     <BbField>
         <BbFieldLabel For="p-label">Label</BbFieldLabel>
         <BbInput Id="p-label" Value="@Field.Label" ValueChanged="v => Set(() => Field.Label = v ?? string.Empty)" />
     </BbField>
     <BbField IsInvalid="@NameError">
-        <BbFieldLabel For="p-name">Nama field</BbFieldLabel>
+        <BbFieldLabel For="p-name">Field name</BbFieldLabel>
         <BbInput Id="p-name" Value="@Field.Name" ValueChanged="v => Set(() => Field.Name = (v ?? string.Empty).Trim())" />
         @if (IsExisting && Field.Name != OriginalName)
         {
-            <BbFieldDescription>Field ini sudah ada di versi aktif. Mengganti nama = menghapus field lama (data lama tidak terbaca) dan menambah field baru — perubahan berisiko.</BbFieldDescription>
+            <BbFieldDescription>This field already exists in the active version. Renaming = deleting the old field (old data becomes unreadable) and adding a new field — risky change.</BbFieldDescription>
         }
         else
         {
-            <BbFieldDescription>snake_case, dipakai di API, ekspresi, dan penyimpanan.</BbFieldDescription>
+            <BbFieldDescription>snake_case, used in API, expressions, and storage.</BbFieldDescription>
         }
     </BbField>
     <BbField>
-        <BbFieldLabel>Tipe</BbFieldLabel>
-        <BbSelect TValue="string" Value="@Field.Type" ValueChanged="ChangeType" AriaLabel="Tipe field"
+        <BbFieldLabel>Type</BbFieldLabel>
+        <BbSelect TValue="string" Value="@Field.Type" ValueChanged="ChangeType" AriaLabel="Field type"
                   Options="@(DocTypeDesign.FieldTypes.Select(t => new SelectOption<string>(t, t)))" />
     </BbField>
     <BbField>
-        <BbFieldLabel For="p-desc">Keterangan</BbFieldLabel>
+        <BbFieldLabel For="p-desc">Description</BbFieldLabel>
         <BbTextarea Id="p-desc" Value="@Field.Description" ValueChanged="v => Set(() => Field.Description = Blank(v))" UpdateTiming="UpdateTiming.OnChange" />
     </BbField>
 </div>
@@ -51,60 +51,60 @@
 {
     case "Select":
         <div class="props-group">
-            <div class="props-group-title">Pilihan</div>
+            <div class="props-group-title">Options</div>
             <BbField IsInvalid="@Err("options")">
-                <BbFieldLabel For="p-options">Opsi (satu per baris)</BbFieldLabel>
+                <BbFieldLabel For="p-options">Options (one per line)</BbFieldLabel>
                 <BbTextarea Id="p-options" Value="@OptionsText" UpdateTiming="UpdateTiming.OnChange" ValueChanged="SetOptions" />
             </BbField>
         </div>
         break;
     case "Link":
         <div class="props-group">
-            <div class="props-group-title">Relasi</div>
+            <div class="props-group-title">Relation</div>
             <BbField IsInvalid="@Err("")">
-                <BbFieldLabel>Menunjuk DocType</BbFieldLabel>
-                <BbSelect TValue="string" Value="@Field.LinkTo" ValueChanged="v => Set(() => Field.LinkTo = v)" AriaLabel="Menunjuk DocType"
+                <BbFieldLabel>Points to DocType</BbFieldLabel>
+                <BbSelect TValue="string" Value="@Field.LinkTo" ValueChanged="v => Set(() => Field.LinkTo = v)" AriaLabel="Points to DocType"
                           Options="@(Snapshot.DocTypes.Values.Where(d => !d.Def.IsChild).OrderBy(d => d.Name).Select(d => new SelectOption<string>(d.Name, $"{d.Title} ({d.Name})")))" />
             </BbField>
-            <div class="label-row"><BbCheckbox Id="p-lookup" Checked="Field.LookupDialog" CheckedChanged="v => Set(() => Field.LookupDialog = v)" /><BbLabel For="p-lookup">Tombol pilih dari daftar (dialog)</BbLabel></div>
+            <div class="label-row"><BbCheckbox Id="p-lookup" Checked="Field.LookupDialog" CheckedChanged="v => Set(() => Field.LookupDialog = v)" /><BbLabel For="p-lookup">Select from list button (dialog)</BbLabel></div>
         </div>
         break;
     case "Table":
         <div class="props-group">
             <div class="props-group-title">Child table</div>
             <BbField IsInvalid="@Err("")">
-                <BbFieldLabel>DocType baris</BbFieldLabel>
-                <BbSelect TValue="string" Value="@Field.ChildDocType" ValueChanged="v => Set(() => Field.ChildDocType = v)" AriaLabel="DocType baris"
+                <BbFieldLabel>Row DocType</BbFieldLabel>
+                <BbSelect TValue="string" Value="@Field.ChildDocType" ValueChanged="v => Set(() => Field.ChildDocType = v)" AriaLabel="Row DocType"
                           Options="@(Snapshot.DocTypes.Values.Where(d => d.Def.IsChild).OrderBy(d => d.Name).Select(d => new SelectOption<string>(d.Name, $"{d.Title} ({d.Name})")))" />
-                <BbFieldDescription>Hanya DocType bertanda isChild. Pemetaan "tambah dari daftar" diatur di tab JSON.</BbFieldDescription>
+                <BbFieldDescription>Only DocTypes marked as isChild. "Add from list" mapping is configured in the JSON tab.</BbFieldDescription>
             </BbField>
         </div>
         break;
 }
 
 <div class="props-group">
-    <div class="props-group-title">Aturan</div>
+    <div class="props-group-title">Rules</div>
     <div class="label-row">
         <BbCheckbox Id="p-req" Checked="@AlwaysRequired" CheckedChanged="SetAlwaysRequired" />
-        <BbLabel For="p-req">Selalu wajib diisi</BbLabel>
+        <BbLabel For="p-req">Always required</BbLabel>
     </div>
     @if (!AlwaysRequired)
     {
-        @ExprInput("requiredWhen", "Wajib bila", Field.RequiredWhen, v => Field.RequiredWhen = v, "mis. priority == 'Tinggi'")
+        @ExprInput("requiredWhen", "Required when", Field.RequiredWhen, v => Field.RequiredWhen = v, "e.g. priority == 'High'")
     }
-    @ExprInput("visibleWhen", "Tampil bila", Field.VisibleWhen, v => Field.VisibleWhen = v, "kosong = selalu tampil")
-    @ExprInput("readOnlyWhen", "Hanya-baca bila", Field.ReadOnlyWhen, v => Field.ReadOnlyWhen = v, "mis. docstatus != 0")
+    @ExprInput("visibleWhen", "Visible when", Field.VisibleWhen, v => Field.VisibleWhen = v, "empty = always visible")
+    @ExprInput("readOnlyWhen", "Read-only when", Field.ReadOnlyWhen, v => Field.ReadOnlyWhen = v, "e.g. docstatus != 0")
     @if (Field.Type != "Table")
     {
-        @ExprInput("compute", "Rumus (dihitung server)", Field.Compute, v => Field.Compute = v, "mis. qty * rate")
+        @ExprInput("compute", "Formula (server computed)", Field.Compute, v => Field.Compute = v, "e.g. qty * rate")
         <BbField IsInvalid="@Err("")">
-            <BbFieldLabel For="p-default">Nilai default</BbFieldLabel>
+            <BbFieldLabel For="p-default">Default value</BbFieldLabel>
             <BbInput Id="p-default" Value="@DocTypeDesign.DefaultText(Field)" ValueChanged="v => Set(() => Field.Default = DocTypeDesign.ParseDefault(v, Field.Type))" />
-            <BbFieldDescription>Teks biasa, angka, true/false, atau $today · $user · $employee.</BbFieldDescription>
+            <BbFieldDescription>Plain text, number, true/false, or $today · $user · $employee.</BbFieldDescription>
         </BbField>
         <BbField>
-            <BbFieldLabel>Ambil nilai dari Link</BbFieldLabel>
-            <BbSelect TValue="string" Value="@(Field.FetchFrom ?? "")" ValueChanged="v => Set(() => Field.FetchFrom = Blank(v))" AriaLabel="Ambil nilai dari Link"
+            <BbFieldLabel>Fetch value from Link</BbFieldLabel>
+            <BbSelect TValue="string" Value="@(Field.FetchFrom ?? "")" ValueChanged="v => Set(() => Field.FetchFrom = Blank(v))" AriaLabel="Fetch value from Link"
                       Options="FetchOptions" />
         </BbField>
     }
@@ -112,44 +112,44 @@
     {
         <div class="props-row">
             <BbField><BbFieldLabel For="p-min">Minimum</BbFieldLabel><BbInput Id="p-min" Value="@Num(Field.Min)" ValueChanged="v => Set(() => Field.Min = ParseNum(v))" /></BbField>
-            <BbField><BbFieldLabel For="p-max">Maksimum</BbFieldLabel><BbInput Id="p-max" Value="@Num(Field.Max)" ValueChanged="v => Set(() => Field.Max = ParseNum(v))" /></BbField>
+            <BbField><BbFieldLabel For="p-max">Maximum</BbFieldLabel><BbInput Id="p-max" Value="@Num(Field.Max)" ValueChanged="v => Set(() => Field.Max = ParseNum(v))" /></BbField>
         </div>
     }
     @if (Field.Type is "Data" or "Text" or "Email")
     {
-        <BbField><BbFieldLabel For="p-maxlen">Panjang maksimal</BbFieldLabel><BbInput Id="p-maxlen" Value="@Field.MaxLength?.ToString()" ValueChanged="v => Set(() => Field.MaxLength = int.TryParse(v, out var n) ? n : null)" /></BbField>
+        <BbField><BbFieldLabel For="p-maxlen">Max length</BbFieldLabel><BbInput Id="p-maxlen" Value="@Field.MaxLength?.ToString()" ValueChanged="v => Set(() => Field.MaxLength = int.TryParse(v, out var n) ? n : null)" /></BbField>
         <BbField IsInvalid="@Err("")">
-            <BbFieldLabel For="p-pattern">Pola (regex)</BbFieldLabel>
-            <BbInput Id="p-pattern" Value="@Field.Pattern" ValueChanged="v => Set(() => Field.Pattern = Blank(v))" Placeholder="mis. ^[A-Z]{2}-\d{4}$" />
+            <BbFieldLabel For="p-pattern">Pattern (regex)</BbFieldLabel>
+            <BbInput Id="p-pattern" Value="@Field.Pattern" ValueChanged="v => Set(() => Field.Pattern = Blank(v))" Placeholder="e.g. ^[A-Z]{2}-\d{4}$" />
         </BbField>
         @if (!string.IsNullOrEmpty(Field.Pattern))
         {
-            <BbField><BbFieldLabel For="p-patmsg">Pesan bila pola tidak cocok</BbFieldLabel><BbInput Id="p-patmsg" Value="@Field.PatternMessage" ValueChanged="v => Set(() => Field.PatternMessage = Blank(v))" /></BbField>
+            <BbField><BbFieldLabel For="p-patmsg">Pattern mismatch message</BbFieldLabel><BbInput Id="p-patmsg" Value="@Field.PatternMessage" ValueChanged="v => Set(() => Field.PatternMessage = Blank(v))" /></BbField>
         }
     }
 </div>
 
 <div class="props-group">
-    <div class="props-group-title">Tampilan & akses</div>
+    <div class="props-group-title">Display & permissions</div>
     @if (Field.Type != "Table")
     {
-        <div class="label-row"><BbCheckbox Id="p-list" Checked="Field.InListView" CheckedChanged="v => Set(() => Field.InListView = v)" /><BbLabel For="p-list">Tampilkan sebagai kolom di daftar</BbLabel></div>
+        <div class="label-row"><BbCheckbox Id="p-list" Checked="Field.InListView" CheckedChanged="v => Set(() => Field.InListView = v)" /><BbLabel For="p-list">Show as column in list view</BbLabel></div>
     }
     <BbField>
-        <BbFieldLabel>Level permission</BbFieldLabel>
-        <BbSelect TValue="string" Value="@Field.PermLevel.ToString()" ValueChanged="SetPermLevel" AriaLabel="Level permission"
-                  Options="@(new[] { new SelectOption<string>("0", "0 — semua yang boleh membaca dokumen"), new SelectOption<string>("1", "1 — role dengan izin level 1"), new SelectOption<string>("2", "2 — role dengan izin level 2") })" />
+        <BbFieldLabel>Permission level</BbFieldLabel>
+        <BbSelect TValue="string" Value="@Field.PermLevel.ToString()" ValueChanged="SetPermLevel" AriaLabel="Permission level"
+                  Options="@(new[] { new SelectOption<string>("0", "0 — everyone allowed to read document"), new SelectOption<string>("1", "1 — roles with level 1 permission"), new SelectOption<string>("2", "2 — roles with level 2 permission") })" />
     </BbField>
 </div>
 
-<BbButton Variant="ButtonVariant.Outline" Class="props-block" OnClick="OnRemove"><LucideIcon Name="trash-2" Size="16" /> Hapus field</BbButton>
+<BbButton Variant="ButtonVariant.Outline" Class="props-block" OnClick="OnRemove"><LucideIcon Name="trash-2" Size="16" /> Delete field</BbButton>
 
 @code {
     [Parameter, EditorRequired] public FieldDef Field { get; set; } = default!;
     [Parameter, EditorRequired] public DocTypeDesign Design { get; set; } = default!;
     [Parameter, EditorRequired] public MetadataSnapshot Snapshot { get; set; } = default!;
     [Parameter] public IReadOnlyList<MetadataError> Errors { get; set; } = [];
-    /// <summary>Nama field ini pada versi aktif (null bila field baru).</summary>
+    /// <summary>Original field name in the active version (null if new field).</summary>
     [Parameter] public string? OriginalName { get; set; }
     [Parameter] public EventCallback OnChanged { get; set; }
     [Parameter] public EventCallback OnRemove { get; set; }
@@ -158,14 +158,14 @@
 
     private bool IsExisting => OriginalName is not null;
     private IEnumerable<MetadataError> FieldErrors => Errors.Where(e => e.Path == $"fields.{Field.Name}" || e.Path.StartsWith($"fields.{Field.Name}."));
-    private bool NameError => FieldErrors.Any(e => e.Message.Contains("Nama field") || e.Message.Contains("duplikat") || e.Message.Contains("dicadangkan"));
+    private bool NameError => FieldErrors.Any(e => e.Message.Contains("Field name") || e.Message.Contains("Nama field") || e.Message.Contains("duplicate") || e.Message.Contains("duplikat") || e.Message.Contains("reserved") || e.Message.Contains("dicadangkan"));
     private bool Err(string suffix) => FieldErrors.Any(e => suffix == "" ? e.Path == $"fields.{Field.Name}" : e.Path.EndsWith("." + suffix));
 
     private IEnumerable<SelectOption<string>> FetchOptions
     {
         get
         {
-            var list = new List<SelectOption<string>> { new("", "— tidak —") };
+            var list = new List<SelectOption<string>> { new("", "— none —") };
             foreach (var link in Design.AllFields.Where(f => f.Type == "Link" && f.LinkTo is not null && f != Field))
                 if (Snapshot.TryGet(link.LinkTo!, out var target))
                     list.AddRange(target.Fields.Where(t => t.Def.Type != "Table")

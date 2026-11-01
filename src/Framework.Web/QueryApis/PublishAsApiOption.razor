@@ -6,15 +6,15 @@
     <div class="api-option">
         <div class="label-row">
             <BbCheckbox Id="pub-api" Checked="Option.On" CheckedChanged="Toggle" />
-            <BbLabel For="pub-api">Terbitkan juga sebagai API (JSON) — query &amp; parameter yang sama</BbLabel>
+            <BbLabel For="pub-api">Also publish as API (JSON) — same query &amp; parameters</BbLabel>
         </div>
         @if (Option.On)
         {
             <div class="api-slug">
                 <span class="muted small">/api/query/</span>
-                <FormTextInput Id="pub-slug" Value="@Option.Slug" ValueChanged="v => Option.Slug = (v ?? string.Empty).Trim().ToLowerInvariant()" AriaLabel="Slug API" Placeholder="rekap-pengajuan" />
+                <FormTextInput Id="pub-slug" Value="@Option.Slug" ValueChanged="v => Option.Slug = (v ?? string.Empty).Trim().ToLowerInvariant()" AriaLabel="API slug" Placeholder="submission-summary" />
             </div>
-            <p class="muted small" style="margin:.35rem 0 0">Ikut diperbarui setiap kali disimpan. Role sama dengan pengaturan di atas. Bentuk keluaran, batas baris, dan cache diatur di menu <a href="/query-apis">API Query</a>.</p>
+            <p class="muted small" style="margin:.35rem 0 0">Updated automatically whenever saved. Roles match the settings above. Output format, row limit, and caching can be configured in the <a href="/query-apis">API Query</a> menu.</p>
         }
     </div>
 }

@@ -1,7 +1,8 @@
+@* Notice when reporting SQL database connection is not configured. *@
 <BbAlert Variant="AlertVariant.Info">
-    <BbAlertTitle>Dashboard SQL belum aktif</BbAlertTitle>
+    <BbAlertTitle>SQL Dashboard is not enabled</BbAlertTitle>
     <BbAlertDescription>
-        Fitur ini membutuhkan mode PostgreSQL dan koneksi database read-only khusus pelaporan
-        (<code>ConnectionStrings:DocFrameReadOnly</code>). Lihat <code>deploy/sql/reporting-readonly-user.sql</code> dan README bagian Dashboard.
+        This feature requires PostgreSQL mode and a dedicated read-only reporting database connection
+        (<code>ConnectionStrings:DocFrameReadOnly</code>). See <code>deploy/sql/reporting-readonly-user.sql</code> and the Dashboard section of the README.
     </BbAlertDescription>
 </BbAlert>

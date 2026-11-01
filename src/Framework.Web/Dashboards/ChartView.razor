@@ -1,10 +1,10 @@
-@* Grafik SVG dari hasil query widget (tanpa JavaScript, mengikuti tema terang/gelap). *@
+@* SVG chart from widget query results (no JavaScript, follows light/dark theme). *@
 @using System.Globalization
 @using Framework.Dashboards
 
 @if (Result is null || Result.Rows.Count == 0)
 {
-    <div class="chart-empty"><LucideIcon Name="chart-no-axes-column" Size="22" /><span>Tidak ada data untuk ditampilkan</span></div>
+    <div class="chart-empty"><LucideIcon Name="chart-no-axes-column" Size="22" /><span>No data to display</span></div>
 }
 else if (Visual.Type == ChartTypes.Table)
 {
@@ -24,7 +24,7 @@ else if (Visual.Type is ChartTypes.Pie or ChartTypes.Doughnut)
     var slices = Slices();
     var total = slices.Sum(s => s.Value);
     <div class="chart-pie">
-        <svg viewBox="0 0 200 200" role="img" aria-label="@($"Grafik {(Visual.Type == ChartTypes.Pie ? "pie" : "doughnut")} {Visual.YColumns.FirstOrDefault()} per {Visual.XColumn}")">
+        <svg viewBox="0 0 200 200" role="img" aria-label="@($"{(Visual.Type == ChartTypes.Pie ? "Pie" : "Doughnut")} chart of {Visual.YColumns.FirstOrDefault()} by {Visual.XColumn}")">
             @if (total <= 0)
             {
                 <circle cx="100" cy="100" r="90" class="chart-track" />
@@ -70,14 +70,14 @@ else
     var min = Math.Min(0, values.SelectMany(v => v).DefaultIfEmpty(0).Min());
     var (top, step) = NiceScale(max, min);
     double W = Width, padL = 52, padR = 10, padT = 12;
-    // Label dimiringkan bila banyak kategori atau teksnya tidak muat di lebar kolomnya.
+    // Labels are tilted if there are many categories or the text does not fit the column width.
     var rotate = cats.Count > 6 || cats.Select(c => Math.Min(c.Length, 16)).DefaultIfEmpty(0).Max() * 6.2 > (Width - 62.0) / Math.Max(cats.Count, 1);
     var padB = rotate ? 62.0 : 34.0;
     var H = (double)Height;
     var plotW = W - padL - padR; var plotH = H - padT - padB;
     double Y(decimal v) => padT + plotH - (double)((v - min) / (top - min == 0 ? 1 : top - min)) * plotH;
     var band = plotW / Math.Max(cats.Count, 1);
-    <svg viewBox="0 0 @F(W) @F(H)" class="chart-svg" role="img" aria-label="@($"Grafik {(Visual.Type == ChartTypes.Bar ? "batang" : "garis")} {string.Join(", ", Visual.YColumns)} per {Visual.XColumn}")">
+    <svg viewBox="0 0 @F(W) @F(H)" class="chart-svg" role="img" aria-label="@($"{(Visual.Type == ChartTypes.Bar ? "Bar" : "Line")} chart of {string.Join(", ", Visual.YColumns)} by {Visual.XColumn}")">
         @for (var t = min; t <= top + step / 1000; t += step)
         {
             var y = Y(t);
@@ -146,10 +146,10 @@ else
     [Parameter, EditorRequired] public QueryResultSet? Result { get; set; }
     [Parameter, EditorRequired] public VisualConfig Visual { get; set; } = new();
     [Parameter] public int Height { get; set; } = 260;
-    /// <summary>Lebar gambar (unit SVG). Samakan kira-kira dengan lebar kartu agar ukuran teks tetap terbaca.</summary>
+    /// <summary>Image width (SVG units). Roughly match card width so text size remains legible.</summary>
     [Parameter] public int Width { get; set; } = 640;
 
-    private static readonly CultureInfo Id = CultureInfo.GetCultureInfo("id-ID");
+    private static readonly CultureInfo En = CultureInfo.InvariantCulture;
     private int ColIndex(string? name) => name is null || Result is null ? -1
         : Result.Columns.Select((c, i) => (c, i)).FirstOrDefault(x => x.c.Name.Equals(name, StringComparison.OrdinalIgnoreCase), (null!, -1)).Item2;
 
@@ -161,7 +161,7 @@ else
         return Result!.Rows.Select(r => xi >= 0 ? Label(r[xi]) : "").ToList();
     }
 
-    private static string Label(object? v) => v switch { null => "(kosong)", decimal d => d.ToString("#,0.##", Id), bool b => b ? "Ya" : "Tidak", _ => v.ToString()! };
+    private static string Label(object? v) => v switch { null => "(empty)", decimal d => d.ToString("#,0.##", En), bool b => b ? "Yes" : "No", _ => v.ToString()! };
 
     private sealed record Slice(int Index, string Label, decimal Value);
     private List<Slice> Slices()
@@ -170,25 +170,25 @@ else
         var list = Result!.Rows.Select((r, i) => new Slice(i, xi >= 0 ? Label(r[xi]) : $"#{i + 1}", Math.Max(yi >= 0 ? Num(r[yi]) ?? 0 : 0, 0))).ToList();
         if (list.Count <= 8) return list;
         var top = list.OrderByDescending(s => s.Value).Take(7).ToList();
-        top.Add(new Slice(7, "Lainnya", list.Except(top).Sum(s => s.Value)));
+        top.Add(new Slice(7, "Other", list.Except(top).Sum(s => s.Value)));
         return top.Select((s, i) => s with { Index = i }).ToList();
     }
 
     private static string Color(int i) => $"var(--chart-{i % 5 + 1})";
     private static string F(double v) => v.ToString("0.##", CultureInfo.InvariantCulture);
     private static string Trim(string s, int max) => s.Length <= max ? s : s[..(max - 1)] + "…";
-    private static string Pct(decimal v, decimal total) => total <= 0 ? "0%" : (v / total).ToString("0.#%", Id);
-    private static string Full(decimal v) => v.ToString(v == Math.Round(v) ? "#,0" : "#,0.##", Id);
+    private static string Pct(decimal v, decimal total) => total <= 0 ? "0%" : (v / total).ToString("0.#%", En);
+    private static string Full(decimal v) => v.ToString(v == Math.Round(v) ? "#,0" : "#,0.##", En);
 
-    /// <summary>Singkatan angka gaya Indonesia: 1,2 rb · 3,5 jt · 1,1 M · 2 T.</summary>
+    /// <summary>Abbreviated numbers: 1.2K · 3.5M · 1.1B · 2T.</summary>
     public static string Short(decimal v)
     {
         var a = Math.Abs(v);
-        return a >= 1_000_000_000_000m ? (v / 1_000_000_000_000m).ToString("0.#", Id) + " T"
-             : a >= 1_000_000_000m ? (v / 1_000_000_000m).ToString("0.#", Id) + " M"
-             : a >= 1_000_000m ? (v / 1_000_000m).ToString("0.#", Id) + " jt"
-             : a >= 10_000m ? (v / 1_000m).ToString("0.#", Id) + " rb"
-             : v.ToString("#,0.##", Id);
+        return a >= 1_000_000_000_000m ? (v / 1_000_000_000_000m).ToString("0.#", En) + "T"
+             : a >= 1_000_000_000m ? (v / 1_000_000_000m).ToString("0.#", En) + "B"
+             : a >= 1_000_000m ? (v / 1_000_000m).ToString("0.#", En) + "M"
+             : a >= 10_000m ? (v / 1_000m).ToString("0.#", En) + "K"
+             : v.ToString("#,0.##", En);
     }
 
     private static (decimal Top, decimal Step) NiceScale(decimal max, decimal min)

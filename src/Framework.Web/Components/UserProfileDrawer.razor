@@ -12,8 +12,8 @@
 <AdminDrawer Open="@Open"
              OpenChanged="@OpenChanged"
              WidthScale="@WidthScale"
-             Title="Informasi Pengguna"
-             Description="Profil akun, hak akses role, dan foto profil Anda.">
+             Title="User Information"
+             Description="Your account profile, role permissions, and profile photo.">
     <ChildContent>
         @if (error is not null)
         {
@@ -43,27 +43,27 @@
                     <div class="row" style="gap:.4rem;margin-top:.5rem">
                         <label class="image-pick @(uploading ? "busy" : "")">
                             <InputFile accept="image/png,image/jpeg,image/webp,image/gif" OnChange="UploadPhoto" disabled="@(uploading || busy)" />
-                            <LucideIcon Name="camera" Size="15" /> @(uploading ? "Mengunggah…" : string.IsNullOrWhiteSpace(account.AvatarId) ? "Unggah Foto" : "Ganti Foto")
+                            <LucideIcon Name="camera" Size="15" /> @(uploading ? "Uploading…" : string.IsNullOrWhiteSpace(account.AvatarId) ? "Upload Photo" : "Change Photo")
                         </label>
                         @if (!string.IsNullOrWhiteSpace(account.AvatarId) && !uploading)
                         {
                             <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" Disabled="busy" OnClick="RemovePhoto">
-                                <LucideIcon Name="trash-2" Size="14" /> Hapus Foto
+                                <LucideIcon Name="trash-2" Size="14" /> Remove Photo
                             </BbButton>
                         }
                     </div>
-                    <div class="muted small" style="margin-top:.25rem">PNG, JPEG, WebP, atau GIF · maks. 2 MB</div>
+                    <div class="muted small" style="margin-top:.25rem">PNG, JPEG, WebP, or GIF · max. 2 MB</div>
                 </div>
             </div>
 
             <BbField>
-                <BbFieldLabel For="prof-name">Nama Lengkap</BbFieldLabel>
-                <FormTextInput Id="prof-name" Immediate="true" @bind-Value="account.FullName" Placeholder="Nama lengkap Anda" />
+                <BbFieldLabel For="prof-name">Full Name</BbFieldLabel>
+                <FormTextInput Id="prof-name" Immediate="true" @bind-Value="account.FullName" Placeholder="Your full name" />
             </BbField>
 
             <BbField>
                 <BbFieldLabel For="prof-email">Email</BbFieldLabel>
-                <FormTextInput Id="prof-email" Type="email" Immediate="true" @bind-Value="account.Email" Placeholder="mis. nama@perusahaan.co.id" />
+                <FormTextInput Id="prof-email" Type="email" Immediate="true" @bind-Value="account.Email" Placeholder="e.g. name@company.com" />
             </BbField>
 
             <div class="form-cols cols-2">
@@ -79,11 +79,11 @@
 
             <div class="form-cols cols-2">
                 <BbField>
-                    <BbFieldLabel>Departemen</BbFieldLabel>
+                    <BbFieldLabel>Department</BbFieldLabel>
                     <div class="field-static">@(string.IsNullOrWhiteSpace(account.Department) ? "—" : account.Department)</div>
                 </BbField>
                 <BbField>
-                    <BbFieldLabel>ID Karyawan</BbFieldLabel>
+                    <BbFieldLabel>Employee ID</BbFieldLabel>
                     <div class="field-static">
                         @if (!string.IsNullOrWhiteSpace(account.EmployeeId))
                         {
@@ -98,7 +98,7 @@
             </div>
 
             <BbField>
-                <BbFieldLabel>Role &amp; Hak Akses</BbFieldLabel>
+                <BbFieldLabel>Roles &amp; Permissions</BbFieldLabel>
                 <div class="row" style="gap:.35rem;padding-top:.15rem">
                     @foreach (var r in account.Roles)
                     {
@@ -108,12 +108,12 @@
             </BbField>
 
             <BbField>
-                <BbFieldLabel>Informasi Akun</BbFieldLabel>
+                <BbFieldLabel>Account Information</BbFieldLabel>
                 <div class="muted small">
-                    Dibuat @Fmt.When(account.CreatedAt)
+                    Created @Fmt.When(account.CreatedAt)
                     @if (account.LastLoginAt is { } last)
                     {
-                        <span> · Login terakhir @Fmt.When(last)</span>
+                        <span> · Last login @Fmt.When(last)</span>
                     }
                 </div>
             </BbField>
@@ -122,13 +122,13 @@
     <FooterContent>
         <div class="stack" style="gap:.65rem;width:100%">
             <div class="row" style="gap:.5rem;width:100%;align-items:center">
-                <BbButton Disabled="@(busy || uploading || account is null)" Loading="busy" LoadingText="Menyimpan…" OnClick="SaveProfile">
-                    <LucideIcon Name="check" Size="16" /> Simpan Profil
+                <BbButton Disabled="@(busy || uploading || account is null)" Loading="busy" LoadingText="Saving…" OnClick="SaveProfile">
+                    <LucideIcon Name="check" Size="16" /> Save Profile
                 </BbButton>
                 <BbButton Variant="ButtonVariant.Outline" OnClick="GoToChangePassword">
-                    <LucideIcon Name="key-round" Size="15" /> Ganti Password
+                    <LucideIcon Name="key-round" Size="15" /> Change Password
                 </BbButton>
-                <BbButton Variant="ButtonVariant.Ghost" OnClick="() => OpenChanged.InvokeAsync(false)">Tutup</BbButton>
+                <BbButton Variant="ButtonVariant.Ghost" OnClick="() => OpenChanged.InvokeAsync(false)">Close</BbButton>
             </div>
         </div>
     </FooterContent>
@@ -168,8 +168,8 @@
         error = null;
         if (e.File.Size > FileService.MaxImageBytes)
         {
-            error = "Ukuran foto maksimal 2 MB.";
-            Toasts.Error(error, "Gagal Mengunggah Foto");
+            error = "Photo size must be at most 2 MB.";
+            Toasts.Error(error, "Failed to Upload Photo");
             return;
         }
 
@@ -180,12 +180,12 @@
             await using var stream = e.File.OpenReadStream(FileService.MaxImageBytes + 1);
             var fileId = await Files.UploadAvatarAsync(Current.Required, stream);
             account.AvatarId = fileId;
-            Toasts.Success("Foto berhasil diunggah. Klik Simpan Profil untuk menerapkan.", "Foto Siap");
+            Toasts.Success("Photo uploaded successfully. Click Save Profile to apply.", "Photo Ready");
         }
         catch (Exception ex) when (ex is FileRejectedException or PermissionDeniedException or IOException)
         {
-            error = ex is IOException ? "Ukuran foto maksimal 2 MB." : ex.Message;
-            Toasts.Error(error, "Gagal Mengunggah Foto");
+            error = ex is IOException ? "Photo size must be at most 2 MB." : ex.Message;
+            Toasts.Error(error, "Failed to Upload Photo");
         }
         finally
         {
@@ -205,8 +205,8 @@
         error = null;
         if (string.IsNullOrWhiteSpace(account.FullName))
         {
-            error = "Nama lengkap tidak boleh kosong.";
-            Toasts.Error(error, "Gagal Menyimpan");
+            error = "Full name cannot be empty.";
+            Toasts.Error(error, "Failed to Save");
             return;
         }
 
@@ -221,19 +221,19 @@
             if (!res.Succeeded)
             {
                 error = string.Join(" ", res.Errors.Select(e => e.Description));
-                Toasts.Error(error, "Gagal Menyimpan");
+                Toasts.Error(error, "Failed to Save");
                 return;
             }
 
             // Update active circuit UserContext immediately so sidebar and header reflect new name and photo.
             Current.Set(ClaimsUserMapper.FromAccount(account));
-            Toasts.Success("Informasi profil dan foto berhasil diperbarui.", "Profil Disimpan");
+            Toasts.Success("Profile information and photo updated successfully.", "Profile Saved");
             await OpenChanged.InvokeAsync(false);
         }
         catch (Exception ex)
         {
             error = ex.Message;
-            Toasts.Error(ex.Message, "Gagal Menyimpan");
+            Toasts.Error(ex.Message, "Failed to Save");
         }
         finally
         {

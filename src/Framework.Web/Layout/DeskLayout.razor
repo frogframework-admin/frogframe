@@ -33,13 +33,13 @@
                 <BbSidebarGroup>
                     <BbSidebarMenu>
                         <BbSidebarMenuItem>
-                            <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="" Match="NavLinkMatch.All" Tooltip="Beranda & Pilih Modul">
-                                <LucideIcon Name="house" Size="18" /><span>Beranda</span>
+                            <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="" Match="NavLinkMatch.All" Tooltip="Home & Module Picker">
+                                <LucideIcon Name="house" Size="18" /><span>Home</span>
                             </BbSidebarMenuButton>
                         </BbSidebarMenuItem>
                         <BbSidebarMenuItem>
-                            <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="inbox" Match="NavLinkMatch.Prefix" Tooltip="Kotak masuk">
-                                <LucideIcon Name="inbox" Size="18" /><span>Kotak masuk</span>
+                            <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="inbox" Match="NavLinkMatch.Prefix" Tooltip="Inbox">
+                                <LucideIcon Name="inbox" Size="18" /><span>Inbox</span>
                             </BbSidebarMenuButton>
                             @if (unread > 0)
                             {
@@ -49,7 +49,7 @@
                         @if (activeMod is not null)
                         {
                             <BbSidebarMenuItem>
-                                <BbSidebarMenuButton OnClick="() => isModulePickerOpen = true" Tooltip="@($"Modul aktif: {activeMod.Name} (Klik untuk pindah modul)")" Class="module-switch-btn">
+                                <BbSidebarMenuButton OnClick="() => isModulePickerOpen = true" Tooltip="@($"Active module: {activeMod.Name} (Click to switch module)")" Class="module-switch-btn">
                                     <LucideIcon Name="@(string.IsNullOrWhiteSpace(activeMod.Icon) ? "layout-grid" : activeMod.Icon)" Size="18" />
                                     <span>@activeMod.Name</span>
                                 </BbSidebarMenuButton>
@@ -134,7 +134,7 @@
         {
             var avatarId = me.Attr("avatar");
             <BbSidebarFooter>
-                <button type="button" class="sidebar-user sidebar-user-btn" title="@($"{me.FullName} · Klik untuk informasi pengguna & foto profil")" @onclick="OpenUserProfile">
+                <button type="button" class="sidebar-user sidebar-user-btn" title="@($"{me.FullName} · Click for user info & profile photo")" @onclick="OpenUserProfile">
                     <div class="sidebar-avatar-box">
                         @if (!string.IsNullOrWhiteSpace(avatarId))
                         {
@@ -162,7 +162,7 @@
                 var active = ResolveActiveModule(visibleMods);
                 @if (active is not null)
                 {
-                    <button type="button" class="module-pill" title="Klik untuk pindah modul" @onclick="() => isModulePickerOpen = true">
+                    <button type="button" class="module-pill" title="Click to switch module" @onclick="() => isModulePickerOpen = true">
                         <LucideIcon Name="@(string.IsNullOrWhiteSpace(active.Icon) ? "layout-grid" : active.Icon)" Size="14" />
                         <span>@active.Name</span>
                         <LucideIcon Name="chevrons-up-down" Size="13" />
@@ -172,13 +172,13 @@
             }
             else
             {
-                <span class="tenant">Prototipe</span>
+                <span class="tenant">Prototype</span>
             }
             <span class="spacer"></span>
             @if (Current.User is { } who)
             {
                 var headerAvatar = who.Attr("avatar");
-                <button type="button" class="who-chip" title="@($"{string.Join(", ", who.Roles)} · Klik untuk informasi pengguna & foto profil")" @onclick="OpenUserProfile">
+                <button type="button" class="who-chip" title="@($"{string.Join(", ", who.Roles)} · Click for user info & profile photo")" @onclick="OpenUserProfile">
                     @if (!string.IsNullOrWhiteSpace(headerAvatar))
                     {
                         <img class="who-chip-avatar" src="@($"/files/{headerAvatar}")" alt="@who.FullName" />
@@ -187,7 +187,7 @@
                 </button>
             }
             <span class="theme-toggle"><BbDarkModeToggle Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" /></span>
-            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="Logout"><LucideIcon Name="log-out" Size="16" /> Keluar</BbButton>
+            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="Logout"><LucideIcon Name="log-out" Size="16" /> Log out</BbButton>
         </header>
         <main class="app-main" id="content">
             @if (Current.User is null)
@@ -211,8 +211,8 @@
     <BbDialog Open="@isModulePickerOpen" OpenChanged="v => isModulePickerOpen = v">
         <BbDialogContent Class="sm:max-w-xl">
             <BbDialogHeader>
-                <BbDialogTitle>Pilih Modul Kerja</BbDialogTitle>
-                <BbDialogDescription>Pilih satu modul untuk menampilkan group menu dan menu terkait pada sidebar.</BbDialogDescription>
+                <BbDialogTitle>Select Workspace Module</BbDialogTitle>
+                <BbDialogDescription>Choose a module to show its menu groups and menus in the sidebar.</BbDialogDescription>
             </BbDialogHeader>
             <div class="module-launcher-grid compact">
                 @foreach (var mod in modalModules)
@@ -309,7 +309,7 @@
     {
         Current.SetActiveModule(mod.Id);
         isModulePickerOpen = false;
-        Toasts.Success($"Sidebar beralih ke modul {mod.Name}.", "Modul Aktif");
+        Toasts.Success($"Sidebar switched to {mod.Name} module.", "Active Module");
     }
 
     private void OnModuleChanged()

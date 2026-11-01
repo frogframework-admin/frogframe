@@ -5,29 +5,29 @@
 @inject ToastService Toasts
 @inject DialogService Dialogs
 
-<PageTitle>Master Role · DocFrame</PageTitle>
+<PageTitle>Master Roles · DocFrame</PageTitle>
 
 @if (!Current.Required.IsAdmin)
 {
-    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>Halaman ini hanya untuk Administrator / System Manager.</BbAlertDescription></BbAlert>
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>This page is only accessible to Administrators / System Managers.</BbAlertDescription></BbAlert>
 }
 else
 {
     <header class="page-head">
         <div>
-            <h1>Master Role Pengguna</h1>
-            <p>Kelola daftar role untuk tenant @Current.Required.TenantId. Role menentukan izin akses DocType, alur persetujuan workflow, dan menu sidebar.</p>
+            <h1>Master Roles</h1>
+            <p>Manage the role list for tenant @Current.Required.TenantId. Roles determine DocType permissions, workflow approval routing, and sidebar menu visibility.</p>
         </div>
         <div class="row" style="gap:.5rem">
-            <BbButton Variant="ButtonVariant.Outline" OnClick="ResetDefaults"><LucideIcon Name="rotate-ccw" Size="16" /> Seed Default</BbButton>
-            <BbButton OnClick="StartCreate"><LucideIcon Name="shield-plus" Size="16" /> Tambah role</BbButton>
+            <BbButton Variant="ButtonVariant.Outline" OnClick="ResetDefaults"><LucideIcon Name="rotate-ccw" Size="16" /> Seed Defaults</BbButton>
+            <BbButton OnClick="StartCreate"><LucideIcon Name="shield-plus" Size="16" /> Add role</BbButton>
         </div>
     </header>
 
     <BbDataGrid TData="RoleDef"
                 Items="@roles"
                 ShowSearch="true"
-                SearchPlaceholder="Cari role..."
+                SearchPlaceholder="Search roles..."
                 ShowPagination="true"
                 InitialPageSize="10"
                 TableContainerClass="table-wrap"
@@ -42,26 +42,26 @@ else
                 </CellTemplate>
             </BbDataGridPropertyColumn>
 
-            <BbDataGridPropertyColumn TData="RoleDef" TProp="string" Property="r => r.Description" Title="Deskripsi" Sortable="true" Filterable="true">
+            <BbDataGridPropertyColumn TData="RoleDef" TProp="string" Property="r => r.Description" Title="Description" Sortable="true" Filterable="true">
                 <CellTemplate Context="item">
                     @(string.IsNullOrWhiteSpace(item.Description) ? "—" : item.Description)
                 </CellTemplate>
             </BbDataGridPropertyColumn>
 
-            <BbDataGridTemplateColumn TData="RoleDef" Title="Tipe" Width="7rem" Sortable="true" SortBy="r => r.IsSystem">
+            <BbDataGridTemplateColumn TData="RoleDef" Title="Type" Width="7rem" Sortable="true" SortBy="r => r.IsSystem">
                 <ChildContent Context="item">
                     @if (item.IsSystem)
                     {
-                        <BbBadge Variant="BadgeVariant.Soft">Sistem</BbBadge>
+                        <BbBadge Variant="BadgeVariant.Soft">System</BbBadge>
                     }
                     else
                     {
-                        <BbBadge Variant="BadgeVariant.Outline">Kustom</BbBadge>
+                        <BbBadge Variant="BadgeVariant.Outline">Custom</BbBadge>
                     }
                 </ChildContent>
             </BbDataGridTemplateColumn>
 
-            <BbDataGridTemplateColumn TData="RoleDef" Title="Aksi" Width="6.5rem" NoWrap="true">
+            <BbDataGridTemplateColumn TData="RoleDef" Title="Actions" Width="6.5rem" NoWrap="true">
                 <ChildContent Context="item">
                     <div style="display:inline-flex;align-items:center;gap:.25rem;flex-wrap:nowrap" @onclick:stopPropagation="true">
                         <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Edit role" OnClick="() => StartEdit(item)">
@@ -69,7 +69,7 @@ else
                         </BbButton>
                         @if (!item.IsSystem && !string.Equals(item.Name, "Administrator", StringComparison.OrdinalIgnoreCase))
                         {
-                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Hapus role" OnClick="() => ConfirmDelete(item)">
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Delete role" OnClick="() => ConfirmDelete(item)">
                                 <LucideIcon Name="trash-2" Size="15" />
                             </BbButton>
                         }
@@ -79,7 +79,7 @@ else
         </Columns>
         <EmptyTemplate>
             <div style="padding:2rem;text-align:center;color:var(--muted-foreground)">
-                Tidak ada role yang ditemukan.
+                No roles found.
             </div>
         </EmptyTemplate>
     </BbDataGrid>
@@ -87,8 +87,8 @@ else
     <AdminDrawer Open="@isDrawerOpen"
                  OpenChanged="@OnDrawerOpenChanged"
                  WidthScale="@DrawerWidthScale"
-                 Title="@(edit is null ? "" : isNew ? "Tambah Role Baru" : $"Edit: {edit.Name}")"
-                 Description="@(edit is null ? null : edit.IsSystem ? "Role sistem bawaan aplikasi (tidak dapat dihapus)." : "Role kustom tenant.")">
+                 Title="@(edit is null ? "" : isNew ? "Add New Role" : $"Edit: {edit.Name}")"
+                 Description="@(edit is null ? null : edit.IsSystem ? "Built-in system role (cannot be deleted)." : "Custom tenant role.")">
         <ChildContent>
             @if (edit is not null)
             {
@@ -98,24 +98,24 @@ else
                 }
 
                 <BbField>
-                    <BbFieldLabel For="r-name">Nama Role</BbFieldLabel>
-                    <FormTextInput Id="r-name" Immediate="true" @bind-Value="edit.Name" Disabled="@(!isNew && edit.IsSystem)" Placeholder="mis. HR, Purchasing, Auditor" />
+                    <BbFieldLabel For="r-name">Role Name</BbFieldLabel>
+                    <FormTextInput Id="r-name" Immediate="true" @bind-Value="edit.Name" Disabled="@(!isNew && edit.IsSystem)" Placeholder="e.g. HR, Purchasing, Auditor" />
                     @if (!isNew && edit.IsSystem)
                     {
-                        <BbFieldDescription>Nama role sistem tidak dapat diubah demi menjaga integritas hak akses bawaan.</BbFieldDescription>
+                        <BbFieldDescription>System role names cannot be changed to maintain built-in permission integrity.</BbFieldDescription>
                     }
                 </BbField>
 
                 <BbField>
-                    <BbFieldLabel For="r-desc">Deskripsi</BbFieldLabel>
-                    <FormTextInput Id="r-desc" Immediate="true" @bind-Value="edit.Description" Placeholder="mis. Pengelolaan pengadaan dan vendor" />
-                    <BbFieldDescription>Penjelasan fungsi dan cakupan wewenang role ini.</BbFieldDescription>
+                    <BbFieldLabel For="r-desc">Description</BbFieldLabel>
+                    <FormTextInput Id="r-desc" Immediate="true" @bind-Value="edit.Description" Placeholder="e.g. Procurement and vendor management" />
+                    <BbFieldDescription>Explanation of the role's purpose and authority scope.</BbFieldDescription>
                 </BbField>
 
                 @if (edit.IsSystem)
                 {
                     <BbAlert Variant="AlertVariant.Info" Class="props-block">
-                        <BbAlertDescription>Role ini adalah role inti sistem dan diproteksi agar tidak bisa dihapus.</BbAlertDescription>
+                        <BbAlertDescription>This role is a core system role and is protected from deletion.</BbAlertDescription>
                     </BbAlert>
                 }
             }
@@ -124,13 +124,13 @@ else
             @if (edit is not null)
             {
                 <div class="row" style="gap:.5rem;width:100%;align-items:center">
-                    <BbButton Disabled="busy" Loading="busy" LoadingText="Menyimpan…" OnClick="Save"><LucideIcon Name="check" Size="16" /> Simpan</BbButton>
-                    <BbButton Variant="ButtonVariant.Ghost" OnClick="CloseDrawer">Batal</BbButton>
+                    <BbButton Disabled="busy" Loading="busy" LoadingText="Saving…" OnClick="Save"><LucideIcon Name="check" Size="16" /> Save</BbButton>
+                    <BbButton Variant="ButtonVariant.Ghost" OnClick="CloseDrawer">Cancel</BbButton>
                     @if (!isNew && !edit.IsSystem && !string.Equals(edit.Name, "Administrator", StringComparison.OrdinalIgnoreCase))
                     {
                         <span style="margin-left:auto">
                             <BbButton Variant="ButtonVariant.Destructive" Size="ButtonSize.Small" Disabled="busy" OnClick="() => ConfirmDelete(edit)">
-                                <LucideIcon Name="trash-2" Size="15" /> Hapus
+                                <LucideIcon Name="trash-2" Size="15" /> Delete
                             </BbButton>
                         </span>
                     }
@@ -214,7 +214,7 @@ else
         if (edit is null || busy) return;
         if (string.IsNullOrWhiteSpace(edit.Name))
         {
-            error = "Nama role tidak boleh kosong.";
+            error = "Role name cannot be empty.";
             return;
         }
 
@@ -229,12 +229,12 @@ else
             var existing = await RoleStore.GetByNameAsync(edit.Name, edit.TenantId);
             if (existing is not null && existing.Id != edit.Id)
             {
-                error = $"Role dengan nama \"{edit.Name}\" sudah ada.";
+                error = $"A role with the name \"{edit.Name}\" already exists.";
                 return;
             }
 
             await RoleStore.SaveAsync(edit);
-            Toasts.Success($"Role \"{edit.Name}\" berhasil disimpan.", "Berhasil Disimpan");
+            Toasts.Success($"Role \"{edit.Name}\" successfully saved.", "Successfully Saved");
             isDrawerOpen = false;
             await Reload();
         }
@@ -252,14 +252,14 @@ else
     {
         if (item.IsSystem || string.Equals(item.Name, "Administrator", StringComparison.OrdinalIgnoreCase))
         {
-            Toasts.Error("Role Administrator / role sistem bawaan tidak dapat dihapus.", "Tidak Diizinkan");
+            Toasts.Error("Administrator and built-in system roles cannot be deleted.", "Not Allowed");
             return;
         }
 
         var res = await Dialogs.ConfirmAsync(
-            $"Hapus role \"{item.Name}\"?",
-            "Pengguna yang memiliki role ini tidak akan lagi memiliki hak akses terkait. Tindakan ini tidak bisa dibatalkan.",
-            new ConfirmDialogOptions { Destructive = true, ConfirmText = "Hapus Role", CancelText = "Batal" });
+            $"Delete role \"{item.Name}\"?",
+            "Users with this role will lose associated permissions. This action cannot be undone.",
+            new ConfirmDialogOptions { Destructive = true, ConfirmText = "Delete Role", CancelText = "Cancel" });
 
         if (!res.Confirmed) return;
 
@@ -268,12 +268,12 @@ else
         {
             await RoleStore.DeleteAsync(item.Id, item.TenantId);
             if (edit?.Id == item.Id) isDrawerOpen = false;
-            Toasts.Success($"Role \"{item.Name}\" berhasil dihapus.", "Role Dihapus");
+            Toasts.Success($"Role \"{item.Name}\" successfully deleted.", "Role Deleted");
             await Reload();
         }
         catch (Exception ex)
         {
-            Toasts.Error(ex.Message, "Gagal Menghapus Role");
+            Toasts.Error(ex.Message, "Failed to Delete Role");
         }
         finally
         {
@@ -284,9 +284,9 @@ else
     private async Task ResetDefaults()
     {
         var res = await Dialogs.ConfirmAsync(
-            "Seed / Pulihkan Role Default?",
-            "Sistem akan memeriksa dan menambahkan role bawaan (Administrator, User, HR, Purchasing, dll.) jika belum ada di database.",
-            new ConfirmDialogOptions { ConfirmText = "Jalankan Seed", CancelText = "Batal" });
+            "Seed / Restore Default Roles?",
+            "The system will verify and seed default built-in roles (Administrator, User, HR, Purchasing, etc.) if missing in the database.",
+            new ConfirmDialogOptions { ConfirmText = "Run Seed", CancelText = "Cancel" });
 
         if (!res.Confirmed) return;
 
@@ -294,12 +294,12 @@ else
         try
         {
             await RoleStore.EnsureDefaultRolesAsync(Current.Required.TenantId);
-            Toasts.Success("Role default berhasil diperiksa dan di-seed.", "Seed Berhasil");
+            Toasts.Success("Default roles successfully verified and seeded.", "Seed Successful");
             await Reload();
         }
         catch (Exception ex)
         {
-            Toasts.Error(ex.Message, "Gagal Seed Role");
+            Toasts.Error(ex.Message, "Failed to Seed Roles");
         }
         finally
         {

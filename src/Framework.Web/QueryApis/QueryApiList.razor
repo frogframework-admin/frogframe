@@ -5,11 +5,11 @@
 @inject ToastService Toasts
 @inject DialogService Dialogs
 
-<PageTitle>API Query · DocFrame</PageTitle>
+<PageTitle>Query APIs · DocFrame</PageTitle>
 
 <header class="page-head">
-    <div><h1>API Query</h1><p>Query tersimpan yang diterbitkan sebagai endpoint <code>GET /api/query/{slug}</code> — dibuat di sini, atau sebagai opsi dari widget dashboard dan template laporan.</p></div>
-    @if (designer) { <BbButton Href="/query-apis/new"><LucideIcon Name="plus" Size="16" /> API baru</BbButton> }
+    <div><h1>Query APIs</h1><p>Saved queries published as <code>GET /api/query/{slug}</code> endpoints — created here or from dashboard widgets and report templates.</p></div>
+    @if (designer) { <BbButton Href="/query-apis/new"><LucideIcon Name="plus" Size="16" /> New API</BbButton> }
 </header>
 
 @if (!Apis.IsAvailable)
@@ -18,7 +18,7 @@
 }
 else if (!designer)
 {
-    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>Halaman ini hanya untuk System Manager. Daftar API yang bisa Anda panggil: <code>GET /api/query</code>.</BbAlertDescription></BbAlert>
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>This page is only for System Managers. List of APIs you can call: <code>GET /api/query</code>.</BbAlertDescription></BbAlert>
 }
 else if (items is null)
 {
@@ -26,13 +26,13 @@ else if (items is null)
 }
 else if (items.Count == 0)
 {
-    <BbEmpty Title="Belum ada API query" Description="Buat langsung, atau centang &quot;Terbitkan juga sebagai API&quot; saat menyimpan widget dashboard / template laporan." />
+    <BbEmpty Title="No query APIs yet" Description="Create one directly, or check &quot;Also publish as API&quot; when saving a dashboard widget or report template." />
 }
 else
 {
     <div class="table-wrap">
         <table class="data">
-            <thead><tr><th>API</th><th>Endpoint</th><th>Keluaran</th><th>Parameter</th><th>Boleh dipanggil</th><th>Sumber</th><th>Status</th><th></th></tr></thead>
+            <thead><tr><th>API</th><th>Endpoint</th><th>Output</th><th>Parameters</th><th>Callable by</th><th>Source</th><th>Status</th><th></th></tr></thead>
             <tbody>
                 @foreach (var d in items)
                 {
@@ -40,14 +40,14 @@ else
                     <tr>
                         <td><strong>@item.Name</strong>@if (item.Description is not null) { <div class="muted small">@item.Description</div> }</td>
                         <td class="nowrap"><code>/api/query/@item.Slug</code></td>
-                        <td>@OutputLabel(item.Config.Output)@(item.Config.CacheSeconds > 0 ? $" · cache {item.Config.CacheSeconds} dtk" : "")</td>
-                        <td>@(item.Config.Parameters.Count == 0 ? "—" : string.Join(", ", item.Config.Parameters.Select(p => QueryApiService.IsUserBound(p) ? $"{p.Name} (akun)" : p.Name)))</td>
-                        <td>@(item.Config.Roles.Count == 0 ? "Semua" : string.Join(", ", item.Config.Roles))</td>
+                        <td>@OutputLabel(item.Config.Output)@(item.Config.CacheSeconds > 0 ? $" · cache {item.Config.CacheSeconds}s" : "")</td>
+                        <td>@(item.Config.Parameters.Count == 0 ? "—" : string.Join(", ", item.Config.Parameters.Select(p => QueryApiService.IsUserBound(p) ? $"{p.Name} (account)" : p.Name)))</td>
+                        <td>@(item.Config.Roles.Count == 0 ? "All" : string.Join(", ", item.Config.Roles))</td>
                         <td class="small">@SourceLabel(item.SourceRef)</td>
-                        <td><BbBadge Variant="@(item.Config.Enabled ? BadgeVariant.SoftSuccess : BadgeVariant.Soft)">@(item.Config.Enabled ? "Aktif" : "Nonaktif")</BbBadge></td>
+                        <td><BbBadge Variant="@(item.Config.Enabled ? BadgeVariant.SoftSuccess : BadgeVariant.Soft)">@(item.Config.Enabled ? "Active" : "Inactive")</BbBadge></td>
                         <td class="nowrap">
                             <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" Href="@($"/query-apis/{item.Id}/edit")"><LucideIcon Name="pencil" Size="15" /> Edit</BbButton>
-                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@($"Hapus {item.Name}")" OnClick="() => Delete(item)"><LucideIcon Name="trash-2" Size="15" /></BbButton>
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@($"Delete {item.Name}")" OnClick="() => Delete(item)"><LucideIcon Name="trash-2" Size="15" /></BbButton>
                         </td>
                     </tr>
                 }
@@ -68,20 +68,20 @@ else
 
     private async Task Delete(QueryApiDef d)
     {
-        var ok = await Dialogs.ConfirmAsync($"Hapus API {d.Name}?", $"Pemanggil /api/query/{d.Slug} akan mendapat 404.",
-            new ConfirmDialogOptions { Destructive = true, ConfirmText = "Hapus", CancelText = "Batal" });
+        var ok = await Dialogs.ConfirmAsync($"Delete API {d.Name}?", $"Callers of /api/query/{d.Slug} will receive 404.",
+            new ConfirmDialogOptions { Destructive = true, ConfirmText = "Delete", CancelText = "Cancel" });
         if (!ok.Confirmed) return;
         await Apis.DeleteAsync(Current.Required, d.Id);
-        Toasts.Success("API dihapus.", d.Name);
+        Toasts.Success("API deleted.", d.Name);
         items = await Apis.ListAsync(Current.Required);
     }
 
-    internal static string OutputLabel(string o) => o switch { QueryApiOutputs.Object => "Satu objek", QueryApiOutputs.Csv => "CSV", _ => "Daftar baris" };
+    internal static string OutputLabel(string o) => o switch { QueryApiOutputs.Object => "Single object", QueryApiOutputs.Csv => "CSV", _ => "Row list" };
     private static string SourceLabel(string? s) => s switch
     {
-        null => "Dibuat langsung",
-        _ when s.StartsWith("widget:") => "Widget dashboard",
-        _ when s.StartsWith("report:") => "Template laporan",
+        null => "Created directly",
+        _ when s.StartsWith("widget:") => "Dashboard widget",
+        _ when s.StartsWith("report:") => "Report template",
         _ => s,
     };
 }

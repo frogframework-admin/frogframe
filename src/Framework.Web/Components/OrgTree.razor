@@ -1,6 +1,6 @@
-@* Bagan organisasi generik (atas → bawah) dari daftar node berinduk. Dipakai untuk DocType pohon apa pun
-   (mis. departemen + induk, karyawan + atasan). Tahan data tidak rapi: induk yang tidak ada → jadi akar;
-   siklus diputus (node yang sudah tampil tidak diulang). *@
+@* Generic organization chart (top → bottom) from a list of parented nodes. Used for any tree DocType
+   (e.g. department + parent, employee + manager). Resilient to messy data: missing parent → becomes root;
+   cycles broken (nodes already displayed are not repeated). *@
 
 @if (Nodes.Count == 0)
 {
@@ -9,10 +9,10 @@
 else
 {
     <div class="org-toolbar">
-        <span class="muted small">@Nodes.Count node · @roots.Count akar</span>
+        <span class="muted small">@Nodes.Count @(Nodes.Count == 1 ? "node" : "nodes") · @roots.Count @(roots.Count == 1 ? "root" : "roots")</span>
         <span class="spacer"></span>
-        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ExpandAll"><LucideIcon Name="chevron-down" Size="15" /> Buka semua</BbButton>
-        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="CollapseAll"><LucideIcon Name="chevron-right" Size="15" /> Tutup semua</BbButton>
+        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ExpandAll"><LucideIcon Name="chevron-down" Size="15" /> Expand all</BbButton>
+        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="CollapseAll"><LucideIcon Name="chevron-right" Size="15" /> Collapse all</BbButton>
     </div>
     <div class="org-tree" role="tree" aria-label="@AriaLabel">
         <ul class="org-root">
@@ -23,9 +23,9 @@ else
 
 @code {
     [Parameter, EditorRequired] public IReadOnlyList<OrgNode> Nodes { get; set; } = [];
-    [Parameter] public string EmptyTitle { get; set; } = "Belum ada data";
+    [Parameter] public string EmptyTitle { get; set; } = "No data found";
     [Parameter] public string EmptyText { get; set; } = "";
-    [Parameter] public string AriaLabel { get; set; } = "Bagan organisasi";
+    [Parameter] public string AriaLabel { get; set; } = "Organization chart";
 
     private Dictionary<string, List<OrgNode>> children = new();
     private List<OrgNode> roots = [];
@@ -76,7 +76,7 @@ else
                 </a>
                 @if (kids.Count > 0)
                 {
-                    <button type="button" class="org-toggle" aria-label="@((open ? "Tutup" : "Buka") + $" cabang {n.Title}")" @onclick="() => Toggle(n.Id)">
+                    <button type="button" class="org-toggle" aria-label="@((open ? "Collapse" : "Expand") + $" branch {n.Title}")" @onclick="() => Toggle(n.Id)">
                         @(open ? "−" : $"+{Descendants(n.Id, new HashSet<string> { n.Id })}")
                     </button>
                 }

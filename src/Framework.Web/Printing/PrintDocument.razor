@@ -1,7 +1,8 @@
-@* Isi dokumen cetak. Murni tampilan dari PrintModel — tidak mengakses service — sehingga sama persis
-   di halaman cetak (browser) maupun saat dirender ke HTML mandiri untuk PDF. *@
+@* Print document body. Pure presentation of PrintModel — does not access services — so it renders identically
+   in the browser print view or when rendered as standalone HTML for PDF. *@
+@using System.Globalization
 
-@* Kaki halaman di setiap halaman: teks disisipkan ke margin box @page (didukung Chrome/Edge). *@
+@* Page footer on each page: text is inserted into @page margin box (supported by Chrome/Edge). *@
 <style>@((MarkupString)$"@page {{ @bottom-left {{ content: \"{CssString(FooterText)}\"; font: 7.5pt 'Public Sans', 'Segoe UI', Arial, 'Liberation Sans', 'DejaVu Sans', sans-serif; color: #6b7280; }} }}")</style>
 
 <div class="pf">
@@ -30,7 +31,7 @@
                 <div>
                     <h1 class="title">@Model.Title</h1>
                     <div class="docno">No. @Model.DocName</div>
-                    <div class="docmeta">Dibuat @Model.Created.ToLocalTime().ToString("d MMMM yyyy", Fmt.Id) · versi @Model.Version</div>
+                    <div class="docmeta">Created @Model.Created.ToLocalTime().ToString("d MMMM yyyy", CultureInfo.InvariantCulture) · version @Model.Version</div>
                 </div>
                 <span class="stamp tone-@Model.StateTone">@Model.StateLabel</span>
             </div>
@@ -67,7 +68,7 @@
                                     @for (var c = 0; c < t.Columns.Count; c++) { <td class="@(t.Columns[c].Numeric ? "num" : "")">@t.Rows[i][c]</td> }
                                 </tr>
                             }
-                            @if (t.Rows.Count == 0) { <tr><td colspan="@(t.Columns.Count + 1)">Tidak ada baris.</td></tr> }
+                            @if (t.Rows.Count == 0) { <tr><td colspan="@(t.Columns.Count + 1)">No rows.</td></tr> }
                         </tbody>
                     </table>
                 </section>
@@ -81,7 +82,7 @@
             }
             @if (Model.AmountInWords is not null)
             {
-                <div class="words">Terbilang: @Model.AmountInWords</div>
+                <div class="words">In words: @Model.AmountInWords</div>
             }
 
             @if (Model.Signatures.Count > 0)
@@ -93,13 +94,13 @@
                             <div class="sign-label">@sg.Label</div>
                             @if (sg.Name is not null)
                             {
-                                <div class="sign-mark">✓ Disetujui elektronik</div>
+                                <div class="sign-mark">✓ Electronically approved</div>
                                 <div class="sign-name">@sg.Name</div>
-                                <div class="sign-meta">@sg.At!.Value.ToLocalTime().ToString("d MMM yyyy HH:mm", Fmt.Id) · @sg.Code</div>
+                                <div class="sign-meta">@sg.At!.Value.ToLocalTime().ToString("d MMM yyyy HH:mm", CultureInfo.InvariantCulture) · @sg.Code</div>
                             }
                             else
                             {
-                                <div class="sign-name">Belum ditandatangani</div>
+                                <div class="sign-name">Not signed yet</div>
                             }
                         </div>
                     }
@@ -116,11 +117,11 @@
 @code {
     [Parameter, EditorRequired] public PrintModel Model { get; set; } = default!;
 
-    /// <summary>Ukuran tanda air menyesuaikan panjang teks agar muat diagonal di A4.</summary>
+    /// <summary>Watermark size scales with text length to fit diagonally on A4.</summary>
     private int WatermarkSize => (int)Math.Clamp(560 / ((Model.Watermark?.Length ?? 1) * 0.68), 36, 96);
 
     private string FooterText =>
-        $"{Model.DocName} · Kode verifikasi {Model.VerificationCode} · Dicetak oleh {Model.PrintedBy}, {Model.PrintedAt.ToLocalTime().ToString("d MMM yyyy HH:mm", Fmt.Id)}";
+        $"{Model.DocName} · Verification code {Model.VerificationCode} · Printed by {Model.PrintedBy}, {Model.PrintedAt.ToLocalTime().ToString("d MMM yyyy HH:mm", CultureInfo.InvariantCulture)}";
 
     /// <summary>Huruf logo default: huruf pertama nama perusahaan setelah bentuk badan usaha (PT, CV, …).</summary>
     private string Initial

@@ -6,11 +6,11 @@
 @inject ToastService Toasts
 @inject DialogService Dialogs
 
-<PageTitle>Laporan Excel/Word · DocFrame</PageTitle>
+<PageTitle>Excel/Word Reports · DocFrame</PageTitle>
 
 <header class="page-head">
-    <div><h1>Laporan Excel/Word</h1><p>Laporan dari query yang diisi ke template Excel atau Word milik Anda.</p></div>
-    @if (designer) { <BbButton Href="/report-templates/new"><LucideIcon Name="plus" Size="16" /> Template baru</BbButton> }
+    <div><h1>Excel/Word Reports</h1><p>Reports generated from queries populated into your Excel or Word templates.</p></div>
+    @if (designer) { <BbButton Href="/report-templates/new"><LucideIcon Name="plus" Size="16" /> New template</BbButton> }
 </header>
 
 @if (!Reports.IsAvailable)
@@ -23,13 +23,13 @@ else if (items is null)
 }
 else if (items.Count == 0)
 {
-    <BbEmpty Title="Belum ada template laporan" Description="@(designer ? "Buat template: tulis query, unggah file Excel/Word bertag, simpan." : "Hubungi administrator untuk menambahkan laporan.")" />
+    <BbEmpty Title="No report templates yet" Description="@(designer ? "Create a template: write a query, upload a tagged Excel/Word file, and save." : "Contact an administrator to add reports.")" />
 }
 else
 {
     <div class="table-wrap">
         <table class="data">
-            <thead><tr><th>Laporan</th><th>Format</th><th>Parameter</th><th>Dibuat oleh</th><th>Diubah</th><th></th></tr></thead>
+            <thead><tr><th>Report</th><th>Format</th><th>Parameters</th><th>Created by</th><th>Modified</th><th></th></tr></thead>
             <tbody>
                 @foreach (var d in items)
                 {
@@ -38,14 +38,14 @@ else
                         <td><a href="@($"/report-templates/{item.Id}")"><strong>@item.Name</strong></a>@if (item.Description is not null) { <div class="muted small">@item.Description</div> }</td>
                         <td class="nowrap"><LucideIcon Name="@(item.Config.Format == ReportFormats.Xlsx ? "file-spreadsheet" : "file-text")" Size="16" /> @(item.Config.Format == ReportFormats.Xlsx ? "Excel" : "Word")</td>
                         <td>@(item.Config.Parameters.Count == 0 ? "—" : string.Join(", ", item.Config.Parameters.Select(p => p.Label)))</td>
-                        <td>@(item.Config.Roles.Count == 0 ? "Semua" : string.Join(", ", item.Config.Roles))</td>
+                        <td>@(item.Config.Roles.Count == 0 ? "All" : string.Join(", ", item.Config.Roles))</td>
                         <td class="muted nowrap">v@(item.Version) · @Fmt.When(item.UpdatedAt)</td>
                         <td class="nowrap">
-                            <BbButton Size="ButtonSize.Small" Href="@($"/report-templates/{item.Id}")"><LucideIcon Name="file-down" Size="15" /> Buat</BbButton>
+                            <BbButton Size="ButtonSize.Small" Href="@($"/report-templates/{item.Id}")"><LucideIcon Name="file-down" Size="15" /> Generate</BbButton>
                             @if (designer)
                             {
                                 <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" Href="@($"/report-templates/{item.Id}/edit")"><LucideIcon Name="pencil" Size="15" /> Edit</BbButton>
-                                <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@($"Hapus {item.Name}")" OnClick="() => Delete(item)"><LucideIcon Name="trash-2" Size="15" /></BbButton>
+                                <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@($"Delete {item.Name}")" OnClick="() => Delete(item)"><LucideIcon Name="trash-2" Size="15" /></BbButton>
                             }
                         </td>
                     </tr>
@@ -67,11 +67,11 @@ else
 
     private async Task Delete(ReportTemplateDef d)
     {
-        var ok = await Dialogs.ConfirmAsync($"Hapus laporan {d.Name}?", "Template dan file-nya dihapus. Tindakan ini tidak bisa dibatalkan.",
-            new ConfirmDialogOptions { Destructive = true, ConfirmText = "Hapus", CancelText = "Batal" });
+        var ok = await Dialogs.ConfirmAsync($"Delete report {d.Name}?", "The template and its file will be deleted. This action cannot be undone.",
+            new ConfirmDialogOptions { Destructive = true, ConfirmText = "Delete", CancelText = "Cancel" });
         if (!ok.Confirmed) return;
         await Reports.DeleteAsync(Current.Required, d.Id);
-        Toasts.Success("Template laporan dihapus.", d.Name);
+        Toasts.Success("Report template deleted.", d.Name);
         items = await Reports.ListAsync(Current.Required);
     }
 }

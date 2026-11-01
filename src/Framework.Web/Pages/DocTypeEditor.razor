@@ -6,15 +6,15 @@
 @inject DialogService Dialogs
 @inject NavigationManager Nav
 
-<PageTitle>Editor @DocTypeName · DocFrame</PageTitle>
+<PageTitle>@DocTypeName Editor · DocFrame</PageTitle>
 
 @if (!Current.Required.Roles.Contains(UserContext.SystemManager))
 {
-    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>Editor DocType hanya untuk System Manager.</BbAlertDescription></BbAlert>
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>DocType Editor is only accessible by System Managers.</BbAlertDescription></BbAlert>
 }
 else if (design is null)
 {
-    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>DocType '@DocTypeName' tidak ditemukan.</BbAlertDescription></BbAlert>
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>DocType '@DocTypeName' was not found.</BbAlertDescription></BbAlert>
 }
 else
 {
@@ -24,7 +24,7 @@ else
             <BbBreadcrumbSeparator />
             <BbBreadcrumbItem><BbBreadcrumbLink Href="@($"/admin/metadata/{DocTypeName}")">@DocTypeName</BbBreadcrumbLink></BbBreadcrumbItem>
             <BbBreadcrumbSeparator />
-            <BbBreadcrumbItem><BbBreadcrumbPage>Editor visual</BbBreadcrumbPage></BbBreadcrumbItem>
+            <BbBreadcrumbItem><BbBreadcrumbPage>Visual Editor</BbBreadcrumbPage></BbBreadcrumbItem>
         </BbBreadcrumbList>
     </BbBreadcrumb>
 
@@ -32,17 +32,17 @@ else
         <div>
             <h1>@design.Def.Title <span class="muted" style="font-weight:500">· draft v@(version)</span></h1>
             <p>
-                Versi aktif v@(version - 1).
-                @if (errors.Count > 0) { <BbBadge Variant="BadgeVariant.SoftDestructive">@errors.Count masalah</BbBadge> }
+                Active version v@(version - 1).
+                @if (errors.Count > 0) { <BbBadge Variant="BadgeVariant.SoftDestructive">@errors.Count issues</BbBadge> }
                 else { <BbBadge Variant="BadgeVariant.SoftSuccess">Draft valid</BbBadge> }
-                @if (dirty) { <BbBadge Variant="BadgeVariant.Warning">Belum dipublikasikan</BbBadge> }
+                @if (dirty) { <BbBadge Variant="BadgeVariant.Warning">Unpublished changes</BbBadge> }
             </p>
         </div>
         <div class="row">
-            <BbButton Variant="ButtonVariant.Ghost" Disabled="@(!dirty)" OnClick="Discard"><LucideIcon Name="rotate-ccw" Size="16" /> Buang perubahan</BbButton>
-            <BbButton Variant="ButtonVariant.Outline" Disabled="@(errors.Count > 0)" OnClick="Check"><LucideIcon Name="search" Size="16" /> Periksa perubahan</BbButton>
+            <BbButton Variant="ButtonVariant.Ghost" Disabled="@(!dirty)" OnClick="Discard"><LucideIcon Name="rotate-ccw" Size="16" /> Discard changes</BbButton>
+            <BbButton Variant="ButtonVariant.Outline" Disabled="@(errors.Count > 0)" OnClick="Check"><LucideIcon Name="search" Size="16" /> Review changes</BbButton>
             <BbButton Disabled="@(preview is not { Valid: true } || preview.Changes.Count == 0 || (preview.Risk == ChangeRisk.Risky && !ack))" OnClick="Publish">
-                <LucideIcon Name="upload" Size="16" /> Publikasikan v@(version)
+                <LucideIcon Name="upload" Size="16" /> Publish v@(version)
             </BbButton>
         </div>
     </header>
@@ -51,9 +51,9 @@ else
     {
         <BbCard Class="props-block">
             <BbCardHeader>
-                <BbCardTitle Class="card-title">Perubahan dibanding v@(version - 1)</BbCardTitle>
+                <BbCardTitle Class="card-title">Changes compared to v@(version - 1)</BbCardTitle>
                 <BbCardDescription>
-                    @(preview.Changes.Count == 0 ? "Tidak ada perubahan." : $"{preview.Changes.Count} perubahan, tingkat risiko tertinggi: {RiskLabel(preview.Risk)}.")
+                    @(preview.Changes.Count == 0 ? "No changes." : $"{preview.Changes.Count} changes, highest risk level: {RiskLabel(preview.Risk)}.")
                 </BbCardDescription>
             </BbCardHeader>
             <BbCardContent>
@@ -69,7 +69,7 @@ else
                 </ul>
                 @if (preview is { Risk: ChangeRisk.Risky, Valid: true })
                 {
-                    <div class="label-row" style="margin-top:.75rem"><BbCheckbox Id="ack" @bind-Checked="ack" /><BbLabel For="ack">Saya sudah meninjau perubahan berisiko</BbLabel></div>
+                    <div class="label-row" style="margin-top:.75rem"><BbCheckbox Id="ack" @bind-Checked="ack" /><BbLabel For="ack">I have reviewed the risky changes</BbLabel></div>
                 }
             </BbCardContent>
         </BbCard>
@@ -82,28 +82,28 @@ else
     @if (GeneralErrors.Any())
     {
         <BbAlert Variant="AlertVariant.Danger" Class="props-block">
-            <BbAlertTitle>Draft belum valid</BbAlertTitle>
+            <BbAlertTitle>Draft is not valid</BbAlertTitle>
             <BbAlertDescription><ul class="error-list">@foreach (var e in GeneralErrors) { <li><code>@e.Path</code> @e.Message</li> }</ul></BbAlertDescription>
         </BbAlert>
     }
 
     <BbTabs Value="@view" ValueChanged="ChangeView">
         <BbTabsList>
-            <BbTabsTrigger Value="design"><LucideIcon Name="layout-grid" Size="15" /> Desain</BbTabsTrigger>
-            <BbTabsTrigger Value="preview" Disabled="@(snapshot is null)"><LucideIcon Name="eye" Size="15" /> Pratinjau</BbTabsTrigger>
+            <BbTabsTrigger Value="design"><LucideIcon Name="layout-grid" Size="15" /> Design</BbTabsTrigger>
+            <BbTabsTrigger Value="preview" Disabled="@(snapshot is null)"><LucideIcon Name="eye" Size="15" /> Preview</BbTabsTrigger>
             @if (!design.Def.IsChild)
             {
-                <BbTabsTrigger Value="access"><LucideIcon Name="shield-check" Size="15" /> Akses &amp; alur</BbTabsTrigger>
+                <BbTabsTrigger Value="access"><LucideIcon Name="shield-check" Size="15" /> Access &amp; Workflow</BbTabsTrigger>
             }
-            <BbTabsTrigger Value="settings"><LucideIcon Name="sliders" Size="15" /> Pengaturan DocType</BbTabsTrigger>
+            <BbTabsTrigger Value="settings"><LucideIcon Name="sliders" Size="15" /> DocType Settings</BbTabsTrigger>
             <BbTabsTrigger Value="json"><LucideIcon Name="braces" Size="15" /> JSON</BbTabsTrigger>
         </BbTabsList>
 
         <BbTabsContent Value="design">
             <div class="designer">
-                <aside class="palette" aria-label="Tipe field">
-                    <div class="props-group-title">Tambah field</div>
-                    <p class="muted small" style="margin:0 0 .5rem">Seret ke form, atau klik untuk menambah di section yang dipilih.</p>
+                <aside class="palette" aria-label="Field types">
+                    <div class="props-group-title">ADD FIELD</div>
+                    <p class="muted small" style="margin:0 0 .5rem">Drag to form, or click to add to the selected section.</p>
                     @foreach (var t in DocTypeDesign.FieldTypes)
                     {
                         var type = t;
@@ -115,7 +115,7 @@ else
                     }
                 </aside>
 
-                <section class="canvas" aria-label="Layout form">
+                <section class="canvas" aria-label="Form layout">
                     <div class="tab-strip" role="tablist">
                         @foreach (var tab in design.Tabs)
                         {
@@ -130,10 +130,10 @@ else
                     @if (currentTab is { } ct)
                     {
                         <div class="tab-tools">
-                            <BbInput Value="@ct.Title" ValueChanged="v => Mutate(() => { ct.Title = string.IsNullOrWhiteSpace(v) ? ct.Title : v.Trim(); ct.Explicit = true; })" AriaLabel="Judul tab" />
-                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Geser tab ke kiri" OnClick="() => Mutate(() => DocTypeDesign.MoveItem(design.Tabs, ct, -1))"><LucideIcon Name="arrow-left" Size="16" /></BbButton>
-                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Geser tab ke kanan" OnClick="() => Mutate(() => DocTypeDesign.MoveItem(design.Tabs, ct, 1))"><LucideIcon Name="arrow-right" Size="16" /></BbButton>
-                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Hapus tab" Disabled="@(!ct.IsEmpty || design.Tabs.Count == 1)"
+                            <BbInput Value="@ct.Title" ValueChanged="v => Mutate(() => { ct.Title = string.IsNullOrWhiteSpace(v) ? ct.Title : v.Trim(); ct.Explicit = true; })" AriaLabel="Tab title" />
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Move tab left" OnClick="() => Mutate(() => DocTypeDesign.MoveItem(design.Tabs, ct, -1))"><LucideIcon Name="arrow-left" Size="16" /></BbButton>
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Move tab right" OnClick="() => Mutate(() => DocTypeDesign.MoveItem(design.Tabs, ct, 1))"><LucideIcon Name="arrow-right" Size="16" /></BbButton>
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Delete tab" Disabled="@(!ct.IsEmpty || design.Tabs.Count == 1)"
                                       OnClick="() => Mutate(() => { design.RemoveTab(ct); currentTab = design.Tabs[0]; })"><LucideIcon Name="trash-2" Size="16" /></BbButton>
                         </div>
 
@@ -142,14 +142,14 @@ else
                             var sec = section;
                             <div class="d-section @(sec == currentSection ? "current" : "")" @onclick="() => currentSection = sec">
                                 <div class="d-section-head">
-                                    <BbInput Value="@sec.Title" ValueChanged="v => Mutate(() => sec.Title = string.IsNullOrWhiteSpace(v) ? null : v.Trim())" Placeholder="Judul section (opsional)" AriaLabel="Judul section" />
+                                    <BbInput Value="@sec.Title" ValueChanged="v => Mutate(() => sec.Title = string.IsNullOrWhiteSpace(v) ? null : v.Trim())" Placeholder="Section title (optional)" AriaLabel="Section title" />
                                     <div class="col-select">
-                                        <BbSelect TValue="string" Value="@sec.Columns.Count.ToString()" ValueChanged="v => Mutate(() => design.SetColumns(sec, int.Parse(v!)))" AriaLabel="Jumlah kolom"
+                                        <BbSelect TValue="string" Value="@sec.Columns.Count.ToString()" ValueChanged="v => Mutate(() => design.SetColumns(sec, int.Parse(v!)))" AriaLabel="Number of columns"
                                                   Options="ColumnOptions" />
                                     </div>
-                                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Geser section ke atas" OnClick="() => Mutate(() => DocTypeDesign.MoveItem(ct.Sections, sec, -1))"><LucideIcon Name="arrow-up" Size="16" /></BbButton>
-                                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Geser section ke bawah" OnClick="() => Mutate(() => DocTypeDesign.MoveItem(ct.Sections, sec, 1))"><LucideIcon Name="arrow-down" Size="16" /></BbButton>
-                                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Hapus section" Disabled="@(!sec.IsEmpty)" OnClick="() => Mutate(() => design.RemoveSection(ct, sec))"><LucideIcon Name="trash-2" Size="16" /></BbButton>
+                                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Move section up" OnClick="() => Mutate(() => DocTypeDesign.MoveItem(ct.Sections, sec, -1))"><LucideIcon Name="arrow-up" Size="16" /></BbButton>
+                                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Move section down" OnClick="() => Mutate(() => DocTypeDesign.MoveItem(ct.Sections, sec, 1))"><LucideIcon Name="arrow-down" Size="16" /></BbButton>
+                                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Delete section" Disabled="@(!sec.IsEmpty)" OnClick="() => Mutate(() => design.RemoveSection(ct, sec))"><LucideIcon Name="trash-2" Size="16" /></BbButton>
                                 </div>
                                 <div class="d-cols cols-@sec.Columns.Count">
                                     @for (var c = 0; c < sec.Columns.Count; c++)
@@ -170,30 +170,30 @@ else
                                                      @onkeydown="@(e => { if (e.Key is "Enter" or " ") Select(f, sec); })">
                                                     <LucideIcon Name="grip-vertical" Size="14" Class="grip" />
                                                     <div class="d-field-main">
-                                                        <div class="d-field-label">@(string.IsNullOrWhiteSpace(f.Label) ? f.Name : f.Label)@if (f.RequiredWhen is not null) { <span class="req" title="@(f.RequiredWhen == "true" ? "Wajib" : $"Wajib bila {f.RequiredWhen}")">*</span> }</div>
+                                                        <div class="d-field-label">@(string.IsNullOrWhiteSpace(f.Label) ? f.Name : f.Label)@if (f.RequiredWhen is not null) { <span class="req" title="@(f.RequiredWhen == "true" ? "Required" : $"Required when {f.RequiredWhen}")">*</span> }</div>
                                                         <div class="d-field-meta">
                                                             <span>@f.Type</span>
-                                                            @if (f.Compute is not null) { <span title="Rumus: @f.Compute">fx</span> }
-                                                            @if (f.FetchFrom is not null) { <span title="Diambil dari @f.FetchFrom">↙ @f.FetchFrom.Split('.')[0]</span> }
-                                                            @if (f.VisibleWhen is not null) { <span title="Tampil bila @f.VisibleWhen">kondisional</span> }
-                                                            @if (f.PermLevel > 0) { <span title="Level permission @f.PermLevel">level @f.PermLevel</span> }
-                                                            @if (f.InListView) { <span title="Kolom di daftar">daftar</span> }
+                                                            @if (f.Compute is not null) { <span title="Formula: @f.Compute">fx</span> }
+                                                            @if (f.FetchFrom is not null) { <span title="Fetched from @f.FetchFrom">↙ @f.FetchFrom.Split('.')[0]</span> }
+                                                            @if (f.VisibleWhen is not null) { <span title="Visible when @f.VisibleWhen">conditional</span> }
+                                                            @if (f.PermLevel > 0) { <span title="Permission level @f.PermLevel">level @f.PermLevel</span> }
+                                                            @if (f.InListView) { <span title="Column in list">list</span> }
                                                         </div>
                                                     </div>
                                                     <div class="d-field-actions" @onclick:stopPropagation="true">
-                                                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@($"Geser {f.Name} ke atas")" OnClick="() => Mutate(() => design.MoveBy(f, -1))"><LucideIcon Name="chevron-up" Size="14" /></BbButton>
-                                                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@($"Geser {f.Name} ke bawah")" OnClick="() => Mutate(() => design.MoveBy(f, 1))"><LucideIcon Name="chevron-down" Size="14" /></BbButton>
-                                                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@($"Hapus {f.Name}")" OnClick="() => RemoveField(f)"><LucideIcon Name="trash-2" Size="14" /></BbButton>
+                                                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@($"Move {f.Name} up")" OnClick="() => Mutate(() => design.MoveBy(f, -1))"><LucideIcon Name="chevron-up" Size="14" /></BbButton>
+                                                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@($"Move {f.Name} down")" OnClick="() => Mutate(() => design.MoveBy(f, 1))"><LucideIcon Name="chevron-down" Size="14" /></BbButton>
+                                                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@($"Delete {f.Name}")" OnClick="() => RemoveField(f)"><LucideIcon Name="trash-2" Size="14" /></BbButton>
                                                     </div>
                                                 </div>
                                             }
-                                            @if (fields.Count == 0) { <div class="d-empty">Seret field ke sini</div> }
+                                            @if (fields.Count == 0) { <div class="d-empty">Drag field here</div> }
                                         </div>
                                     }
                                 </div>
                             </div>
                         }
-                        <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick="() => Mutate(() => currentSection = design.AddSection(ct))"><LucideIcon Name="plus" Size="15" /> Tambah section</BbButton>
+                        <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick="() => Mutate(() => currentSection = design.AddSection(ct))"><LucideIcon Name="plus" Size="15" /> Add section</BbButton>
                     }
                 </section>
             </div>
@@ -205,14 +205,14 @@ else
                 <div style="margin-top:.75rem">
                     @if (compiled.Def.IsChild)
                     {
-                        <BbAlert Variant="AlertVariant.Info"><BbAlertDescription>Ini DocType baris (child table). Pratinjau menampilkan satu baris sebagai form.</BbAlertDescription></BbAlert>
+                        <BbAlert Variant="AlertVariant.Info"><BbAlertDescription>This is a child table DocType. Preview displays a single row as a form.</BbAlertDescription></BbAlert>
                     }
                     <DesignerPreview Meta="compiled" Snapshot="snapshot" />
                 </div>
             }
             else
             {
-                <BbAlert Variant="AlertVariant.Warning" Class="props-block"><BbAlertDescription>Perbaiki masalah pada draft untuk melihat pratinjau.</BbAlertDescription></BbAlert>
+                <BbAlert Variant="AlertVariant.Warning" Class="props-block"><BbAlertDescription>Fix issues in the draft to see the preview.</BbAlertDescription></BbAlert>
             }
         </BbTabsContent>
 
@@ -222,10 +222,10 @@ else
                 <div class="stack" style="margin-top:.75rem">
                     <BbCard>
                         <BbCardHeader>
-                            <BbCardTitle Class="card-title">Alur persetujuan (workflow)</BbCardTitle>
+                            <BbCardTitle Class="card-title">Approval workflow</BbCardTitle>
                             <BbCardDescription>
-                                @if (ActiveWorkflow is { } w) { <span>Memakai workflow <strong>@w.Name</strong> v@(w.Version). Diatur di editor workflow dan dipublikasikan terpisah.</span> }
-                                else { <span>Belum memakai workflow: dokumen memakai tombol Submit/Batalkan sesuai aturan dokumen di bawah.</span> }
+                                @if (ActiveWorkflow is { } w) { <span>Using workflow <strong>@w.Name</strong> v@(w.Version). Configured in workflow editor and published separately.</span> }
+                                else { <span>No workflow assigned: document uses Submit/Cancel buttons according to document rules below.</span> }
                             </BbCardDescription>
                         </BbCardHeader>
                         <BbCardContent>
@@ -236,7 +236,7 @@ else
                             }
                             else
                             {
-                                <BbButton Href="@($"/admin/workflows/new?doctype={design.Def.Name}")"><LucideIcon Name="git-branch-plus" Size="16" /> Buat workflow</BbButton>
+                                <BbButton Href="@($"/admin/workflows/new?doctype={design.Def.Name}")"><LucideIcon Name="git-branch-plus" Size="16" /> Create workflow</BbButton>
                             }
                         </BbCardContent>
                     </BbCard>
@@ -249,29 +249,29 @@ else
             <div class="stack" style="margin-top:.75rem">
                 <BbCard>
                     <BbCardHeader>
-                        <BbCardTitle Class="card-title">Pengaturan DocType</BbCardTitle>
-                        <BbCardDescription><code>@design.Def.Name</code> · Versi draft v@(version)</BbCardDescription>
+                        <BbCardTitle Class="card-title">DocType Settings</BbCardTitle>
+                        <BbCardDescription><code>@design.Def.Name</code> · Draft version v@(version)</BbCardDescription>
                     </BbCardHeader>
                     <BbCardContent>
                         <div class="props-group" style="border-top:none;padding-top:0">
-                            <BbField><BbFieldLabel For="d-title">Judul</BbFieldLabel><BbInput Id="d-title" Value="@design.Def.Title" ValueChanged="v => Mutate(() => design.Def.Title = v ?? string.Empty)" /></BbField>
-                            <BbField><BbFieldLabel For="d-desc">Deskripsi</BbFieldLabel><BbTextarea Id="d-desc" Value="@design.Def.Description" UpdateTiming="UpdateTiming.OnChange" ValueChanged="v => Mutate(() => design.Def.Description = string.IsNullOrWhiteSpace(v) ? null : v)" /></BbField>
+                            <BbField><BbFieldLabel For="d-title">Title</BbFieldLabel><BbInput Id="d-title" Value="@design.Def.Title" ValueChanged="v => Mutate(() => design.Def.Title = v ?? string.Empty)" /></BbField>
+                            <BbField><BbFieldLabel For="d-desc">Description</BbFieldLabel><BbTextarea Id="d-desc" Value="@design.Def.Description" UpdateTiming="UpdateTiming.OnChange" ValueChanged="v => Mutate(() => design.Def.Description = string.IsNullOrWhiteSpace(v) ? null : v)" /></BbField>
                             @if (!design.Def.IsChild)
                             {
-                                <BbField><BbFieldLabel For="d-module">Modul</BbFieldLabel><BbInput Id="d-module" Value="@design.Def.Module" ValueChanged="v => Mutate(() => design.Def.Module = string.IsNullOrWhiteSpace(v) ? null : v.Trim())" /></BbField>
+                                <BbField><BbFieldLabel For="d-module">Module</BbFieldLabel><BbInput Id="d-module" Value="@design.Def.Module" ValueChanged="v => Mutate(() => design.Def.Module = string.IsNullOrWhiteSpace(v) ? null : v.Trim())" /></BbField>
                                 <BbField IsInvalid="@errors.Any(e => e.Path == "naming.pattern")">
-                                    <BbFieldLabel For="d-naming">Pola nomor dokumen</BbFieldLabel>
+                                    <BbFieldLabel For="d-naming">Naming series pattern</BbFieldLabel>
                                     <BbInput Id="d-naming" Class="code-input" Value="@design.Def.Naming.Pattern" ValueChanged="v => Mutate(() => design.Def.Naming.Pattern = v ?? string.Empty)" />
-                                    <BbFieldDescription>Token: {YYYY}, {MM}, {#####} (nomor seri).</BbFieldDescription>
+                                    <BbFieldDescription>Tokens: {YYYY}, {MM}, {#####} (series number).</BbFieldDescription>
                                 </BbField>
                             }
                         </div>
                         @if (!design.Def.IsChild)
                         {
                             <div class="props-group">
-                                <div class="props-group-title">Daftar (list view)</div>
-                                <p class="muted small" style="margin:0">Kolom daftar diatur per field ("Tampilkan sebagai kolom di daftar").</p>
-                                <div class="props-sub">Bisa dicari</div>
+                                <div class="props-group-title">List view</div>
+                                <p class="muted small" style="margin:0">List columns are configured per field ("Show as column in list").</p>
+                                <div class="props-sub">Searchable</div>
                                 @foreach (var f in design.AllFields.Where(f => f.Type is "Data" or "Text" or "Email" or "Select" or "Link"))
                                 {
                                     var fld = f;
@@ -285,7 +285,7 @@ else
                                 }
                             </div>
                         }
-                        <p class="muted small">Akses dan workflow diatur di tab <strong>Akses &amp; alur</strong>; aturan lintas-field dan format cetak di tab <strong>JSON</strong>.</p>
+                        <p class="muted small">Access and workflow are configured in the <strong>Access &amp; Workflow</strong> tab; cross-field rules and print formats in the <strong>JSON</strong> tab.</p>
                     </BbCardContent>
                 </BbCard>
             </div>
@@ -293,11 +293,11 @@ else
 
         <BbTabsContent Value="json">
             <div class="stack" style="margin-top:.75rem">
-                <p class="muted small" style="margin:0">Definisi lengkap draft. Untuk hal yang belum ada di editor visual (aturan lintas-field, format cetak). Perubahan di sini diterapkan ke desain dengan tombol di bawah.</p>
+                <p class="muted small" style="margin:0">Complete draft definition. For features not yet in the visual editor (cross-field validation rules, print formats). Changes made here are applied to the design using the button below.</p>
                 <div class="code"><BbTextarea Value="@json" ValueChanged="v => json = v ?? string.Empty" UpdateTiming="UpdateTiming.OnChange" AriaLabel="JSON draft"
                                               AdditionalAttributes="@(new Dictionary<string, object> { ["rows"] = 26, ["spellcheck"] = "false" })" /></div>
                 @if (jsonError is not null) { <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@jsonError</BbAlertDescription></BbAlert> }
-                <div class="row"><BbButton Variant="ButtonVariant.Outline" OnClick="ApplyJson"><LucideIcon Name="check" Size="16" /> Terapkan JSON ke desain</BbButton></div>
+                <div class="row"><BbButton Variant="ButtonVariant.Outline" OnClick="ApplyJson"><LucideIcon Name="check" Size="16" /> Apply JSON to design</BbButton></div>
             </div>
         </BbTabsContent>
     </BbTabs>
@@ -377,14 +377,14 @@ else
     private (DesignerSection Section, int Column, int Index)? hint;
 
     private static readonly IEnumerable<SelectOption<string>> ColumnOptions =
-        [new("1", "1 kolom"), new("2", "2 kolom"), new("3", "3 kolom")];
+        [new("1", "1 column"), new("2", "2 columns"), new("3", "3 columns")];
 
     private WorkflowDef? ActiveWorkflow => design?.Def.Workflow is { } n ? Registry.Workflows.FirstOrDefault(w => w.Name == n) : null;
 
     private IEnumerable<MetadataError> GeneralErrors => errors.Where(e => !e.Path.StartsWith("fields.") || design!.AllFields.All(f => !e.Path.StartsWith($"fields.{f.Name}")));
 
-    // Blazor memanggil OnParametersSet setiap kali layout induk dirender ulang (mis. jumlah notifikasi berubah).
-    // Muat ulang hanya bila parameter rute benar-benar berubah, agar isian/draft pengguna tidak hilang.
+    // Blazor triggers OnParametersSet whenever the parent layout re-renders (e.g. notification count changes).
+    // Reload only when the route parameter actually changes, so user inputs/drafts are not lost.
     private string? loadedKey;
     protected override void OnParametersSet()
     {
@@ -412,7 +412,7 @@ else
         : originalNames.TryGetValue(f, out var n) ? n : null;
     private readonly Dictionary<FieldDef, string> originalNames = new(ReferenceEqualityComparer.Instance);
 
-    /// <summary>Menulis desain ke metadata, mengompilasi bersama metadata aktif lain, dan memperbarui status.</summary>
+    /// <summary>Writes design to metadata, compiles together with other active metadata, and updates state.</summary>
     private void Recompile()
     {
         var def = design!.ToDef(version);
@@ -440,7 +440,7 @@ else
     {
         selected = f; currentSection = sec;
         isDrawerOpen = true;
-        // Ingat nama asli field lama, agar peringatan ganti nama tetap benar setelah nama diketik ulang.
+        // Remember original name of existing field, so rename warning remains accurate after name is changed.
         if (active!.Fields.Any(a => a.Name == f.Name)) originalNames.TryAdd(f, f.Name);
     }
 
@@ -463,9 +463,9 @@ else
     {
         if (OriginalName(f) is not null)
         {
-            var ok = await Dialogs.ConfirmAsync($"Hapus field {f.Name}?",
-                "Field ini sudah ada di versi aktif. Data lama pada field ini tidak akan terbaca lagi setelah versi baru dipublikasikan (perubahan berisiko).",
-                new ConfirmDialogOptions { Destructive = true, ConfirmText = "Hapus field", CancelText = "Batal" });
+            var ok = await Dialogs.ConfirmAsync($"Delete field {f.Name}?",
+                "This field already exists in the active version. Past data in this field will no longer be accessible after the new version is published (risky change).",
+                new ConfirmDialogOptions { Destructive = true, ConfirmText = "Delete field", CancelText = "Cancel" });
             if (!ok.Confirmed) return;
         }
         design!.Remove(f);
@@ -507,22 +507,22 @@ else
         if (!on) list.Remove(name);
     }
 
-    // ---------- JSON, periksa, publish ----------
+    // ---------- JSON, review, publish ----------
 
     private void ApplyJson()
     {
         try
         {
             var def = MetadataJson.ParseDocType(json);
-            if (def.Name != DocTypeName) { jsonError = $"Nama DocType tidak boleh diubah di sini (harus '{DocTypeName}')."; return; }
+            if (def.Name != DocTypeName) { jsonError = $"DocType name cannot be changed here (must be '{DocTypeName}')."; return; }
             design = DocTypeDesign.From(def);
             currentTab = design.Tabs[0]; currentSection = currentTab.Sections.FirstOrDefault(); selected = null;
             isDrawerOpen = false;
             jsonError = null;
             Recompile();
-            Toasts.Success("JSON diterapkan ke desain.", "Diterapkan");
+            Toasts.Success("JSON applied to design.", "Applied");
         }
-        catch (JsonException ex) { jsonError = $"JSON tidak valid: {ex.Message}"; }
+        catch (JsonException ex) { jsonError = $"Invalid JSON: {ex.Message}"; }
     }
 
     private void Check() => preview = Registry.Preview(design!.ToDef(version));
@@ -532,23 +532,23 @@ else
         try
         {
             var v = Registry.Publish(design!.ToDef(version), Current.Required.Id, ack);
-            Toasts.Success("Form, daftar, dan API langsung memakai versi ini.", $"{v.DocType} v{v.Version} dipublikasikan");
+            Toasts.Success("Forms, lists, and APIs will immediately use this version.", $"{v.DocType} v{v.Version} published");
             Load();
         }
         catch (Exception ex) when (ex is MetadataCompilationException or InvalidOperationException)
         {
-            Toasts.Error(ex.Message, "Gagal mempublikasikan");
+            Toasts.Error(ex.Message, "Failed to publish");
         }
     }
 
     private async Task Discard()
     {
-        var ok = await Dialogs.ConfirmAsync("Buang semua perubahan?", "Draft dikembalikan ke versi aktif.",
-            new ConfirmDialogOptions { ConfirmText = "Buang perubahan", CancelText = "Batal" });
+        var ok = await Dialogs.ConfirmAsync("Discard all changes?", "Draft will be reverted to the active version.",
+            new ConfirmDialogOptions { ConfirmText = "Discard changes", CancelText = "Cancel" });
         if (ok.Confirmed) Load();
     }
 
-    private static string RiskLabel(ChangeRisk r) => r switch { ChangeRisk.Safe => "Aman", ChangeRisk.NeedsTransform => "Perlu transformasi", _ => "Berisiko" };
+    private static string RiskLabel(ChangeRisk r) => r switch { ChangeRisk.Safe => "Safe", ChangeRisk.NeedsTransform => "Needs transform", _ => "Risky" };
     private static BadgeVariant RiskVariant(ChangeRisk r) => r switch { ChangeRisk.Safe => BadgeVariant.SoftSuccess, ChangeRisk.NeedsTransform => BadgeVariant.Warning, _ => BadgeVariant.SoftDestructive };
 
     private bool HasErrors(FieldDef f) => errors.Any(e => e.Path == $"fields.{f.Name}" || e.Path.StartsWith($"fields.{f.Name}."));
@@ -561,7 +561,7 @@ else
 
     private static string TypeLabel(string t) => t switch
     {
-        "Data" => "Teks singkat", "Text" => "Teks panjang", "Email" => "Email", "Int" => "Bilangan bulat", "Float" => "Angka desimal",
-        "Currency" => "Rupiah", "Check" => "Centang", "Date" => "Tanggal", "Select" => "Pilihan", "Link" => "Link ke DocType", "Table" => "Child table", "Image" => "Gambar", _ => t
+        "Data" => "Short text", "Text" => "Long text", "Email" => "Email", "Int" => "Integer", "Float" => "Decimal",
+        "Currency" => "Currency", "Check" => "Checkbox", "Date" => "Date", "Select" => "Select", "Link" => "Link to DocType", "Table" => "Child table", "Image" => "Image", _ => t
     };
 }

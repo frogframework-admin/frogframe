@@ -1,11 +1,11 @@
-@* Editor akses DocType: aturan permission, aturan dokumen, dan API. Perubahan permission diklasifikasikan
-   "berisiko" oleh diff (perlu review keamanan) sehingga publish meminta konfirmasi. *@
+@* DocType access editor: permission rules, document rules, and API. Permission changes are classified
+   as "risky" by the diff (requires security review) so publishing requires confirmation. *@
 
 <div class="stack">
     <BbCard>
         <BbCardHeader>
-            <BbCardTitle Class="card-title">Siapa boleh melakukan apa</BbCardTitle>
-            <BbCardDescription>System Manager selalu punya semua akses. Cakupan "milik sendiri" = dokumen yang dibuat pengguna; "sama dengan atribut" = mis. departemen dokumen sama dengan departemen pengguna.</BbCardDescription>
+            <BbCardTitle Class="card-title">Who can do what</BbCardTitle>
+            <BbCardDescription>System Manager always has full access. Scope "Own records" = documents created by the user; "Match user attribute" = e.g. document department matches user department.</BbCardDescription>
         </BbCardHeader>
         <BbCardContent>
             <div class="table-wrap">
@@ -14,7 +14,7 @@
                         <tr>
                             <th>Role</th>
                             @foreach (var a in Actions) { <th class="c" title="@a.Hint">@a.Label</th> }
-                            <th>Cakupan data</th><th>Level field</th><th></th>
+                            <th>Data scope</th><th>Field level</th><th></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -29,28 +29,28 @@
                                     <td class="c"><BbCheckbox Checked="p.Actions.Contains(key)" CheckedChanged="v => Set(() => Toggle(p.Actions, key, v))" AriaLabel="@($"{p.Role}: {a.Label}")" /></td>
                                 }
                                 <td style="min-width:13rem">
-                                    <BbSelect TValue="string" Value="@ScopeKind(p.Scope)" ValueChanged="v => SetScopeKind(p, v)" Options="ScopeOptions" AriaLabel="Cakupan data" />
+                                    <BbSelect TValue="string" Value="@ScopeKind(p.Scope)" ValueChanged="v => SetScopeKind(p, v)" Options="ScopeOptions" AriaLabel="Data scope" />
                                     @if (ScopeKind(p.Scope) == "match")
                                     {
                                         var (field, attr) = MatchParts(p.Scope);
                                         <div class="row" style="margin-top:.35rem;flex-wrap:nowrap">
-                                            <BbSelect TValue="string" Value="@field" ValueChanged="v => SetMatch(p, v, null)" Options="FieldOptions" AriaLabel="Field dokumen" />
+                                            <BbSelect TValue="string" Value="@field" ValueChanged="v => SetMatch(p, v, null)" Options="FieldOptions" AriaLabel="Document field" />
                                             <span class="muted small">=</span>
-                                            <BbSelect TValue="string" Value="@attr" ValueChanged="v => SetMatch(p, null, v)" Options="AttrOptions" AriaLabel="Atribut pengguna" />
+                                            <BbSelect TValue="string" Value="@attr" ValueChanged="v => SetMatch(p, null, v)" Options="AttrOptions" AriaLabel="User attribute" />
                                         </div>
                                     }
                                 </td>
-                                <td style="min-width:6rem"><BbSelect TValue="string" Value="@p.PermLevel.ToString()" ValueChanged="v => Set(() => p.PermLevel = int.Parse(v!))" Options="LevelOptions" AriaLabel="Level field" /></td>
-                                <td><BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Hapus aturan" OnClick="() => Set(() => Def.Permissions.RemoveAt(idx))"><LucideIcon Name="trash-2" Size="15" /></BbButton></td>
+                                <td style="min-width:6rem"><BbSelect TValue="string" Value="@p.PermLevel.ToString()" ValueChanged="v => Set(() => p.PermLevel = int.Parse(v!))" Options="LevelOptions" AriaLabel="Field level" /></td>
+                                <td><BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Delete rule" OnClick="() => Set(() => Def.Permissions.RemoveAt(idx))"><LucideIcon Name="trash-2" Size="15" /></BbButton></td>
                             </tr>
                         }
-                        @if (Def.Permissions.Count == 0) { <tr><td colspan="@(Actions.Length + 4)" class="grid-empty">Belum ada aturan — hanya System Manager yang bisa mengakses.</td></tr> }
+                        @if (Def.Permissions.Count == 0) { <tr><td colspan="@(Actions.Length + 4)" class="grid-empty">No rules yet — only System Manager has access.</td></tr> }
                     </tbody>
                 </table>
             </div>
             <div class="row" style="margin-top:.6rem">
-                <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick="AddRule"><LucideIcon Name="plus" Size="15" /> Tambah aturan</BbButton>
-                <BbInput Value="@newRole" ValueChanged="v => newRole = v" Placeholder="Role baru (opsional), mis. HR" AriaLabel="Role baru" Style="max-width:16rem" />
+                <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick="AddRule"><LucideIcon Name="plus" Size="15" /> Add rule</BbButton>
+                <BbInput Value="@newRole" ValueChanged="v => newRole = v" Placeholder="New role (optional), e.g. HR" AriaLabel="New role" Style="max-width:16rem" />
             </div>
             @if (Errors.Any(e => e.Path.StartsWith("permissions")))
             {
@@ -61,22 +61,22 @@
 
     <div class="wf-grid" style="margin-top:0">
         <BbCard>
-            <BbCardHeader><BbCardTitle Class="card-title">Aturan dokumen</BbCardTitle><BbCardDescription>@(Def.Workflow is null ? "Tanpa workflow, dokumen memakai tombol Submit/Batalkan." : "Status dokumen diatur oleh workflow; submit/batal di bawah tidak dipakai.")</BbCardDescription></BbCardHeader>
+            <BbCardHeader><BbCardTitle Class="card-title">Document rules</BbCardTitle><BbCardDescription>@(Def.Workflow is null ? "Without a workflow, documents use Submit/Cancel buttons." : "Document status is managed by workflow; submit/cancel below are not used.")</BbCardDescription></BbCardHeader>
             <BbCardContent>
                 <div class="stack">
-                    @Flag("d-submit", "Bisa di-submit (dikunci)", Def.Document.AllowSubmit, v => Def.Document.AllowSubmit = v, Def.Workflow is not null)
-                    @Flag("d-cancel", "Bisa dibatalkan setelah submit", Def.Document.AllowCancel, v => Def.Document.AllowCancel = v, Def.Workflow is not null)
-                    @Flag("d-amend", "Bisa di-amend (revisi dari dokumen dibatalkan/ditolak)", Def.Document.AllowAmend, v => Def.Document.AllowAmend = v, false)
-                    @Flag("d-delete", "Draft bisa dihapus", Def.Document.AllowDelete, v => Def.Document.AllowDelete = v, false)
-                    @Flag("d-track", "Catat riwayat perubahan (audit)", Def.Document.TrackChanges, v => Def.Document.TrackChanges = v, false)
+                    @Flag("d-submit", "Can be submitted (locked)", Def.Document.AllowSubmit, v => Def.Document.AllowSubmit = v, Def.Workflow is not null)
+                    @Flag("d-cancel", "Can be cancelled after submit", Def.Document.AllowCancel, v => Def.Document.AllowCancel = v, Def.Workflow is not null)
+                    @Flag("d-amend", "Can be amended (revised from cancelled/rejected document)", Def.Document.AllowAmend, v => Def.Document.AllowAmend = v, false)
+                    @Flag("d-delete", "Draft can be deleted", Def.Document.AllowDelete, v => Def.Document.AllowDelete = v, false)
+                    @Flag("d-track", "Track changes (audit)", Def.Document.TrackChanges, v => Def.Document.TrackChanges = v, false)
                 </div>
             </BbCardContent>
         </BbCard>
         <BbCard>
-            <BbCardHeader><BbCardTitle Class="card-title">API</BbCardTitle><BbCardDescription>Akses lewat /api/data/@Def.Name dengan bearer token; permission di atas tetap berlaku.</BbCardDescription></BbCardHeader>
+            <BbCardHeader><BbCardTitle Class="card-title">API</BbCardTitle><BbCardDescription>Access via /api/data/@Def.Name with bearer token; permissions above still apply.</BbCardDescription></BbCardHeader>
             <BbCardContent>
                 <div class="stack">
-                    @Flag("api-on", "Aktifkan API", Def.Api.Enabled, v => Def.Api.Enabled = v, false)
+                    @Flag("api-on", "Enable API", Def.Api.Enabled, v => Def.Api.Enabled = v, false)
                     @if (Def.Api.Enabled)
                     {
                         <div class="wf-roles">
@@ -104,19 +104,19 @@
     private sealed record Act(string Key, string Label, string Hint);
     private static readonly Act[] Actions =
     [
-        new("read", "Baca", "Melihat daftar & dokumen"), new("create", "Buat", "Membuat dokumen baru"), new("write", "Ubah", "Mengubah draft"),
-        new("delete", "Hapus", "Menghapus draft"), new("submit", "Submit", "Tanpa workflow: mengunci dokumen"), new("cancel", "Batal", "Tanpa workflow: membatalkan"),
-        new("amend", "Amend", "Membuat revisi"), new("report", "Laporan", "Melihat laporan"), new("export", "Ekspor", "Ekspor CSV"),
+        new("read", "Read", "View list & document"), new("create", "Create", "Create new document"), new("write", "Edit", "Edit draft"),
+        new("delete", "Delete", "Delete draft"), new("submit", "Submit", "Without workflow: lock document"), new("cancel", "Cancel", "Without workflow: cancel document"),
+        new("amend", "Amend", "Create revision"), new("report", "Report", "View reports"), new("export", "Export", "Export CSV"),
     ];
     private static readonly (string Key, string Label)[] ApiOps =
-        [("list", "Daftar"), ("read", "Baca"), ("create", "Buat"), ("update", "Ubah"), ("delete", "Hapus"), ("action", "Aksi workflow")];
+        [("list", "List"), ("read", "Read"), ("create", "Create"), ("update", "Update"), ("delete", "Delete"), ("action", "Workflow action")];
 
     private IEnumerable<SelectOption<string>> RoleOptions =>
         MetadataRoles.Known(Snapshot, Def.Permissions.Select(p => p.Role)).Select(r => new SelectOption<string>(r, r));
     private static readonly IEnumerable<SelectOption<string>> ScopeOptions =
-        [new("all", "Semua dokumen"), new("owner", "Milik sendiri"), new("match", "Sama dengan atribut pengguna")];
-    private static readonly IEnumerable<SelectOption<string>> LevelOptions = [new("0", "0 (umum)"), new("1", "1"), new("2", "2")];
-    private static readonly IEnumerable<SelectOption<string>> AttrOptions = [new("department", "departemen pengguna"), new("employee", "karyawan pengguna")];
+        [new("all", "All documents"), new("owner", "Own records"), new("match", "Match user attribute")];
+    private static readonly IEnumerable<SelectOption<string>> LevelOptions = [new("0", "0 (general)"), new("1", "1"), new("2", "2")];
+    private static readonly IEnumerable<SelectOption<string>> AttrOptions = [new("department", "user department"), new("employee", "user employee")];
     private IEnumerable<SelectOption<string>> FieldOptions =>
         Fields.Where(f => f.Type is "Data" or "Select" or "Link").Select(f => new SelectOption<string>(f.Name, f.Label));
 

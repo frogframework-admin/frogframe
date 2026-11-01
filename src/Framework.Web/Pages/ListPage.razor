@@ -12,14 +12,14 @@
 
 @if (fatal is not null)
 {
-    <BbAlert Variant="AlertVariant.Danger"><BbAlertTitle>Tidak dapat dibuka</BbAlertTitle><BbAlertDescription>@fatal</BbAlertDescription></BbAlert>
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertTitle>Unable to open</BbAlertTitle><BbAlertDescription>@fatal</BbAlertDescription></BbAlert>
 }
 else if (meta is not null)
 {
     <header class="page-head">
         <div>
             <h1>@meta.Title</h1>
-            <p>@(result is null ? "Memuat…" : $"{TotalText} dokumen dalam cakupan akses Anda")</p>
+            <p>@(result is null ? "Loading…" : $"{TotalText} documents within your access scope")</p>
         </div>
         @if (Perms.Can(Current.Required, meta, DocActions.Create) || Perms.Can(Current.Required, meta, DocActions.Delete))
         {
@@ -29,16 +29,16 @@ else if (meta is not null)
                     <BbButton Variant="ButtonVariant.Destructive"
                               Disabled="@(selectedItems.Count == 0 || busy)"
                               OnClick="DeleteSelected">
-                        <LucideIcon Name="trash-2" Size="16" /> Hapus @(selectedItems.Count > 0 ? $"({selectedItems.Count})" : "")
+                        <LucideIcon Name="trash-2" Size="16" /> Delete @(selectedItems.Count > 0 ? $"({selectedItems.Count})" : "")
                     </BbButton>
                 }
                 @if (Importer.CanImport(Current.Required, meta.Name))
                 {
-                    <BbButton Variant="ButtonVariant.Outline" Href="@($"/app/{meta.Name}/import")"><LucideIcon Name="file-up" Size="16" /> Impor</BbButton>
+                    <BbButton Variant="ButtonVariant.Outline" Href="@($"/app/{meta.Name}/import")"><LucideIcon Name="file-up" Size="16" /> Import</BbButton>
                 }
                 @if (Perms.Can(Current.Required, meta, DocActions.Create))
                 {
-                    <BbButton Href="@($"/app/{meta.Name}/new")"><LucideIcon Name="plus" Size="16" /> Buat @meta.Title.ToLower()</BbButton>
+                    <BbButton Href="@($"/app/{meta.Name}/new")"><LucideIcon Name="plus" Size="16" /> New @meta.Title.ToLower()</BbButton>
                 }
             </div>
         }
@@ -68,9 +68,9 @@ else if (meta is not null)
             <Toolbar>
                 <div class="filters" role="search" style="margin-bottom:.75rem;width:100%">
                     <div class="filter search">
-                        <span>Cari</span>
+                        <span>Search</span>
                         <BbInput Value="@search" ValueChanged="OnSearch" UpdateTiming="UpdateTiming.Debounced" DebounceInterval="300"
-                                 Placeholder="@($"{string.Join(" / ", meta.Def.ListView.SearchFields.Select(LabelOf))}…")" AriaLabel="Cari" />
+                                 Placeholder="@($"{string.Join(" / ", meta.Def.ListView.SearchFields.Select(LabelOf))}…")" AriaLabel="Search" />
                     </div>
                     @foreach (var fName in meta.Def.ListView.Filters)
                     {
@@ -85,7 +85,7 @@ else if (meta is not null)
                             else if (meta.ByName.TryGetValue(f, out var cf) && cf.Def.Type == "Date")
                             {
                                 <BbDatePicker Value="@(filters.TryGetValue(f, out var dc) ? DateTime.Parse((string)dc.Value!) : null)"
-                                              ValueChanged="d => SetFilter(f, d?.ToString(DateFmt))" Placeholder="Sejak tanggal" DateFormat="d MMM yyyy" AriaLabel="@LabelOf(f)" />
+                                              ValueChanged="d => SetFilter(f, d?.ToString(DateFmt))" Placeholder="Since date" DateFormat="d MMM yyyy" AriaLabel="@LabelOf(f)" />
                             }
                             else
                             {
@@ -100,8 +100,8 @@ else if (meta is not null)
             </Toolbar>
             <EmptyTemplate>
                 <div style="padding:2.5rem 1rem">
-                    <BbEmpty Title="@($"Belum ada {meta.Title.ToLower()} yang cocok")"
-                             Description="@(filters.Count > 0 || !string.IsNullOrEmpty(search) ? "Ubah atau kosongkan filter untuk melihat dokumen lain." : "Dokumen yang Anda buat atau yang dibagikan ke peran Anda akan muncul di sini.")">
+                    <BbEmpty Title="@($"No matching {meta.Title.ToLower()} found")"
+                             Description="@(filters.Count > 0 || !string.IsNullOrEmpty(search) ? "Modify or clear filters to view other documents." : "Documents you create or that are shared with your role will appear here.")">
                         <Icon><LucideIcon Name="search" Size="28" /></Icon>
                     </BbEmpty>
                 </div>
@@ -113,7 +113,7 @@ else if (meta is not null)
                             <BbCheckbox Checked="@IsAllSelected"
                                         Indeterminate="@IsSomeSelected"
                                         CheckedChanged="ToggleSelectAll"
-                                        AriaLabel="Pilih semua" />
+                                        AriaLabel="Select all" />
                         </div>
                     </HeaderTemplate>
                     <ChildContent Context="row">
@@ -124,12 +124,12 @@ else if (meta is not null)
                         <div @onclick:stopPropagation="true">
                             <BbCheckbox Checked="@isSelected"
                                         CheckedChanged="v => ToggleSelect(rowName, v)"
-                                        AriaLabel="@($"Pilih {rowName}")" />
+                                        AriaLabel="@($"Select {rowName}")" />
                         </div>
                     </ChildContent>
                 </BbDataGridTemplateColumn>
 
-                <BbDataGridTemplateColumn TData="Dictionary<string, object?>" Id="name" Title="Nomor" Hideable="false" Resizable="true" Sortable="true" SortBy="@(r => (string)r["name"]!)">
+                <BbDataGridTemplateColumn TData="Dictionary<string, object?>" Id="name" Title="Number" Hideable="false" Resizable="true" Sortable="true" SortBy="@(r => (string)r["name"]!)">
                     <ChildContent Context="row">
                         <a class="doc-link" href="/app/@meta.Name/@((string)row["name"]!)">@((string)row["name"]!)</a>
                     </ChildContent>
@@ -173,7 +173,7 @@ else if (meta is not null)
                     </BbDataGridTemplateColumn>
                 }
 
-                <BbDataGridTemplateColumn TData="Dictionary<string, object?>" Id="modified" Title="Diubah" Resizable="true" Sortable="true" SortBy="@(r => (object)r["modified"]!)">
+                <BbDataGridTemplateColumn TData="Dictionary<string, object?>" Id="modified" Title="Modified" Resizable="true" Sortable="true" SortBy="@(r => (object)r["modified"]!)">
                     <ChildContent Context="row">
                         <span class="muted nowrap">@Fmt.When((DateTimeOffset)row["modified"]!)</span>
                     </ChildContent>
@@ -184,7 +184,7 @@ else if (meta is not null)
         @if (TotalPages > 1)
         {
             <div class="list-foot">
-                <span class="muted small">Halaman @result.Page dari @TotalPages (@TotalText dokumen)</span>
+                <span class="muted small">Page @result.Page of @TotalPages (@TotalText documents)</span>
                 <BbPagination TotalPages="TotalPages" CurrentPage="result.Page" CurrentPageChanged="Reload" />
             </div>
         }
@@ -239,9 +239,9 @@ else if (meta is not null)
         loadedKey = DocType;
         fatal = null; error = null; filters.Clear(); search = null; sortField = null; result = null;
         selectedItems.Clear();
-        if (!Metadata.Current.TryGet(DocType, out var m) || m.Def.IsChild) { fatal = $"DocType '{DocType}' tidak ditemukan."; return; }
+        if (!Metadata.Current.TryGet(DocType, out var m) || m.Def.IsChild) { fatal = $"DocType '{DocType}' not found."; return; }
         meta = m;
-        if (!Perms.Can(Current.Required, meta, DocActions.Read)) { fatal = $"Anda tidak memiliki akses untuk melihat {meta.Title}."; return; }
+        if (!Perms.Can(Current.Required, meta, DocActions.Read)) { fatal = $"You do not have permission to view {meta.Title}."; return; }
         await Reload(1);
     }
 
@@ -249,9 +249,9 @@ else if (meta is not null)
 
     private string LabelOf(string field) => field switch
     {
-        "name" => "Nomor",
+        "name" => "Number",
         StandardFields.WorkflowState => "Status",
-        StandardFields.Modified => "Diubah",
+        StandardFields.Modified => "Modified",
         _ => meta!.ByName.TryGetValue(field, out var f) ? f.Label : field
     };
 
@@ -263,8 +263,8 @@ else if (meta is not null)
         else if (meta!.ByName.TryGetValue(field, out var f) && f.Type.Editor == "select")
             opts = (f.Def.Options ?? []).Select(o => new SelectOption<string>(o, o));
         else if (f is not null && f.Type.Editor == "check")
-            opts = [new("true", "Ya"), new("false", "Tidak")];
-        return opts?.Prepend(new SelectOption<string>("", "Semua")).ToList();
+            opts = [new("true", "Yes"), new("false", "No")];
+        return opts?.Prepend(new SelectOption<string>("", "All")).ToList();
     }
 
     private Task OnSearch(string? v) { search = v; return Reload(1); }
@@ -286,9 +286,9 @@ else if (meta is not null)
 
         var count = selectedItems.Count;
         var confirm = await Dialogs.ConfirmAsync(
-            $"Hapus {count} dokumen {meta!.Title.ToLower()}?",
-            "Dokumen draft yang dipilih akan dihapus permanen. Tindakan ini tidak dapat dibatalkan.",
-            new ConfirmDialogOptions { Destructive = true, ConfirmText = $"Hapus ({count})", CancelText = "Batal" });
+            $"Delete {count} {meta!.Title.ToLower()} document(s)?",
+            "Selected draft documents will be permanently deleted. This action cannot be undone.",
+            new ConfirmDialogOptions { Destructive = true, ConfirmText = $"Delete ({count})", CancelText = "Cancel" });
 
         if (!confirm.Confirmed) return;
 
@@ -316,12 +316,12 @@ else if (meta is not null)
 
             if (success > 0)
             {
-                Toasts.Success($"{success} {meta!.Title.ToLower()} berhasil dihapus.", "Dihapus");
+                Toasts.Success($"{success} {meta!.Title.ToLower()} document(s) deleted successfully.", "Deleted");
             }
 
             if (failed.Count > 0)
             {
-                Toasts.Error(string.Join("; ", failed), "Gagal Menghapus Sebagian Dokumen");
+                Toasts.Error(string.Join("; ", failed), "Failed to Delete Some Documents");
             }
         }
         finally

@@ -6,11 +6,11 @@
 @inject ToastService Toasts
 @inject NavigationManager Nav
 
-<PageTitle>Buat DocType · DocFrame</PageTitle>
+<PageTitle>New DocType · DocFrame</PageTitle>
 
 @if (!Current.Required.Roles.Contains(UserContext.SystemManager))
 {
-    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>Halaman ini hanya untuk System Manager.</BbAlertDescription></BbAlert>
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>This page is only accessible to System Managers.</BbAlertDescription></BbAlert>
 }
 else
 {
@@ -18,11 +18,11 @@ else
         <BbBreadcrumbList>
             <BbBreadcrumbItem><BbBreadcrumbLink Href="/admin/metadata">Metadata</BbBreadcrumbLink></BbBreadcrumbItem>
             <BbBreadcrumbSeparator />
-            <BbBreadcrumbItem><BbBreadcrumbPage>DocType baru</BbBreadcrumbPage></BbBreadcrumbItem>
+            <BbBreadcrumbItem><BbBreadcrumbPage>New DocType</BbBreadcrumbPage></BbBreadcrumbItem>
         </BbBreadcrumbList>
     </BbBreadcrumb>
     <header class="page-head">
-        <div><h1>Buat DocType</h1><p>Setelah dibuat, DocType langsung muncul di menu dan bisa disusun lebih lanjut di editor visual.</p></div>
+        <div><h1>Create DocType</h1><p>Once created, the DocType immediately appears in navigation and can be configured further in the visual editor.</p></div>
     </header>
 
     <div class="new-doctype">
@@ -30,54 +30,54 @@ else
             <BbCardContent>
                 <div class="stack" style="padding-top:1.25rem">
                     <BbField>
-                        <BbFieldLabel For="nd-title">Judul</BbFieldLabel>
-                        <BbInput Id="nd-title" Value="@title" ValueChanged="SetTitle" Placeholder="mis. Pengajuan Cuti" />
-                        <BbFieldDescription>Nama yang dilihat pengguna di menu dan judul halaman.</BbFieldDescription>
+                        <BbFieldLabel For="nd-title">Title</BbFieldLabel>
+                        <BbInput Id="nd-title" Value="@title" ValueChanged="SetTitle" Placeholder="e.g. Leave Request" />
+                        <BbFieldDescription>The user-facing name shown in navigation menus and page headers.</BbFieldDescription>
                     </BbField>
                     <BbField IsInvalid="@(NameError is not null)">
-                        <BbFieldLabel For="nd-name">Nama teknis</BbFieldLabel>
+                        <BbFieldLabel For="nd-name">Technical name</BbFieldLabel>
                         <BbInput Id="nd-name" Class="code-input" Value="@name" ValueChanged="v => { name = (v ?? string.Empty).Trim(); nameTouched = true; }" />
                         @if (NameError is not null) { <BbFieldError Errors="@(new[] { NameError })" /> }
-                        else { <BbFieldDescription>PascalCase tanpa spasi; dipakai di URL, API, dan relasi. Tidak bisa diubah.</BbFieldDescription> }
+                        else { <BbFieldDescription>PascalCase without spaces; used in URLs, APIs, and relations. Cannot be changed later.</BbFieldDescription> }
                     </BbField>
                     <BbField>
-                        <BbFieldLabel>Jenis</BbFieldLabel>
-                        <BbSelect TValue="string" Value="@kind" ValueChanged="v => kind = v ?? kind" AriaLabel="Jenis DocType"
-                                  Options="@(new[] { new SelectOption<string>("document", "Dokumen (punya daftar, form, dan nomor)"), new SelectOption<string>("child", "Baris child table (dipakai di dalam dokumen lain)") })" />
+                        <BbFieldLabel>Type</BbFieldLabel>
+                        <BbSelect TValue="string" Value="@kind" ValueChanged="v => kind = v ?? kind" AriaLabel="DocType type"
+                                  Options="@(new[] { new SelectOption<string>("document", "Document (has list, form, and auto-naming)"), new SelectOption<string>("child", "Child table row (used inside another document)") })" />
                     </BbField>
                     @if (kind == "document")
                     {
                         <BbField>
-                            <BbFieldLabel For="nd-module">Modul (grup menu)</BbFieldLabel>
-                            <BbInput Id="nd-module" @bind-Value="module" Placeholder="mis. HR" />
+                            <BbFieldLabel For="nd-module">Module (menu group)</BbFieldLabel>
+                            <BbInput Id="nd-module" @bind-Value="module" Placeholder="e.g. HR" />
                         </BbField>
                         <BbField>
-                            <BbFieldLabel For="nd-naming">Pola nomor dokumen</BbFieldLabel>
+                            <BbFieldLabel For="nd-naming">Document naming pattern</BbFieldLabel>
                             <BbInput Id="nd-naming" Class="code-input" Value="@Naming" ValueChanged="v => { naming = v; namingTouched = true; }" />
-                            <BbFieldDescription>Contoh nomor berikutnya: <code>@SampleName</code></BbFieldDescription>
+                            <BbFieldDescription>Next document number example: <code>@SampleName</code></BbFieldDescription>
                         </BbField>
                         <BbField>
-                            <BbFieldLabel>Template awal</BbFieldLabel>
+                            <BbFieldLabel>Initial template</BbFieldLabel>
                             <BbSelect TValue="string" Value="@template" ValueChanged="v => template = v ?? template" AriaLabel="Template"
-                                      Options="@(new[] { new SelectOption<string>("approval", "Dokumen dengan persetujuan (field dasar + permission + workflow)"), new SelectOption<string>("basic", "Dokumen sederhana (field dasar + permission, tanpa workflow)"), new SelectOption<string>("empty", "Kosong (satu field judul)") })" />
+                                      Options="@(new[] { new SelectOption<string>("approval", "Approval document (standard fields + permissions + workflow)"), new SelectOption<string>("basic", "Simple document (standard fields + permissions, no workflow)"), new SelectOption<string>("empty", "Empty (single title field)") })" />
                         </BbField>
                     }
                     @if (error is not null) { <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@error</BbAlertDescription></BbAlert> }
                     <div class="row">
-                        <BbButton Disabled="@(busy || NameError is not null || string.IsNullOrWhiteSpace(title))" OnClick="Create"><LucideIcon Name="plus" Size="16" /> Buat DocType</BbButton>
-                        <BbButton Variant="ButtonVariant.Ghost" Href="/admin/metadata">Batal</BbButton>
+                        <BbButton Disabled="@(busy || NameError is not null || string.IsNullOrWhiteSpace(title))" OnClick="Create"><LucideIcon Name="plus" Size="16" /> Create DocType</BbButton>
+                        <BbButton Variant="ButtonVariant.Ghost" Href="/admin/metadata">Cancel</BbButton>
                     </div>
                 </div>
             </BbCardContent>
         </BbCard>
 
         <BbCard>
-            <BbCardHeader><BbCardTitle Class="card-title">Yang akan dibuat</BbCardTitle></BbCardHeader>
+            <BbCardHeader><BbCardTitle Class="card-title">What will be created</BbCardTitle></BbCardHeader>
             <BbCardContent>
                 <ul class="checklist">
                     @foreach (var line in Summary) { <li><LucideIcon Name="check" Size="15" /> @line</li> }
                 </ul>
-                <p class="muted small">Semua bisa diubah setelahnya di editor visual (field, layout, akses) dan editor workflow.</p>
+                <p class="muted small">Everything can be modified later in the visual editor (fields, layout, permissions) and workflow editor.</p>
             </BbCardContent>
         </BbCard>
     </div>
@@ -93,22 +93,22 @@ else
         .Replace("{#####}", "00001").Replace("{####}", "0001").Replace("{###}", "001");
 
     private string? NameError =>
-        name.Length == 0 ? (title.Length == 0 ? null : "Nama teknis wajib diisi")
-        : !Regex.IsMatch(name, "^[A-Z][A-Za-z0-9]{1,63}$") ? "Harus diawali huruf besar, hanya huruf dan angka (PascalCase)"
-        : Registry.Current.TryGet(name, out _) ? $"DocType '{name}' sudah ada"
+        name.Length == 0 ? (title.Length == 0 ? null : "Technical name is required")
+        : !Regex.IsMatch(name, "^[A-Z][A-Za-z0-9]{1,63}$") ? "Must start with an uppercase letter, letters and numbers only (PascalCase)"
+        : Registry.Current.TryGet(name, out _) ? $"DocType '{name}' already exists"
         : null;
 
     private IEnumerable<string> Summary
     {
         get
         {
-            if (kind == "child") { yield return "DocType baris (isChild) dengan field Keterangan"; yield return "Pakai lewat field Child table di DocType lain"; yield break; }
-            yield return template == "empty" ? "Field: Judul" : "Field: Judul, Tanggal, Keterangan";
-            yield return $"Nomor dokumen: {SampleName}";
-            if (template != "empty") yield return "Akses: karyawan membuat & mengelola dokumennya sendiri; System Manager semua";
-            else yield return "Akses: hanya System Manager (atur di tab Akses & alur)";
-            if (template == "approval") { yield return $"Workflow {name}Approval: Draft → Diajukan → Disetujui / Ditolak"; yield return "Atasan (role Manager) menyetujui atau menolak dengan komentar"; }
-            yield return $"Menu: {(string.IsNullOrWhiteSpace(module) ? "Umum" : module)} → {(string.IsNullOrWhiteSpace(title) ? "…" : title)}";
+            if (kind == "child") { yield return "Row DocType (isChild) with description field"; yield return "Used via Child table field in other DocTypes"; yield break; }
+            yield return template == "empty" ? "Fields: Title" : "Fields: Title, Date, Description";
+            yield return $"Document number: {SampleName}";
+            if (template != "empty") yield return "Permissions: Employees create & manage their own documents; System Manager manages all";
+            else yield return "Permissions: System Manager only (configure in Permissions & workflow tab)";
+            if (template == "approval") { yield return $"Workflow {name}Approval: Draft → Submitted → Approved / Rejected"; yield return "Managers approve or reject with comments"; }
+            yield return $"Menu: {(string.IsNullOrWhiteSpace(module) ? "General" : module)} → {(string.IsNullOrWhiteSpace(title) ? "…" : title)}";
         }
     }
 
@@ -133,23 +133,23 @@ else
         var def = new DocTypeDef { Name = name, Version = 1, Title = title.Trim(), IsChild = kind == "child" };
         if (def.IsChild)
         {
-            def.Fields = [new FieldDef { Name = "keterangan", Type = "Data", Label = "Keterangan", RequiredWhen = "true" }];
+            def.Fields = [new FieldDef { Name = "description", Type = "Data", Label = "Description", RequiredWhen = "true" }];
             return def;
         }
         def.Module = string.IsNullOrWhiteSpace(module) ? null : module.Trim();
         def.Naming = new NamingDef { Pattern = Naming };
         def.Document = new DocumentDef { AllowAmend = template == "approval", AllowDelete = true };
-        def.Fields = [new FieldDef { Name = "judul", Type = "Data", Label = "Judul", RequiredWhen = "true", InListView = true }];
+        def.Fields = [new FieldDef { Name = "title", Type = "Data", Label = "Title", RequiredWhen = "true", InListView = true }];
         if (template != "empty")
         {
-            def.Fields.Add(new FieldDef { Name = "tanggal", Type = "Date", Label = "Tanggal", RequiredWhen = "true", InListView = true, Column = 2, Default = JsonSerializer.SerializeToElement("$today") });
-            def.Fields.Add(new FieldDef { Name = "keterangan", Type = "Text", Label = "Keterangan" });
+            def.Fields.Add(new FieldDef { Name = "date", Type = "Date", Label = "Date", RequiredWhen = "true", InListView = true, Column = 2, Default = JsonSerializer.SerializeToElement("$today") });
+            def.Fields.Add(new FieldDef { Name = "description", Type = "Text", Label = "Description" });
             def.Permissions =
             [
                 new PermissionDef { Role = "Employee", Actions = ["read", "create", "write", "delete"], Scope = "owner" },
             ];
         }
-        def.ListView = new ListViewDef { TitleField = "judul", SearchFields = ["name", "judul"], Filters = template == "empty" ? [] : ["tanggal"] };
+        def.ListView = new ListViewDef { TitleField = "title", SearchFields = ["name", "title"], Filters = template == "empty" ? [] : ["date"] };
         return def;
     }
 
@@ -171,7 +171,7 @@ else
                 Registry.Publish(withManager, Current.Required.Id, acknowledgeRisk: true);
                 Registry.PublishWorkflow(ApprovalWorkflow(), Current.Required.Id, acknowledgeRisk: true, attach: true);
             }
-            Toasts.Success("Susun field dan akses di editor visual.", $"DocType {name} dibuat");
+            Toasts.Success("Configure fields and permissions in the visual editor.", $"DocType {name} created");
             Nav.NavigateTo($"/admin/metadata/{name}/editor");
         }
         catch (Exception ex) when (ex is MetadataCompilationException or InvalidOperationException)
@@ -187,15 +187,15 @@ else
         States =
         [
             new() { Name = "Draft", DocStatus = 0, Tone = "neutral" },
-            new() { Name = "Diajukan", DocStatus = 1, Tone = "pending" },
-            new() { Name = "Disetujui", DocStatus = 1, Tone = "positive" },
-            new() { Name = "Ditolak", DocStatus = 2, Tone = "negative" },
+            new() { Name = "Submitted", DocStatus = 1, Tone = "pending" },
+            new() { Name = "Approved", DocStatus = 1, Tone = "positive" },
+            new() { Name = "Rejected", DocStatus = 2, Tone = "negative" },
         ],
         Transitions =
         [
-            new() { From = "Draft", To = "Diajukan", Action = "Ajukan", AllowedRoles = ["Employee"], Condition = "owner == user.id" },
-            new() { From = "Diajukan", To = "Disetujui", Action = "Setujui", AllowedRoles = ["Manager"], Condition = "owner != user.id" },
-            new() { From = "Diajukan", To = "Ditolak", Action = "Tolak", AllowedRoles = ["Manager"], Condition = "owner != user.id", RequireComment = true },
+            new() { From = "Draft", To = "Submitted", Action = "Submit", AllowedRoles = ["Employee"], Condition = "owner == user.id" },
+            new() { From = "Submitted", To = "Approved", Action = "Approve", AllowedRoles = ["Manager"], Condition = "owner != user.id" },
+            new() { From = "Submitted", To = "Rejected", Action = "Reject", AllowedRoles = ["Manager"], Condition = "owner != user.id", RequireComment = true },
         ],
     };
 }

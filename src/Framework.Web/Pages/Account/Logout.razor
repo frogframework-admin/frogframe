@@ -5,15 +5,15 @@
 @inject SignInManager<UserAccount> SignIn
 @inject NavigationManager Nav
 
-<PageTitle>Keluar · DocFrame</PageTitle>
+<PageTitle>Log out · DocFrame</PageTitle>
 
-<h1 class="auth-title">Keluar dari DocFrame?</h1>
-<p class="auth-sub">Sesi di perangkat ini akan diakhiri.</p>
+<h1 class="auth-title">Log out from DocFrame?</h1>
+<p class="auth-sub">Your session on this device will be terminated.</p>
 
 @* Logout lewat POST + antiforgery (bukan tautan GET) agar tidak bisa dipicu dari situs lain. *@
 <EditForm Model="model" method="post" OnSubmit="LogoutAsync" FormName="logout" class="auth-form">
-    <button type="submit" class="auth-button">Keluar</button>
-    <a class="auth-link" href="/">Batal</a>
+    <button type="submit" class="auth-button">Log out</button>
+    <a class="auth-link" href="/">Cancel</a>
 </EditForm>
 
 @code {

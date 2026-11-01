@@ -1,6 +1,6 @@
-@* Dialog lookup generik: menampilkan daftar dokumen DocType apa pun dalam tabel.
-   Kolom, kolom pencarian, dan urutan diambil dari listView metadata DocType target.
-   Data lewat DocumentService.ListAsync, jadi tenant, row scope, dan field permission tetap berlaku. *@
+@* Generic lookup dialog: displays a list of documents for any DocType in a table.
+   Columns, search columns, and sort order are taken from the target DocType's listView metadata.
+   Data is fetched via DocumentService.ListAsync, so tenant, row scope, and field permissions still apply. *@
 @inject DocumentService Docs
 @inject CurrentUser Current
 @inject IMetadataProvider Metadata
@@ -8,9 +8,9 @@
 <BbDialog Open="Open" OpenChanged="OnOpenChanged">
     <BbDialogContent Class="lookup-dialog">
         <BbDialogHeader>
-            <BbDialogTitle>@(Title ?? $"Pilih {TargetMeta?.Title.ToLower()}")</BbDialogTitle>
+            <BbDialogTitle>@(Title ?? $"Select {TargetMeta?.Title.ToLower()}")</BbDialogTitle>
             <BbDialogDescription>
-                @(Multiple ? "Centang satu atau beberapa baris, lalu klik Pilih." : "Klik baris untuk memilih.")
+                @(Multiple ? "Select one or more rows, then click Select." : "Click a row to select.")
             </BbDialogDescription>
         </BbDialogHeader>
 
@@ -18,7 +18,7 @@
         {
             <div class="lookup-search">
                 <BbInput Value="@search" ValueChanged="OnSearch" UpdateTiming="UpdateTiming.Debounced" DebounceInterval="300"
-                         Placeholder="@($"Cari {string.Join(" / ", TargetMeta.Def.ListView.SearchFields.Select(LabelOf))}…")" AriaLabel="Cari" />
+                         Placeholder="@($"Search {string.Join(" / ", TargetMeta.Def.ListView.SearchFields.Select(LabelOf))}…")" AriaLabel="Search" />
             </div>
 
             @if (error is not null)
@@ -31,7 +31,7 @@
             }
             else if (result.Items.Count == 0)
             {
-                <BbEmpty Title="Tidak ada data" Description="Ubah kata kunci pencarian." Size="EmptySize.Small" />
+                <BbEmpty Title="No data found" Description="Try a different search keyword." Size="EmptySize.Small" />
             }
             else
             {
@@ -39,8 +39,8 @@
                     <table class="data">
                         <thead>
                             <tr>
-                                @if (Multiple) { <th style="width:2.5rem"><span class="sr-only">Pilih</span></th> }
-                                <th>Nomor</th>
+                                @if (Multiple) { <th style="width:2.5rem"><span class="sr-only">Select</span></th> }
+                                <th>Name</th>
                                 @foreach (var c in result.Columns) { <th class="@(IsNum(c) ? "num" : "")">@LabelOf(c)</th> }
                             </tr>
                         </thead>
@@ -55,7 +55,7 @@
                                     @if (Multiple)
                                     {
                                         <td @onclick:stopPropagation="true">
-                                            <BbCheckbox Checked="isSelected" Disabled="isExcluded" AriaLabel="@($"Pilih {name}")"
+                                            <BbCheckbox Checked="isSelected" Disabled="isExcluded" AriaLabel="@($"Select {name}")"
                                                         CheckedChanged="v => Toggle(row, v)" />
                                         </td>
                                     }
@@ -70,7 +70,7 @@
                     </table>
                 </div>
                 <div class="list-foot">
-                    <span class="muted small">@(result.TotalCapped ? $"{result.Total:N0}+" : result.Total.ToString("N0")) data@(Multiple && selected.Count > 0 ? $" · {selected.Count} dipilih" : "")</span>
+                    <span class="muted small">@(result.TotalCapped ? $"{result.Total:N0}+" : result.Total.ToString("N0")) records@(Multiple && selected.Count > 0 ? $" · {selected.Count} selected" : "")</span>
                     @if (TotalPages > 1)
                     {
                         <BbPagination TotalPages="TotalPages" CurrentPage="result.Page" CurrentPageChanged="Load" />
@@ -80,27 +80,27 @@
         }
 
         <BbDialogFooter>
-            <BbButton Variant="ButtonVariant.Outline" OnClick="() => OnOpenChanged(false)">Batal</BbButton>
+            <BbButton Variant="ButtonVariant.Outline" OnClick="() => OnOpenChanged(false)">Cancel</BbButton>
             @if (Multiple)
             {
-                <BbButton Disabled="@(selected.Count == 0)" OnClick="Confirm">Pilih @(selected.Count > 0 ? $"({selected.Count})" : "")</BbButton>
+                <BbButton Disabled="@(selected.Count == 0)" OnClick="Confirm">Select @(selected.Count > 0 ? $"({selected.Count})" : "")</BbButton>
             }
         </BbDialogFooter>
     </BbDialogContent>
 </BbDialog>
 
 @code {
-    /// <summary>DocType yang ditampilkan, mis. "Product" atau "Employee".</summary>
+    /// <summary>DocType displayed, e.g. "Product" or "Employee".</summary>
     [Parameter, EditorRequired] public string Target { get; set; } = "";
     [Parameter] public bool Open { get; set; }
     [Parameter] public EventCallback<bool> OpenChanged { get; set; }
     [Parameter] public bool Multiple { get; set; }
     [Parameter] public string? Title { get; set; }
-    /// <summary>Filter tetap, mis. hanya karyawan aktif: [new("active", "=", true)].</summary>
+    /// <summary>Fixed filters, e.g. only active employees: [new("active", "=", true)].</summary>
     [Parameter] public IReadOnlyList<FilterClause>? Filters { get; set; }
-    /// <summary>Nama dokumen yang tidak boleh dipilih lagi (mis. produk yang sudah ada di tabel).</summary>
+    /// <summary>Document names that cannot be selected again (e.g. products already in the table).</summary>
     [Parameter] public IReadOnlySet<string>? Exclude { get; set; }
-    /// <summary>Baris terpilih (berisi kolom list view + "name"). Gunakan nama untuk memuat dokumen lengkap bila perlu.</summary>
+    /// <summary>Selected rows (contains list view columns + "name"). Use name to load full document if needed.</summary>
     [Parameter] public EventCallback<IReadOnlyList<Dictionary<string, object?>>> OnSelected { get; set; }
     [Parameter] public int PageSize { get; set; } = 10;
 
@@ -112,7 +112,7 @@
 
     private int TotalPages => result is null ? 0 : (int)Math.Ceiling(result.Total / (double)result.PageSize);
     private bool IsNum(string c) => TargetMeta!.ByName.GetValueOrDefault(c)?.Type.Editor == "number";
-    private string LabelOf(string f) => f == "name" ? "Nomor" : TargetMeta!.ByName.TryGetValue(f, out var cf) ? cf.Label : f;
+    private string LabelOf(string f) => f == "name" ? "Name" : TargetMeta!.ByName.TryGetValue(f, out var cf) ? cf.Label : f;
 
     protected override async Task OnParametersSetAsync()
     {

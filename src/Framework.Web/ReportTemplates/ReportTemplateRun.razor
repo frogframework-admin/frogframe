@@ -5,11 +5,11 @@
 @inject ReportDownloads Downloads
 @inject CurrentUser Current
 
-<PageTitle>@(def?.Name ?? "Laporan") · DocFrame</PageTitle>
+<PageTitle>@(def?.Name ?? "Report") · DocFrame</PageTitle>
 
 <BbBreadcrumb Class="crumbs">
     <BbBreadcrumbList>
-        <BbBreadcrumbItem><BbBreadcrumbLink Href="/report-templates">Laporan Excel/Word</BbBreadcrumbLink></BbBreadcrumbItem>
+        <BbBreadcrumbItem><BbBreadcrumbLink Href="/report-templates">Excel/Word Reports</BbBreadcrumbLink></BbBreadcrumbItem>
         <BbBreadcrumbSeparator />
         <BbBreadcrumbItem><BbBreadcrumbPage>@(def?.Name ?? "…")</BbBreadcrumbPage></BbBreadcrumbItem>
     </BbBreadcrumbList>
@@ -21,14 +21,14 @@
 }
 else if (notFound)
 {
-    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>Laporan tidak ditemukan atau Anda tidak memiliki akses.</BbAlertDescription></BbAlert>
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>Report not found or you do not have access.</BbAlertDescription></BbAlert>
 }
 else if (def is not null)
 {
     <header class="page-head">
         <div>
             <h1><LucideIcon Name="@(def.Config.Format == ReportFormats.Xlsx ? "file-spreadsheet" : "file-text")" Size="22" /> @def.Name</h1>
-            <p>@(def.Description ?? (def.Config.Format == ReportFormats.Xlsx ? "Laporan Excel" : "Dokumen Word"))</p>
+            <p>@(def.Description ?? (def.Config.Format == ReportFormats.Xlsx ? "Excel Report" : "Word Document"))</p>
         </div>
     </header>
 
@@ -43,7 +43,7 @@ else if (def is not null)
                         @if (p.Type == ParamTypes.Boolean)
                         {
                             <BbSelect TValue="string" Value="@(values.GetValueOrDefault(p.Name) ?? "")" ValueChanged="v => values[p.Name] = string.IsNullOrEmpty(v) ? null : v" AriaLabel="@p.Label"
-                                      Options="@(new[] { new SelectOption<string>("", "(semua)"), new SelectOption<string>("true", "Ya"), new SelectOption<string>("false", "Tidak") })" />
+                                      Options="@(new[] { new SelectOption<string>("", "(all)"), new SelectOption<string>("true", "Yes"), new SelectOption<string>("false", "No") })" />
                         }
                         else
                         {
@@ -52,17 +52,17 @@ else if (def is not null)
                         }
                     </BbField>
                 }
-                @if (Inputs.Count == 0) { <p class="muted small" style="margin:0">Laporan ini tidak membutuhkan isian.</p> }
+                @if (Inputs.Count == 0) { <p class="muted small" style="margin:0">This report does not require inputs.</p> }
                 @if (error is not null) { <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@error</BbAlertDescription></BbAlert> }
                 @if (download is not null)
                 {
                     <BbAlert Variant="AlertVariant.Success">
-                        <BbAlertTitle>Laporan siap (@rows baris)</BbAlertTitle>
-                        <BbAlertDescription><a class="bb-like-button" href="@($"/report-downloads/{download}")" download="@fileName"><LucideIcon Name="download" Size="16" /> Unduh @fileName</a>
-                            <span class="muted small" style="margin-left:.5rem">Tautan berlaku 10 menit, satu kali unduh.</span></BbAlertDescription>
+                        <BbAlertTitle>Report ready (@rows rows)</BbAlertTitle>
+                        <BbAlertDescription><a class="bb-like-button" href="@($"/report-downloads/{download}")" download="@fileName"><LucideIcon Name="download" Size="16" /> Download @fileName</a>
+                            <span class="muted small" style="margin-left:.5rem">Link valid for 10 minutes, single download.</span></BbAlertDescription>
                     </BbAlert>
                 }
-                <div class="row"><BbButton Disabled="busy" OnClick="Generate"><LucideIcon Name="file-down" Size="16" /> @(busy ? "Membuat laporan…" : "Buat laporan")</BbButton></div>
+                <div class="row"><BbButton Disabled="busy" OnClick="Generate"><LucideIcon Name="file-down" Size="16" /> @(busy ? "Generating report…" : "Generate report")</BbButton></div>
             </div>
         </BbCardContent>
     </BbCard>
@@ -76,7 +76,7 @@ else if (def is not null)
     private int rows;
     private readonly Dictionary<string, string?> values = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>Parameter yang diisi pengguna; yang bersumber dari akun (ID/departemen) diisi otomatis di server.</summary>
+    /// <summary>Parameters filled by user; account-bound values (ID/department) are filled automatically on the server.</summary>
     private List<WidgetParameter> Inputs => def?.Config.Parameters.Where(p => p.Binding is not (ParamBindings.UserId or ParamBindings.UserDepartment)).ToList() ?? [];
 
     protected override async Task OnParametersSetAsync()
