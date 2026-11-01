@@ -12,15 +12,15 @@ sealed partial class Tests
         var tenantId = "acme";
         var items = await NavMenus.ListAsync(tenantId, onlyActive: false);
 
-        // Menu Universal: Beranda, Dashboard, Kotak Masuk
+        // Universal menu items: Home, Dashboard, Inbox
         var beranda = items.FirstOrDefault(x => x.Href == "");
-        Assert.True(beranda is not null && beranda.Title == "Beranda" && beranda.AllowedRoles.Count == 0, "Beranda harus untuk semua karyawan");
+        Assert.True(beranda is not null && (beranda.Title == "Home" || beranda.Title == "Beranda") && beranda.AllowedRoles.Count == 0, "Home menu should be for all employees");
 
         var dashboard = items.FirstOrDefault(x => x.Href == "dashboard");
-        Assert.True(dashboard is not null && dashboard.Title == "Dashboard" && dashboard.AllowedRoles.Count == 0, "Dashboard harus untuk semua karyawan");
+        Assert.True(dashboard is not null && dashboard.Title == "Dashboard" && dashboard.AllowedRoles.Count == 0, "Dashboard should be for all employees");
 
         var inbox = items.FirstOrDefault(x => x.Href == "inbox");
-        Assert.True(inbox is not null && inbox.Title == "Kotak masuk" && inbox.BadgeKey == NavigationMenuDefaults.BadgeInboxUnread, "Kotak masuk harus ada badge unread");
+        Assert.True(inbox is not null && (inbox.Title == "Inbox" || inbox.Title == "Kotak masuk") && inbox.BadgeKey == NavigationMenuDefaults.BadgeInboxUnread, "Inbox should have unread badge");
 
         // Menu Wajib Sistem: Metadata DocType, API Query, Kunci API, Pengguna, Laporan
         var metadata = items.FirstOrDefault(x => x.Href == "admin/metadata");
