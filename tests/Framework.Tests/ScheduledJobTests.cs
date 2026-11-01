@@ -123,5 +123,55 @@ sealed partial class Tests
             Assert.Equal(1, lockedResult.Executed, "subsidiary tetap dieksekusi");
         }
     }
+
+    [Test, PgTest]
+    public async Task Pg_PostgresDistributedLock_mencegah_eksekusi_bersamaan_lintas_koneksi()
+    {
+        var db = sp.GetRequiredService<Npgsql.NpgsqlDataSource>();
+        var lock1 = new Framework.Persistence.PostgreSql.PostgresDistributedLock(db);
+        var lock2 = new Framework.Persistence.PostgreSql.PostgresDistributedLock(db);
+        const string key = "job:pg-lock-test";
+
+        var handle1 = await lock1.TryAcquireAsync(key, TimeSpan.Zero);
+        Assert.True(handle1 is not null, "lock 1 diakuisisi");
+
+        var handle2 = await lock2.TryAcquireAsync(key, TimeSpan.Zero);
+        Assert.True(handle2 is null, "lock 2 ditolak saat lock 1 aktif");
+
+        handle1?.Dispose();
+
+        var handle3 = await lock2.TryAcquireAsync(key, TimeSpan.Zero);
+        Assert.True(handle3 is not null, "lock 2 dapat diakuisisi setelah lock 1 dilepas");
+        handle3?.Dispose();
+    }
+
+    [Test, PgTest]
+    public async Task Pg_PostgresTenantProvider_dan_ScheduledJobLogStore_persisten_di_database()
+    {
+        var db = sp.GetRequiredService<Npgsql.NpgsqlDataSource>();
+        var provider = new Framework.Persistence.PostgreSql.PostgresTenantProvider(db, defaultTenant: "acme");
+        var tenants = await provider.GetActiveTenantsAsync();
+        Assert.True(tenants.Count > 0, "active tenants ditemukan");
+        Assert.True(tenants.Contains("acme"), "tenant acme ditemukan");
+
+        var store = new Framework.Persistence.PostgreSql.PostgresScheduledJobLogStore(db);
+        var now = DateTimeOffset.UtcNow;
+        var entry = new ScheduledJobRunEntry
+        {
+            JobName = "test-job-audit",
+            TenantId = "acme",
+            StartedAt = now,
+            CompletedAt = now.AddSeconds(2),
+            DurationMs = 2000,
+            Status = "Success",
+            Error = null
+        };
+
+        await store.RecordRunAsync(entry);
+
+        var lastRun = await store.GetLastRunAsync("test-job-audit", "acme");
+        Assert.True(lastRun.HasValue, "last run berhasil dicatat");
+        Assert.True(Math.Abs((lastRun!.Value - now).TotalSeconds) < 2, "timestamp last run akurat");
+    }
 }
 

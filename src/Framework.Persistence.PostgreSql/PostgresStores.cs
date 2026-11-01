@@ -586,6 +586,9 @@ public static class PostgreSqlServiceCollectionExtensions
         services.Replace(ServiceDescriptor.Singleton<Framework.Imports.IImportLogStore, PostgresImportLogStore>());
         services.Replace(ServiceDescriptor.Singleton<Framework.Navigation.INavigationMenuStore, PostgresNavigationMenuStore>());
         services.Replace(ServiceDescriptor.Singleton<Framework.Security.IRoleStore, PostgresRoleStore>());
+        services.Replace(ServiceDescriptor.Singleton<Framework.Jobs.IDistributedLock, PostgresDistributedLock>());
+        services.Replace(ServiceDescriptor.Singleton<Framework.Jobs.ITenantProvider, PostgresTenantProvider>());
+        services.Replace(ServiceDescriptor.Singleton<Framework.Jobs.IScheduledJobLogStore, PostgresScheduledJobLogStore>());
         services.AddSingleton<SchemaMigrator>();
         return services;
     }

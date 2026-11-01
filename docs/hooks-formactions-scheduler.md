@@ -234,7 +234,7 @@ public sealed class ScheduledJobContext
 }
 ```
 
-### 4.3 Distributed Locking (`IDistributedLock`)
+### 4.3 Distributed Locking & Persistence Terdistribusi
 
 Untuk mencegah tugas yang sama dieksekusi lebih dari satu kali secara bersamaan pada *cluster* / multi-instance server:
 1. Sebelum job dieksekusi untuk suatu tenant, runner mencoba memperoleh kunci terdistribusi:
@@ -242,6 +242,10 @@ Untuk mencegah tugas yang sama dieksekusi lebih dari satu kali secara bersamaan 
 2. Kunci diambil secara non-blocking (`timeout = TimeSpan.Zero`).
 3. Jika instance lain sedang memproses job tersebut, pemanggilan akan dilewati dengan status `SkippedLocked`.
 4. Setelah selesai (atau terjadi exception), kunci dilepas secara otomatis (`IDisposable`).
+5. Pada mode **PostgreSQL**, `PostgresDistributedLock` memakai PostgreSQL Advisory Lock tingkat sesi (`pg_try_advisory_lock` dengan 64-bit hash). Kunci ini terikat pada koneksi database aktif dan otomatis dilepas oleh Postgres jika proses mengalami crash atau koneksi terputus.
+6. Pada mode **In-Memory**, `InMemoryDistributedLock` memakai `SemaphoreSlim` per key.
+7. **Pencatatan Audit & Durasi**: Riwayat eksekusi, waktu mulai, durasi (`duration_ms`), status (`Success`/`Failed`), dan error disimpan persisten ke tabel `docframe_scheduled_job_runs` lewat `IScheduledJobLogStore`. Saat server restart, riwayat run terakhir tetap terbaca sehingga tidak terjadi run ganda.
+8. **Resolusi Multi-Tenant**: `PostgresTenantProvider` mencari seluruh tenant aktif (`SELECT DISTINCT tenant_id FROM docframe_users WHERE is_active = true`) alih-alih hardcode tunggal.
 
 ### 4.4 Evaluasi Jadwal Cron (`CronSchedule`)
 

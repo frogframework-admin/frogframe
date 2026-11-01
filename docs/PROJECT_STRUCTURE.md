@@ -536,6 +536,10 @@ All migrations live in `src/Framework.Persistence.PostgreSql/Migrations/` and ar
 | `012_AnalyticsLogicalReplica.sql` | *(Comments / Reference)* | Documentation pointer to `deploy/sql/analytics-logical-replica.sql`. |
 | `013_navigation_menus.sql` | `docframe_navigation_menus` | Master Navigation Menu hierarchy with seeded parent groups and menu items. |
 | `014_roles.sql` | `docframe_roles` | Master Roles table seeded with mandatory `Administrator` & `User` (`is_system = true`) plus `HR`, `Purchasing`, `Manager`, `Finance`, `Procurement`. |
+| `015_modules_and_menu_groups.sql` | `docframe_navigation_modules`, `docframe_navigation_menu_groups` | Dynamic navigation modules and parent menu groups. |
+| `016_user_avatar.sql` | `docframe_users` avatar column | User avatar image reference support. |
+| `017_workflow_doctype_optional.sql` | `docframe_workflow_versions` | Makes doctype column nullable for standalone workflow templates. |
+| `018_scheduled_jobs.sql` | `docframe_scheduled_job_runs` | Persistent scheduled job run audit trail, duration, status, and error logs with fast lookup indexes. |
 
 **Auxiliary DBA SQL Scripts (`deploy/sql/`)**:
 - [reporting-readonly-user.sql](file:///d:/Side%20Projects/DocFrame/deploy/sql/reporting-readonly-user.sql): Creates the `docframe_ro` PostgreSQL role with `SELECT` access restricted exclusively to the `reporting` schema and `reporting_current_tenant()` function.

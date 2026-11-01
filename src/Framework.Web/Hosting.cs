@@ -199,6 +199,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<ISchedulerLogger, WebSchedulerLogger>();
         services.TryAddSingleton<IDistributedLock, InMemoryDistributedLock>();
         services.TryAddSingleton<ITenantProvider, DefaultTenantProvider>();
+        services.TryAddSingleton<IScheduledJobLogStore, InMemoryScheduledJobLogStore>();
         services.AddSingleton<ScheduledJobRunner>();
         services.AddHostedService<SchedulerWorker>();
 
@@ -228,6 +229,7 @@ public static class ServiceCollectionExtensions
     {
         s.TryAddSingleton<IDistributedLock, InMemoryDistributedLock>();
         s.TryAddSingleton<ITenantProvider, DefaultTenantProvider>();
+        s.TryAddSingleton<IScheduledJobLogStore, InMemoryScheduledJobLogStore>();
         s.AddSingleton<IScheduledJob, TJob>();
         return s;
     }

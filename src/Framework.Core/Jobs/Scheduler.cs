@@ -106,6 +106,49 @@ public sealed class ScheduledJobContext
 
 public sealed record ScheduledJobRunResult(int Evaluated, int Executed, int SkippedLocked, int Failed);
 
+public sealed record ScheduledJobRunEntry
+{
+    public required string JobName { get; init; }
+    public required string TenantId { get; init; }
+    public required DateTimeOffset StartedAt { get; init; }
+    public DateTimeOffset? CompletedAt { get; init; }
+    public int? DurationMs { get; init; }
+    public required string Status { get; init; } // "Success", "Failed", "SkippedLocked"
+    public string? Error { get; init; }
+}
+
+/// <summary>
+/// Persistence contract for scheduled job execution history and audit log.
+/// </summary>
+public interface IScheduledJobLogStore
+{
+    Task<DateTimeOffset?> GetLastRunAsync(string jobName, string tenantId, CancellationToken ct = default);
+    Task RecordRunAsync(ScheduledJobRunEntry entry, CancellationToken ct = default);
+}
+
+/// <summary>
+/// In-memory scheduled job log store for development and testing.
+/// </summary>
+public sealed class InMemoryScheduledJobLogStore : IScheduledJobLogStore
+{
+    private readonly ConcurrentDictionary<(string JobName, string TenantId), DateTimeOffset> _lastRuns = new();
+    private readonly ConcurrentBag<ScheduledJobRunEntry> _entries = new();
+
+    public Task<DateTimeOffset?> GetLastRunAsync(string jobName, string tenantId, CancellationToken ct = default)
+    {
+        return Task.FromResult(_lastRuns.TryGetValue((jobName, tenantId), out var dt) ? (DateTimeOffset?)dt : null);
+    }
+
+    public Task RecordRunAsync(ScheduledJobRunEntry entry, CancellationToken ct = default)
+    {
+        _lastRuns[(entry.JobName, entry.TenantId)] = entry.StartedAt;
+        _entries.Add(entry);
+        return Task.CompletedTask;
+    }
+
+    public IReadOnlyCollection<ScheduledJobRunEntry> Entries => _entries;
+}
+
 /// <summary>
 /// Evaluates and parses cron expressions and standard shorthands.
 /// </summary>
@@ -216,10 +259,24 @@ public sealed class ScheduledJobRunner(
     IDistributedLock distributedLock,
     DocumentService documentService,
     IServiceProvider serviceProvider,
+    IScheduledJobLogStore? logStore = null,
     ISchedulerLogger? logger = null)
 {
     private readonly ISchedulerLogger _logger = logger ?? NullSchedulerLogger.Instance;
+    private readonly IScheduledJobLogStore _logStore = logStore ?? new InMemoryScheduledJobLogStore();
     private readonly ConcurrentDictionary<(string JobName, string TenantId), DateTimeOffset> _lastRuns = new();
+
+    public async Task<DateTimeOffset?> GetLastRunAsync(string jobName, string tenantId, CancellationToken ct = default)
+    {
+        if (_lastRuns.TryGetValue((jobName, tenantId), out var dt))
+            return dt;
+
+        var stored = await _logStore.GetLastRunAsync(jobName, tenantId, ct).ConfigureAwait(false);
+        if (stored.HasValue)
+            _lastRuns[(jobName, tenantId)] = stored.Value;
+
+        return stored;
+    }
 
     public DateTimeOffset? GetLastRun(string jobName, string tenantId) =>
         _lastRuns.TryGetValue((jobName, tenantId), out var dt) ? dt : null;
@@ -237,7 +294,7 @@ public sealed class ScheduledJobRunner(
             foreach (var tenant in tenants)
             {
                 evaluated++;
-                var lastRun = GetLastRun(job.Name, tenant);
+                var lastRun = await GetLastRunAsync(job.Name, tenant, ct).ConfigureAwait(false);
                 if (!CronSchedule.IsDue(job.Schedule, now, lastRun))
                     continue;
 
@@ -272,6 +329,10 @@ public sealed class ScheduledJobRunner(
                         Logger = _logger
                     };
 
+                    var sw = System.Diagnostics.Stopwatch.StartNew();
+                    string status = "Success";
+                    string? error = null;
+
                     try
                     {
                         _logger.LogJobStarting(job.Name, tenant, now);
@@ -282,7 +343,32 @@ public sealed class ScheduledJobRunner(
                     catch (Exception ex) when (ex is not OperationCanceledException)
                     {
                         failed++;
+                        status = "Failed";
+                        error = ex.Message;
                         _logger.LogJobFailed(ex, job.Name, tenant);
+                    }
+                    finally
+                    {
+                        sw.Stop();
+                        var entry = new ScheduledJobRunEntry
+                        {
+                            JobName = job.Name,
+                            TenantId = tenant,
+                            StartedAt = now,
+                            CompletedAt = DateTimeOffset.UtcNow,
+                            DurationMs = (int)sw.ElapsedMilliseconds,
+                            Status = status,
+                            Error = error
+                        };
+
+                        try
+                        {
+                            await _logStore.RecordRunAsync(entry, ct).ConfigureAwait(false);
+                        }
+                        catch (Exception logEx) when (logEx is not OperationCanceledException)
+                        {
+                            _logger.LogLockFailed(logEx, job.Name, tenant);
+                        }
                     }
                 }
             }
