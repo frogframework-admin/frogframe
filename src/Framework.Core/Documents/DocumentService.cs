@@ -175,7 +175,7 @@ public sealed class DocumentService(
             {
                 [StandardFields.Name] = d.Name, [StandardFields.DocStatus] = d.DocStatus,
                 [StandardFields.WorkflowState] = d.WorkflowState, [StandardFields.Modified] = d.Modified,
-                [StandardFields.Owner] = d.Owner,
+                [StandardFields.Owner] = d.Owner, ["version"] = d.Version,
             };
             foreach (var c in columns) row[c] = d.Get(c);
             if (lv.TitleField is { } tf && Readable(tf)) row["_title"] = d.Get(tf);

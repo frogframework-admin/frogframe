@@ -5,6 +5,8 @@
 @inject IPermissionService Perms
 @inject NavigationManager Nav
 @inject Framework.Imports.DataImportService Importer
+@inject DialogService Dialogs
+@inject ToastService Toasts
 
 <PageTitle>@(meta?.Title ?? DocType) · DocFrame</PageTitle>
 
@@ -19,14 +21,25 @@ else if (meta is not null)
             <h1>@meta.Title</h1>
             <p>@(result is null ? "Memuat…" : $"{TotalText} dokumen dalam cakupan akses Anda")</p>
         </div>
-        @if (Perms.Can(Current.Required, meta, DocActions.Create))
+        @if (Perms.Can(Current.Required, meta, DocActions.Create) || Perms.Can(Current.Required, meta, DocActions.Delete))
         {
             <div class="row">
+                @if (Perms.Can(Current.Required, meta, DocActions.Delete))
+                {
+                    <BbButton Variant="ButtonVariant.Destructive"
+                              Disabled="@(selectedItems.Count == 0 || busy)"
+                              OnClick="DeleteSelected">
+                        <LucideIcon Name="trash-2" Size="16" /> Hapus @(selectedItems.Count > 0 ? $"({selectedItems.Count})" : "")
+                    </BbButton>
+                }
                 @if (Importer.CanImport(Current.Required, meta.Name))
                 {
                     <BbButton Variant="ButtonVariant.Outline" Href="@($"/app/{meta.Name}/import")"><LucideIcon Name="file-up" Size="16" /> Impor</BbButton>
                 }
-                <BbButton Href="@($"/app/{meta.Name}/new")"><LucideIcon Name="plus" Size="16" /> Buat @meta.Title.ToLower()</BbButton>
+                @if (Perms.Can(Current.Required, meta, DocActions.Create))
+                {
+                    <BbButton Href="@($"/app/{meta.Name}/new")"><LucideIcon Name="plus" Size="16" /> Buat @meta.Title.ToLower()</BbButton>
+                }
             </div>
         }
     </header>
@@ -78,52 +91,77 @@ else if (meta is not null)
     }
     else
     {
-        <div class="table-wrap">
-            <table class="data">
-                <thead>
-                    <tr>
-                        @SortHeader("name", "Nomor")
-                        @foreach (var c in result.Columns) { @SortHeader(c, LabelOf(c)) }
-                        @if (HasStatus) { <th scope="col">Status</th> }
-                        @SortHeader("modified", "Diubah")
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var row in result.Items)
-                    {
-                        var name = (string)row["name"]!;
-                        <tr class="clickable" @onclick="@(() => Go(name))">
-                            <td><a class="doc-link" href="/app/@meta.Name/@name">@name</a></td>
-                            @foreach (var c in result.Columns)
+        <BbDataGrid TData="Dictionary<string, object?>"
+                    Items="@result.Items"
+                    SelectionMode="DataTableSelectionMode.Multiple"
+                    SelectedItemsChanged="OnSelectedItemsChanged"
+                    ItemKey="@(r => (string)r["name"]!)"
+                    ShowPagination="true"
+                    InitialPageSize="10"
+                    PageSizes="@([10, 20, 50, 100])"
+                    TableContainerClass="table-wrap">
+            <Columns>
+                <BbDataGridSelectColumn TData="Dictionary<string, object?>" Width="3rem" />
+
+                <BbDataGridTemplateColumn TData="Dictionary<string, object?>" Title="Nomor" Sortable="true" SortBy="@(r => (string)r["name"]!)">
+                    <ChildContent Context="row">
+                        <a class="doc-link" href="/app/@meta.Name/@((string)row["name"]!)">@((string)row["name"]!)</a>
+                    </ChildContent>
+                </BbDataGridTemplateColumn>
+
+                @foreach (var c in result.Columns)
+                {
+                    var colKey = c;
+                    var cf = meta.ByName.GetValueOrDefault(colKey);
+                    <BbDataGridTemplateColumn TData="Dictionary<string, object?>" Title="@LabelOf(colKey)" Sortable="true" SortBy="@(r => (object?)(r.GetValueOrDefault(colKey) ?? ""))">
+                        <ChildContent Context="row">
+                            @if (cf?.Type.Editor == "image")
                             {
-                                var cf = meta.ByName.GetValueOrDefault(c);
-                                @if (cf?.Type.Editor == "image")
+                                @if (row.GetValueOrDefault(colKey) is string img)
                                 {
-                                    <td class="thumb-cell">@if (row.GetValueOrDefault(c) is string img) { <img class="thumb" src="@($"/files/{img}")" alt="" loading="lazy" /> } else { <span class="thumb thumb-empty"></span> }</td>
+                                    <img class="thumb" src="@($"/files/{img}")" alt="" loading="lazy" />
                                 }
                                 else
                                 {
-                                    <td class="@(cf?.Type.Editor == "number" ? "num" : "")">@Fmt.Value(cf, row.GetValueOrDefault(c))</td>
+                                    <span class="thumb thumb-empty"></span>
                                 }
                             }
-                            @if (HasStatus)
+                            else
                             {
-                                var st = row["workflow_state"] as string; var ds = (int)row["docstatus"]!;
-                                <td><StatusBadge Label="@Fmt.StateLabel(st, ds)" Tone="@Fmt.Tone(meta, st, ds)" /></td>
+                                <span class="@(cf?.Type.Editor == "number" ? "num" : "")">@Fmt.Value(cf, row.GetValueOrDefault(colKey))</span>
                             }
-                            <td class="muted nowrap">@Fmt.When((DateTimeOffset)row["modified"]!)</td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-        <div class="list-foot">
-            <span class="muted small">@((result.Page - 1) * result.PageSize + 1)–@(Math.Min(result.Page * result.PageSize, result.Total)) dari @TotalText</span>
-            @if (TotalPages > 1)
-            {
+                        </ChildContent>
+                    </BbDataGridTemplateColumn>
+                }
+
+                @if (HasStatus)
+                {
+                    <BbDataGridTemplateColumn TData="Dictionary<string, object?>" Title="Status" Sortable="true" SortBy="@(r => (object?)(r.GetValueOrDefault("workflow_state") ?? ""))">
+                        <ChildContent Context="row">
+                            @{
+                                var st = row.GetValueOrDefault("workflow_state") as string;
+                                var ds = row.TryGetValue("docstatus", out var dsv) && dsv is int dsi ? dsi : 0;
+                            }
+                            <StatusBadge Label="@Fmt.StateLabel(st, ds)" Tone="@Fmt.Tone(meta, st, ds)" />
+                        </ChildContent>
+                    </BbDataGridTemplateColumn>
+                }
+
+                <BbDataGridTemplateColumn TData="Dictionary<string, object?>" Title="Diubah" Sortable="true" SortBy="@(r => (object)r["modified"]!)">
+                    <ChildContent Context="row">
+                        <span class="muted nowrap">@Fmt.When((DateTimeOffset)row["modified"]!)</span>
+                    </ChildContent>
+                </BbDataGridTemplateColumn>
+            </Columns>
+        </BbDataGrid>
+
+        @if (TotalPages > 1)
+        {
+            <div class="list-foot">
+                <span class="muted small">Halaman @result.Page dari @TotalPages (@TotalText dokumen)</span>
                 <BbPagination TotalPages="TotalPages" CurrentPage="result.Page" CurrentPageChanged="Reload" />
-            }
-        </div>
+            </div>
+        }
     }
 }
 
@@ -133,8 +171,10 @@ else if (meta is not null)
 
     private CompiledDocType? meta;
     private ListResponse? result;
-    private string? search, sortField, sortDir, error, fatal;
+    private string? search, sortField, error, fatal;
     private readonly Dictionary<string, FilterClause> filters = new();
+    private readonly HashSet<Dictionary<string, object?>> selectedItems = [];
+    private bool busy;
 
     private bool HasStatus => meta!.Workflow is not null || meta.Def.Document.AllowSubmit;
     private string TotalText => result is null ? "" : result.TotalCapped ? $"{result.Total:N0}+" : $"{result.Total:N0}";
@@ -148,6 +188,7 @@ else if (meta is not null)
         if (DocType == loadedKey) return;
         loadedKey = DocType;
         fatal = null; error = null; filters.Clear(); search = null; sortField = null; result = null;
+        selectedItems.Clear();
         if (!Metadata.Current.TryGet(DocType, out var m) || m.Def.IsChild) { fatal = $"DocType '{DocType}' tidak ditemukan."; return; }
         meta = m;
         if (!Perms.Can(Current.Required, meta, DocActions.Read)) { fatal = $"Anda tidak memiliki akses untuk melihat {meta.Title}."; return; }
@@ -189,29 +230,76 @@ else if (meta is not null)
         return Reload(1);
     }
 
-    private Task Sort(string field)
+    private void OnSelectedItemsChanged(IReadOnlyCollection<Dictionary<string, object?>> items)
     {
-        sortDir = sortField == field && sortDir == "asc" ? "desc" : "asc";
-        sortField = field;
-        return Reload(1);
+        selectedItems.Clear();
+        foreach (var item in items)
+        {
+            selectedItems.Add(item);
+        }
     }
 
-    private RenderFragment SortHeader(string field, string label) => __builder =>
+    private async Task DeleteSelected()
     {
-        var dir = sortField == field ? (sortDir == "asc" ? "ascending" : "descending") : "none";
-        <th scope="col" aria-sort="@dir" class="@(meta!.ByName.GetValueOrDefault(field)?.Type.Editor == "number" ? "num" : "")">
-            <button class="sort-btn" @onclick="() => Sort(field)">@label
-                @if (dir != "none") { <LucideIcon Name="@(dir == "ascending" ? "arrow-up" : "arrow-down")" Size="14" /> }
-            </button>
-        </th>
-    };
+        if (selectedItems.Count == 0 || busy) return;
+
+        var count = selectedItems.Count;
+        var confirm = await Dialogs.ConfirmAsync(
+            $"Hapus {count} dokumen {meta!.Title.ToLower()}?",
+            "Dokumen draft yang dipilih akan dihapus permanen. Tindakan ini tidak dapat dibatalkan.",
+            new ConfirmDialogOptions { Destructive = true, ConfirmText = $"Hapus ({count})", CancelText = "Batal" });
+
+        if (!confirm.Confirmed) return;
+
+        busy = true;
+        int success = 0;
+        var failed = new List<string>();
+
+        try
+        {
+            foreach (var item in selectedItems.ToList())
+            {
+                var name = (string)item["name"]!;
+                try
+                {
+                    int version = item.TryGetValue("version", out var v) && v is int iv
+                        ? iv
+                        : (await Docs.GetAsync(Current.Required, DocType, name)).Version;
+
+                    await Docs.DeleteAsync(Current.Required, DocType, name, version);
+                    success++;
+                }
+                catch (Exception ex)
+                {
+                    failed.Add($"{name}: {ex.Message}");
+                }
+            }
+
+            if (success > 0)
+            {
+                Toasts.Success($"{success} {meta!.Title.ToLower()} berhasil dihapus.", "Dihapus");
+            }
+
+            if (failed.Count > 0)
+            {
+                Toasts.Error(string.Join("; ", failed), "Gagal Menghapus Sebagian Dokumen");
+            }
+        }
+        finally
+        {
+            busy = false;
+            selectedItems.Clear();
+            await Reload(result?.Page ?? 1);
+        }
+    }
 
     private async Task Reload(int page)
     {
         try
         {
             error = null;
-            result = await Docs.ListAsync(Current.Required, DocType, new ListRequest(filters.Values.ToList(), search, sortField, sortDir, page));
+            selectedItems.Clear();
+            result = await Docs.ListAsync(Current.Required, DocType, new ListRequest(filters.Values.ToList(), search, sortField, null, page));
         }
         catch (Exception ex) when (ex is InvalidPayloadException or PermissionDeniedException)
         {
