@@ -22,19 +22,19 @@ public static class Fmt
             case "Date":
                 return v is string s && DateOnly.TryParse(s, CultureInfo.InvariantCulture, out var d) ? d.ToString("d MMM yyyy", Id) : v.ToString()!;
             case "Check":
-                return v is true ? "Ya" : "Tidak";
+                return v is true ? "Yes" : "No";
             case "Image":
-                return "Gambar terlampir";
+                return "Attached image";
         }
         return v switch
         {
             DateTimeOffset dto => When(dto),
-            bool b => b ? "Ya" : "Tidak",
+            bool b => b ? "Yes" : "No",
             _ => Convert.ToString(v, CultureInfo.InvariantCulture) ?? ""
         };
     }
 
-    /// <summary>Nilai mentah untuk input (tanpa pemisah ribuan).</summary>
+    /// <summary>Raw value for input (without thousand separators).</summary>
     public static string Raw(object? v) => v switch
     {
         null => "",
@@ -47,10 +47,10 @@ public static class Fmt
     {
         var local = t.ToLocalTime();
         var span = DateTimeOffset.Now - t;
-        if (span.TotalMinutes < 1) return "baru saja";
-        if (span.TotalHours < 1) return $"{(int)span.TotalMinutes} menit lalu";
-        if (span.TotalDays < 1 && local.Date == DateTime.Today) return $"hari ini {local:HH:mm}";
-        return local.ToString("d MMM yyyy HH:mm", Id);
+        if (span.TotalMinutes < 1) return "just now";
+        if (span.TotalHours < 1) return $"{(int)span.TotalMinutes}m ago";
+        if (span.TotalDays < 1 && local.Date == DateTime.Today) return $"today {local:HH:mm}";
+        return local.ToString("d MMM yyyy HH:mm", CultureInfo.InvariantCulture);
     }
 
     public static string Tone(CompiledDocType meta, Document d) => Tone(meta, d.WorkflowState, d.DocStatus);

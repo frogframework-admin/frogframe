@@ -8,7 +8,7 @@ public static class PrintStyles
 {
     public const string Css = """
 @page { size: A4; margin: 16mm 15mm 18mm 15mm;
-  @bottom-right { content: "Halaman " counter(page) " dari " counter(pages); font: 8pt "Public Sans", "Segoe UI", Arial, "Liberation Sans", "DejaVu Sans", sans-serif; color: #6b7280; } }
+  @bottom-right { content: "Page " counter(page) " of " counter(pages); font: 8pt "Public Sans", "Segoe UI", Arial, "Liberation Sans", "DejaVu Sans", sans-serif; color: #6b7280; } }
 .pf { --ink: #111827; --muted: #6b7280; --line: #d1d5db; --soft: #f3f4f6; --accent: #3f3d9a;
   --pending: #a16207; --positive: #15803d; --negative: #b91c1c;
   font-family: "Public Sans", "Segoe UI", "Helvetica Neue", Arial, "Liberation Sans", "DejaVu Sans", sans-serif;

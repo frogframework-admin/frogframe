@@ -2,33 +2,33 @@ using BlazorBlueprint.Components;
 
 namespace Framework.Web;
 
-/// <summary>Teks bawaan komponen BlazorBlueprint dalam Bahasa Indonesia.</summary>
+/// <summary>Default strings for BlazorBlueprint components in English.</summary>
 public static class BbIndonesian
 {
     public static void Apply(DefaultBbLocalizer l)
     {
-        l.Set("Alert.Dismiss", "Tutup");
-        l.Set("Calendar.GoToPreviousMonth", "Bulan sebelumnya");
-        l.Set("Calendar.GoToNextMonth", "Bulan berikutnya");
-        l.Set("Combobox.EmptyMessage", "Tidak ada hasil.");
-        l.Set("Combobox.Placeholder", "Pilih…");
-        l.Set("Combobox.SearchPlaceholder", "Cari…");
-        l.Set("DatePicker.Placeholder", "Pilih tanggal");
-        l.Set("DatePicker.OpenCalendar", "Buka kalender");
-        l.Set("Dialog.Close", "Tutup");
-        l.Set("Pagination.Pagination", "Halaman");
-        l.Set("Pagination.Previous", "Sebelumnya");
-        l.Set("Pagination.Next", "Berikutnya");
-        l.Set("Pagination.MorePages", "Halaman lain");
-        l.Set("Pagination.GoToFirstPage", "Ke halaman pertama");
-        l.Set("Pagination.GoToLastPage", "Ke halaman terakhir");
-        l.Set("Pagination.RowsPerPage", "Baris per halaman");
-        l.Set("Pagination.ShowingFormat", "{0}–{1} dari {2}");
-        l.Set("Pagination.PageFormat", "Halaman {0} dari {1}");
-        l.Set("Pagination.NoItems", "Tidak ada data");
-        l.Set("Select.ChooseOption", "Pilih salah satu");
-        l.Set("Sidebar.PillNavigation", "Navigasi utama");
-        l.Set("Sidebar.ExpandNavigation", "Buka navigasi");
-        l.Set("Sidebar.ToggleSidebar", "Buka/tutup sidebar");
+        l.Set("Alert.Dismiss", "Close");
+        l.Set("Calendar.GoToPreviousMonth", "Previous month");
+        l.Set("Calendar.GoToNextMonth", "Next month");
+        l.Set("Combobox.EmptyMessage", "No results found.");
+        l.Set("Combobox.Placeholder", "Select…");
+        l.Set("Combobox.SearchPlaceholder", "Search…");
+        l.Set("DatePicker.Placeholder", "Select date");
+        l.Set("DatePicker.OpenCalendar", "Open calendar");
+        l.Set("Dialog.Close", "Close");
+        l.Set("Pagination.Pagination", "Pagination");
+        l.Set("Pagination.Previous", "Previous");
+        l.Set("Pagination.Next", "Next");
+        l.Set("Pagination.MorePages", "More pages");
+        l.Set("Pagination.GoToFirstPage", "Go to first page");
+        l.Set("Pagination.GoToLastPage", "Go to last page");
+        l.Set("Pagination.RowsPerPage", "Rows per page");
+        l.Set("Pagination.ShowingFormat", "{0}–{1} of {2}");
+        l.Set("Pagination.PageFormat", "Page {0} of {1}");
+        l.Set("Pagination.NoItems", "No data");
+        l.Set("Select.ChooseOption", "Select an option");
+        l.Set("Sidebar.PillNavigation", "Main navigation");
+        l.Set("Sidebar.ExpandNavigation", "Expand navigation");
+        l.Set("Sidebar.ToggleSidebar", "Toggle sidebar");
     }
 }

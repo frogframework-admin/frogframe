@@ -2,12 +2,12 @@
 @inject DocumentService Docs
 @inject CurrentUser Current
 
-<PageTitle>Struktur Organisasi · DocFrame</PageTitle>
+<PageTitle>Organizational Structure · DocFrame</PageTitle>
 
 <header class="page-head">
     <div>
-        <h1>Struktur Organisasi</h1>
-        <p>Disusun dari data Departemen (induk departemen, kepala) dan Karyawan (atasan langsung). Klik kotak untuk membuka datanya.</p>
+        <h1>Organizational Structure</h1>
+        <p>Built from Department (parent department, head) and Employee (reports to) data. Click a node to view details.</p>
     </div>
 </header>
 
@@ -22,28 +22,28 @@ else if (employees is null || departments is null)
 else
 {
     <div class="org-stats">
-        <div><strong>@departments.Count</strong><span class="muted small">departemen</span></div>
-        <div><strong>@ActiveEmployees.Count</strong><span class="muted small">karyawan aktif</span></div>
-        <div><strong>@WithoutManager.Count</strong><span class="muted small">tanpa atasan</span></div>
+        <div><strong>@departments.Count</strong><span class="muted small">departments</span></div>
+        <div><strong>@ActiveEmployees.Count</strong><span class="muted small">active employees</span></div>
+        <div><strong>@WithoutManager.Count</strong><span class="muted small">without supervisor</span></div>
     </div>
 
     <BbTabs Value="@view" ValueChanged="v => view = v ?? view">
         <BbTabsList>
-            <BbTabsTrigger Value="dept"><LucideIcon Name="building" Size="15" /> Per departemen</BbTabsTrigger>
-            <BbTabsTrigger Value="people"><LucideIcon Name="users-round" Size="15" /> Atasan – bawahan</BbTabsTrigger>
+            <BbTabsTrigger Value="dept"><LucideIcon Name="building" Size="15" /> By department</BbTabsTrigger>
+            <BbTabsTrigger Value="people"><LucideIcon Name="users-round" Size="15" /> Manager – subordinates</BbTabsTrigger>
         </BbTabsList>
         <BbTabsContent Value="dept">
             <BbCard Style="margin-top:.75rem"><BbCardContent><div style="padding-top:1rem">
-                <OrgTree Nodes="DeptNodes" AriaLabel="Bagan departemen" EmptyTitle="Belum ada departemen" EmptyText="Tambahkan data di menu HR → Departemen." />
+                <OrgTree Nodes="DeptNodes" AriaLabel="Department chart" EmptyTitle="No departments found" EmptyText="Add data in HR → Department." />
             </div></BbCardContent></BbCard>
         </BbTabsContent>
         <BbTabsContent Value="people">
             <BbCard Style="margin-top:.75rem"><BbCardContent><div style="padding-top:1rem">
-                <OrgTree Nodes="PeopleNodes" AriaLabel="Bagan atasan dan bawahan" EmptyTitle="Belum ada karyawan" EmptyText="Tambahkan data di menu HR → Karyawan." />
+                <OrgTree Nodes="PeopleNodes" AriaLabel="Organization chart" EmptyTitle="No employees found" EmptyText="Add data in HR → Employee." />
             </div></BbCardContent></BbCard>
             @if (WithoutManager.Count > 1)
             {
-                <p class="muted small" style="margin-top:.5rem">Karyawan tanpa atasan tampil sebagai puncak bagan: @string.Join(", ", WithoutManager.Select(e => Str(e, "employee_name")))</p>
+                <p class="muted small" style="margin-top:.5rem">Employees without a manager appear at the root: @string.Join(", ", WithoutManager.Select(e => Str(e, "employee_name")))</p>
             }
         </BbTabsContent>
     </BbTabs>
