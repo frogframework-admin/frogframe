@@ -93,17 +93,43 @@ else if (meta is not null)
     {
         <BbDataGrid TData="Dictionary<string, object?>"
                     Items="@result.Items"
-                    SelectionMode="DataTableSelectionMode.Multiple"
-                    SelectedItemsChanged="OnSelectedItemsChanged"
                     ItemKey="@(r => (string)r["name"]!)"
+                    OnRowClick="@(row => Go((string)row["name"]!))"
+                    RowClass="@(row => selectedItems.Contains((string)row["name"]!) ? "clickable selected" : "clickable")"
+                    Resizable="true"
                     ShowPagination="true"
                     InitialPageSize="10"
                     PageSizes="@([10, 20, 50, 100])"
                     TableContainerClass="table-wrap">
+            <Toolbar>
+                <div class="row" style="justify-content:flex-end;width:100%;margin-bottom:.5rem">
+                    <BbDataGridColumnVisibility TData="Dictionary<string, object?>" />
+                </div>
+            </Toolbar>
             <Columns>
-                <BbDataGridSelectColumn TData="Dictionary<string, object?>" Width="3rem" />
+                <BbDataGridTemplateColumn TData="Dictionary<string, object?>" Id="_select" Width="3rem" Hideable="false" Resizable="false">
+                    <HeaderTemplate>
+                        <div @onclick:stopPropagation="true">
+                            <BbCheckbox Checked="@IsAllSelected"
+                                        Indeterminate="@IsSomeSelected"
+                                        CheckedChanged="ToggleSelectAll"
+                                        AriaLabel="Pilih semua" />
+                        </div>
+                    </HeaderTemplate>
+                    <ChildContent Context="row">
+                        @{
+                            var rowName = (string)row["name"]!;
+                            var isSelected = selectedItems.Contains(rowName);
+                        }
+                        <div @onclick:stopPropagation="true">
+                            <BbCheckbox Checked="@isSelected"
+                                        CheckedChanged="v => ToggleSelect(rowName, v)"
+                                        AriaLabel="@($"Pilih {rowName}")" />
+                        </div>
+                    </ChildContent>
+                </BbDataGridTemplateColumn>
 
-                <BbDataGridTemplateColumn TData="Dictionary<string, object?>" Title="Nomor" Sortable="true" SortBy="@(r => (string)r["name"]!)">
+                <BbDataGridTemplateColumn TData="Dictionary<string, object?>" Id="name" Title="Nomor" Hideable="false" Resizable="true" Sortable="true" SortBy="@(r => (string)r["name"]!)">
                     <ChildContent Context="row">
                         <a class="doc-link" href="/app/@meta.Name/@((string)row["name"]!)">@((string)row["name"]!)</a>
                     </ChildContent>
@@ -113,7 +139,7 @@ else if (meta is not null)
                 {
                     var colKey = c;
                     var cf = meta.ByName.GetValueOrDefault(colKey);
-                    <BbDataGridTemplateColumn TData="Dictionary<string, object?>" Title="@LabelOf(colKey)" Sortable="true" SortBy="@(r => (object?)(r.GetValueOrDefault(colKey) ?? ""))">
+                    <BbDataGridTemplateColumn TData="Dictionary<string, object?>" Id="@colKey" Title="@LabelOf(colKey)" Resizable="true" Sortable="true" SortBy="@(r => (object?)(r.GetValueOrDefault(colKey) ?? ""))">
                         <ChildContent Context="row">
                             @if (cf?.Type.Editor == "image")
                             {
@@ -136,7 +162,7 @@ else if (meta is not null)
 
                 @if (HasStatus)
                 {
-                    <BbDataGridTemplateColumn TData="Dictionary<string, object?>" Title="Status" Sortable="true" SortBy="@(r => (object?)(r.GetValueOrDefault("workflow_state") ?? ""))">
+                    <BbDataGridTemplateColumn TData="Dictionary<string, object?>" Id="status" Title="Status" Resizable="true" Sortable="true" SortBy="@(r => (object?)(r.GetValueOrDefault("workflow_state") ?? ""))">
                         <ChildContent Context="row">
                             @{
                                 var st = row.GetValueOrDefault("workflow_state") as string;
@@ -147,7 +173,7 @@ else if (meta is not null)
                     </BbDataGridTemplateColumn>
                 }
 
-                <BbDataGridTemplateColumn TData="Dictionary<string, object?>" Title="Diubah" Sortable="true" SortBy="@(r => (object)r["modified"]!)">
+                <BbDataGridTemplateColumn TData="Dictionary<string, object?>" Id="modified" Title="Diubah" Resizable="true" Sortable="true" SortBy="@(r => (object)r["modified"]!)">
                     <ChildContent Context="row">
                         <span class="muted nowrap">@Fmt.When((DateTimeOffset)row["modified"]!)</span>
                     </ChildContent>
@@ -173,8 +199,32 @@ else if (meta is not null)
     private ListResponse? result;
     private string? search, sortField, error, fatal;
     private readonly Dictionary<string, FilterClause> filters = new();
-    private readonly HashSet<Dictionary<string, object?>> selectedItems = [];
+    private readonly HashSet<string> selectedItems = [];
     private bool busy;
+
+    private bool IsAllSelected => result?.Items.Count > 0 && result.Items.All(r => selectedItems.Contains((string)r["name"]!));
+    private bool IsSomeSelected => !IsAllSelected && result?.Items.Any(r => selectedItems.Contains((string)r["name"]!)) == true;
+
+    private void ToggleSelectAll(bool check)
+    {
+        if (result is null) return;
+        if (check)
+        {
+            foreach (var r in result.Items)
+                selectedItems.Add((string)r["name"]!);
+        }
+        else
+        {
+            foreach (var r in result.Items)
+                selectedItems.Remove((string)r["name"]!);
+        }
+    }
+
+    private void ToggleSelect(string name, bool check)
+    {
+        if (check) selectedItems.Add(name);
+        else selectedItems.Remove(name);
+    }
 
     private bool HasStatus => meta!.Workflow is not null || meta.Def.Document.AllowSubmit;
     private string TotalText => result is null ? "" : result.TotalCapped ? $"{result.Total:N0}+" : $"{result.Total:N0}";
@@ -230,15 +280,6 @@ else if (meta is not null)
         return Reload(1);
     }
 
-    private void OnSelectedItemsChanged(IReadOnlyCollection<Dictionary<string, object?>> items)
-    {
-        selectedItems.Clear();
-        foreach (var item in items)
-        {
-            selectedItems.Add(item);
-        }
-    }
-
     private async Task DeleteSelected()
     {
         if (selectedItems.Count == 0 || busy) return;
@@ -257,17 +298,15 @@ else if (meta is not null)
 
         try
         {
-            foreach (var item in selectedItems.ToList())
+            var namesToDelete = selectedItems.ToList();
+            foreach (var name in namesToDelete)
             {
-                var name = (string)item["name"]!;
                 try
                 {
-                    int version = item.TryGetValue("version", out var v) && v is int iv
-                        ? iv
-                        : (await Docs.GetAsync(Current.Required, DocType, name)).Version;
-
-                    await Docs.DeleteAsync(Current.Required, DocType, name, version);
+                    var doc = await Docs.GetAsync(Current.Required, DocType, name);
+                    await Docs.DeleteAsync(Current.Required, DocType, name, doc.Version);
                     success++;
+                    selectedItems.Remove(name);
                 }
                 catch (Exception ex)
                 {
@@ -288,7 +327,6 @@ else if (meta is not null)
         finally
         {
             busy = false;
-            selectedItems.Clear();
             await Reload(result?.Page ?? 1);
         }
     }
