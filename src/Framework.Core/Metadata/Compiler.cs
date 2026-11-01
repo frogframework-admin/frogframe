@@ -18,6 +18,12 @@ public static class StandardFields
     public static readonly ImmutableHashSet<string> Queryable = [Name, Owner, Created, Modified, DocStatus, WorkflowState];
 }
 
+public sealed class CompiledDocHook
+{
+    public required DocHookDef Def { get; init; }
+    public object? ConditionValue { get; init; }
+}
+
 public static class DocActions
 {
     public const string Read = "read", Create = "create", Write = "write", Delete = "delete",
@@ -89,6 +95,7 @@ public sealed class CompiledDocType
     /// <summary>Field compute dalam urutan topologis (dependensi lebih dulu).</summary>
     public required IReadOnlyList<CompiledField> ComputeOrder { get; init; }
     public required IReadOnlyList<CompiledRule> Rules { get; init; }
+    public required IReadOnlyList<CompiledDocHook> Hooks { get; init; }
     public required IReadOnlyList<LayoutTab> Layout { get; init; }
     public CompiledWorkflow? Workflow { get; init; }
     public required IReadOnlyList<string> ListColumns { get; init; }
@@ -297,6 +304,56 @@ public sealed partial class MetadataCompiler(IFieldTypeRegistry fieldTypes, Func
             if (e is not null) rules.Add(new CompiledRule { Def = r, Expr = e });
         }
 
+        var compiledHooks = new List<CompiledDocHook>();
+        var allowedHookEvents = new[] { "BeforeValidate", "BeforeInsert", "BeforeUpdate", "AfterSave", "OnLoad" };
+        var hookNames = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var hook in d.Hooks)
+        {
+            var path = $"hooks.{hook.Name}";
+            if (string.IsNullOrWhiteSpace(hook.Name)) errors.Add(new(src, "hooks", "Nama hook wajib diisi"));
+            else if (!hookNames.Add(hook.Name)) errors.Add(new(src, path, "Nama hook duplikat"));
+            if (!allowedHookEvents.Contains(hook.Event, StringComparer.Ordinal))
+                errors.Add(new(src, path + ".event", $"Event '{hook.Event}' tidak diizinkan"));
+            if (hook.Actions.Count == 0) errors.Add(new(src, path + ".actions", "Minimal satu aksi wajib diisi"));
+
+            object? conditionValue = null;
+            if (hook.When is { } condition)
+            {
+                if (!byName.TryGetValue(condition.Field, out var field))
+                    errors.Add(new(src, path + ".when.field", $"Field '{condition.Field}' tidak ada"));
+                else if (condition.Operator is not ("Equals" or "NotEquals" or "ChangedTo"))
+                    errors.Add(new(src, path + ".when.operator", $"Operator '{condition.Operator}' tidak diizinkan"));
+                else if (condition.Value is { } raw)
+                {
+                    var normalized = field.Type.Normalize(raw);
+                    if (normalized.Ok) conditionValue = normalized.Value;
+                    else errors.Add(new(src, path + ".when.value", $"Nilai kondisi tidak sesuai tipe field: {normalized.Error}"));
+                }
+                else if (condition.Operator != "ChangedTo")
+                    errors.Add(new(src, path + ".when.value", "Nilai kondisi tidak valid atau wajib diisi"));
+                if (condition.Operator == "ChangedTo" && hook.Event != "BeforeUpdate" && hook.Event != "AfterSave")
+                    errors.Add(new(src, path + ".when.operator", "ChangedTo hanya berlaku pada BeforeUpdate atau AfterSave"));
+            }
+
+            foreach (var action in hook.Actions)
+            {
+                if (action.Type == "Reject")
+                {
+                    if (string.IsNullOrWhiteSpace(action.Message)) errors.Add(new(src, path + ".actions", "Aksi Reject membutuhkan message"));
+                    if (hook.Event is "AfterSave" or "OnLoad") errors.Add(new(src, path + ".actions", "Reject tidak dapat digunakan pada AfterSave atau OnLoad"));
+                    if (action.Field is not null && !byName.ContainsKey(action.Field)) errors.Add(new(src, path + ".actions.field", $"Field '{action.Field}' tidak ada"));
+                }
+                else if (action.Type == "EmitEvent")
+                {
+                    if (hook.Event != "AfterSave") errors.Add(new(src, path + ".actions", "EmitEvent hanya dapat digunakan pada AfterSave"));
+                    if (string.IsNullOrWhiteSpace(action.EventType) || action.EventType.Length > 128 || action.EventType.Any(c => !(char.IsAsciiLetterOrDigit(c) || c is '.' or '_' or '-')))
+                        errors.Add(new(src, path + ".actions.eventType", "eventType hanya boleh berisi huruf, angka, titik, garis bawah, dan tanda hubung (maks. 128)"));
+                }
+                else errors.Add(new(src, path + ".actions.type", $"Aksi '{action.Type}' tidak diizinkan"));
+            }
+            compiledHooks.Add(new CompiledDocHook { Def = hook, ConditionValue = conditionValue });
+        }
+
         foreach (var p in d.Permissions)
         {
             if (string.IsNullOrWhiteSpace(p.Role)) errors.Add(new(src, "permissions", "Role wajib diisi"));
@@ -375,7 +432,7 @@ public sealed partial class MetadataCompiler(IFieldTypeRegistry fieldTypes, Func
 
         return new CompiledDocType
         {
-            Def = d, Fields = compiledFields, ByName = byName, ComputeOrder = computeOrder, Rules = rules,
+            Def = d, Fields = compiledFields, ByName = byName, ComputeOrder = computeOrder, Rules = rules, Hooks = compiledHooks,
             Layout = BuildLayout(compiledFields), Workflow = workflow, ListColumns = columns,
         };
     }
@@ -511,6 +568,8 @@ public static class MetadataDiff
             changes.Add(new(ChangeRisk.Risky, "permissions", "Permission berubah — perlu review keamanan"));
         if (JsonSerializer.Serialize(oldDef.Rules) != JsonSerializer.Serialize(newDef.Rules))
             changes.Add(new(ChangeRisk.NeedsTransform, "rules", "Aturan lintas-field berubah"));
+        if (JsonSerializer.Serialize(oldDef.Hooks) != JsonSerializer.Serialize(newDef.Hooks))
+            changes.Add(new(ChangeRisk.Risky, "hooks", "Visual hooks berubah — perilaku dokumen berubah dan perlu review"));
         if (oldDef.Workflow != newDef.Workflow) changes.Add(new(ChangeRisk.Risky, "workflow", "Workflow diganti"));
         if (JsonSerializer.Serialize(oldDef.ListView) != JsonSerializer.Serialize(newDef.ListView))
             changes.Add(new(ChangeRisk.Safe, "listView", "Konfigurasi list view berubah"));

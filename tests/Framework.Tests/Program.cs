@@ -166,6 +166,15 @@ sealed partial class Tests
         return sp;
     }
 
+    private async Task UseHookProviderAsync(Action<IServiceCollection> configure)
+    {
+        await DisposeAsync();
+        if (PgConnection is not null) await ResetDatabaseAsync();
+        sp = await BuildProviderAsync(configure);
+        await SeedAsync(sp);
+        users = await LoadUsersAsync(sp);
+    }
+
     private static async Task ResetDatabaseAsync()
     {
         await using var db = NpgsqlDataSource.Create(PgConnection!);
@@ -229,6 +238,70 @@ sealed partial class Tests
         Assert.True(ex.Errors.Any(e => e.Message.Contains("TidakAda")), "link salah terdeteksi");
         Assert.True(ex.Errors.Any(e => e.Message.Contains("rahasia")), "nama tak dikenal terdeteksi");
         return Task.CompletedTask;
+    }
+
+    [Test]
+    public Task Compiler_memvalidasi_visual_hooks()
+    {
+        var reg = sp.GetRequiredService<MetadataRegistry>();
+        var valid = MetadataJson.ParseDocType(MetadataJson.Serialize(reg.Current.Get("Vendor").Def));
+        valid.Hooks.Add(new DocHookDef
+        {
+            Name = "blocked-event", Event = "AfterSave",
+            When = new DocHookConditionDef { Field = "blacklisted", Operator = "Equals", Value = System.Text.Json.JsonSerializer.SerializeToElement(true) },
+            Actions = [new DocHookActionDef { Type = "EmitEvent", EventType = "vendor.blocked" }]
+        });
+        Assert.True(reg.CompileDraft(valid).Snapshot is not null, "valid visual hook compiles");
+        Assert.True(reg.Preview(valid).Changes.Any(c => c.Path == "hooks" && c.Risk == ChangeRisk.Risky), "hook changes are surfaced as risky publish changes");
+
+        valid.Hooks[0].When!.Field = "missing_field";
+        valid.Hooks[0].Actions[0].Type = "ExecuteCode";
+        var errors = reg.CompileDraft(valid).Errors;
+        Assert.True(errors.Any(e => e.Path == "hooks.blocked-event.when.field"), "unknown condition field rejected");
+        Assert.True(errors.Any(e => e.Path == "hooks.blocked-event.actions.type"), "unknown action rejected");
+
+        var invalidStage = MetadataJson.ParseDocType(MetadataJson.Serialize(reg.Current.Get("Vendor").Def));
+        invalidStage.Hooks.Add(new DocHookDef
+        {
+            Name = "early-event", Event = "BeforeInsert",
+            Actions = [new DocHookActionDef { Type = "EmitEvent", EventType = "vendor.early" }]
+        });
+        Assert.True(reg.CompileDraft(invalidStage).Errors.Any(e => e.Path == "hooks.early-event.actions"), "EmitEvent outside AfterSave rejected");
+        return Task.CompletedTask;
+    }
+
+    [Test]
+    public async Task Visual_hook_reject_menghentikan_insert_dan_emit_event_transaksional()
+    {
+        var reg = sp.GetRequiredService<MetadataRegistry>();
+        var def = MetadataJson.ParseDocType(MetadataJson.Serialize(reg.Current.Get("Vendor").Def));
+        def.Version++;
+        def.Hooks.Add(new DocHookDef
+        {
+            Name = "reject-blocked", Event = "BeforeInsert",
+            When = new DocHookConditionDef { Field = "blacklisted", Operator = "Equals", Value = System.Text.Json.JsonSerializer.SerializeToElement(true) },
+            Actions = [new DocHookActionDef { Type = "Reject", Field = "blacklisted", Message = "Vendor diblokir" }]
+        });
+        reg.Publish(def, "admin", acknowledgeRisk: true);
+        var before = (await Docs.QueryForReportAsync(U("rina"), "Vendor", [], DocActions.Read)).Count;
+        var rejected = await Assert.Throws<ValidationFailedException>(() => Docs.InsertAsync(U("rina"), "Vendor",
+            P(("vendor_name", "Vendor Ditolak"), ("blacklisted", true))), "visual reject");
+        Assert.Equal("Vendor diblokir", rejected.Errors[0].Message, "validation message");
+        Assert.Equal(before, (await Docs.QueryForReportAsync(U("rina"), "Vendor", [], DocActions.Read)).Count, "reject tidak menyimpan dokumen");
+
+        def = MetadataJson.ParseDocType(MetadataJson.Serialize(reg.Current.Get("Vendor").Def));
+        def.Version++;
+        def.Hooks.Add(new DocHookDef
+        {
+            Name = "created-event", Event = "AfterSave",
+            Actions = [new DocHookActionDef { Type = "EmitEvent", EventType = "vendor.visual_created" }]
+        });
+        reg.Publish(def, "admin", acknowledgeRisk: true);
+        var outbox = sp.GetRequiredService<IOutboxStore>();
+        var outboxBefore = outbox.Snapshot().Count;
+        await Docs.InsertAsync(U("rina"), "Vendor", P(("vendor_name", "Vendor Visual")));
+        Assert.Equal(outboxBefore + 2, outbox.Snapshot().Count, "event visual dan event dokumen berada di outbox");
+        Assert.True(outbox.Snapshot().Any(e => e.Type == "vendor.visual_created"), "event visual tersimpan");
     }
 
     // ---------------- Validasi & compute ----------------
@@ -548,6 +621,15 @@ sealed partial class Tests
             Assert.True(changes.Count == 0, $"{meta.Name}: desain tanpa edit tidak boleh menghasilkan perubahan ({string.Join("; ", changes.Select(c => c.Path + " " + c.Description))})");
             Assert.True(back.Fields.Select(f => f.Name).SequenceEqual(meta.Def.Fields.Select(f => f.Name)), $"{meta.Name}: urutan field sama");
         }
+        var hooked = DocTypeDesign.From(reg.Current.Get("Vendor").Def);
+        hooked.Def.Hooks.Add(new DocHookDef
+        {
+            Name = "roundtrip", Event = "AfterSave",
+            When = new DocHookConditionDef { Field = "blacklisted", Value = System.Text.Json.JsonSerializer.SerializeToElement(true) },
+            Actions = [new DocHookActionDef { Type = "EmitEvent", EventType = "vendor.roundtrip" }]
+        });
+        var hookedBack = DocTypeDesign.From(hooked.ToDef(hooked.Def.Version)).ToDef(hooked.Def.Version);
+        Assert.Equal(MetadataJson.Serialize(hooked.Def), MetadataJson.Serialize(hookedBack), "hook metadata round-trip");
         return Task.CompletedTask;
     }
 

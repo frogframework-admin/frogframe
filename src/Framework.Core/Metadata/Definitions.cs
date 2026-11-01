@@ -18,6 +18,7 @@ public sealed class DocTypeDef
     public NamingDef Naming { get; set; } = new();
     public List<FieldDef> Fields { get; set; } = [];
     public List<RuleDef> Rules { get; set; } = [];
+    public List<DocHookDef> Hooks { get; set; } = [];
     public ListViewDef ListView { get; set; } = new();
     public List<PermissionDef> Permissions { get; set; } = [];
     public ApiDef Api { get; set; } = new();
@@ -26,6 +27,30 @@ public sealed class DocTypeDef
     public string? Workflow { get; set; }
     /// <summary>Format cetak (A4). Bila null, dipakai format default dari layout form.</summary>
     public PrintFormatDef? PrintFormat { get; set; }
+}
+
+public sealed class DocHookDef
+{
+    public string Name { get; set; } = "";
+    public string Event { get; set; } = "BeforeValidate";
+    public bool Enabled { get; set; } = true;
+    public DocHookConditionDef? When { get; set; }
+    public List<DocHookActionDef> Actions { get; set; } = [];
+}
+
+public sealed class DocHookConditionDef
+{
+    public string Field { get; set; } = "";
+    public string Operator { get; set; } = "Equals";
+    public JsonElement? Value { get; set; }
+}
+
+public sealed class DocHookActionDef
+{
+    public string Type { get; set; } = "Reject";
+    public string? Message { get; set; }
+    public string? Field { get; set; }
+    public string? EventType { get; set; }
 }
 
 /// <summary>Format cetak dokumen (RFC: generic views). Hanya deklaratif — tidak ada template berisi kode.</summary>

@@ -1,6 +1,7 @@
 using System.Globalization;
 using Framework.Expressions;
 using Framework.Files;
+using Framework.Hooks;
 using Framework.Metadata;
 using Framework.Persistence;
 using Framework.Security;
@@ -56,12 +57,27 @@ public sealed class DocumentService(
     WorkflowEngine workflow,
     IDocumentHandlerRegistry handlers,
     TimeProvider clock,
-    IFileStore files)
+    IFileStore files,
+    HookRunner hooks)
 {
     private sealed class TenantLookup(IDocumentStore store, string tenantId) : IDocumentLookup
     {
         public Task<Document?> GetAsync(string docType, string name, CancellationToken ct = default) =>
             store.GetAsync(tenantId, docType, name, ct);
+    }
+
+    private sealed class HookDocumentReader(DocumentService service, UserContext user) : IDocumentService
+    {
+        public Task<Document> GetAsync(string docType, string name, CancellationToken ct = default) => service.GetAsync(user, docType, name, ct);
+    }
+
+    private sealed class HookLookup(IDocumentService docs) : IDocumentLookup
+    {
+        public async Task<Document?> GetAsync(string docType, string name, CancellationToken ct = default)
+        {
+            try { return await docs.GetAsync(docType, name, ct); }
+            catch (DocumentNotFoundException) { return null; }
+        }
     }
 
     private MetadataSnapshot Meta => metadata.Current;
@@ -98,10 +114,15 @@ public sealed class DocumentService(
 
     public async Task<Document> GetAsync(UserContext user, string docType, string name, CancellationToken ct = default)
     {
+        using var hookScope = hooks.EnterDocument(docType, name);
         var meta = TopLevel(docType);
         permissions.Demand(user, meta, DocActions.Read);
         var doc = await LoadInScopeAsync(user, meta, name, ct);
-        return RedactForRead(user, meta, doc);
+        var view = RedactForRead(user, meta, doc);
+        var hookContext = CreateHookContext(meta, user, view, null, []);
+        RunVisualHooks(meta, "OnLoad", hookContext, null);
+        await hooks.RunAsync(DocHookStage.OnLoad, hookContext, ct);
+        return RedactForRead(user, meta, view);
     }
 
     /// <summary>Memuat dokumen dalam tenant user. Dokumen di luar scope dilaporkan "tidak ditemukan" agar tidak membocorkan keberadaannya (anti-IDOR).</summary>
@@ -312,7 +333,10 @@ public sealed class DocumentService(
     /// <param name="auditAction">Teks aksi di audit, mis. "Dibuat lewat impor #imp_x".</param>
     public async Task<Document> InsertAsync(UserContext user, string docType, IDictionary<string, object?> payload, string auditAction, CancellationToken ct = default)
     {
+        using var hookScope = hooks.EnterDocument(docType, $"(insert:{Guid.NewGuid():N})");
         var p = await PrepareInsertAsync(user, docType, payload, allocateName: true, ct);
+        hookScope.Dispose();
+        using var finalNameScope = hooks.EnterDocument(docType, p.Doc.Name);
         var uow = new UnitOfWork();
         uow.Upserts.Add((p.Doc, null));
         p.Ctx.Events.Add(Event(p.Doc, "document.inserted", user));
@@ -342,7 +366,11 @@ public sealed class DocumentService(
         ApplyPayload(user, meta, draft, payload, isNew: true);
 
         var ctx = new DocumentContext { Meta = meta, Doc = draft, User = user, Operation = DocumentOperation.Insert, Lookup = lookup };
+        RunVisualHooks(meta, "BeforeValidate", CreateHookContext(ctx), null);
+        await hooks.RunAsync(DocHookStage.BeforeValidate, CreateHookContext(ctx), ct);
         await RunPipelineAsync(ctx, ct);
+        RunVisualHooks(meta, "BeforeInsert", CreateHookContext(ctx), null);
+        await hooks.RunAsync(DocHookStage.BeforeInsert, CreateHookContext(ctx), ct);
 
         if (!permissions.InScope(user, meta, DocActions.Create, draft.Owner, draft.Data))
             throw new PermissionDeniedException("Dokumen berada di luar cakupan data yang boleh Anda buat");
@@ -357,6 +385,7 @@ public sealed class DocumentService(
     /// <summary>Simulasi insert (impor dry-run): seluruh aturan dijalankan, tidak ada yang disimpan dan nomor urut tidak dipakai.</summary>
     public async Task<Document> ValidateInsertAsync(UserContext user, string docType, IDictionary<string, object?> payload, CancellationToken ct = default)
     {
+        using var hookScope = hooks.EnterDocument(docType, $"(simulation:{Guid.NewGuid():N})");
         var p = await PrepareInsertAsync(user, docType, payload, allocateName: false, ct);
         return RedactForRead(user, p.Meta, p.Doc);
     }
@@ -375,10 +404,16 @@ public sealed class DocumentService(
         {
             try
             {
+                using var hookScope = hooks.EnterDocument(docType, $"(batch-row:{i}:{Guid.NewGuid():N})");
                 var p = await PrepareInsertAsync(user, docType, payloads[i], allocateName: true, ct);
                 if (!names.Add(p.Doc.Name))
                     throw new ValidationFailedException([new FieldError(NamingField(p.Meta)?.Name ?? StandardFields.Name, $"Nomor '{p.Doc.Name}' muncul lebih dari sekali dalam impor ini")]);
+                hookScope.Dispose();
+                using var finalNameScope = hooks.EnterDocument(docType, p.Doc.Name);
                 foreach (var h in handlers.For<IAfterSave>(p.Meta.Name)) await h.AfterSaveAsync(p.Ctx, ct);
+                RunVisualHooks(p.Meta, "AfterSave", CreateHookContext(p.Ctx), p.Ctx.Previous);
+                await hooks.RunAsync(DocHookStage.AfterSave,
+                    CreateHookContext(p.Meta, user, p.Doc, p.Ctx.Previous, p.Ctx.Events), ct);
                 ThrowIfErrors(p.Ctx);
                 uow.Upserts.Add((p.Doc, null));
                 if (p.Meta.Def.Document.TrackChanges) uow.Audits.Add(Audit(p.Doc, user, auditAction, Diff(p.Meta, null, p.Doc)));
@@ -386,7 +421,7 @@ public sealed class DocumentService(
                 uow.Outbox.AddRange(p.Ctx.Events);
                 prepared.Add(p);
             }
-            catch (Exception ex) when (ex is ValidationFailedException or PermissionDeniedException or InvalidPayloadException or InvalidStateException)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 throw new BatchRowException(i, ex);
             }
@@ -398,6 +433,7 @@ public sealed class DocumentService(
     public async Task<Document> UpdateAsync(UserContext user, string docType, string name, int expectedVersion,
         IDictionary<string, object?> patch, CancellationToken ct = default)
     {
+        using var hookScope = hooks.EnterDocument(docType, name);
         var meta = TopLevel(docType);
         permissions.Demand(user, meta, DocActions.Write);
         var current = await LoadInScopeAsync(user, meta, name, ct);
@@ -413,7 +449,11 @@ public sealed class DocumentService(
         doc.SchemaVersion = meta.Version;
 
         var ctx = new DocumentContext { Meta = meta, Doc = doc, Previous = current, User = user, Operation = DocumentOperation.Update, Lookup = new TenantLookup(store, user.TenantId) };
+        RunVisualHooks(meta, "BeforeValidate", CreateHookContext(ctx), null);
+        await hooks.RunAsync(DocHookStage.BeforeValidate, CreateHookContext(ctx), ct);
         await RunPipelineAsync(ctx, ct);
+        RunVisualHooks(meta, "BeforeUpdate", CreateHookContext(ctx), current);
+        await hooks.RunAsync(DocHookStage.BeforeUpdate, CreateHookContext(ctx), ct, Diff(meta, current, doc));
         if (!permissions.InScope(user, meta, DocActions.Write, doc.Owner, doc.Data))
             throw new PermissionDeniedException("Perubahan ini memindahkan dokumen keluar dari cakupan data Anda");
 
@@ -427,6 +467,7 @@ public sealed class DocumentService(
 
     public async Task DeleteAsync(UserContext user, string docType, string name, int expectedVersion, CancellationToken ct = default)
     {
+        using var hookScope = hooks.EnterDocument(docType, name);
         var meta = TopLevel(docType);
         permissions.Demand(user, meta, DocActions.Delete);
         var current = await LoadInScopeAsync(user, meta, name, ct);
@@ -445,6 +486,7 @@ public sealed class DocumentService(
     public async Task<Document> RunActionAsync(UserContext user, string docType, string name, string action, int expectedVersion,
         string? comment, CancellationToken ct = default)
     {
+        using var hookScope = hooks.EnterDocument(docType, name);
         var meta = TopLevel(docType);
         permissions.Demand(user, meta, DocActions.Read);
         var current = await LoadInScopeAsync(user, meta, name, ct);
@@ -456,6 +498,7 @@ public sealed class DocumentService(
         doc.Modified = clock.GetUtcNow(); doc.ModifiedBy = user.Id; doc.Version = current.Version + 1;
         string? fromState = WorkflowEngine.CurrentState(meta, current), toState;
         DocumentOperation op;
+        var transitionEvents = new List<OutboxMessage>();
 
         if (meta.Workflow is not null)
         {
@@ -464,6 +507,8 @@ public sealed class DocumentService(
             if (transition.Def.RequireComment && string.IsNullOrWhiteSpace(comment))
                 throw new ValidationFailedException([new FieldError("_comment", $"Aksi '{action}' wajib disertai komentar")]);
             toState = transition.Def.To;
+            var transitionContext = CreateHookContext(meta, user, doc, current, transitionEvents, action, fromState, toState);
+            await hooks.RunAsync(DocHookStage.BeforeTransition, transitionContext, ct);
             doc.WorkflowState = toState;
             doc.DocStatus = meta.Workflow.States[toState].DocStatus;
             doc.WorkflowVersion = meta.Workflow.Def.Version;
@@ -484,6 +529,7 @@ public sealed class DocumentService(
         else throw new InvalidPayloadException($"Aksi '{action}' tidak dikenal untuk {meta.Title}");
 
         var ctx = new DocumentContext { Meta = meta, Doc = doc, Previous = current, User = user, Operation = op, Lookup = new TenantLookup(store, user.TenantId), Comment = comment };
+        ctx.Events.AddRange(transitionEvents);
 
         // Masuk ke status submitted → dokumen harus valid penuh dan hook submit dijalankan.
         if (current.DocStatus == DocStatus.Draft && doc.DocStatus == DocStatus.Submitted)
@@ -686,10 +732,28 @@ public sealed class DocumentService(
                 && ctx.Operation is DocumentOperation.Insert or DocumentOperation.Update)
                 await files.AttachAsync(doc.TenantId, id, doc.DocType, doc.Name, f.Name, ct);
         foreach (var h in handlers.For<IAfterSave>(ctx.Meta.Name)) await h.AfterSaveAsync(ctx, ct);
+        RunVisualHooks(ctx.Meta, "AfterSave", CreateHookContext(ctx), ctx.Previous);
+        await hooks.RunAsync(DocHookStage.AfterSave,
+            CreateHookContext(ctx.Meta, ctx.User, doc, ctx.Previous, ctx.Events), ct);
         ThrowIfErrors(ctx);
         if (audit is not null && ctx.Meta.Def.Document.TrackChanges) uow.Audits.Add(audit);
         uow.Outbox.AddRange(ctx.Events);
         await store.CommitAsync(uow, ct); // event eksternal baru diproses setelah commit melalui outbox
+    }
+
+    private HookContext CreateHookContext(DocumentContext ctx) =>
+        CreateHookContext(ctx.Meta, ctx.User, ctx.Doc, ctx.Previous, ctx.Events);
+
+    private HookContext CreateHookContext(CompiledDocType meta, UserContext user, Document doc, Document? previous,
+        List<OutboxMessage> events, string? action = null, string? fromState = null, string? toState = null)
+    {
+        IDocumentService docs = new HookDocumentReader(this, user);
+        return new HookContext
+        {
+            User = user, Meta = meta, Doc = doc, Previous = previous,
+            Lookup = new HookLookup(docs), Docs = docs, Events = events,
+            Action = action, FromState = fromState, ToState = toState,
+        };
     }
 
     // ---------------- Helpers ----------------
@@ -772,5 +836,51 @@ public sealed class DocumentService(
                 p.First.Keys.Union(p.Second.Keys).Where(k => k != "idx").All(k => SameValue(p.First.GetValueOrDefault(k), p.Second.GetValueOrDefault(k))));
         if (a is null || b is null) return Values.IsEmpty(a) && Values.IsEmpty(b);
         return Values.AreEqual(a, b);
+    }
+
+    private void RunVisualHooks(CompiledDocType meta, string stage, Framework.Hooks.HookContext context, Document? previous)
+    {
+        foreach (var hook in meta.Hooks.Where(h => h.Def.Enabled && h.Def.Event == stage))
+        {
+            if (hook.Def.When is { } condition)
+            {
+                var current = context.Doc.Data.GetValueOrDefault(condition.Field);
+                var matches = condition.Operator switch
+                {
+                    "Equals" => SameValue(current, hook.ConditionValue),
+                    "NotEquals" => !SameValue(current, hook.ConditionValue),
+                    "ChangedTo" => previous is not null &&
+                        !SameValue(previous.Data.GetValueOrDefault(condition.Field), current) &&
+                        SameValue(current, hook.ConditionValue),
+                    _ => false
+                };
+                if (!matches) continue;
+            }
+
+            foreach (var action in hook.Def.Actions)
+            {
+                if (action.Type == "Reject")
+                    throw new ValidationFailedException([new FieldError(action.Field ?? "", action.Message!)]);
+                if (action.Type == "EmitEvent")
+                {
+                    var now = clock.GetUtcNow();
+                    context.Events.Add(new OutboxMessage
+                    {
+                        TenantId = context.Doc.TenantId,
+                        Type = action.EventType!,
+                        IdempotencyKey = $"{context.Doc.TenantId}:{context.Doc.DocType}:{context.Doc.Name}:v{context.Doc.Version}:{hook.Def.Name}:{action.EventType}",
+                        Payload = new()
+                        {
+                            ["docType"] = context.Doc.DocType,
+                            ["name"] = context.Doc.Name,
+                            ["version"] = context.Doc.Version.ToString(CultureInfo.InvariantCulture),
+                            ["actor"] = context.User.Id,
+                            ["data"] = System.Text.Json.JsonSerializer.Serialize(context.Doc.Data)
+                        },
+                        CreatedAt = now
+                    });
+                }
+            }
+        }
     }
 }

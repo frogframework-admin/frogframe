@@ -1,4 +1,5 @@
 using Framework.Documents;
+using Framework.Hooks;
 using Framework.Expressions;
 using Framework.Files;
 using Framework.Dashboards;
@@ -30,6 +31,12 @@ public interface IUserDirectory
 {
     Task<UserContext?> FindAsync(string userId, CancellationToken ct = default);
     Task<IReadOnlyList<UserContext>> ListAsync(string tenantId, CancellationToken ct = default);
+}
+
+internal sealed class DocumentHookLogger(ILogger<DocumentHookLogger> logger) : IDocHookLogger
+{
+    public void LogHookFailure(Exception exception, Type hookType, string docType, DocHookStage stage) =>
+        logger.LogError(exception, "Document hook {HookName} failed for DocType {DocType} at stage {Stage}", hookType.FullName, docType, stage);
 }
 
 /// <summary>User aktif pada scope (request API atau sirkuit Blazor).</summary>
@@ -166,6 +173,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ValidationEngine>();
         services.AddSingleton<WorkflowEngine>();
         services.AddSingleton<IDocumentHandlerRegistry>(sp => new DocumentHandlerRegistry(sp.GetServices<IDocumentHandler>()));
+        services.TryAddSingleton<IDocHookLogger, DocumentHookLogger>();
+        services.AddSingleton<HookRunner>();
         services.AddSingleton<DocumentService>();
         services.AddSingleton<OutboxProcessor>();
         services.AddSingleton<ReportService>();
@@ -181,6 +190,8 @@ public static class ServiceCollectionExtensions
     }
 
     public static IServiceCollection AddDocHandler<T>(this IServiceCollection s) where T : class, IDocumentHandler => s.AddSingleton<IDocumentHandler, T>();
+    public static IServiceCollection AddDocHook<TDoc, THook>(this IServiceCollection s) where THook : class =>
+        s.AddSingleton<THook>().AddSingleton<IDocHookRegistration>(sp => new DocHookRegistration<TDoc, THook>(sp.GetRequiredService<THook>()));
     public static IServiceCollection AddFieldValidator<T>(this IServiceCollection s) where T : class, IFieldValidator => s.AddSingleton<IFieldValidator, T>();
     public static IServiceCollection AddEventHandler<T>(this IServiceCollection s) where T : class, IEventHandler => s.AddSingleton<IEventHandler, T>();
     public static IServiceCollection AddReport<T>(this IServiceCollection s) where T : class, IReportProvider => s.AddSingleton<IReportProvider, T>();

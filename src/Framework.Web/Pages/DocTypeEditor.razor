@@ -95,6 +95,7 @@ else
             {
                 <BbTabsTrigger Value="access"><LucideIcon Name="shield-check" Size="15" /> Access &amp; Workflow</BbTabsTrigger>
             }
+            <BbTabsTrigger Value="hooks"><LucideIcon Name="zap" Size="15" /> Hooks</BbTabsTrigger>
             <BbTabsTrigger Value="settings"><LucideIcon Name="sliders" Size="15" /> DocType Settings</BbTabsTrigger>
             <BbTabsTrigger Value="json"><LucideIcon Name="braces" Size="15" /> JSON</BbTabsTrigger>
         </BbTabsList>
@@ -258,6 +259,64 @@ else
             }
         </BbTabsContent>
 
+        <BbTabsContent Value="hooks">
+            <div class="stack" style="margin-top:.75rem">
+                <BbCard>
+                    <BbCardHeader>
+                        <BbCardTitle Class="card-title">Visual document hooks</BbCardTitle>
+                        <BbCardDescription>Declarative rules run during the document lifecycle. Only the listed conditions and actions are supported; scripts are not executed.</BbCardDescription>
+                    </BbCardHeader>
+                    <BbCardContent>
+                        @foreach (var (hook, index) in design.Def.Hooks.Select((hook, index) => (hook, index)).ToList())
+                        {
+                            var currentHook = hook;
+                            var hookIndex = index;
+                            <div class="props-block">
+                                <div class="row">
+                                    <BbField><BbFieldLabel>Name</BbFieldLabel><BbInput Value="@currentHook.Name" ValueChanged="v => Mutate(() => currentHook.Name = v?.Trim() ?? string.Empty)" /></BbField>
+                                    <BbField><BbFieldLabel>Event</BbFieldLabel><BbSelect TValue="string" Value="@currentHook.Event" ValueChanged="v => Mutate(() => currentHook.Event = v ?? currentHook.Event)" Options="HookEventOptions" AriaLabel="Hook event" /></BbField>
+                                    <div class="label-row"><BbCheckbox Checked="@currentHook.Enabled" CheckedChanged="v => Mutate(() => currentHook.Enabled = v)" /><span>Enabled</span></div>
+                                    <BbButton Variant="ButtonVariant.Ghost" OnClick="() => RemoveVisualHook(hookIndex)"><LucideIcon Name="trash-2" Size="15" /> Remove</BbButton>
+                                </div>
+                                <div class="props-group">
+                                    <div class="props-group-title">CONDITION (OPTIONAL)</div>
+                                    <div class="row">
+                                        <BbSelect TValue="string" Value="@(currentHook.When?.Field ?? "")" ValueChanged="v => SetHookConditionField(currentHook, v)" Options="HookFieldOptions" AriaLabel="Condition field" />
+                                        <BbSelect TValue="string" Value="@(currentHook.When?.Operator ?? "Equals")" ValueChanged="v => SetHookOperator(currentHook, v)" Options="HookOperatorOptions" AriaLabel="Condition operator" />
+                                        <BbInput Value="@HookValueText(currentHook)" ValueChanged="v => SetHookConditionValue(currentHook, v)" Placeholder="Value (JSON supported)" />
+                                        <BbButton Variant="ButtonVariant.Ghost" OnClick="() => Mutate(() => currentHook.When = null)">Clear condition</BbButton>
+                                    </div>
+                                </div>
+                                @foreach (var (action, actionIndex) in currentHook.Actions.Select((action, actionIndex) => (action, actionIndex)).ToList())
+                                {
+                                    var currentAction = action;
+                                    var currentActionIndex = actionIndex;
+                                    <div class="props-group">
+                                        <div class="props-group-title">ACTION @(actionIndex + 1)</div>
+                                        <div class="row">
+                                            <BbSelect TValue="string" Value="@currentAction.Type" ValueChanged="v => SetHookActionType(currentAction, v)" Options="HookActionOptions" AriaLabel="Hook action" />
+                                            @if (currentAction.Type == "Reject")
+                                            {
+                                                <BbInput Value="@currentAction.Message" ValueChanged="v => Mutate(() => currentAction.Message = v)" Placeholder="Validation message" />
+                                                <BbSelect TValue="string" Value="@(currentAction.Field ?? "")" ValueChanged="v => Mutate(() => currentAction.Field = string.IsNullOrWhiteSpace(v) ? null : v)" Options="HookFieldOptions" AriaLabel="Validation field" />
+                                            }
+                                            else if (currentAction.Type == "EmitEvent")
+                                            {
+                                                <BbInput Value="@currentAction.EventType" ValueChanged="v => Mutate(() => currentAction.EventType = v?.Trim())" Placeholder="event.type" />
+                                            }
+                                            <BbButton Variant="ButtonVariant.Ghost" OnClick="() => RemoveVisualAction(currentHook, currentActionIndex)"><LucideIcon Name="trash-2" Size="15" /> Remove</BbButton>
+                                        </div>
+                                    </div>
+                                }
+                                <BbButton Variant="ButtonVariant.Outline" OnClick="() => AddVisualAction(currentHook)"><LucideIcon Name="plus" Size="15" /> Add action</BbButton>
+                            </div>
+                        }
+                        <BbButton OnClick="AddVisualHook"><LucideIcon Name="plus" Size="15" /> Add hook</BbButton>
+                    </BbCardContent>
+                </BbCard>
+            </div>
+        </BbTabsContent>
+
         <BbTabsContent Value="settings">
             <div class="stack" style="margin-top:.75rem">
                 <BbCard>
@@ -399,6 +458,42 @@ else
                     && (string.IsNullOrWhiteSpace(w.DocType) || w.DocType == design?.Def.Name));
     private IEnumerable<SelectOption<string>> WorkflowOptions => new[] { new SelectOption<string>("", "Choose a workflow") }
         .Concat(AvailableWorkflows.OrderBy(w => w.Name).Select(w => new SelectOption<string>(w.Name, w.Name)));
+
+    private static readonly IEnumerable<SelectOption<string>> HookEventOptions = [
+        new("BeforeValidate", "Before Validate"), new("BeforeInsert", "Before Insert"),
+        new("BeforeUpdate", "Before Update"), new("AfterSave", "After Save"), new("OnLoad", "On Load")];
+    private static readonly IEnumerable<SelectOption<string>> HookOperatorOptions = [
+        new("Equals", "Equals"), new("NotEquals", "Does not equal"), new("ChangedTo", "Changed to")];
+    private static readonly IEnumerable<SelectOption<string>> HookActionOptions = [
+        new("Reject", "Reject document"), new("EmitEvent", "Emit event")];
+    private IEnumerable<SelectOption<string>> HookFieldOptions => new[] { new SelectOption<string>("", "Choose field") }
+        .Concat(design?.AllFields.Select(f => new SelectOption<string>(f.Name, $"{f.Label} ({f.Name})")) ?? []);
+
+    private void AddVisualHook() => Mutate(() => design!.Def.Hooks.Add(new DocHookDef
+    {
+        Name = $"hook-{design.Def.Hooks.Count + 1}", Actions = [new DocHookActionDef()]
+    }));
+    private void RemoveVisualHook(int index) => Mutate(() => design!.Def.Hooks.RemoveAt(index));
+    private void AddVisualAction(DocHookDef hook) => Mutate(() => hook.Actions.Add(new DocHookActionDef()));
+    private void RemoveVisualAction(DocHookDef hook, int index) => Mutate(() => hook.Actions.RemoveAt(index));
+    private void SetHookConditionField(DocHookDef hook, string? field) => Mutate(() =>
+    {
+        if (string.IsNullOrWhiteSpace(field)) hook.When = null;
+        else { hook.When ??= new DocHookConditionDef(); hook.When.Field = field; }
+    });
+    private void SetHookOperator(DocHookDef hook, string? op) => Mutate(() =>
+    {
+        hook.When ??= new DocHookConditionDef();
+        hook.When.Operator = op ?? "Equals";
+    });
+    private void SetHookActionType(DocHookActionDef action, string? type) => Mutate(() => action.Type = type ?? "Reject");
+    private void SetHookConditionValue(DocHookDef hook, string? value) => Mutate(() =>
+    {
+        if (hook.When is null) return;
+        try { hook.When.Value = string.IsNullOrWhiteSpace(value) ? null : JsonDocument.Parse(value).RootElement.Clone(); }
+        catch (JsonException) { hook.When.Value = JsonSerializer.SerializeToElement(value ?? ""); }
+    });
+    private static string HookValueText(DocHookDef hook) => hook.When?.Value is { } value ? value.GetRawText() : "";
 
     private void LinkWorkflow()
     {

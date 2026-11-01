@@ -1,5 +1,6 @@
 using Apps.Sample.Components;
 using Apps.Sample.Domain;
+using Apps.Sample.Hooks;
 using BlazorBlueprint.Components;
 using Framework.Web;
 using Framework.Web.Layout;
@@ -42,6 +43,27 @@ if (useReporting)
 
 // 2) Extension point eksplisit (RFC §2.5): handler, validator, event handler, report — semuanya C# terdaftar via DI.
 builder.Services.AddDocHandler<PurchaseRequestHandler>();
+builder.Services.AddDocHook<PurchaseRequest, PurchaseRequestBeforeValidateHook>();
+builder.Services.AddDocHook<PurchaseRequest, PurchaseRequestBeforeInsertHook>();
+builder.Services.AddDocHook<PurchaseRequest, PurchaseRequestAfterSaveHook>();
+builder.Services.AddDocHook<PurchaseRequest, PurchaseRequestOnLoadHook>();
+builder.Services.AddDocHook<PurchaseRequest, PurchaseRequestBeforeTransitionHook>();
+
+// HR hooks: Employee, Department
+builder.Services.AddDocHook<Employee, EmployeeOnLoadHook>();
+builder.Services.AddDocHook<Employee, EmployeeAfterSaveHook>();
+builder.Services.AddDocHook<Department, DepartmentBeforeValidateHook>();
+builder.Services.AddDocHook<Department, DepartmentBeforeInsertHook>();
+builder.Services.AddDocHook<Department, DepartmentBeforeUpdateHook>();
+builder.Services.AddDocHook<Department, DepartmentRefreshHierarchyHook>();
+
+// Procurement hooks: Vendor
+builder.Services.AddDocHook<Vendor, VendorBeforeValidateHook>();
+builder.Services.AddDocHook<Vendor, VendorBeforeInsertHook>();
+builder.Services.AddDocHook<Vendor, VendorBeforeUpdateHook>();
+builder.Services.AddDocHook<Vendor, VendorOnLoadHook>();
+builder.Services.AddDocHook<Vendor, VendorAfterSaveHook>();
+
 builder.Services.AddFieldValidator<NpwpValidator>();
 builder.Services.AddEventHandler<WorkflowNotificationHandler>();
 builder.Services.AddReport<SpendByDepartmentReport>();
