@@ -68,6 +68,8 @@ public interface IDocumentStore
     /// <summary>Menyimpan dokumen, audit, dan outbox secara atomik dengan pemeriksaan versi.</summary>
     Task CommitAsync(UnitOfWork uow, CancellationToken ct = default);
     Task<IReadOnlyList<AuditEntry>> GetAuditAsync(string tenantId, string docType, string name, CancellationToken ct = default);
+    /// <summary>Mencari apakah ada dokumen aktif lain yang menaut ke dokumen target melalui field Link / child table.</summary>
+    Task<DocumentLinkReference?> FindFirstLinkAsync(string tenantId, string targetDocType, string targetName, IReadOnlyList<DocTypeLinkDef> linkDefs, CancellationToken ct = default);
 }
 
 public interface IOutboxStore
@@ -225,6 +227,67 @@ public sealed class InMemoryDocumentStore : IDocumentStore, IOutboxStore, IDatab
             return Task.FromResult<IReadOnlyList<AuditEntry>>(_audit
                 .Where(a => a.TenantId == tenantId && a.DocType == docType && a.DocName == name)
                 .OrderByDescending(a => a.Id).ToList());
+    }
+
+    public Task<DocumentLinkReference?> FindFirstLinkAsync(
+        string tenantId,
+        string targetDocType,
+        string targetName,
+        IReadOnlyList<DocTypeLinkDef> linkDefs,
+        CancellationToken ct = default)
+    {
+        lock (_gate)
+        {
+            foreach (var def in linkDefs)
+            {
+                foreach (var doc in _docs.Values)
+                {
+                    if (doc.TenantId != tenantId) continue;
+                    if (doc.DocType != def.LinkingDocType) continue;
+                    if (doc.DocStatus == DocStatus.Cancelled) continue;
+                    if (doc.DocType == targetDocType && doc.Name == targetName) continue;
+
+                    if (!def.IsChildTable)
+                    {
+                        if (doc.Data.TryGetValue(def.FieldName, out var val) &&
+                            string.Equals(Convert.ToString(val, CultureInfo.InvariantCulture), targetName, StringComparison.Ordinal))
+                        {
+                            return Task.FromResult<DocumentLinkReference?>(
+                                new DocumentLinkReference(doc.DocType, doc.Name, def.FieldName, def.FieldLabel));
+                        }
+                    }
+                    else if (def.TableFieldName is not null && doc.Data.TryGetValue(def.TableFieldName, out var tableVal))
+                    {
+                        if (tableVal is IEnumerable<Dictionary<string, object?>> dictRows)
+                        {
+                            foreach (var row in dictRows)
+                            {
+                                if (row.TryGetValue(def.FieldName, out var val) &&
+                                    string.Equals(Convert.ToString(val, CultureInfo.InvariantCulture), targetName, StringComparison.Ordinal))
+                                {
+                                    return Task.FromResult<DocumentLinkReference?>(
+                                        new DocumentLinkReference(doc.DocType, doc.Name, def.FieldName, def.FieldLabel));
+                                }
+                            }
+                        }
+                        else if (tableVal is IEnumerable<object> objRows)
+                        {
+                            foreach (var obj in objRows)
+                            {
+                                if (obj is Dictionary<string, object?> r &&
+                                    r.TryGetValue(def.FieldName, out var v) &&
+                                    string.Equals(Convert.ToString(v, CultureInfo.InvariantCulture), targetName, StringComparison.Ordinal))
+                                {
+                                    return Task.FromResult<DocumentLinkReference?>(
+                                        new DocumentLinkReference(doc.DocType, doc.Name, def.FieldName, def.FieldLabel));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            return Task.FromResult<DocumentLinkReference?>(null);
+        }
     }
 
     public Task<IReadOnlyList<OutboxMessage>> FetchDueAsync(DateTimeOffset now, int max, CancellationToken ct = default)

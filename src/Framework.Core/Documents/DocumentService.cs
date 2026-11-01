@@ -492,6 +492,13 @@ public sealed class DocumentService(
         if (!meta.Def.Document.AllowDelete || current.DocStatus != DocStatus.Draft)
             throw new InvalidStateException("Hanya dokumen draft yang dapat dihapus");
 
+        if (Meta.IncomingLinks.TryGetValue(docType, out var linkDefs) && linkDefs.Count > 0)
+        {
+            var link = await store.FindFirstLinkAsync(user.TenantId, docType, name, linkDefs, ct);
+            if (link is not null)
+                throw new LinkedDocumentException("delete", meta.Title, name, link.LinkingDocType, link.LinkingDocName, link.FieldLabel);
+        }
+
         var deleteEvents = new List<OutboxMessage>();
         var deleteContext = CreateHookContext(meta, user, current, null, deleteEvents);
         await hooks.RunAsync(DocHookStage.BeforeDelete, deleteContext, ct);
@@ -564,6 +571,12 @@ public sealed class DocumentService(
         }
         if (doc.DocStatus == DocStatus.Cancelled && current.DocStatus != DocStatus.Cancelled)
         {
+            if (Meta.IncomingLinks.TryGetValue(docType, out var linkDefs) && linkDefs.Count > 0)
+            {
+                var link = await store.FindFirstLinkAsync(user.TenantId, docType, name, linkDefs, ct);
+                if (link is not null)
+                    throw new LinkedDocumentException("cancel", meta.Title, name, link.LinkingDocType, link.LinkingDocName, link.FieldLabel);
+            }
             foreach (var h in handlers.For<IBeforeCancel>(docType)) await h.BeforeCancelAsync(ctx, ct);
             var cancelContext = CreateHookContext(meta, user, doc, current, ctx.Events, action, fromState, toState, ctx.Messages);
             await hooks.RunAsync(DocHookStage.OnCancel, cancelContext, ct);

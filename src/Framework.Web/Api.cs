@@ -380,6 +380,7 @@ public static class DocApi
         catch (KeyNotFoundException ex) { return Problem(404, "Tidak ditemukan", ex.Message); }
         catch (ConcurrencyException ex) { return Problem(409, "Konflik versi", ex.Message); }
         catch (InvalidStateException ex) { return Problem(409, "Status dokumen tidak mengizinkan", ex.Message); }
+        catch (LinkedDocumentException ex) { return Problem(409, "Dokumen masih ditautkan", ex.Message); }
         catch (InvalidPayloadException ex) { return Problem(400, "Payload tidak valid", ex.Message, ex.Fields.Select(f => new FieldError(f, "tidak diizinkan")).ToList()); }
         catch (MetadataCompilationException ex) { return Problem(422, "Metadata tidak valid", "Periksa daftar error", ex.Errors.Select(e => new FieldError(e.Path, e.Message)).ToList()); }
         catch (JsonException ex) { return Problem(400, "JSON tidak valid", ex.Message); }

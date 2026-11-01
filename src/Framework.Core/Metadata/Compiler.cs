@@ -111,6 +111,7 @@ public sealed class MetadataSnapshot
 {
     public required ImmutableDictionary<string, CompiledDocType> DocTypes { get; init; }
     public required ImmutableDictionary<string, CompiledWorkflow> Workflows { get; init; }
+    public required ImmutableDictionary<string, IReadOnlyList<DocTypeLinkDef>> IncomingLinks { get; init; }
 
     public CompiledDocType Get(string docType) =>
         DocTypes.TryGetValue(docType, out var d) ? d : throw new KeyNotFoundException($"DocType '{docType}' tidak ditemukan");
@@ -152,10 +153,39 @@ public sealed partial class MetadataCompiler(IFieldTypeRegistry fieldTypes, Func
         }
 
         if (errors.Count > 0) throw new MetadataCompilationException(errors);
+
+        var incoming = new Dictionary<string, List<DocTypeLinkDef>>(StringComparer.Ordinal);
+        foreach (var d in defs.Values)
+        {
+            if (d.IsChild) continue;
+            foreach (var f in d.Fields)
+            {
+                if (f.Type == "Link" && !string.IsNullOrEmpty(f.LinkTo) && !f.IgnoreLinks)
+                {
+                    if (!incoming.TryGetValue(f.LinkTo, out var list))
+                        incoming[f.LinkTo] = list = [];
+                    list.Add(new DocTypeLinkDef(d.Name, f.Name, string.IsNullOrEmpty(f.Label) ? f.Name : f.Label, false, null));
+                }
+                else if (f.Type == "Table" && !string.IsNullOrEmpty(f.ChildDocType) && defs.TryGetValue(f.ChildDocType, out var childDt))
+                {
+                    foreach (var cf in childDt.Fields)
+                    {
+                        if (cf.Type == "Link" && !string.IsNullOrEmpty(cf.LinkTo) && !cf.IgnoreLinks)
+                        {
+                            if (!incoming.TryGetValue(cf.LinkTo, out var list))
+                                incoming[cf.LinkTo] = list = [];
+                            list.Add(new DocTypeLinkDef(d.Name, cf.Name, string.IsNullOrEmpty(cf.Label) ? cf.Name : cf.Label, true, f.Name));
+                        }
+                    }
+                }
+            }
+        }
+
         return new MetadataSnapshot
         {
             DocTypes = compiled.ToImmutableDictionary(),
-            Workflows = compiledWorkflows.ToImmutableDictionary()
+            Workflows = compiledWorkflows.ToImmutableDictionary(),
+            IncomingLinks = incoming.ToImmutableDictionary(kv => kv.Key, kv => (IReadOnlyList<DocTypeLinkDef>)kv.Value)
         };
     }
 

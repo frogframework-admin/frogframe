@@ -90,6 +90,17 @@ public sealed class InvalidPayloadException(string message, IReadOnlyList<string
 
 public sealed class InvalidStateException(string message) : Exception(message);
 
+public sealed class LinkedDocumentException(string action, string docType, string name, string linkingDocType, string linkingName, string fieldLabel)
+    : Exception($"Cannot {action} {docType} '{name}' because it is linked with {linkingDocType} '{linkingName}' via '{fieldLabel}'")
+{
+    public string Action { get; } = action;
+    public string DocType { get; } = docType;
+    public string Name { get; } = name;
+    public string LinkingDocType { get; } = linkingDocType;
+    public string LinkingName { get; } = linkingName;
+    public string FieldLabel { get; } = fieldLabel;
+}
+
 // ---------- Lifecycle hooks (RFC §6) ----------
 
 public enum DocumentOperation { Insert, Update, Submit, Cancel, Delete, Transition, Amend }

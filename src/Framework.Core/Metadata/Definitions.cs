@@ -162,6 +162,8 @@ public sealed class FieldDef
     public int PermLevel { get; set; }
     /// <summary>Field Link: tampilkan tombol untuk memilih dari tabel dalam dialog.</summary>
     public bool LookupDialog { get; set; }
+    /// <summary>Field Link: abaikan pengecekan tautan saat dokumen target hendak dihapus atau dibatalkan.</summary>
+    public bool IgnoreLinks { get; set; }
     /// <summary>Field Table: tombol "Tambah dari daftar" yang mengisi baris dari DocType lain.</summary>
     public LookupAddDef? AddFromLookup { get; set; }
 }
@@ -266,3 +268,18 @@ public static class MetadataJson
 
     public static string Serialize<T>(T value) => JsonSerializer.Serialize(value, Options);
 }
+
+/// <summary>Definisi field Link atau child table Link yang menunjuk ke DocType tertentu.</summary>
+public sealed record DocTypeLinkDef(
+    string LinkingDocType,
+    string FieldName,
+    string FieldLabel,
+    bool IsChildTable,
+    string? TableFieldName);
+
+/// <summary>Referensi dokumen nyata yang menaut ke dokumen lain.</summary>
+public sealed record DocumentLinkReference(
+    string LinkingDocType,
+    string LinkingDocName,
+    string FieldName,
+    string FieldLabel);

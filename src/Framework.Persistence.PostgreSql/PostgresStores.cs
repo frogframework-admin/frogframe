@@ -256,6 +256,60 @@ public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider 
         return list;
     }
 
+    public async Task<DocumentLinkReference?> FindFirstLinkAsync(
+        string tenantId,
+        string targetDocType,
+        string targetName,
+        IReadOnlyList<DocTypeLinkDef> linkDefs,
+        CancellationToken ct = default)
+    {
+        if (linkDefs.Count == 0) return null;
+
+        await using var conn = await db.OpenConnectionAsync(ct);
+
+        foreach (var def in linkDefs)
+        {
+            string patternJson;
+            if (!def.IsChildTable)
+            {
+                patternJson = JsonSerializer.Serialize(new Dictionary<string, string>
+                {
+                    [def.FieldName] = targetName
+                });
+            }
+            else
+            {
+                patternJson = JsonSerializer.Serialize(new Dictionary<string, object>
+                {
+                    [def.TableFieldName!] = new[] { new Dictionary<string, string> { [def.FieldName] = targetName } }
+                });
+            }
+
+            await using var cmd = new NpgsqlCommand(
+                "SELECT doctype, name FROM docframe_documents " +
+                "WHERE tenant_id = $1 AND doctype = $2 AND docstatus != 2 " +
+                "AND NOT (doctype = $3 AND name = $4) " +
+                "AND data @> $5::jsonb " +
+                "LIMIT 1", conn);
+
+            cmd.Parameters.AddWithValue(tenantId);
+            cmd.Parameters.AddWithValue(def.LinkingDocType);
+            cmd.Parameters.AddWithValue(targetDocType);
+            cmd.Parameters.AddWithValue(targetName);
+            cmd.Parameters.AddWithValue(patternJson);
+
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            if (await reader.ReadAsync(ct))
+            {
+                var linkingDocType = reader.GetString(0);
+                var linkingDocName = reader.GetString(1);
+                return new DocumentLinkReference(linkingDocType, linkingDocName, def.FieldName, def.FieldLabel);
+            }
+        }
+
+        return null;
+    }
+
     // ---------------- Outbox ----------------
 
     private const string OutboxColumns = "id, tenant_id, type, payload::text, idempotency_key, created_at, attempts, next_attempt_at, processed_at, last_error, dead_lettered";

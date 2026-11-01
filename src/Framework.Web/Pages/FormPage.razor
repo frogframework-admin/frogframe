@@ -472,7 +472,7 @@ else if (meta is not null && doc is not null)
                 if (errors.Remove("_doc", out var d)) banner = d;
                 break;
             case ConcurrencyException: conflict = ex.Message; break;
-            case PermissionDeniedException or InvalidStateException or InvalidPayloadException or DocumentNotFoundException:
+            case PermissionDeniedException or InvalidStateException or InvalidPayloadException or DocumentNotFoundException or LinkedDocumentException:
                 banner = ex.Message; break;
             default: System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex).Throw(); break;
         }
