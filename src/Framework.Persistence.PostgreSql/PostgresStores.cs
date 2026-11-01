@@ -2,6 +2,7 @@ using System.Text.Json;
 using Framework.Documents;
 using Framework.Metadata;
 using Framework.Persistence;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
@@ -589,6 +590,9 @@ public static class PostgreSqlServiceCollectionExtensions
         services.Replace(ServiceDescriptor.Singleton<Framework.Jobs.IDistributedLock, PostgresDistributedLock>());
         services.Replace(ServiceDescriptor.Singleton<Framework.Jobs.ITenantProvider, PostgresTenantProvider>());
         services.Replace(ServiceDescriptor.Singleton<Framework.Jobs.IScheduledJobLogStore, PostgresScheduledJobLogStore>());
+        services.AddDataProtection()
+            .SetApplicationName("DocFrame");
+        services.Replace(ServiceDescriptor.Singleton<Microsoft.AspNetCore.DataProtection.Repositories.IXmlRepository, PostgresXmlRepository>());
         services.AddSingleton<SchemaMigrator>();
         return services;
     }

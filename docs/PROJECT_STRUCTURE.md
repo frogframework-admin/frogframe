@@ -540,6 +540,7 @@ All migrations live in `src/Framework.Persistence.PostgreSql/Migrations/` and ar
 | `016_user_avatar.sql` | `docframe_users` avatar column | User avatar image reference support. |
 | `017_workflow_doctype_optional.sql` | `docframe_workflow_versions` | Makes doctype column nullable for standalone workflow templates. |
 | `018_scheduled_jobs.sql` | `docframe_scheduled_job_runs` | Persistent scheduled job run audit trail, duration, status, and error logs with fast lookup indexes. |
+| `019_data_protection_keys.sql` | `docframe_data_protection_keys` | Persisted ASP.NET Core Data Protection XML key ring for persistent session cookies across deployments. |
 
 **Auxiliary DBA SQL Scripts (`deploy/sql/`)**:
 - [reporting-readonly-user.sql](file:///d:/Side%20Projects/DocFrame/deploy/sql/reporting-readonly-user.sql): Creates the `docframe_ro` PostgreSQL role with `SELECT` access restricted exclusively to the `reporting` schema and `reporting_current_tenant()` function.

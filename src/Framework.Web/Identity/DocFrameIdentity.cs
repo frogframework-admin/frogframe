@@ -3,6 +3,7 @@ using Framework.Security;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Server;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -195,6 +196,9 @@ public static class IdentityServiceCollectionExtensions
         services.AddScoped<IUserClaimsPrincipalFactory<UserAccount>, DocFrameClaimsFactory>();
         services.AddScoped<IUserConfirmation<UserAccount>, ActiveUserConfirmation>();
         services.AddSingleton<IUserDirectory, AccountUserDirectory>();
+
+        services.AddDataProtection()
+            .SetApplicationName("DocFrame");
 
         services.AddIdentityCore<UserAccount>(o =>
             {
