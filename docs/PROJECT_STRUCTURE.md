@@ -29,6 +29,8 @@
    - [6.10 SQL Dashboard, Saved Query APIs & OpenXML Excel/Word Reports](#610-sql-dashboard-saved-query-apis--openxml-excelword-reports)
    - [6.11 Integration API Keys & Custom `IApiMethod`](#611-integration-api-keys--custom-iapimethod)
    - [6.12 PostgreSQL Performance, Automatic Indexing & Transactional Outbox](#612-postgresql-performance-automatic-indexing--transactional-outbox)
+   - [6.13 Background Scheduler & Distributed Job Execution](#613-background-scheduler--distributed-job-execution)
+   - [6.14 Custom Form Actions & Document Toolbar Extensions](#614-custom-form-actions--document-toolbar-extensions)
 7. [Database Schema & Migrations Reference](#7-database-schema--migrations-reference)
 8. [HTTP REST API & Blazor Route Reference](#8-http-rest-api--blazor-route-reference)
 9. [Configuration & Deployment Reference](#9-configuration--deployment-reference)
@@ -497,6 +499,21 @@ All three analytical features share `DashboardSqlExecutor` ([DashboardSqlExecuto
 - **`QueryLimits.CountCap = 10_000`**: List queries cap `COUNT(*)` using `SELECT COUNT(*) FROM (SELECT 1 FROM ... LIMIT 10001) s`, avoiding expensive full-table scans on million-row tables while displaying `10.000+` in the UI.
 - **Outbox v2 & Retention**: `OutboxProcessor` claims batches using `FOR UPDATE SKIP LOCKED` with a 2-minute lease, exponential backoff, and dead-lettering after 5 attempts. `OutboxRetentionCleaner` prunes processed messages older than `Outbox:RetentionDays` (default 7 days) every hour.
 
+### 6.13 Background Scheduler & Distributed Job Execution
+- **Distributed Cron Architecture**:
+  - `IScheduledJob`: Defines `Name`, `Schedule` (cron format or aliases like `@hourly`, `@daily`, `@every_15m`), and `ExecuteAsync(context, ct)`.
+  - `IDistributedLock` & `InMemoryDistributedLock`: Acquires non-blocking key leases (`docframe:scheduler:{job}:{tenant}`) to ensure that in multi-instance cluster deployments, jobs run exactly once per scheduled interval.
+  - `CronSchedule`: Comprehensive evaluator supporting standard 5-part cron syntax with duplicate execution suppression within the same minute.
+  - `ScheduledJobContext`: Injects `TenantId`, `SystemUser` (`UserContext.System(tenant)` with `Administrator` and `System Manager` roles), `DocumentService`, and `IServiceProvider`.
+  - `SchedulerWorker`: `BackgroundService` polling on a configurable interval (`Scheduler:PollIntervalSeconds`, default 15s) executing due jobs across all active tenants discovered via `ITenantProvider`.
+
+### 6.14 Custom Form Actions & Document Toolbar Extensions
+- **Custom Form Actions (`IFormAction<TDoc>`)**:
+  - Safe, server-executed alternative to client-side JavaScript injection (`frm.add_custom_button`).
+  - Implements `ActionId`, `Label`, `Icon`, `Tone` (`neutral`, `positive`, `negative`, `pending`), `IsVisible(user, doc)`, and `ExecuteAsync(context, ct)`.
+  - Dynamically injected into `FormPage.razor` toolbar alongside standard workflow transition buttons based on caller role and document state.
+  - Returns structured `FormActionResult` (`Ok`, `NavigateTo`, `Fail`) with automatic toast feedback and document reload.
+
 ---
 
 ## 7. Database Schema & Migrations Reference
@@ -715,3 +732,63 @@ builder.Services.AddApiMethod<SisaAnggaranMethod>();
 2. Write idempotent DDL (`CREATE TABLE IF NOT EXISTS ...`).
 3. Create the matching contract in `Framework.Core` (with an `InMemory*Store` implementation) and the PostgreSQL implementation in `Framework.Persistence.PostgreSql`, registering both in `WebServiceCollectionExtensions.cs` and `ServiceCollectionExtensions.cs`.
 4. Add unit/integration tests in `tests/Framework.Tests` covering both In-Memory and PostgreSQL stores.
+
+### 10.6 Adding a Custom Form Action (`IFormAction<TDoc>`)
+Implement `IFormAction<TDoc>` to display custom action buttons in the document toolbar:
+
+```csharp
+public sealed class DuplicatePurchaseRequestAction : IFormAction<PurchaseRequest>
+{
+    public string ActionId => "duplicate";
+    public string Label => "Duplicate Request";
+    public string Icon => "copy";
+    public string Tone => "neutral";
+
+    public bool IsVisible(UserContext user, Document doc) =>
+        doc.DocStatus != DocStatus.Draft && user.Roles.Contains("Employee");
+
+    public async Task<FormActionResult> ExecuteAsync(FormActionContext context, CancellationToken ct)
+    {
+        var cloneData = new Dictionary<string, object?>(context.Doc.Data);
+        cloneData.Remove("name");
+        var copy = await context.Docs.InsertAsync(context.User, context.Doc.DocType, cloneData, ct: ct);
+        return FormActionResult.NavigateTo($"/app/purchaserequest/{copy.Name}", $"Duplicated to {copy.Name}");
+    }
+}
+
+// In Program.cs:
+builder.Services.AddFormAction<PurchaseRequest, DuplicatePurchaseRequestAction>();
+```
+
+### 10.7 Adding a Background Scheduled Job (`IScheduledJob`)
+Implement `IScheduledJob` to run distributed background cron routines:
+
+```csharp
+public sealed class StaleDocumentCleanupJob : IScheduledJob
+{
+    public string Name => "stale-cleanup";
+    public string Schedule => "@daily"; // Standard cron syntax or shorthand aliases
+
+    public async Task ExecuteAsync(ScheduledJobContext context, CancellationToken ct)
+    {
+        var cutoff = context.ScheduledTime.AddDays(-14);
+        var stale = await context.Docs.ListAsync(context.SystemUser, "PurchaseRequest", new ListRequest(
+            Filters: [
+                new FilterClause("docstatus", "=", 0),
+                new FilterClause("modified", "<", cutoff)
+            ],
+            PageSize: 100
+        ), ct);
+
+        foreach (var item in stale.Items)
+        {
+            var name = (string)item["name"]!;
+            await context.Docs.RunActionAsync(context.SystemUser, "PurchaseRequest", name, "Batalkan", 
+                Convert.ToInt32(item["version"]), "Auto-cancelled due to inactivity", ct);
+        }
+    }
+}
+
+// In Program.cs:
+builder.Services.AddScheduledJob<StaleDocumentCleanupJob>();
+```

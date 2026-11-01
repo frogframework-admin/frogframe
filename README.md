@@ -481,12 +481,21 @@ Rute lainnya:
 
 Semua error memakai `application/problem+json`: 400 payload, 403 izin, 404 tidak ditemukan atau di luar scope, 409 konflik versi atau status, 422 validasi.
 
+## Hooks, Form Actions & Background Scheduler
+
+DocFrame mendukung pola Frappe yang aman untuk .NET 10:
+- **Lifecycle Hooks**: `BeforeValidate`, `BeforeInsert`, `BeforeUpdate`, `AfterSave`, `OnLoad`, `BeforeTransition`, `BeforeDelete`, `AfterDelete`, `OnCancel`, dan `OnAmend`. Termasuk fungsi bantu `docs.GetFieldAsync` (baca field ringan ber-izin) dan `ctx.Messages` (pesan peringatan non-batal / setara `msgprint`).
+- **Custom Form Actions**: Daftarkan tombol kustom toolbar formulir lewat `IFormAction<TDoc>` dengan penegakan izin caller.
+- **Background Scheduler**: Jalankan tugas cron periodik terdistribusi ber-lock lewat `AddScheduledJob<T>` dengan akun sistem terisolasi `UserContext.System`.
+
+Panduan lengkap: [docs/hooks-formactions-scheduler.md](file:///d:/Side%20Projects/DocFrame/docs/hooks-formactions-scheduler.md).
+
 ## Batasan prototipe (sengaja)
 
 - **Login**: akun lokal ASP.NET Core Identity. Belum ada SSO (OIDC/Entra ID), autentikasi dua faktor, maupun pemulihan password lewat email; reset dilakukan oleh System Manager.
 - **Mode in-memory** (default) kehilangan data saat restart; gunakan mode PostgreSQL untuk pilot.
 - **Metadata**: versi hasil publish permanen di mode PostgreSQL; belum ada maker-checker (draft oleh A, approve oleh B) maupun migration plan data saat skema DocType berubah.
-- Belum ada: scheduler periodik, import CSV/XLSX, ekspor XLSX/PDF, saved views, bulk action, parallel approval, dan lampiran.
+- Belum ada: saved views, bulk action, parallel approval, dan lampiran multi-file.
 - Field Select/Link/Date di filter list masih sederhana (sama dengan / sejak tanggal).
 - Huruf Public Sans dimuat dari Google Fonts, dengan fallback font sistem bila offline.
 - Kode prototipe ini diverifikasi terhadap source Blazor Blueprint v4.1.0 (tag `components/v4.1.0`). Restore dari nuget.org belum diuji di lingkungan pengembang; jika ada perbedaan versi paket, sesuaikan `BlazorBlueprintVersion` di `Framework.Web.csproj`.
@@ -497,3 +506,6 @@ Semua error memakai `application/problem+json`: 400 payload, 403 izin, 404 tidak
 2. Start aplikasi. Compiler menolak metadata yang tidak valid, lengkap dengan path error-nya.
 3. Logika khusus: buat class turunan `DocumentHandlerBase`, lalu daftarkan dengan `AddDocHandler<T>()`.
 4. Validator, tipe field, event handler, dan report masing-masing didaftarkan dengan `AddFieldValidator`, `AddFieldType`, `AddEventHandler`, dan `AddReport`.
+5. Form action kustom didaftarkan dengan `AddFormAction<TDoc, TAction>()`.
+6. Hook siklus hidup dokumen didaftarkan dengan `AddDocHook<TDoc, THook>()`.
+7. Tugas rutin terjadwal didaftarkan dengan `AddScheduledJob<TJob>()`.
