@@ -1,0 +1,55 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: docframe
+          POSTGRES_USER: docframe
+          POSTGRES_PASSWORD: docframe
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Configure Read-Only Database Role
+        run: |
+          docker exec ${{ job.services.postgres.id }} psql -U docframe -d docframe -f - < deploy/sql/reporting-readonly-user.sql
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build solution
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Run In-Memory Tests
+        run: dotnet run --project tests/Framework.Tests/Framework.Tests.csproj --configuration Release --no-build
+
+      - name: Run Full PostgreSQL Test Suite (including Reporting & Migrations)
+        env:
+          DOCFRAME_TEST_PG: "Host=127.0.0.1;Port=5432;Database=docframe;Username=docframe;Password=docframe"
+          DOCFRAME_TEST_PG_RO: "Host=127.0.0.1;Port=5432;Database=docframe;Username=docframe_ro;Password=ganti-password-ini"
+        run: dotnet run --project tests/Framework.Tests/Framework.Tests.csproj --configuration Release --no-build
