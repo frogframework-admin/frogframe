@@ -21,11 +21,13 @@ else if (meta is not null)
         </div>
         @if (Perms.Can(Current.Required, meta, DocActions.Create))
         {
-            @if (Importer.CanImport(Current.Required, meta.Name))
-            {
-                <BbButton Variant="ButtonVariant.Outline" Href="@($"/app/{meta.Name}/import")"><LucideIcon Name="file-up" Size="16" /> Impor</BbButton>
-            }
-            <BbButton Href="@($"/app/{meta.Name}/new")"><LucideIcon Name="plus" Size="16" /> Buat @meta.Title.ToLower()</BbButton>
+            <div class="row">
+                @if (Importer.CanImport(Current.Required, meta.Name))
+                {
+                    <BbButton Variant="ButtonVariant.Outline" Href="@($"/app/{meta.Name}/import")"><LucideIcon Name="file-up" Size="16" /> Impor</BbButton>
+                }
+                <BbButton Href="@($"/app/{meta.Name}/new")"><LucideIcon Name="plus" Size="16" /> Buat @meta.Title.ToLower()</BbButton>
+            </div>
         }
     </header>
 
