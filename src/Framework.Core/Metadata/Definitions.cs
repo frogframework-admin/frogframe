@@ -19,6 +19,7 @@ public sealed class DocTypeDef
     public List<FieldDef> Fields { get; set; } = [];
     public List<RuleDef> Rules { get; set; } = [];
     public List<DocHookDef> Hooks { get; set; } = [];
+    public DataMigrationPlanDef? DataMigration { get; set; }
     public ListViewDef ListView { get; set; } = new();
     public List<PermissionDef> Permissions { get; set; } = [];
     public ApiDef Api { get; set; } = new();
@@ -27,6 +28,21 @@ public sealed class DocTypeDef
     public string? Workflow { get; set; }
     /// <summary>Format cetak (A4). Bila null, dipakai format default dari layout form.</summary>
     public PrintFormatDef? PrintFormat { get; set; }
+}
+
+public sealed class DataMigrationPlanDef
+{
+    public int FromVersion { get; set; }
+    public List<DataMigrationOperationDef> Operations { get; set; } = [];
+}
+
+public sealed class DataMigrationOperationDef
+{
+    public string Type { get; set; } = "RenameField";
+    public string? FromField { get; set; }
+    public string? ToField { get; set; }
+    public string? Field { get; set; }
+    public JsonElement? Value { get; set; }
 }
 
 public sealed class DocHookDef

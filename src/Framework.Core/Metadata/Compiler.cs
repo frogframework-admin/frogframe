@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Framework.Expressions;
+using Framework.Persistence;
 
 namespace Framework.Metadata;
 
@@ -354,6 +355,48 @@ public sealed partial class MetadataCompiler(IFieldTypeRegistry fieldTypes, Func
             compiledHooks.Add(new CompiledDocHook { Def = hook, ConditionValue = conditionValue });
         }
 
+        var migrationTargets = new HashSet<string>(StringComparer.Ordinal);
+        for (var i = 0; i < (d.DataMigration?.Operations.Count ?? 0); i++)
+        {
+            var migration = d.DataMigration!.Operations[i];
+            var path = $"dataMigration.operations[{i}]";
+            if (migration.Type == "RenameField")
+            {
+                if (string.IsNullOrWhiteSpace(migration.ToField) || !fieldNames.Contains(migration.ToField))
+                    errors.Add(new(src, path + ".toField", $"Field tujuan '{migration.ToField}' tidak ada"));
+                if (migration.FromField == migration.ToField)
+                    errors.Add(new(src, path, "Field sumber dan tujuan rename harus berbeda"));
+                if (migration.ToField is { } target && !migrationTargets.Add(target))
+                    errors.Add(new(src, path + ".toField", $"Field tujuan '{target}' dipakai lebih dari sekali"));
+                if (string.IsNullOrWhiteSpace(migration.FromField))
+                    errors.Add(new(src, path + ".fromField", "Field sumber wajib diisi"));
+            }
+            else if (migration.Type == "SetDefault")
+            {
+                if (string.IsNullOrWhiteSpace(migration.Field) || !byName.TryGetValue(migration.Field, out var field))
+                    errors.Add(new(src, path + ".field", $"Field tujuan '{migration.Field}' tidak ada"));
+                else if (migration.Value is { } raw)
+                {
+                    var normalized = field.Type.Normalize(raw);
+                    if (!normalized.Ok) errors.Add(new(src, path + ".value", $"Nilai default tidak sesuai tipe field: {normalized.Error}"));
+                }
+                else errors.Add(new(src, path + ".value", "Nilai default wajib diisi"));
+                if (migration.Field is { } target && !migrationTargets.Add(target))
+                    errors.Add(new(src, path + ".field", $"Field tujuan '{target}' dipakai lebih dari sekali"));
+            }
+            else if (migration.Type == "ConvertType")
+            {
+                if (string.IsNullOrWhiteSpace(migration.Field) || !byName.ContainsKey(migration.Field))
+                    errors.Add(new(src, path + ".field", $"Field tujuan '{migration.Field}' tidak ada"));
+                if (migration.Field is { } target && !migrationTargets.Add(target))
+                    errors.Add(new(src, path + ".field", $"Field tujuan '{target}' dipakai lebih dari sekali"));
+                if (migration.Value is not { ValueKind: JsonValueKind.String } targetType ||
+                    !fieldTypes.TryGet(targetType.GetString()!, out _))
+                    errors.Add(new(src, path + ".value", "ConvertType.value harus nama tipe field yang terdaftar"));
+            }
+            else errors.Add(new(src, path + ".type", $"Operasi migrasi '{migration.Type}' tidak didukung"));
+        }
+
         foreach (var p in d.Permissions)
         {
             if (string.IsNullOrWhiteSpace(p.Role)) errors.Add(new(src, "permissions", "Role wajib diisi"));
@@ -570,6 +613,8 @@ public static class MetadataDiff
             changes.Add(new(ChangeRisk.NeedsTransform, "rules", "Aturan lintas-field berubah"));
         if (JsonSerializer.Serialize(oldDef.Hooks) != JsonSerializer.Serialize(newDef.Hooks))
             changes.Add(new(ChangeRisk.Risky, "hooks", "Visual hooks berubah — perilaku dokumen berubah dan perlu review"));
+        if (JsonSerializer.Serialize(oldDef.DataMigration) != JsonSerializer.Serialize(newDef.DataMigration))
+            changes.Add(new(ChangeRisk.NeedsTransform, "dataMigration", "Rencana transformasi data berubah"));
         if (oldDef.Workflow != newDef.Workflow) changes.Add(new(ChangeRisk.Risky, "workflow", "Workflow diganti"));
         if (JsonSerializer.Serialize(oldDef.ListView) != JsonSerializer.Serialize(newDef.ListView))
             changes.Add(new(ChangeRisk.Safe, "listView", "Konfigurasi list view berubah"));
@@ -641,6 +686,13 @@ public interface IMetadataVersionStore
     void Save(MetadataVersion version);
     IReadOnlyList<WorkflowVersion> LoadAllWorkflows() => [];
     void SaveWorkflow(WorkflowVersion version) { }
+}
+
+public interface IAtomicDocTypeMigrationPublisher
+{
+    DataMigrationPreviewResult PreviewMigration(CompiledDocType source, CompiledDocType target, int maxDocuments);
+    DataMigrationResult MigrateAndPublish(MetadataVersion version, CompiledDocType source, CompiledDocType target,
+        int expectedDocuments, int maxDocuments);
 }
 
 public interface IMetadataProvider
@@ -870,14 +922,44 @@ public sealed class MetadataRegistry : IMetadataProvider
     {
         lock (_gate)
         {
+            var old = _current.DocTypes.TryGetValue(draft.Name, out var current) ? current.Def : null;
             var defs = _current.DocTypes.Values.Select(c => c.Def).Where(d => d.Name != draft.Name).Append(draft).ToList();
-            try { return (_compiler.Compile(defs, _workflows), []); }
+            try
+            {
+                var snapshot = _compiler.Compile(defs, _workflows);
+                var migrationErrors = ValidateDataMigrations(old, draft);
+                return migrationErrors.Count == 0 ? (snapshot, []) : (null, migrationErrors);
+            }
             catch (MetadataCompilationException ex) { return (null, ex.Errors); }
+        }
+    }
+
+    public DataMigrationPreviewResult PreviewDataMigration(DocTypeDef draft, int maxDocuments = 10_000)
+    {
+        lock (_gate)
+        {
+            var (errors, _) = TryCompileWith(draft, out var snapshot);
+            if (errors.Count > 0) return new(false, 0, string.Join("; ", errors.Select(e => e.Message)));
+            if (draft.DataMigration is null) return new(false, 0, "Draft tidak memiliki rencana migrasi data.");
+            if (_store is not IAtomicDocTypeMigrationPublisher migrationPublisher)
+                return new(false, 0, "Penyimpanan metadata ini tidak mendukung dry-run migrasi atomik.");
+            var source = _current.Get(draft.Name);
+            var target = snapshot!.Get(draft.Name);
+            return migrationPublisher.PreviewMigration(source, target, maxDocuments);
         }
     }
 
     /// <summary>Publish versi baru secara immutable. Perubahan berisiko butuh konfirmasi eksplisit.</summary>
     public MetadataVersion Publish(DocTypeDef draft, string publishedBy, bool acknowledgeRisk)
+    {
+        if (draft.DataMigration is null) return Publish(draft, publishedBy, acknowledgeRisk, 0);
+        var dryRun = PreviewDataMigration(draft);
+        if (!dryRun.Valid)
+            throw new InvalidOperationException($"Migration dry-run failed: {dryRun.Error}");
+        return Publish(draft, publishedBy, acknowledgeRisk, dryRun.Documents);
+    }
+
+    public MetadataVersion Publish(DocTypeDef draft, string publishedBy, bool acknowledgeRisk, int migratedDocuments)
     {
         lock (_gate)
         {
@@ -886,16 +968,36 @@ public sealed class MetadataRegistry : IMetadataProvider
             if (changes.Any(c => c.Risk == ChangeRisk.Risky) && !acknowledgeRisk)
                 throw new InvalidOperationException("Perubahan berisiko harus dikonfirmasi sebelum publish");
 
-            var version = new MetadataVersion(draft.Name, draft.Version, draft, MetadataStatus.Published, publishedBy, Clock.GetUtcNow(), changes);
-            _store?.Save(version); // simpan dulu; bila gagal, versi aktif tidak berubah
+            var source = _current.TryGet(draft.Name, out var currentMeta) ? currentMeta : null;
+            var target = snapshot!.Get(draft.Name);
+            var publishedDef = draft;
+            var publishedSnapshot = snapshot;
+            IAtomicDocTypeMigrationPublisher? migrationPublisher = null;
+            if (draft.DataMigration is not null)
+            {
+                if (source is null) throw new InvalidOperationException("Migrasi data hanya dapat diterapkan pada DocType yang sudah aktif.");
+                if (_store is not IAtomicDocTypeMigrationPublisher publisher)
+                    throw new InvalidOperationException("Penyimpanan metadata ini tidak mendukung migrasi data atomik.");
+                migrationPublisher = publisher;
+                publishedDef = MetadataJson.ParseDocType(MetadataJson.Serialize(draft));
+                publishedDef.DataMigration = null;
+                var defs = _current.DocTypes.Values.Select(c => c.Def).Where(d => d.Name != draft.Name).Append(publishedDef).ToList();
+                publishedSnapshot = _compiler.Compile(defs, _workflows);
+            }
+            var version = new MetadataVersion(draft.Name, draft.Version, publishedDef, MetadataStatus.Published, publishedBy, Clock.GetUtcNow(), changes);
+            if (draft.DataMigration is not null)
+            {
+                migrationPublisher!.MigrateAndPublish(version, source!, target, migratedDocuments, 10_000);
+            }
+            else _store?.Save(version); // simpan dulu; bila gagal, versi aktif tidak berubah
 
             if (_history.TryGetValue(draft.Name, out var hist))
                 for (var i = 0; i < hist.Count; i++)
                     if (hist[i].Status == MetadataStatus.Published) hist[i] = hist[i] with { Status = MetadataStatus.Deprecated };
 
             (_history.TryGetValue(draft.Name, out var h) ? h : _history[draft.Name] = []).Add(version);
-            Volatile.Write(ref _current, snapshot!);
-            Published?.Invoke(snapshot!);
+            Volatile.Write(ref _current, publishedSnapshot!);
+            Published?.Invoke(publishedSnapshot!);
             return version;
         }
     }
@@ -909,8 +1011,50 @@ public sealed class MetadataRegistry : IMetadataProvider
             errors.Add(new(draft.Name, "version", $"Versi harus lebih besar dari versi aktif ({current.Version})"));
         var changes = MetadataDiff.Compare(current, draft);
         var defs = _current.DocTypes.Values.Select(c => c.Def).Where(d => d.Name != draft.Name).Append(draft).ToList();
-        try { if (errors.Count == 0) snapshot = _compiler.Compile(defs, _workflows); }
+        try
+        {
+            if (errors.Count == 0) snapshot = _compiler.Compile(defs, _workflows);
+            errors.AddRange(ValidateDataMigrations(current, draft));
+        }
         catch (MetadataCompilationException ex) { errors.AddRange(ex.Errors); }
         return (errors, changes);
+    }
+
+    private static List<MetadataError> ValidateDataMigrations(DocTypeDef? source, DocTypeDef target)
+    {
+        var errors = new List<MetadataError>();
+        if (target.DataMigration is null) return errors;
+        if (target.DataMigration.FromVersion != source?.Version)
+            errors.Add(new(target.Name, "dataMigration.fromVersion", $"Rencana migrasi harus berasal dari versi aktif {source?.Version}"));
+
+        for (var i = 0; i < target.DataMigration.Operations.Count; i++)
+        {
+            var migration = target.DataMigration.Operations[i];
+            var path = $"dataMigration.operations[{i}]";
+            if (source is null)
+            {
+                errors.Add(new(target.Name, path, "Migrasi data hanya berlaku untuk DocType yang sudah aktif"));
+                continue;
+            }
+
+            if (migration.Type == "RenameField")
+            {
+                var oldField = source.Fields.FirstOrDefault(f => f.Name == migration.FromField);
+                var newField = target.Fields.FirstOrDefault(f => f.Name == migration.ToField);
+                if (oldField is null) errors.Add(new(target.Name, path + ".fromField", $"Field sumber '{migration.FromField}' tidak ada di versi aktif"));
+                else if (oldField.Type != newField?.Type) errors.Add(new(target.Name, path, "RenameField hanya mendukung field dengan tipe sama"));
+            }
+            else if (migration.Type == "ConvertType")
+            {
+                var oldField = source.Fields.FirstOrDefault(f => f.Name == migration.Field);
+                var newField = target.Fields.FirstOrDefault(f => f.Name == migration.Field);
+                if (oldField is null) errors.Add(new(target.Name, path + ".field", $"Field '{migration.Field}' tidak ada di versi aktif"));
+                else if (newField is not null && oldField.Type == newField.Type)
+                    errors.Add(new(target.Name, path, "ConvertType membutuhkan perubahan tipe field"));
+                if (oldField?.Type is "Table" or "Image" or "Link" || newField?.Type is "Table" or "Image" or "Link")
+                    errors.Add(new(target.Name, path, "ConvertType MVP hanya mendukung field skalar biasa"));
+            }
+        }
+        return errors;
     }
 }

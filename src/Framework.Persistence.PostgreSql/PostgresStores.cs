@@ -103,8 +103,16 @@ public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider 
         await using var tx = await conn.BeginTransactionAsync(ct);
         try
         {
+            var docTypes = uow.Upserts.Select(x => x.Doc.DocType)
+                .Concat(uow.Deletes.Select(x => x.DocType)).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal);
+            foreach (var docType in docTypes)
+                await LockDocType(conn, tx, docType, shared: true, ct);
+            foreach (var docType in docTypes)
+                await EnsurePublishedSchema(conn, tx, docType, ct);
+
             foreach (var (doc, expected) in uow.Upserts)
             {
+                await EnsureDocumentSchema(conn, tx, doc.DocType, doc.SchemaVersion, ct);
                 if (expected is null) await InsertDocument(conn, tx, doc, ct);
                 else await UpdateDocument(conn, tx, doc, expected.Value, ct);
             }
@@ -115,6 +123,7 @@ public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider 
                 if (await del.ExecuteNonQueryAsync(ct) == 0)
                     throw new ConcurrencyException(name, expected, await CurrentVersion(conn, tx, tenant, docType, name, ct));
             }
+
             foreach (var a in uow.Audits)
             {
                 await using var ins = new NpgsqlCommand(
@@ -144,6 +153,32 @@ public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider 
             await tx.RollbackAsync(CancellationToken.None);
             throw;
         }
+    }
+
+    private static async Task LockDocType(NpgsqlConnection conn, NpgsqlTransaction tx, string docType, bool shared, CancellationToken ct)
+    {
+        var mode = shared ? "pg_advisory_xact_lock_shared" : "pg_advisory_xact_lock";
+        await using var cmd = new NpgsqlCommand($"SELECT {mode}(hashtext('docframe.doctype'), hashtext($1))", conn, tx);
+        cmd.Parameters.AddWithValue(docType);
+        await cmd.ExecuteScalarAsync(ct);
+    }
+
+    private static async Task<int> PublishedSchemaVersion(NpgsqlConnection conn, NpgsqlTransaction tx, string docType, CancellationToken ct)
+    {
+        await using var cmd = new NpgsqlCommand("SELECT version FROM docframe_metadata_versions WHERE doctype=$1 AND status='Published'", conn, tx);
+        cmd.Parameters.AddWithValue(docType);
+        var result = await cmd.ExecuteScalarAsync(ct);
+        return result is int version ? version : throw new InvalidOperationException($"Tidak ada metadata Published untuk DocType '{docType}'.");
+    }
+
+    private static async Task EnsurePublishedSchema(NpgsqlConnection conn, NpgsqlTransaction tx, string docType, CancellationToken ct) =>
+        _ = await PublishedSchemaVersion(conn, tx, docType, ct);
+
+    private static async Task EnsureDocumentSchema(NpgsqlConnection conn, NpgsqlTransaction tx, string docType, int documentVersion, CancellationToken ct)
+    {
+        var activeVersion = await PublishedSchemaVersion(conn, tx, docType, ct);
+        if (documentVersion != activeVersion)
+            throw new InvalidOperationException($"Schema dokumen versi {documentVersion} tidak sesuai metadata aktif versi {activeVersion} untuk '{docType}'. Muat ulang aplikasi atau dokumen.");
     }
 
     private static async Task InsertDocument(NpgsqlConnection conn, NpgsqlTransaction tx, Document d, CancellationToken ct)
@@ -250,7 +285,7 @@ public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider 
         cmd.Parameters.AddWithValue(m.Id); cmd.Parameters.AddWithValue(m.Attempts);
         cmd.Parameters.AddWithValue((object?)m.NextAttemptAt ?? DBNull.Value); cmd.Parameters.AddWithValue((object?)m.ProcessedAt ?? DBNull.Value);
         cmd.Parameters.AddWithValue((object?)m.LastError ?? DBNull.Value); cmd.Parameters.AddWithValue(m.DeadLettered);
-        await cmd.ExecuteNonQueryAsync(ct);
+        await cmd.ExecuteScalarAsync(ct);
     }
 
     public async Task<int> PruneAsync(DateTimeOffset processedBefore, int max, CancellationToken ct = default)
@@ -306,8 +341,62 @@ public sealed class PostgresNotificationStore(NpgsqlDataSource db) : INotificati
     }
 }
 
-public sealed class PostgresMetadataVersionStore(NpgsqlDataSource db) : IMetadataVersionStore
+public sealed class PostgresMetadataVersionStore(NpgsqlDataSource db) : IMetadataVersionStore, IAtomicDocTypeMigrationPublisher
 {
+    public DataMigrationPreviewResult PreviewMigration(CompiledDocType source, CompiledDocType target, int maxDocuments)
+    {
+        if (maxDocuments <= 0 || target.Def.DataMigration is not { } plan || plan.FromVersion != source.Version)
+            return new(false, 0, "Rencana migrasi tidak cocok dengan metadata sumber aktif.");
+
+        using var conn = db.OpenConnection();
+        using var tx = conn.BeginTransaction();
+        try
+        {
+            LockDocType(conn, tx, target.Name);
+            using (var active = new NpgsqlCommand("SELECT version FROM docframe_metadata_versions WHERE doctype=$1 AND status='Published' FOR SHARE", conn, tx))
+            {
+                active.Parameters.AddWithValue(target.Name);
+                if (active.ExecuteScalar() is not int activeVersion || activeVersion != source.Version)
+                    throw new InvalidOperationException("Metadata aktif berubah. Muat ulang draft sebelum dry-run.");
+            }
+
+            var count = 0;
+            using (var select = new NpgsqlCommand(
+                "SELECT tenant_id, doctype, name, owner, docstatus, workflow_state, created, modified, modified_by, version, schema_version, workflow_version, amended_from, data::text " +
+                "FROM docframe_documents WHERE doctype=$1 ORDER BY tenant_id, name LIMIT $2 FOR UPDATE", conn, tx))
+            {
+                select.Parameters.AddWithValue(target.Name);
+                select.Parameters.AddWithValue(maxDocuments + 1);
+                using var reader = select.ExecuteReader();
+                while (reader.Read())
+                {
+                    var schemaVersion = reader.GetInt32(10);
+                    if (schemaVersion != source.Version)
+                        throw new InvalidOperationException($"Dokumen {reader.GetString(2)} memiliki schema versi {schemaVersion}; hanya versi {source.Version} yang dapat dimigrasikan.");
+                    var document = new Document
+                    {
+                        TenantId = reader.GetString(0), DocType = reader.GetString(1), Name = reader.GetString(2), Owner = reader.GetString(3),
+                        DocStatus = reader.GetInt16(4), WorkflowState = reader.IsDBNull(5) ? null : reader.GetString(5),
+                        Created = reader.GetFieldValue<DateTimeOffset>(6), Modified = reader.GetFieldValue<DateTimeOffset>(7), ModifiedBy = reader.GetString(8),
+                        Version = reader.GetInt32(9), SchemaVersion = schemaVersion,
+                        WorkflowVersion = reader.IsDBNull(11) ? null : reader.GetInt32(11), AmendedFrom = reader.IsDBNull(12) ? null : reader.GetString(12),
+                        Data = JsonCodec.Read(reader.GetString(13), source, _ => null)
+                    };
+                    DocTypeDataMigrator.Transform(document, target, plan.Operations, "dry-run", DateTimeOffset.UtcNow);
+                    count++;
+                }
+            }
+            if (count > maxDocuments) throw new InvalidOperationException($"Migrasi dibatasi maksimal {maxDocuments} dokumen.");
+            tx.Commit();
+            return new(true, count);
+        }
+        catch (Exception ex)
+        {
+            tx.Rollback();
+            return new(false, 0, ex.Message);
+        }
+    }
+
     public IReadOnlyList<MetadataVersion> LoadAll()
     {
         using var cmd = db.CreateCommand("SELECT doctype, version, definition::text, status, published_by, published_at, changes::text FROM docframe_metadata_versions ORDER BY doctype, version");
@@ -324,6 +413,103 @@ public sealed class PostgresMetadataVersionStore(NpgsqlDataSource db) : IMetadat
     {
         using var conn = db.OpenConnection();
         using var tx = conn.BeginTransaction();
+        LockDocType(conn, tx, v.DocType);
+        SavePublishedVersion(conn, tx, v);
+        tx.Commit();
+    }
+
+    public DataMigrationResult MigrateAndPublish(MetadataVersion version, CompiledDocType source, CompiledDocType target,
+        int expectedDocuments, int maxDocuments)
+    {
+        if (maxDocuments <= 0 || expectedDocuments < 0 || expectedDocuments > maxDocuments)
+            throw new ArgumentOutOfRangeException(nameof(expectedDocuments));
+        if (target.Def.DataMigration is not { } plan || plan.FromVersion != source.Version || target.Version != version.Version)
+            throw new InvalidOperationException("Rencana migrasi tidak cocok dengan versi sumber dan target.");
+
+        using var conn = db.OpenConnection();
+        using var tx = conn.BeginTransaction();
+        try
+        {
+            LockDocType(conn, tx, version.DocType);
+            using (var active = new NpgsqlCommand("SELECT version FROM docframe_metadata_versions WHERE doctype=$1 AND status='Published' FOR UPDATE", conn, tx))
+            {
+                active.Parameters.AddWithValue(version.DocType);
+                if (active.ExecuteScalar() is not int activeVersion || activeVersion != source.Version)
+                    throw new InvalidOperationException("Metadata aktif berubah sejak dry-run. Jalankan ulang dry-run.");
+            }
+
+            var documents = new List<Document>();
+            using (var select = new NpgsqlCommand(
+                "SELECT tenant_id, doctype, name, owner, docstatus, workflow_state, created, modified, modified_by, version, schema_version, workflow_version, amended_from, data::text " +
+                "FROM docframe_documents WHERE doctype=$1 ORDER BY tenant_id, name LIMIT $2 FOR UPDATE", conn, tx))
+            {
+                select.Parameters.AddWithValue(version.DocType);
+                select.Parameters.AddWithValue(maxDocuments + 1);
+                using var reader = select.ExecuteReader();
+                while (reader.Read())
+                {
+                    var schemaVersion = reader.GetInt32(10);
+                    if (schemaVersion != source.Version)
+                        throw new InvalidOperationException($"Dokumen {reader.GetString(2)} memiliki schema versi {schemaVersion}; hanya versi {source.Version} yang dapat dimigrasikan.");
+                    documents.Add(new Document
+                    {
+                        TenantId = reader.GetString(0), DocType = reader.GetString(1), Name = reader.GetString(2), Owner = reader.GetString(3),
+                        DocStatus = reader.GetInt16(4), WorkflowState = reader.IsDBNull(5) ? null : reader.GetString(5),
+                        Created = reader.GetFieldValue<DateTimeOffset>(6), Modified = reader.GetFieldValue<DateTimeOffset>(7), ModifiedBy = reader.GetString(8),
+                        Version = reader.GetInt32(9), SchemaVersion = schemaVersion,
+                        WorkflowVersion = reader.IsDBNull(11) ? null : reader.GetInt32(11), AmendedFrom = reader.IsDBNull(12) ? null : reader.GetString(12),
+                        Data = JsonCodec.Read(reader.GetString(13), source, _ => null)
+                    });
+                }
+            }
+
+            if (documents.Count > maxDocuments)
+                throw new InvalidOperationException($"Migrasi dibatasi maksimal {maxDocuments} dokumen; tidak ada perubahan yang disimpan.");
+            if (documents.Count != expectedDocuments)
+                throw new InvalidOperationException("Jumlah dokumen berubah sejak dry-run. Jalankan ulang dry-run sebelum publish.");
+
+            foreach (var document in documents)
+            {
+                var (migrated, changes) = DocTypeDataMigrator.Transform(document, target, plan.Operations, version.PublishedBy, version.PublishedAt);
+                using (var update = new NpgsqlCommand(
+                    "UPDATE docframe_documents SET modified=$4, modified_by=$5, version=$6, schema_version=$7, data=$8::jsonb " +
+                    "WHERE tenant_id=$1 AND doctype=$2 AND name=$3 AND version=$9", conn, tx))
+                {
+                    update.Parameters.AddWithValue(migrated.TenantId); update.Parameters.AddWithValue(migrated.DocType); update.Parameters.AddWithValue(migrated.Name);
+                    update.Parameters.AddWithValue(migrated.Modified); update.Parameters.AddWithValue(migrated.ModifiedBy);
+                    update.Parameters.AddWithValue(migrated.Version); update.Parameters.AddWithValue(migrated.SchemaVersion);
+                    update.Parameters.AddWithValue(JsonCodec.Write(migrated.Data)); update.Parameters.AddWithValue(document.Version);
+                    if (update.ExecuteNonQuery() != 1) throw new InvalidOperationException($"Dokumen {document.Name} berubah selama migrasi.");
+                }
+                using var audit = new NpgsqlCommand(
+                    "INSERT INTO docframe_audit (tenant_id, doctype, doc_name, action, actor, at, changes, schema_version) " +
+                    "VALUES ($1,$2,$3,'Migrate',$4,$5,$6::jsonb,$7)", conn, tx);
+                audit.Parameters.AddWithValue(migrated.TenantId); audit.Parameters.AddWithValue(migrated.DocType); audit.Parameters.AddWithValue(migrated.Name);
+                audit.Parameters.AddWithValue(version.PublishedBy); audit.Parameters.AddWithValue(version.PublishedAt);
+                audit.Parameters.AddWithValue(JsonSerializer.Serialize(changes)); audit.Parameters.AddWithValue(migrated.SchemaVersion);
+                audit.ExecuteNonQuery();
+            }
+
+            SavePublishedVersion(conn, tx, version);
+            tx.Commit();
+            return new DataMigrationResult(documents.Count);
+        }
+        catch
+        {
+            tx.Rollback();
+            throw;
+        }
+    }
+
+    private static void LockDocType(NpgsqlConnection conn, NpgsqlTransaction tx, string docType)
+    {
+        using var cmd = new NpgsqlCommand("SELECT pg_advisory_xact_lock(hashtext('docframe.doctype'), hashtext($1))", conn, tx);
+        cmd.Parameters.AddWithValue(docType);
+        cmd.ExecuteScalar();
+    }
+
+    private static void SavePublishedVersion(NpgsqlConnection conn, NpgsqlTransaction tx, MetadataVersion v)
+    {
         using (var dep = new NpgsqlCommand("UPDATE docframe_metadata_versions SET status = 'Deprecated' WHERE doctype = $1 AND status = 'Published'", conn, tx))
         {
             dep.Parameters.AddWithValue(v.DocType);
@@ -338,7 +524,6 @@ public sealed class PostgresMetadataVersionStore(NpgsqlDataSource db) : IMetadat
             ins.Parameters.AddWithValue(JsonSerializer.Serialize(v.Changes));
             ins.ExecuteNonQuery();
         }
-        tx.Commit();
     }
 
     public IReadOnlyList<WorkflowVersion> LoadAllWorkflows()

@@ -496,6 +496,7 @@ public sealed class DocumentService(
 
         var doc = current.Clone();
         doc.Modified = clock.GetUtcNow(); doc.ModifiedBy = user.Id; doc.Version = current.Version + 1;
+        doc.SchemaVersion = meta.Version;
         string? fromState = WorkflowEngine.CurrentState(meta, current), toState;
         DocumentOperation op;
         var transitionEvents = new List<OutboxMessage>();

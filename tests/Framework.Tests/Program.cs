@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.Json;
 using Apps.Sample.Domain;
 using Framework.Documents;
 using Framework.Expressions;
@@ -510,6 +511,82 @@ sealed partial class Tests
         Assert.Equal(MetadataStatus.Deprecated, reg.History("Vendor").Single(v => v.Version == 1).Status, "v1 usang");
         var v = await Docs.InsertAsync(U("rina"), "Vendor", P(("vendor_name", "PT Baru")));
         Assert.Equal(2, v.SchemaVersion, "dokumen baru mencatat skema v2");
+    }
+
+    [Test]
+    public Task Migrasi_doctype_mengubah_payload_tanpa_mengubah_sumber()
+    {
+        var reg = sp.GetRequiredService<MetadataRegistry>();
+        var sourceMeta = reg.Current.Get("Vendor");
+        var draft = MetadataJson.ParseDocType(MetadataJson.Serialize(sourceMeta.Def));
+        draft.Version = sourceMeta.Version + 1;
+        draft.Fields[0].Name = "supplier_name";
+        draft.ListView.TitleField = "supplier_name";
+        draft.ListView.SearchFields = draft.ListView.SearchFields.Select(f => f == "vendor_name" ? "supplier_name" : f).ToList();
+        draft.DataMigration = new DataMigrationPlanDef
+        {
+            FromVersion = sourceMeta.Version,
+            Operations = [
+                new DataMigrationOperationDef { Type = "RenameField", FromField = "vendor_name", ToField = "supplier_name" },
+                new DataMigrationOperationDef { Type = "SetDefault", Field = "category", Value = JsonDocument.Parse("\"ATK\"").RootElement.Clone() }
+            ]
+        };
+        var source = new Document
+        {
+            TenantId = "acme", DocType = "Vendor", Name = "VND-TEST", Owner = "admin", Created = DateTimeOffset.UtcNow,
+            Modified = DateTimeOffset.UtcNow, ModifiedBy = "admin", SchemaVersion = sourceMeta.Version,
+            Data = new Dictionary<string, object?> { ["vendor_name"] = "Test supplier" }
+        };
+
+        var target = reg.CompileDraft(draft).Snapshot!.Get("Vendor");
+        var (migrated, changes) = DocTypeDataMigrator.Transform(source, target, draft.DataMigration.Operations, "admin", DateTimeOffset.UtcNow);
+        Assert.Equal("Test supplier", migrated.Data["supplier_name"], "rename value");
+        Assert.Equal("ATK", migrated.Data["category"], "default applied");
+        Assert.True(!migrated.Data.ContainsKey("vendor_name"), "source field removed");
+        Assert.Equal(sourceMeta.Version + 1, migrated.SchemaVersion, "target schema version");
+        Assert.Equal(source.Version + 1, migrated.Version, "document version increments");
+        Assert.True(source.Data.ContainsKey("vendor_name") && !source.Data.ContainsKey("supplier_name"), "source document unchanged");
+        Assert.Equal(2, changes.Count, "audit changes");
+        return Task.CompletedTask;
+    }
+
+    [Test, PgTest]
+    public async Task Pg_migrasi_doctype_memvalidasi_jumlah_sebelum_transaksi_dan_menerbitkan_bersama()
+    {
+        var reg = sp.GetRequiredService<MetadataRegistry>();
+        var source = reg.Current.Get("Vendor");
+        var draft = MetadataJson.ParseDocType(MetadataJson.Serialize(source.Def));
+        draft.Version = source.Version + 1;
+        draft.Fields.Add(new FieldDef { Name = "migration_marker", Type = "Data", Label = "Migration marker" });
+        draft.DataMigration = new DataMigrationPlanDef
+        {
+            FromVersion = source.Version,
+            Operations = [new DataMigrationOperationDef
+            {
+                Type = "SetDefault", Field = "migration_marker", Value = JsonDocument.Parse("\"migrated\"").RootElement.Clone()
+            }]
+        };
+
+        var preview = reg.PreviewDataMigration(draft);
+        Assert.True(preview.Valid && preview.Documents > 0, "preview succeeds for seeded vendor documents");
+        var store = sp.GetRequiredService<IDocumentStore>();
+        var before = await store.GetAsync("acme", "Vendor", "VND-0001");
+        Assert.True(before is not null && !before.Data.ContainsKey("migration_marker"), "source row not changed by dry-run");
+
+        await Assert.Throws<InvalidOperationException>(
+            () => Task.Run(() => reg.Publish(draft, "admin", acknowledgeRisk: true, preview.Documents + 1)),
+            "changed dry-run count aborts publish");
+        Assert.Equal(source.Version, reg.Current.Get("Vendor").Version, "failed migration leaves active metadata unchanged");
+        var afterFailedPublish = await store.GetAsync("acme", "Vendor", "VND-0001");
+        Assert.True(afterFailedPublish is not null && !afterFailedPublish.Data.ContainsKey("migration_marker"), "failed publish rolls back document transforms");
+
+        reg.Publish(draft, "admin", acknowledgeRisk: true, preview.Documents);
+        var migrated = await store.GetAsync("acme", "Vendor", "VND-0001");
+        Assert.Equal(source.Version + 1, reg.Current.Get("Vendor").Version, "new metadata becomes active");
+        Assert.True(migrated is not null && Equals(migrated.Data["migration_marker"], "migrated"), "document transformed");
+        Assert.Equal(source.Version + 1, migrated!.SchemaVersion, "document records target schema version");
+        Assert.True(reg.Current.Get("Vendor").Def.DataMigration is null, "applied plan is not replayed after publish");
+        Assert.True((await store.GetAuditAsync("acme", "Vendor", "VND-0001")).Any(a => a.Action == "Migrate"), "migration audit is written");
     }
 
     // ---------------- Report ----------------

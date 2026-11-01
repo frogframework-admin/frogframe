@@ -41,7 +41,7 @@ else
         <div class="row">
             <BbButton Variant="ButtonVariant.Ghost" Disabled="@(!dirty)" OnClick="Discard"><LucideIcon Name="rotate-ccw" Size="16" /> Discard changes</BbButton>
             <BbButton Variant="ButtonVariant.Outline" Disabled="@(errors.Count > 0)" OnClick="Check"><LucideIcon Name="search" Size="16" /> Review changes</BbButton>
-            <BbButton Disabled="@(preview is not { Valid: true } || preview.Changes.Count == 0 || (preview.Risk == ChangeRisk.Risky && !ack))" OnClick="Publish">
+            <BbButton Disabled="@(preview is not { Valid: true } || preview.Changes.Count == 0 || (preview.Risk == ChangeRisk.Risky && !ack) || (design.Def.DataMigration is not null && migrationPreview is not { Valid: true }))" OnClick="Publish">
                 <LucideIcon Name="upload" Size="16" /> Publish v@(version)
             </BbButton>
         </div>
@@ -70,6 +70,28 @@ else
                 @if (preview is { Risk: ChangeRisk.Risky, Valid: true })
                 {
                     <div class="label-row" style="margin-top:.75rem"><BbCheckbox Id="ack" @bind-Checked="ack" /><BbLabel For="ack">I have reviewed the risky changes</BbLabel></div>
+                }
+                @if (design.Def.DataMigration is not null)
+                {
+                    <div class="stack" style="margin-top:1rem">
+                        <div class="row">
+                            <BbButton Variant="ButtonVariant.Outline" Disabled="@(preview is not { Valid: true })" OnClick="RunMigrationPreview">
+                                <LucideIcon Name="database" Size="16" /> Run migration dry-run
+                            </BbButton>
+                            @if (migrationPreview is { Valid: true })
+                            {
+                                <BbBadge Variant="BadgeVariant.SoftSuccess">@migrationPreview.Documents documents ready</BbBadge>
+                            }
+                        </div>
+                        @if (migrationPreview is { Valid: false, Error: not null } failedMigration)
+                        {
+                            <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>Migration dry-run failed: @failedMigration.Error</BbAlertDescription></BbAlert>
+                        }
+                        @if (migrationPreview is { Valid: true })
+                        {
+                            <BbAlert Variant="AlertVariant.Warning"><BbAlertDescription>Publishing will transform these documents and the metadata version in one transaction. Writes for this DocType will wait during the migration.</BbAlertDescription></BbAlert>
+                        }
+                    </div>
                 }
             </BbCardContent>
         </BbCard>
@@ -357,6 +379,20 @@ else
                                 }
                             </div>
                         }
+                        <div class="props-group">
+                            <div class="props-group-title">Data migration plan</div>
+                            <p class="muted small">Optional one-time migration for existing documents. Define <code>fromVersion</code> and operations as JSON, apply it, review the draft, then run the dry-run before publishing.</p>
+                            <div class="code"><BbTextarea Value="@migrationJson" ValueChanged="v => migrationJson = v ?? string.Empty" UpdateTiming="UpdateTiming.OnChange" AriaLabel="Data migration plan JSON"
+                                                          AdditionalAttributes="@(new Dictionary<string, object> { ["rows"] = 8, ["spellcheck"] = "false" })" /></div>
+                            @if (migrationJsonError is not null) { <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@migrationJsonError</BbAlertDescription></BbAlert> }
+                            <div class="row" style="margin-top:.5rem">
+                                <BbButton Variant="ButtonVariant.Outline" OnClick="ApplyMigrationPlan"><LucideIcon Name="check" Size="16" /> Apply migration plan</BbButton>
+                                @if (design.Def.DataMigration is not null)
+                                {
+                                    <BbButton Variant="ButtonVariant.Ghost" OnClick="ClearMigrationPlan">Clear migration plan</BbButton>
+                                }
+                            </div>
+                        </div>
                         <p class="muted small">Access and workflow are configured in the <strong>Access &amp; Workflow</strong> tab; cross-field rules and print formats in the <strong>JSON</strong> tab.</p>
                     </BbCardContent>
                 </BbCard>
@@ -412,10 +448,13 @@ else
     private IReadOnlyList<MetadataError> errors = [];
     private MetadataSnapshot? snapshot, lastGoodSnapshot;
     private PublishPreview? preview;
+    private DataMigrationPreviewResult? migrationPreview;
     private bool ack, dirty;
     private string view = "design";
     private string json = "";
     private string? jsonError;
+    private string migrationJson = "";
+    private string? migrationJsonError;
 
     private string DrawerTitle =>
         selected is not null
@@ -520,12 +559,33 @@ else
         active = meta.Def;
         version = meta.Version + 1;
         design = DocTypeDesign.From(meta.Def);
+        migrationJson = JsonSerializer.Serialize(new DataMigrationPlanDef { FromVersion = meta.Version }, MetadataJson.Options);
+        migrationJsonError = null;
         originalJson = MetadataJson.Serialize(design.ToDef(version));
         currentTab = design.Tabs[0];
         currentSection = currentTab.Sections.FirstOrDefault();
-        selected = null; preview = null; ack = false;
+        selected = null; preview = null; migrationPreview = null; ack = false;
         isDrawerOpen = false;
         Recompile();
+    }
+
+    private void ApplyMigrationPlan()
+    {
+        try
+        {
+            var plan = JsonSerializer.Deserialize<DataMigrationPlanDef>(migrationJson, MetadataJson.Options)
+                ?? throw new JsonException("Migration plan JSON must be an object.");
+            Mutate(() => design!.Def.DataMigration = plan);
+            migrationJsonError = null;
+        }
+        catch (JsonException ex) { migrationJsonError = $"Invalid migration plan JSON: {ex.Message}"; }
+    }
+
+    private void ClearMigrationPlan()
+    {
+        Mutate(() => design!.Def.DataMigration = null);
+        migrationJson = JsonSerializer.Serialize(new DataMigrationPlanDef { FromVersion = version - 1 }, MetadataJson.Options);
+        migrationJsonError = null;
     }
 
     private string? OriginalName(FieldDef f) =>
@@ -542,7 +602,7 @@ else
         var now = MetadataJson.Serialize(def);
         dirty = now != originalJson;
         if (view != "json") json = now;
-        preview = null; ack = false;
+        preview = null; migrationPreview = null; ack = false;
     }
 
     private void Mutate(Action change) { change(); Recompile(); }
@@ -646,13 +706,30 @@ else
         catch (JsonException ex) { jsonError = $"Invalid JSON: {ex.Message}"; }
     }
 
-    private void Check() => preview = Registry.Preview(design!.ToDef(version));
+    private void Check()
+    {
+        preview = Registry.Preview(design!.ToDef(version));
+        migrationPreview = null;
+    }
+
+    private void RunMigrationPreview()
+    {
+        var draft = design!.ToDef(version);
+        preview = Registry.Preview(draft);
+        migrationPreview = preview.Valid && draft.DataMigration is not null
+            ? Registry.PreviewDataMigration(draft)
+            : null;
+    }
 
     private void Publish()
     {
         try
         {
-            var v = Registry.Publish(design!.ToDef(version), Current.Required.Id, ack);
+            var draft = design!.ToDef(version);
+            var migratedDocuments = draft.DataMigration is null ? 0 : migrationPreview is { Valid: true } result
+                ? result.Documents
+                : throw new InvalidOperationException("Run a successful migration dry-run before publishing.");
+            var v = Registry.Publish(draft, Current.Required.Id, ack, migratedDocuments);
             Toasts.Success("Forms, lists, and APIs will immediately use this version.", $"{v.DocType} v{v.Version} published");
             Load();
         }
