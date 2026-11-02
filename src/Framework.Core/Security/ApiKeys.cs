@@ -84,7 +84,7 @@ public sealed class ApiKeyService(IApiKeyStore store, IUserAccountRepository acc
 
     private static void DemandAdmin(UserContext u)
     {
-        if (!u.Roles.Contains(UserContext.SystemManager)) throw new PermissionDeniedException("Mengelola kunci API hanya untuk System Manager");
+        if (!u.Roles.Contains(UserContext.SystemManager)) throw new PermissionDeniedException("Managing API keys is restricted to System Manager.");
     }
 
     private static string Hash(string secret) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(secret)));
@@ -93,13 +93,13 @@ public sealed class ApiKeyService(IApiKeyStore store, IUserAccountRepository acc
     public async Task<(ApiKey Key, string Token)> CreateAsync(UserContext admin, CreateApiKeyRequest req, CancellationToken ct = default)
     {
         DemandAdmin(admin);
-        if (string.IsNullOrWhiteSpace(req.Name)) throw new ApiKeyException("Nama kunci wajib diisi");
+        if (string.IsNullOrWhiteSpace(req.Name)) throw new ApiKeyException("API key name is required.");
         var account = await accounts.FindByIdAsync(req.UserId, ct);
-        if (account is null || account.TenantId != admin.TenantId) throw new ApiKeyException("Akun tidak ditemukan di tenant ini");
-        if (!account.IsActive) throw new ApiKeyException("Akun nonaktif tidak bisa diberi kunci API");
-        foreach (var s in req.Scopes) if (!ApiScopes.IsValid(s)) throw new ApiKeyException($"Cakupan '{s}' tidak valid");
-        foreach (var ip in req.AllowedIps) if (!IPNetwork.TryParse(ip.Contains('/') ? ip : ip + (ip.Contains(':') ? "/128" : "/32"), out _)) throw new ApiKeyException($"IP/CIDR '{ip}' tidak valid");
-        if (req.ExpiresAt is { } e && e <= clock.GetUtcNow()) throw new ApiKeyException("Tanggal kedaluwarsa harus di masa depan");
+        if (account is null || account.TenantId != admin.TenantId) throw new ApiKeyException("Account not found in this tenant.");
+        if (!account.IsActive) throw new ApiKeyException("Inactive accounts cannot be granted API keys.");
+        foreach (var s in req.Scopes) if (!ApiScopes.IsValid(s)) throw new ApiKeyException($"Invalid scope '{s}'.");
+        foreach (var ip in req.AllowedIps) if (!IPNetwork.TryParse(ip.Contains('/') ? ip : ip + (ip.Contains(':') ? "/128" : "/32"), out _)) throw new ApiKeyException($"Invalid IP/CIDR '{ip}'.");
+        if (req.ExpiresAt is { } e && e <= clock.GetUtcNow()) throw new ApiKeyException("Expiration date must be in the future.");
 
         var id = "k" + Convert.ToHexString(RandomNumberGenerator.GetBytes(8)).ToLowerInvariant();
         var secret = Base64Url(RandomNumberGenerator.GetBytes(32));
@@ -123,7 +123,7 @@ public sealed class ApiKeyService(IApiKeyStore store, IUserAccountRepository acc
     {
         DemandAdmin(admin);
         var key = await store.GetAsync(id, ct);
-        if (key is null || key.TenantId != admin.TenantId) throw new ApiKeyException("Kunci tidak ditemukan");
+        if (key is null || key.TenantId != admin.TenantId) throw new ApiKeyException("API key not found.");
         key.RevokedAt ??= clock.GetUtcNow();
         await store.SaveAsync(key, ct);
     }

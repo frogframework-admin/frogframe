@@ -85,7 +85,7 @@ public sealed class InMemoryUserAccountRepository : IUserAccountRepository
         lock (_byId)
         {
             if (_byId.ContainsKey(account.Id) || _byId.Values.Any(u => u.NormalizedUserName == account.NormalizedUserName))
-                throw new DuplicateAccountException($"Username '{account.UserName}' sudah dipakai");
+                throw new DuplicateAccountException($"Username '{account.UserName}' is already in use.");
             _byId[account.Id] = account.Clone();
         }
         return Task.CompletedTask;
@@ -96,7 +96,7 @@ public sealed class InMemoryUserAccountRepository : IUserAccountRepository
         lock (_byId)
         {
             if (_byId.Values.Any(u => u.Id != account.Id && u.NormalizedUserName == account.NormalizedUserName))
-                throw new DuplicateAccountException($"Username '{account.UserName}' sudah dipakai");
+                throw new DuplicateAccountException($"Username '{account.UserName}' is already in use.");
             _byId[account.Id] = account.Clone();
         }
         return Task.CompletedTask;

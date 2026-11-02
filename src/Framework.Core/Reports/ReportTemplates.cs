@@ -91,7 +91,7 @@ public sealed class ReportTemplateService(IReportTemplateStore store, IReporting
     public static bool CanRun(UserContext u, ReportTemplateDef d) => CanDesign(u) || d.Config.Roles.Count == 0 || d.Config.Roles.Any(u.Roles.Contains);
     private static void DemandDesigner(UserContext u)
     {
-        if (!CanDesign(u)) throw new PermissionDeniedException("Merancang template laporan hanya untuk System Manager");
+        if (!CanDesign(u)) throw new PermissionDeniedException("Designing report templates is restricted to System Manager.");
     }
 
     /// <summary>Parameter dari query detail dan header digabung (nama sama = parameter yang sama).</summary>
@@ -132,7 +132,7 @@ public sealed class ReportTemplateService(IReportTemplateStore store, IReporting
         var a = SqlGuard.Analyze(sql);
         if (!a.Ok) throw new QueryRejectedException(a.Error!);
         var ps = a.Parameters.Select(n => values.TryGetValue(n, out var v) ? new SqlParam(v.Value, v.Type)
-            : throw new QueryRejectedException($"Parameter @{n} belum didefinisikan")).ToList();
+            : throw new QueryRejectedException($"Parameter @{n} is not defined.")).ToList();
         return await executor.ExecuteAsync(u.TenantId, a.ParameterizedSql, ps, limit, ct, limits.StatementTimeout);
     }
 
@@ -140,7 +140,7 @@ public sealed class ReportTemplateService(IReportTemplateStore store, IReporting
     {
         var detail = await RunAsync(u, c.Sql, values, limit, ct);
         var header = string.IsNullOrWhiteSpace(c.HeaderSql) ? null : await RunAsync(u, c.HeaderSql, values, 2, ct);
-        if (header is { Rows.Count: > 1 }) throw new QueryRejectedException("Query header harus menghasilkan tepat satu baris");
+        if (header is { Rows.Count: > 1 }) throw new QueryRejectedException("Header query must return exactly one row.");
         return new ReportPreview(detail, header);
     }
 
@@ -209,11 +209,11 @@ public sealed class ReportTemplateService(IReportTemplateStore store, IReporting
     public async Task<ReportTemplateDef> SaveAsync(UserContext u, ReportTemplateDef def, byte[]? newTemplate, CancellationToken ct = default)
     {
         DemandDesigner(u);
-        if (string.IsNullOrWhiteSpace(def.Name)) throw new TemplateException("Nama laporan wajib diisi");
-        if (def.Config.Format is not (ReportFormats.Xlsx or ReportFormats.Docx)) throw new TemplateException("Format harus xlsx atau docx");
+        if (string.IsNullOrWhiteSpace(def.Name)) throw new TemplateException("Report name is required.");
+        if (def.Config.Format is not (ReportFormats.Xlsx or ReportFormats.Docx)) throw new TemplateException("Format must be xlsx or docx.");
         var existing = string.IsNullOrEmpty(def.Id) ? null : await store.GetAsync(u.TenantId, def.Id, ct);
         var template = newTemplate ?? (existing is null ? null : await store.GetFileAsync(u.TenantId, def.Id, ct));
-        if (template is null || template.Length == 0) throw new TemplateException("Unggah file template terlebih dahulu");
+        if (template is null || template.Length == 0) throw new TemplateException("Upload a template file first.");
         var (err, _) = DetectParameters(def.Config.Sql, def.Config.HeaderSql, def.Config.Parameters);
         if (err is not null) throw new QueryRejectedException(err);
 
@@ -221,7 +221,7 @@ public sealed class ReportTemplateService(IReportTemplateStore store, IReporting
         // bukan baru ketahuan saat pengguna membuat laporan.
         var preview = await QueryAsync(u, def.Config, Values(u, def.Config.Parameters, new Dictionary<string, string?>()), 1, ct);
         var check = CheckTemplate(def.Config, template, preview);
-        if (check.Problems.Count > 0) throw new TemplateException("Template belum cocok dengan query: " + string.Join("; ", check.Problems));
+        if (check.Problems.Count > 0) throw new TemplateException("Template does not match query: " + string.Join("; ", check.Problems));
 
         var now = clock.GetUtcNow();
         def.TenantId = u.TenantId;
@@ -253,14 +253,14 @@ public sealed class ReportTemplateService(IReportTemplateStore store, IReporting
     /// <summary>Membuat file laporan. Hasil yang melebihi batas baris DITOLAK (laporan tidak boleh terpotong diam-diam).</summary>
     public async Task<ReportOutput> GenerateAsync(UserContext u, string id, IReadOnlyDictionary<string, string?> input, CancellationToken ct = default)
     {
-        var def = await store.GetAsync(u.TenantId, id, ct) ?? throw new TemplateException("Template laporan tidak ditemukan");
-        if (!CanRun(u, def)) throw new PermissionDeniedException("Anda tidak memiliki akses ke laporan ini");
-        var file = await store.GetFileAsync(u.TenantId, id, ct) ?? throw new TemplateException("File template tidak ditemukan");
+        var def = await store.GetAsync(u.TenantId, id, ct) ?? throw new TemplateException("Report template not found.");
+        if (!CanRun(u, def)) throw new PermissionDeniedException("You do not have access to this report.");
+        var file = await store.GetFileAsync(u.TenantId, id, ct) ?? throw new TemplateException("Template file not found.");
         var max = def.Config.Format == ReportFormats.Docx ? limits.MaxRowsWord : limits.MaxRowsExcel;
         var values = Values(u, def.Config.Parameters, input);
         var data = await QueryAsync(u, def.Config, values, max, ct);
         if (data.Detail.Truncated)
-            throw new TemplateException($"Hasil melebihi {max:N0} baris. Persempit dengan parameter (mis. rentang tanggal) atau bagi menjadi beberapa laporan.");
+            throw new TemplateException($"Results exceed {max:N0} rows. Narrow with parameters (e.g. date range) or split into multiple reports.");
         return Render(u, def.Name, def.Config, file, data, values);
     }
 }

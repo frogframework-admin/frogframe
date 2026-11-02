@@ -251,7 +251,7 @@ sealed partial class Tests
         var tiny = new ReportTemplateService(sp.GetRequiredService<IReportTemplateStore>(), sp.GetRequiredService<IReportingQueryExecutor>(), TimeProvider.System,
             new ReportLimits { MaxRowsExcel = 2 });
         var big = await Assert.Throws<TemplateException>(() => tiny.GenerateAsync(admin, saved.Id, new Dictionary<string, string?> { ["Dept"] = "IT" }), "3 baris > batas 2");
-        Assert.True(big.Message.Contains("melebihi"), "pesan meminta mempersempit parameter: " + big.Message);
+        Assert.True(big.Message.Contains("exceed") || big.Message.Contains("melebihi"), "pesan meminta mempersempit parameter: " + big.Message);
         var ok = await tiny.GenerateAsync(admin, saved.Id, new Dictionary<string, string?> { ["Dept"] = "Marketing" });
         Assert.Equal(2, ok.Rows, "tepat di batas tetap dibuat");
     }

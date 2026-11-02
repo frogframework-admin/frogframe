@@ -88,7 +88,7 @@ public sealed partial class QueryApiService(IQueryApiStore store, IReportingQuer
 
     private static void DemandDesigner(UserContext u)
     {
-        if (!CanDesign(u)) throw new PermissionDeniedException("Menerbitkan API query hanya untuk System Manager");
+        if (!CanDesign(u)) throw new PermissionDeniedException("Publishing query APIs is restricted to System Manager.");
     }
 
     public static (string? Error, List<WidgetParameter> Parameters) DetectParameters(string sql, IReadOnlyList<WidgetParameter>? existing)
@@ -106,12 +106,12 @@ public sealed partial class QueryApiService(IQueryApiStore store, IReportingQuer
     {
         var errors = new List<FieldError>();
         foreach (var k in args.Keys.Where(k => c.Parameters.All(p => !p.Name.Equals(k, StringComparison.OrdinalIgnoreCase))))
-            errors.Add(new FieldError(k, "parameter tidak dikenal"));
+            errors.Add(new FieldError(k, "unknown parameter"));
         var values = new List<(WidgetParameter, object?)>();
         foreach (var p in c.Parameters)
         {
             var given = args.FirstOrDefault(kv => kv.Key.Equals(p.Name, StringComparison.OrdinalIgnoreCase));
-            if (IsUserBound(p) && given.Key is not null) { errors.Add(new FieldError(p.Name, "diisi otomatis dari akun pemanggil dan tidak boleh dikirim")); continue; }
+            if (IsUserBound(p) && given.Key is not null) { errors.Add(new FieldError(p.Name, "automatically populated from caller account and cannot be provided")); continue; }
             var raw = p.Binding switch
             {
                 ParamBindings.UserId => u.Id,
@@ -130,7 +130,7 @@ public sealed partial class QueryApiService(IQueryApiStore store, IReportingQuer
         var a = SqlGuard.Analyze(c.Sql);
         if (!a.Ok) throw new QueryRejectedException(a.Error!);
         var ps = a.Parameters.Select(n => values.FirstOrDefault(v => v.P.Name.Equals(n, StringComparison.OrdinalIgnoreCase)) is { P: not null } v
-            ? new SqlParam(v.V, v.P.Type) : throw new QueryRejectedException($"Parameter @{n} belum didefinisikan")).ToList();
+            ? new SqlParam(v.V, v.P.Type) : throw new QueryRejectedException($"Parameter @{n} is not defined.")).ToList();
         return await executor.ExecuteAsync(u.TenantId, a.ParameterizedSql, ps, limit, ct);
     }
 
@@ -142,11 +142,11 @@ public sealed partial class QueryApiService(IQueryApiStore store, IReportingQuer
 
     private async Task Validate(UserContext u, QueryApiDef def, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(def.Name)) throw new ApiMethodException("Nama API wajib diisi");
-        if (!SlugRx().IsMatch(def.Slug)) throw new ApiMethodException("Slug harus 2–63 karakter: huruf kecil, angka, atau tanda hubung (mis. rekap-pengajuan)");
-        if (!QueryApiOutputs.All.Contains(def.Config.Output)) throw new ApiMethodException("Bentuk keluaran tidak dikenal");
-        if (def.Config.MaxRows is < 1 or > MaxRowsCap) throw new ApiMethodException($"Batas baris 1–{MaxRowsCap:N0}");
-        if (def.Config.CacheSeconds is < 0 or > 3600) throw new ApiMethodException("Cache 0–3600 detik");
+        if (string.IsNullOrWhiteSpace(def.Name)) throw new ApiMethodException("API name is required.");
+        if (!SlugRx().IsMatch(def.Slug)) throw new ApiMethodException("Slug must be 2–63 characters: lowercase letters, numbers, or hyphens (e.g. pr-summary).");
+        if (!QueryApiOutputs.All.Contains(def.Config.Output)) throw new ApiMethodException("Unknown output format.");
+        if (def.Config.MaxRows is < 1 or > MaxRowsCap) throw new ApiMethodException($"Row limit must be between 1 and {MaxRowsCap:N0}.");
+        if (def.Config.CacheSeconds is < 0 or > 3600) throw new ApiMethodException("Cache must be between 0 and 3600 seconds.");
         var (err, _) = DetectParameters(def.Config.Sql, def.Config.Parameters);
         if (err is not null) throw new QueryRejectedException(err);
         foreach (var p in def.Config.Parameters)
@@ -160,7 +160,7 @@ public sealed partial class QueryApiService(IQueryApiStore store, IReportingQuer
         await Validate(u, def, ct);
         var existing = string.IsNullOrEmpty(def.Id) ? null : await store.GetAsync(u.TenantId, def.Id, ct);
         if (await store.GetBySlugAsync(u.TenantId, def.Slug, ct) is { } other && other.Id != existing?.Id)
-            throw new ApiMethodException($"Slug '{def.Slug}' sudah dipakai API \"{other.Name}\"");
+            throw new ApiMethodException($"Slug '{def.Slug}' is already used by API \"{other.Name}\".");
         var now = clock.GetUtcNow();
         def.TenantId = u.TenantId;
         if (existing is null) { def.Id = "qa_" + Guid.NewGuid().ToString("N")[..12]; def.CreatedBy = u.Id; def.CreatedAt = now; def.Version = 1; }
@@ -179,7 +179,7 @@ public sealed partial class QueryApiService(IQueryApiStore store, IReportingQuer
         var linked = await GetBySourceAsync(u, sourceRef, ct);
         var bySlug = await store.GetBySlugAsync(u.TenantId, slug, ct);
         if (bySlug is not null && bySlug.SourceRef != sourceRef)
-            throw new ApiMethodException($"Slug '{slug}' sudah dipakai API \"{bySlug.Name}\"");
+            throw new ApiMethodException($"Slug '{slug}' is already used by API \"{bySlug.Name}\".");
         var def = linked ?? new QueryApiDef { SourceRef = sourceRef };
         def.Slug = slug; def.Name = name; def.Description = description;
         def.Config.Sql = sql;
@@ -210,8 +210,8 @@ public sealed partial class QueryApiService(IQueryApiStore store, IReportingQuer
     public async Task<QueryApiResult> ExecuteAsync(UserContext u, string slug, IReadOnlyDictionary<string, string?> args, CancellationToken ct = default)
     {
         var def = await store.GetBySlugAsync(u.TenantId, slug, ct);
-        if (def is null || !def.Config.Enabled) throw new KeyNotFoundException($"API query '{slug}' tidak ada");
-        if (!CanCall(u, def)) throw new PermissionDeniedException("Anda tidak memiliki akses ke API ini");
+        if (def is null || !def.Config.Enabled) throw new KeyNotFoundException($"Query API '{slug}' not found.");
+        if (!CanCall(u, def)) throw new PermissionDeniedException("You do not have access to this API.");
         var values = Bind(u, def.Config, args);
         var key = $"{u.TenantId}|{def.Id}|v{def.Version}|" + string.Join("&", values.Select(v => $"{v.P.Name}={JsonSerializer.Serialize(v.V)}"));
         var now = clock.GetUtcNow();

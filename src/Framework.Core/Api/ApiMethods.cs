@@ -51,8 +51,8 @@ public sealed partial class ApiMethodRegistry
         _methods = new(StringComparer.Ordinal);
         foreach (var m in methods)
         {
-            if (!NameRx().IsMatch(m.Name)) throw new InvalidOperationException($"Nama method API '{m.Name}' tidak valid (huruf kecil, angka, '-')");
-            if (!_methods.TryAdd(m.Name, m)) throw new InvalidOperationException($"Method API '{m.Name}' didaftarkan dua kali");
+            if (!NameRx().IsMatch(m.Name)) throw new InvalidOperationException($"API method name '{m.Name}' is invalid (lowercase, numbers, '-').");
+            if (!_methods.TryAdd(m.Name, m)) throw new InvalidOperationException($"API method '{m.Name}' is registered more than once.");
         }
     }
 
@@ -64,8 +64,8 @@ public sealed partial class ApiMethodRegistry
 
     public async Task<object?> InvokeAsync(UserContext user, string name, JsonElement? body, IServiceProvider services, CancellationToken ct = default)
     {
-        var m = Find(name) ?? throw new KeyNotFoundException($"Method API '{name}' tidak ada");
-        if (!CanCall(user, m)) throw new PermissionDeniedException($"Anda tidak boleh memanggil method '{name}'");
+        var m = Find(name) ?? throw new KeyNotFoundException($"API method '{name}' not found.");
+        if (!CanCall(user, m)) throw new PermissionDeniedException($"You are not allowed to call method '{name}'.");
         var args = Bind(m, body);
         return await m.InvokeAsync(new ApiMethodContext { User = user, Args = args, Services = services }, ct);
     }
@@ -76,15 +76,15 @@ public sealed partial class ApiMethodRegistry
         var errors = new List<FieldError>();
         var args = new Dictionary<string, object?>(StringComparer.Ordinal);
         if (body is { } b && b.ValueKind is not (JsonValueKind.Object or JsonValueKind.Null or JsonValueKind.Undefined))
-            throw new ValidationFailedException([new FieldError("", "Body harus objek JSON berisi argumen")]);
+            throw new ValidationFailedException([new FieldError("", "Body must be a JSON object containing arguments.")]);
         var given = body is { ValueKind: JsonValueKind.Object } o ? o.EnumerateObject().ToDictionary(p => p.Name, p => p.Value) : [];
         foreach (var extra in given.Keys.Where(k => m.Parameters.All(p => p.Name != k)))
-            errors.Add(new FieldError(extra, "argumen tidak dikenal"));
+            errors.Add(new FieldError(extra, "unknown argument"));
         foreach (var p in m.Parameters)
         {
             if (!given.TryGetValue(p.Name, out var v) || v.ValueKind is JsonValueKind.Null || v.ValueKind == JsonValueKind.String && v.GetString()!.Trim().Length == 0)
             {
-                if (p.Required) errors.Add(new FieldError(p.Name, "wajib diisi"));
+                if (p.Required) errors.Add(new FieldError(p.Name, "is required"));
                 else args[p.Name] = null;
                 continue;
             }
@@ -99,12 +99,12 @@ public sealed partial class ApiMethodRegistry
     {
         ArgTypes.Number => v.ValueKind == JsonValueKind.Number ? v.GetDecimal()
             : v.ValueKind == JsonValueKind.String && decimal.TryParse(v.GetString(), NumberStyles.Number, CultureInfo.InvariantCulture, out var d) ? d
-            : throw new FormatException("harus angka"),
-        ArgTypes.Boolean => v.ValueKind is JsonValueKind.True or JsonValueKind.False ? v.GetBoolean() : throw new FormatException("harus true/false"),
+            : throw new FormatException("must be a number"),
+        ArgTypes.Boolean => v.ValueKind is JsonValueKind.True or JsonValueKind.False ? v.GetBoolean() : throw new FormatException("must be true or false"),
         ArgTypes.Date => v.ValueKind == JsonValueKind.String && DateOnly.TryParseExact(v.GetString(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt) ? dt
-            : throw new FormatException("harus tanggal yyyy-MM-dd"),
+            : throw new FormatException("must be date yyyy-MM-dd"),
         ArgTypes.List => v.ValueKind == JsonValueKind.Array && v.EnumerateArray().All(x => x.ValueKind == JsonValueKind.String)
-            ? v.EnumerateArray().Select(x => x.GetString()!).ToList() : throw new FormatException("harus daftar teks"),
-        _ => v.ValueKind == JsonValueKind.String ? v.GetString()! : throw new FormatException("harus teks"),
+            ? v.EnumerateArray().Select(x => x.GetString()!).ToList() : throw new FormatException("must be a list of strings"),
+        _ => v.ValueKind == JsonValueKind.String ? v.GetString()! : throw new FormatException("must be a string"),
     };
 }

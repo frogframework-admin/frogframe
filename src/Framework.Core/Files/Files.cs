@@ -77,11 +77,11 @@ public sealed class FileService(IFileStore store, IMetadataProvider metadata, IP
     public async Task<string> UploadImageAsync(UserContext user, string docType, string field, Stream content, CancellationToken ct = default)
     {
         if (!metadata.Current.TryGet(docType, out var meta) || !meta.ByName.TryGetValue(field, out var f) || f.Def.Type != "Image")
-            throw new FileRejectedException("Field gambar tidak dikenal");
+            throw new FileRejectedException("Unknown image field.");
         if (!permissions.Can(user, meta, DocActions.Create) && !permissions.Can(user, meta, DocActions.Write))
-            throw new PermissionDeniedException($"Anda tidak boleh mengunggah gambar untuk {meta.Title}");
+            throw new PermissionDeniedException($"You are not allowed to upload images for {meta.Title}.");
         if (!permissions.CanWriteField(user, meta, f))
-            throw new PermissionDeniedException($"Anda tidak boleh mengubah {f.Label}");
+            throw new PermissionDeniedException($"You are not allowed to modify {f.Label}.");
 
         using var ms = new MemoryStream();
         var buffer = new byte[81920];
@@ -89,10 +89,10 @@ public sealed class FileService(IFileStore store, IMetadataProvider metadata, IP
         while ((read = await content.ReadAsync(buffer, ct)) > 0)
         {
             ms.Write(buffer, 0, read);
-            if (ms.Length > MaxImageBytes) throw new FileRejectedException("Ukuran gambar maksimal 2 MB");
+            if (ms.Length > MaxImageBytes) throw new FileRejectedException("Image size exceeds maximum limit of 2 MB.");
         }
         var bytes = ms.ToArray();
-        var type = SniffImage(bytes) ?? throw new FileRejectedException("Format tidak didukung. Gunakan PNG, JPEG, WebP, atau GIF.");
+        var type = SniffImage(bytes) ?? throw new FileRejectedException("Unsupported format. Use PNG, JPEG, WebP, or GIF.");
         var record = new FileRecord
         {
             Id = "f_" + Guid.NewGuid().ToString("N"), TenantId = user.TenantId, UploadedBy = user.Id, ContentType = type,
@@ -111,10 +111,10 @@ public sealed class FileService(IFileStore store, IMetadataProvider metadata, IP
         while ((read = await content.ReadAsync(buffer, ct)) > 0)
         {
             ms.Write(buffer, 0, read);
-            if (ms.Length > MaxImageBytes) throw new FileRejectedException("Ukuran gambar maksimal 2 MB");
+            if (ms.Length > MaxImageBytes) throw new FileRejectedException("Image size exceeds maximum limit of 2 MB.");
         }
         var bytes = ms.ToArray();
-        var type = SniffImage(bytes) ?? throw new FileRejectedException("Format tidak didukung. Gunakan PNG, JPEG, WebP, atau GIF.");
+        var type = SniffImage(bytes) ?? throw new FileRejectedException("Unsupported format. Use PNG, JPEG, WebP, or GIF.");
         var record = new FileRecord
         {
             Id = "f_" + Guid.NewGuid().ToString("N"),

@@ -59,7 +59,7 @@ public sealed class PermissionService : IPermissionService
     public void Demand(UserContext user, CompiledDocType meta, string action)
     {
         if (!Can(user, meta, action))
-            throw new PermissionDeniedException($"Anda tidak memiliki izin '{action}' untuk {meta.Title}");
+            throw new PermissionDeniedException($"You do not have '{action}' permission for {meta.Title}.");
     }
 
     public RowScope ScopeFor(UserContext user, CompiledDocType meta, string action)

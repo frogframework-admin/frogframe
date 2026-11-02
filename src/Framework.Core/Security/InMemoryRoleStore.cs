@@ -64,7 +64,7 @@ public sealed class InMemoryRoleStore(TimeProvider clock) : IRoleStore
         {
             if (item.IsSystem || string.Equals(item.Name, "Administrator", StringComparison.OrdinalIgnoreCase) || string.Equals(item.Name, "System Manager", StringComparison.OrdinalIgnoreCase))
             {
-                throw new InvalidOperationException($"Role '{item.Name}' adalah role sistem bawaan dan tidak dapat dihapus.");
+                throw new InvalidOperationException($"Role '{item.Name}' is a built-in system role and cannot be deleted.");
             }
             items.TryRemove(id, out _);
             Changed?.Invoke();

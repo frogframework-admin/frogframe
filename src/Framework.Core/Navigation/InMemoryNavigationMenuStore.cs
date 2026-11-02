@@ -94,9 +94,9 @@ public sealed class InMemoryNavigationMenuStore(TimeProvider clock) : INavigatio
     {
         if (modules.TryGetValue(id, out var mod) && mod.TenantId == tenantId)
         {
-            if (mod.IsSystem) throw new InvalidOperationException("Modul sistem tidak dapat dihapus.");
+            if (mod.IsSystem) throw new InvalidOperationException("System modules cannot be deleted.");
             if (groups.Values.Any(g => g.TenantId == tenantId && g.ModuleId == id))
-                throw new InvalidOperationException("Modul masih memiliki group menu. Pindahkan atau hapus group menu terlebih dahulu.");
+                throw new InvalidOperationException("Module still contains menu groups. Move or delete the menu groups first.");
             modules.TryRemove(id, out _);
             Changed?.Invoke();
         }
@@ -140,9 +140,9 @@ public sealed class InMemoryNavigationMenuStore(TimeProvider clock) : INavigatio
     {
         if (groups.TryGetValue(id, out var grp) && grp.TenantId == tenantId)
         {
-            if (grp.IsSystem) throw new InvalidOperationException("Group menu sistem tidak dapat dihapus.");
+            if (grp.IsSystem) throw new InvalidOperationException("System menu groups cannot be deleted.");
             if (items.Values.Any(m => m.TenantId == tenantId && (m.GroupId == id || string.Equals(m.GroupName, grp.Name, StringComparison.OrdinalIgnoreCase))))
-                throw new InvalidOperationException("Group menu masih memiliki item menu. Pindahkan atau hapus item menu terlebih dahulu.");
+                throw new InvalidOperationException("Menu group still contains menu items. Move or delete the menu items first.");
             groups.TryRemove(id, out _);
             Changed?.Invoke();
         }
@@ -184,7 +184,7 @@ public sealed class InMemoryNavigationMenuStore(TimeProvider clock) : INavigatio
     {
         if (items.TryGetValue(id, out var item) && item.TenantId == tenantId)
         {
-            if (item.IsSystem) throw new InvalidOperationException("Menu sistem tidak dapat dihapus.");
+            if (item.IsSystem) throw new InvalidOperationException("System menus cannot be deleted.");
             items.TryRemove(id, out _);
             Changed?.Invoke();
         }

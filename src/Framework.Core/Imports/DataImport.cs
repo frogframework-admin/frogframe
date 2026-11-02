@@ -108,9 +108,9 @@ public sealed partial class DataImportService(DocumentService docs, IMetadataPro
 
     private CompiledDocType Meta(UserContext u, string docType)
     {
-        if (!metadata.Current.DocTypes.TryGetValue(docType, out var m) || m.Def.IsChild) throw new TemplateException($"DocType {docType} tidak ada");
-        if (!m.Def.Import.Enabled) throw new TemplateException($"Impor dinonaktifkan untuk {m.Title}");
-        if (!permissions.Can(u, m, DocActions.Create)) throw new PermissionDeniedException($"Anda tidak boleh membuat {m.Title}");
+        if (!metadata.Current.DocTypes.TryGetValue(docType, out var m) || m.Def.IsChild) throw new TemplateException($"DocType {docType} not found.");
+        if (!m.Def.Import.Enabled) throw new TemplateException($"Import is disabled for {m.Title}.");
+        if (!permissions.Can(u, m, DocActions.Create)) throw new PermissionDeniedException($"You are not allowed to create {m.Title}.");
         return m;
     }
 
@@ -185,7 +185,7 @@ public sealed partial class DataImportService(DocumentService docs, IMetadataPro
         var m = Meta(u, docType);
         var sheets = SpreadsheetReader.Read(file, fileName, limits.MaxFileBytes)
             .Where(s => !Norm(s.Name).Equals("petunjuk") && !s.Name.StartsWith('_') && s.Rows.Count > 0).ToList();
-        if (sheets.Count == 0) throw new TemplateException("File tidak berisi data");
+        if (sheets.Count == 0) throw new TemplateException("File contains no data.");
         var tables = Tables(u, m);
         var childSheets = new Dictionary<string, SheetData>();
         foreach (var (t, _) in tables)
@@ -197,8 +197,8 @@ public sealed partial class DataImportService(DocumentService docs, IMetadataPro
         var session = new ImportSession { DocType = docType, FileName = fileName, Main = Sheet(main, Fields(u, m)) };
         foreach (var (t, child) in tables)
             if (childSheets.TryGetValue(t.Name, out var cs)) session.Children[t.Name] = Sheet(cs, Fields(u, child, true));
-        if (session.RowCount == 0) throw new TemplateException($"Sheet \"{main.Name}\" tidak berisi baris data");
-        if (session.RowCount > limits.MaxRows) throw new TemplateException($"Maksimal {limits.MaxRows:N0} baris per impor (file berisi {session.RowCount:N0}). Bagi menjadi beberapa file.");
+        if (session.RowCount == 0) throw new TemplateException($"Sheet \"{main.Name}\" contains no data rows.");
+        if (session.RowCount > limits.MaxRows) throw new TemplateException($"Maximum {limits.MaxRows:N0} rows per import (file contains {session.RowCount:N0}). Split into multiple files.");
         if (session.Children.Count > 0 && session.Main.KeyColumn < 0)
             session.Warnings.Add($"Sheet tabel ditemukan, tetapi sheet utama tidak punya kolom \"{KeyHeader}\" — baris tabel tidak bisa dihubungkan dan diabaikan.");
         var formulas = sheets.Sum(s => s.FormulaCells);
@@ -357,7 +357,7 @@ public sealed partial class DataImportService(DocumentService docs, IMetadataPro
     {
         var m = Meta(u, s.DocType);
         var missing = MissingRequired(u, s);
-        if (missing.Count > 0) throw new TemplateException("Kolom wajib belum dipetakan: " + string.Join(", ", missing));
+        if (missing.Count > 0) throw new TemplateException("Required columns not mapped: " + string.Join(", ", missing));
         var links = new LinkCache(docs, metadata, u);
         var warnings = new List<string>();
 

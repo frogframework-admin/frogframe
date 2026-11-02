@@ -80,9 +80,9 @@ sealed partial class Tests
         var miss = await Assert.Throws<ValidationFailedException>(() => reg.InvokeAsync(U("dewi"), "sisa-anggaran", Json("{}"), sp), "argumen wajib");
         Assert.True(miss.Errors.Any(e => e.Path == "departemen"), "argumen wajib disebut");
         var extra = await Assert.Throws<ValidationFailedException>(() => reg.InvokeAsync(U("dewi"), "sisa-anggaran", Json("""{"departemen":"IT","owner":"admin"}"""), sp), "argumen asing");
-        Assert.True(extra.Errors.Any(e => e.Path == "owner" && e.Message.Contains("tidak dikenal")), "argumen yang tidak dideklarasikan ditolak (mass assignment)");
+        Assert.True(extra.Errors.Any(e => e.Path == "owner" && (e.Message.Contains("unknown") || e.Message.Contains("tidak dikenal"))), "argumen yang tidak dideklarasikan ditolak (mass assignment)");
         var type = await Assert.Throws<ValidationFailedException>(() => reg.InvokeAsync(U("dewi"), "sisa-anggaran", Json("""{"departemen":"IT","tahun":"dua ribu"}"""), sp), "tipe salah");
-        Assert.True(type.Errors.Any(e => e.Path == "tahun" && e.Message.Contains("angka")), "pesan tipe jelas");
+        Assert.True(type.Errors.Any(e => e.Path == "tahun" && (e.Message.Contains("number") || e.Message.Contains("angka"))), "pesan tipe jelas");
         await Assert.Throws<ApiMethodException>(() => reg.InvokeAsync(U("dewi"), "sisa-anggaran", Json("""{"departemen":"IT","tahun":1800}"""), sp), "validasi milik method");
     }
 

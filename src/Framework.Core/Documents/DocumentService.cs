@@ -175,14 +175,14 @@ public sealed class DocumentService(
         foreach (var f in req.Filters ?? [])
         {
             if (!filterable.Contains(f.Field) || !meta.IsQueryable(f.Field) || !Readable(f.Field))
-                throw new InvalidPayloadException($"Filter pada field '{f.Field}' tidak diizinkan", [f.Field]);
+                throw new InvalidPayloadException($"Filter on field '{f.Field}' is not allowed", [f.Field]);
             if (!FilterOps.All.Contains(f.Op))
-                throw new InvalidPayloadException($"Operator filter '{f.Op}' tidak diizinkan", [f.Field]);
+                throw new InvalidPayloadException($"Filter operator '{f.Op}' is not allowed", [f.Field]);
             var value = f.Value;
             if (meta.ByName.TryGetValue(f.Field, out var cf) && f.Op is not ("like" or "in"))
             {
                 var n = cf.Type.Normalize(value);
-                if (!n.Ok) throw new InvalidPayloadException($"Nilai filter {cf.Label} {n.Error}", [f.Field]);
+                if (!n.Ok) throw new InvalidPayloadException($"Filter value for {cf.Label} is invalid: {n.Error}", [f.Field]);
                 value = n.Value;
             }
             else if (f.Field == StandardFields.DocStatus) value = Values.ToDecimal(value);
@@ -193,7 +193,7 @@ public sealed class DocumentService(
         if (req.SortField is not null)
         {
             if (!filterable.Contains(req.SortField) || !meta.IsQueryable(req.SortField) || !Readable(req.SortField))
-                throw new InvalidPayloadException($"Sort pada field '{req.SortField}' tidak diizinkan", [req.SortField]);
+                throw new InvalidPayloadException($"Sort on field '{req.SortField}' is not allowed", [req.SortField]);
             sort.Add(new SortDef { Field = req.SortField, Direction = req.SortDirection == "asc" ? "asc" : "desc" });
         }
         sort.AddRange(lv.DefaultSort);
@@ -229,7 +229,7 @@ public sealed class DocumentService(
         permissions.Demand(user, meta, action);
         foreach (var f in filters)
             if (!meta.IsQueryable(f.Field) || !FilterOps.All.Contains(f.Op))
-                throw new InvalidPayloadException($"Filter '{f.Field} {f.Op}' tidak diizinkan", [f.Field]);
+                throw new InvalidPayloadException($"Filter '{f.Field} {f.Op}' is not allowed", [f.Field]);
         var scope = permissions.ScopeFor(user, meta, DocActions.Read);
         var res = await store.QueryAsync(new StoreQuery(user.TenantId, docType, scope, filters, null, [], meta.Def.ListView.DefaultSort, 0, 10_000), ct);
         return res.Items.Select(d => RedactForRead(user, meta, d)).ToList();
@@ -395,7 +395,7 @@ public sealed class DocumentService(
         await hooks.RunAsync(DocHookStage.BeforeInsert, CreateHookContext(ctx), ct);
 
         if (!permissions.InScope(user, meta, DocActions.Create, draft.Owner, draft.Data))
-            throw new PermissionDeniedException("Dokumen berada di luar cakupan data yang boleh Anda buat");
+            throw new PermissionDeniedException("Document is outside the scope of data you are allowed to create.");
 
         var newName = NamingField(meta) is { } nf
             ? await NameFromFieldAsync(user, meta, nf, draft, ct)
@@ -429,7 +429,7 @@ public sealed class DocumentService(
                 using var hookScope = hooks.EnterDocument(docType, $"(batch-row:{i}:{Guid.NewGuid():N})");
                 var p = await PrepareInsertAsync(user, docType, payloads[i], allocateName: true, ct);
                 if (!names.Add(p.Doc.Name))
-                    throw new ValidationFailedException([new FieldError(NamingField(p.Meta)?.Name ?? StandardFields.Name, $"Nomor '{p.Doc.Name}' muncul lebih dari sekali dalam impor ini")]);
+                    throw new ValidationFailedException([new FieldError(NamingField(p.Meta)?.Name ?? StandardFields.Name, $"Identifier '{p.Doc.Name}' appears more than once in this import")]);
                 hookScope.Dispose();
                 using var finalNameScope = hooks.EnterDocument(docType, p.Doc.Name);
                 foreach (var h in handlers.For<IAfterSave>(p.Meta.Name)) await h.AfterSaveAsync(p.Ctx, ct);
@@ -467,10 +467,10 @@ public sealed class DocumentService(
         permissions.Demand(user, meta, DocActions.Write);
         var current = await LoadInScopeAsync(user, meta, name, ct);
         if (!permissions.InScope(user, meta, DocActions.Write, current.Owner, current.Data))
-            throw new PermissionDeniedException($"Anda tidak boleh mengubah {meta.Title} {name}");
+            throw new PermissionDeniedException($"You are not allowed to modify {meta.Title} {name}.");
         if (current.Version != expectedVersion) throw new ConcurrencyException(name, expectedVersion, current.Version);
         if (current.DocStatus != DocStatus.Draft)
-            throw new InvalidStateException($"{meta.Title} {name} berstatus {current.WorkflowState ?? DocStatus.Label(current.DocStatus)} dan tidak dapat diubah");
+            throw new InvalidStateException($"{meta.Title} {name} is in status {current.WorkflowState ?? DocStatus.Label(current.DocStatus)} and cannot be modified.");
 
         var doc = current.Clone();
         ApplyPayload(user, meta, doc, patch, isNew: false);
@@ -484,7 +484,7 @@ public sealed class DocumentService(
         RunVisualHooks(meta, "BeforeUpdate", CreateHookContext(ctx), current);
         await hooks.RunAsync(DocHookStage.BeforeUpdate, CreateHookContext(ctx), ct, Diff(meta, current, doc));
         if (!permissions.InScope(user, meta, DocActions.Write, doc.Owner, doc.Data))
-            throw new PermissionDeniedException("Perubahan ini memindahkan dokumen keluar dari cakupan data Anda");
+            throw new PermissionDeniedException("This modification moves the document outside your data scope.");
 
         var changes = Diff(meta, current, doc);
         var uow = new UnitOfWork();
@@ -507,9 +507,9 @@ public sealed class DocumentService(
         permissions.Demand(user, meta, DocActions.Delete);
         var current = await LoadInScopeAsync(user, meta, name, ct);
         if (!permissions.InScope(user, meta, DocActions.Delete, current.Owner, current.Data))
-            throw new PermissionDeniedException($"Anda tidak boleh menghapus {name}");
+            throw new PermissionDeniedException($"You are not allowed to delete {name}.");
         if (!meta.Def.Document.AllowDelete || current.DocStatus != DocStatus.Draft)
-            throw new InvalidStateException("Hanya dokumen draft yang dapat dihapus");
+            throw new InvalidStateException("Only draft documents can be deleted.");
 
         if (Meta.IncomingLinks.TryGetValue(docType, out var linkDefs) && linkDefs.Count > 0)
         {
@@ -562,9 +562,9 @@ public sealed class DocumentService(
         if (meta.Workflow is not null)
         {
             var transition = workflow.Available(meta, current, user).FirstOrDefault(t => t.Def.Action == action)
-                ?? throw new PermissionDeniedException($"Aksi '{action}' tidak tersedia untuk Anda pada state '{current.WorkflowState}'");
+                ?? throw new PermissionDeniedException($"Action '{action}' is not available for you in state '{current.WorkflowState}'.");
             if (transition.Def.RequireComment && string.IsNullOrWhiteSpace(comment))
-                throw new ValidationFailedException([new FieldError("_comment", $"Aksi '{action}' wajib disertai komentar")]);
+                throw new ValidationFailedException([new FieldError("_comment", $"Action '{action}' requires a comment.")]);
             toState = transition.Def.To;
             var transitionContext = CreateHookContext(meta, user, doc, current, transitionEvents, action, fromState, toState);
             await hooks.RunAsync(DocHookStage.BeforeTransition, transitionContext, ct);
@@ -576,16 +576,16 @@ public sealed class DocumentService(
         else if (action == DocActions.Submit && meta.Def.Document.AllowSubmit)
         {
             permissions.Demand(user, meta, DocActions.Submit);
-            if (current.DocStatus != DocStatus.Draft) throw new InvalidStateException("Hanya draft yang dapat di-submit");
+            if (current.DocStatus != DocStatus.Draft) throw new InvalidStateException("Only draft documents can be submitted.");
             doc.DocStatus = DocStatus.Submitted; toState = "Submitted"; op = DocumentOperation.Submit;
         }
         else if (action == DocActions.Cancel && meta.Def.Document.AllowCancel)
         {
             permissions.Demand(user, meta, DocActions.Cancel);
-            if (current.DocStatus != DocStatus.Submitted) throw new InvalidStateException("Hanya dokumen submitted yang dapat dibatalkan");
+            if (current.DocStatus != DocStatus.Submitted) throw new InvalidStateException("Only submitted documents can be cancelled.");
             doc.DocStatus = DocStatus.Cancelled; toState = "Cancelled"; op = DocumentOperation.Cancel;
         }
-        else throw new InvalidPayloadException($"Aksi '{action}' tidak dikenal untuk {meta.Title}");
+        else throw new InvalidPayloadException($"Action '{action}' is not recognized for {meta.Title}.");
 
         var ctx = new DocumentContext { Meta = meta, Doc = doc, Previous = current, User = user, Operation = op, Lookup = new TenantLookup(store, user.TenantId), Comment = comment };
         ctx.Events.AddRange(transitionEvents);
@@ -625,8 +625,8 @@ public sealed class DocumentService(
 
     private async Task<Document> AmendAsync(UserContext user, CompiledDocType meta, Document source, CancellationToken ct)
     {
-        if (!meta.Def.Document.AllowAmend) throw new InvalidStateException($"{meta.Title} tidak mendukung amend");
-        if (source.DocStatus != DocStatus.Cancelled) throw new InvalidStateException("Hanya dokumen yang dibatalkan/ditolak yang dapat di-amend");
+        if (!meta.Def.Document.AllowAmend) throw new InvalidStateException($"{meta.Title} does not support amend.");
+        if (source.DocStatus != DocStatus.Cancelled) throw new InvalidStateException("Only cancelled documents can be amended.");
         permissions.Demand(user, meta, DocActions.Create);
 
         var baseName = source.AmendedFrom is null ? source.Name : source.Name[..source.Name.LastIndexOf('-')];
@@ -680,8 +680,8 @@ public sealed class DocumentService(
         }
 
         // Mass-assignment ditolak eksplisit, bukan diabaikan diam-diam.
-        if (unknown.Count > 0) throw new InvalidPayloadException($"Field tidak dikenal: {string.Join(", ", unknown)}", unknown);
-        if (forbidden.Count > 0) throw new PermissionDeniedException($"Anda tidak boleh mengubah field: {string.Join(", ", forbidden)}");
+        if (unknown.Count > 0) throw new InvalidPayloadException($"Unknown field(s): {string.Join(", ", unknown)}", unknown);
+        if (forbidden.Count > 0) throw new PermissionDeniedException($"You are not allowed to modify field(s): {string.Join(", ", forbidden)}");
         if (errors.Count > 0) throw new ValidationFailedException(errors);
     }
 
@@ -698,7 +698,7 @@ public sealed class DocumentService(
             foreach (var (key, val) in inRow)
             {
                 if (key is "idx" or "name") continue;
-                if (!childMeta.ByName.TryGetValue(key, out var cf)) throw new InvalidPayloadException($"Field tidak dikenal: {table.Name}[{i}].{key}", [key]);
+                if (!childMeta.ByName.TryGetValue(key, out var cf)) throw new InvalidPayloadException($"Unknown field: {table.Name}[{i}].{key}", [key]);
                 if (cf.IsDerived) continue;
                 var n = cf.Type.Normalize(val);
                 if (!n.Ok) errors.Add(new($"{table.Name}[{i}].{key}", $"{cf.Label} {n.Error}"));
@@ -737,9 +737,9 @@ public sealed class DocumentService(
     {
         var value = (draft.Data.GetValueOrDefault(f.Name) as string)?.Trim() ?? "";
         if (!SafeName.IsMatch(value))
-            throw new ValidationFailedException([new FieldError(f.Name, $"{f.Label} hanya boleh huruf, angka, spasi, titik, garis bawah, atau tanda hubung (maks. 64)")]);
+            throw new ValidationFailedException([new FieldError(f.Name, $"{f.Label} may only contain letters, numbers, spaces, dots, underscores, or hyphens (max 64).")]);
         if (await store.GetAsync(user.TenantId, meta.Name, value, ct) is not null)
-            throw new ValidationFailedException([new FieldError(f.Name, $"{f.Label} '{value}' sudah dipakai")]);
+            throw new ValidationFailedException([new FieldError(f.Name, $"{f.Label} '{value}' is already in use.")]);
         return value;
     }
 

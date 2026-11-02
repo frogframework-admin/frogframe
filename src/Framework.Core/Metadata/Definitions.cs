@@ -261,10 +261,10 @@ public static class MetadataJson
     };
 
     public static DocTypeDef ParseDocType(string json) =>
-        JsonSerializer.Deserialize<DocTypeDef>(json, Options) ?? throw new JsonException("Metadata kosong");
+        JsonSerializer.Deserialize<DocTypeDef>(json, Options) ?? throw new JsonException("Metadata is empty");
 
     public static WorkflowDef ParseWorkflow(string json) =>
-        JsonSerializer.Deserialize<WorkflowDef>(json, Options) ?? throw new JsonException("Workflow kosong");
+        JsonSerializer.Deserialize<WorkflowDef>(json, Options) ?? throw new JsonException("Workflow is empty");
 
     public static string Serialize<T>(T value) => JsonSerializer.Serialize(value, Options);
 }

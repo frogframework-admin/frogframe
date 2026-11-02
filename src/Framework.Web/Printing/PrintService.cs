@@ -233,7 +233,7 @@ public sealed class ChromiumPdfRenderer(IConfiguration config, ILogger<ChromiumP
     public async Task<byte[]> RenderAsync(string html, CancellationToken ct = default)
     {
         var browser = BrowserPath ?? throw new PdfUnavailableException(
-            "Chrome/Edge tidak ditemukan di server. Atur 'Print:BrowserPath' di appsettings, atau gunakan tombol Cetak → Simpan sebagai PDF.");
+            "Chrome/Edge was not found on the server. Configure 'Print:BrowserPath' in appsettings, or use the Print button → Save as PDF.");
 
         await Gate.WaitAsync(ct);
         var work = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "docframe-pdf-" + Guid.NewGuid().ToString("N")));
@@ -253,17 +253,17 @@ public sealed class ChromiumPdfRenderer(IConfiguration config, ILogger<ChromiumP
             }) psi.ArgumentList.Add(a);
             if (config.GetValue("Print:NoSandbox", OperatingSystem.IsLinux())) psi.ArgumentList.Insert(0, "--no-sandbox");
 
-            using var proc = Process.Start(psi) ?? throw new PdfUnavailableException("Gagal menjalankan browser untuk PDF");
+            using var proc = Process.Start(psi) ?? throw new PdfUnavailableException("Failed to launch browser for PDF rendering.");
             var stderr = proc.StandardError.ReadToEndAsync(ct);
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
             timeout.CancelAfter(TimeSpan.FromSeconds(config.GetValue("Print:TimeoutSeconds", 30)));
             try { await proc.WaitForExitAsync(timeout.Token); }
-            catch (OperationCanceledException) { try { proc.Kill(true); } catch { } throw new PdfUnavailableException("Pembuatan PDF melebihi batas waktu"); }
+            catch (OperationCanceledException) { try { proc.Kill(true); } catch { } throw new PdfUnavailableException("PDF rendering timed out."); }
 
             if (!File.Exists(pdfPath))
             {
-                log.LogError("Chrome gagal membuat PDF (exit {Code}): {Err}", proc.ExitCode, await stderr);
-                throw new PdfUnavailableException("Browser gagal membuat PDF");
+                log.LogError("Chrome failed to generate PDF (exit {Code}): {Err}", proc.ExitCode, await stderr);
+                throw new PdfUnavailableException("Browser failed to generate PDF.");
             }
             return await File.ReadAllBytesAsync(pdfPath, ct);
         }

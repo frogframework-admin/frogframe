@@ -1039,7 +1039,7 @@ sealed partial class Tests
         var hr = await Docs.InsertAsync(admin, "Department", P(("code", "HR"), ("department_name", "Sumber Daya Manusia"), ("parent_department", "Direksi")));
         Assert.Equal("HR", hr.Name, "nama dokumen = kode");
         var dup = await Assert.Throws<ValidationFailedException>(() => Docs.InsertAsync(admin, "Department", P(("code", "HR"), ("department_name", "Lain"))), "kode ganda");
-        Assert.True(dup.Errors.Any(e => e.Path == "code" && e.Message.Contains("sudah dipakai")), "pesan kode sudah dipakai");
+        Assert.True(dup.Errors.Any(e => e.Path == "code" && (e.Message.Contains("already in use") || e.Message.Contains("sudah dipakai"))), "pesan kode sudah dipakai");
         var bad = await Assert.Throws<ValidationFailedException>(() => Docs.InsertAsync(admin, "Department", P(("code", "../x"), ("department_name", "X"))), "kode tidak aman");
         Assert.True(bad.Errors.Any(e => e.Path == "code"), "format kode divalidasi");
         var fixedCode = await Assert.Throws<ValidationFailedException>(() => Docs.UpdateAsync(admin, "Department", "HR", hr.Version, P(("code", "SDM"))), "kode tidak bisa diubah");

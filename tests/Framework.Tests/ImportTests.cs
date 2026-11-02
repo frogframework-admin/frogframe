@@ -142,7 +142,7 @@ sealed partial class Tests
         var small = new DataImportService(Docs, sp.GetRequiredService<IMetadataProvider>(), sp.GetRequiredService<IPermissionService>(),
             sp.GetRequiredService<IImportLogStore>(), TimeProvider.System, new ImportLimits { MaxRows = 1 });
         var big = await Assert.Throws<TemplateException>(() => Task.FromResult(small.Open(rina, "Vendor", "x.csv", Encoding.UTF8.GetBytes(csv))), "batas baris");
-        Assert.True(big.Message.Contains("Maksimal 1"), big.Message);
+        Assert.True(big.Message.Contains("Maximum 1") || big.Message.Contains("Maksimal 1"), big.Message);
         await Assert.Throws<TemplateException>(() => Task.FromResult(Imports.Open(rina, "Vendor", "lama.xls", [1, 2, 3])), ".xls lama ditolak dengan petunjuk");
         var noKey = Imports.Open(rina, "Vendor", "x.csv", Encoding.UTF8.GetBytes("email\nx@y.z\n"));
         Assert.True(Imports.MissingRequired(rina, noKey).Contains(meta.ByName["vendor_name"].Label), "kolom wajib yang tidak ada dilaporkan sebelum simulasi");

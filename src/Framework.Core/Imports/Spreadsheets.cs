@@ -28,8 +28,8 @@ public static class SpreadsheetReader
         {
             ".xlsx" => ReadXlsx(file, maxBytes),
             ".csv" or ".txt" => [ReadCsv(file, Path.GetFileNameWithoutExtension(fileName), maxBytes)],
-            ".xls" => throw new TemplateException("Format .xls lama tidak didukung. Simpan ulang sebagai .xlsx (Excel Workbook) atau .csv."),
-            _ => throw new TemplateException("File harus .xlsx atau .csv"),
+            ".xls" => throw new TemplateException("Legacy .xls format is not supported. Please resave as .xlsx (Excel Workbook) or .csv."),
+            _ => throw new TemplateException("File must be .xlsx or .csv"),
         };
     }
 
@@ -115,7 +115,7 @@ public static class SpreadsheetReader
 
     private static SheetData ReadCsv(byte[] file, string name, long maxBytes)
     {
-        if (file.Length > maxBytes) throw new TemplateException($"File maksimal {maxBytes / 1024 / 1024} MB");
+        if (file.Length > maxBytes) throw new TemplateException($"File size exceeds maximum limit of {maxBytes / 1024 / 1024} MB");
         var text = new UTF8Encoding(false).GetString(file).TrimStart('\uFEFF');
         var firstLine = text.Split('\n')[0];
         var sep = new[] { ',', ';', '\t' }.OrderByDescending(ch => firstLine.Count(x => x == ch)).First();

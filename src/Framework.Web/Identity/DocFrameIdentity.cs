@@ -270,6 +270,6 @@ public static class BootstrapAdmin
             TenantId = s["TenantId"] ?? "default", Roles = [UserContext.SystemManager],
         }, s["AdminPassword"]!);
         if (!result.Succeeded)
-            throw new InvalidOperationException("Gagal membuat admin awal: " + string.Join("; ", result.Errors.Select(e => e.Description)));
+            throw new InvalidOperationException("Failed to create initial administrator: " + string.Join("; ", result.Errors.Select(e => e.Description)));
     }
 }

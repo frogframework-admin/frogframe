@@ -49,7 +49,7 @@ public static class Lexer
                     if (src[i] == '\\' && i + 1 < src.Length) { sb.Append(src[i + 1]); i += 2; continue; }
                     sb.Append(src[i++]);
                 }
-                if (i >= src.Length) throw new ExpressionException("String tidak ditutup", start);
+                if (i >= src.Length) throw new ExpressionException("Unterminated string literal", start);
                 i++;
                 tokens.Add(new Token(TokKind.String, sb.ToString(), start));
                 continue;
@@ -76,7 +76,7 @@ public static class Lexer
             }
 
             var op = Ops.FirstOrDefault(o => string.CompareOrdinal(src, i, o, 0, o.Length) == 0);
-            if (op is null) throw new ExpressionException($"Karakter tidak dikenal '{c}'", i);
+            if (op is null) throw new ExpressionException($"Unrecognized character '{c}'", i);
             tokens.Add(new Token(TokKind.Op, op, i));
             i += op.Length;
         }
@@ -120,11 +120,11 @@ public sealed class ExpressionParser
 
     public ParsedExpression Parse(string source)
     {
-        if (string.IsNullOrWhiteSpace(source)) throw new ExpressionException("Ekspresi kosong");
-        if (source.Length > _limits.MaxLength) throw new ExpressionException($"Ekspresi melebihi {_limits.MaxLength} karakter");
+        if (string.IsNullOrWhiteSpace(source)) throw new ExpressionException("Expression is empty");
+        if (source.Length > _limits.MaxLength) throw new ExpressionException($"Expression exceeds {_limits.MaxLength} characters");
         _t = Lexer.Tokenize(source); _p = 0; _nodes = 0; _paths.Clear();
         var root = Or(0);
-        if (Peek.Kind != TokKind.End) throw new ExpressionException($"Token tak terduga '{Peek.Text}'", Peek.Pos);
+        if (Peek.Kind != TokKind.End) throw new ExpressionException($"Unexpected token '{Peek.Text}'", Peek.Pos);
         return new ParsedExpression { Source = source, Root = root, Paths = new HashSet<string>(_paths) };
     }
 
@@ -134,8 +134,8 @@ public sealed class ExpressionParser
 
     private T Track<T>(T node, int depth) where T : Node
     {
-        if (++_nodes > _limits.MaxNodes) throw new ExpressionException($"Ekspresi melebihi {_limits.MaxNodes} node");
-        if (depth > _limits.MaxDepth) throw new ExpressionException($"Kedalaman ekspresi melebihi {_limits.MaxDepth}");
+        if (++_nodes > _limits.MaxNodes) throw new ExpressionException($"Expression exceeds {_limits.MaxNodes} nodes");
+        if (depth > _limits.MaxDepth) throw new ExpressionException($"Expression depth exceeds {_limits.MaxDepth}");
         return node;
     }
 
@@ -164,7 +164,7 @@ public sealed class ExpressionParser
         {
             case TokKind.Number:
                 if (!decimal.TryParse(tok.Text, NumberStyles.Number, CultureInfo.InvariantCulture, out var num))
-                    throw new ExpressionException($"Angka tidak valid '{tok.Text}'", tok.Pos);
+                    throw new ExpressionException($"Invalid number '{tok.Text}'", tok.Pos);
                 return Track(new Literal(num), d);
             case TokKind.String:
                 return Track(new Literal(tok.Text), d);
@@ -189,28 +189,28 @@ public sealed class ExpressionParser
                 {
                     Next();
                     if (!_functions.TryGet(tok.Text, out var fn))
-                        throw new ExpressionException($"Fungsi '{tok.Text}' tidak diizinkan", tok.Pos);
+                        throw new ExpressionException($"Function '{tok.Text}' is not allowed", tok.Pos);
                     var args = new List<Node>();
                     if (Peek.Kind != TokKind.RParen)
                         do { args.Add(Or(d + 1)); } while (TryConsume(TokKind.Comma));
                     Expect(TokKind.RParen, ")");
                     if (args.Count < fn.MinArgs || args.Count > fn.MaxArgs)
-                        throw new ExpressionException($"Fungsi '{tok.Text}' menerima {fn.MinArgs}-{fn.MaxArgs} argumen", tok.Pos);
+                        throw new ExpressionException($"Function '{tok.Text}' takes {fn.MinArgs}-{fn.MaxArgs} arguments", tok.Pos);
                     return Track(new Call(tok.Text, args), d);
                 }
                 if (tok.Text.StartsWith('$') || tok.Text.Contains("..") || tok.Text.EndsWith('.'))
-                    throw new ExpressionException($"Nama tidak valid '{tok.Text}'", tok.Pos);
+                    throw new ExpressionException($"Invalid name '{tok.Text}'", tok.Pos);
                 _paths.Add(tok.Text);
                 return Track(new PathRef(tok.Text.Split('.')), d);
             default:
-                throw new ExpressionException(tok.Kind == TokKind.End ? "Ekspresi tidak lengkap" : $"Token tak terduga '{tok.Text}'", tok.Pos);
+                throw new ExpressionException(tok.Kind == TokKind.End ? "Incomplete expression" : $"Unexpected token '{tok.Text}'", tok.Pos);
         }
     }
 
     private bool TryConsume(TokKind k) { if (Peek.Kind != k) return false; _p++; return true; }
     private void Expect(TokKind k, string text)
     {
-        if (Peek.Kind != k) throw new ExpressionException($"Diharapkan '{text}'", Peek.Pos);
+        if (Peek.Kind != k) throw new ExpressionException($"Expected '{text}'", Peek.Pos);
         _p++;
     }
 }
@@ -328,11 +328,11 @@ public static class Values
 
     public static int Compare(object? a, object? b)
     {
-        if (a is null || b is null) throw new ExpressionException("Tidak dapat membandingkan nilai kosong");
+        if (a is null || b is null) throw new ExpressionException("Cannot compare null values");
         if (IsNumber(a) || IsNumber(b))
         {
-            var x = ToDecimal(a) ?? throw new ExpressionException("Perbandingan angka dengan non-angka");
-            var y = ToDecimal(b) ?? throw new ExpressionException("Perbandingan angka dengan non-angka");
+            var x = ToDecimal(a) ?? throw new ExpressionException("Comparison between numeric and non-numeric value");
+            var y = ToDecimal(b) ?? throw new ExpressionException("Comparison between numeric and non-numeric value");
             return x.CompareTo(y);
         }
         // Tanggal disimpan sebagai yyyy-MM-dd sehingga perbandingan ordinal tetap benar.
@@ -348,7 +348,7 @@ public sealed class ExpressionEvaluator(FunctionRegistry functions)
 
     private object? Eval(Node n, EvalContext c)
     {
-        if (++c.Steps > c.Limits.MaxSteps) throw new ExpressionException("Batas langkah evaluasi terlampaui");
+        if (++c.Steps > c.Limits.MaxSteps) throw new ExpressionException("Evaluation step limit exceeded");
         switch (n)
         {
             case Literal l: return l.Value;
@@ -356,12 +356,12 @@ public sealed class ExpressionEvaluator(FunctionRegistry functions)
             case ListLit list: return list.Items.Select(i => Eval(i, c)).ToList();
             case Unary u:
                 var v = Eval(u.Operand, c);
-                return u.Op == "!" ? !Values.Truthy(v) : -(Values.ToDecimal(v) ?? throw new ExpressionException("Operator '-' butuh angka"));
+                return u.Op == "!" ? !Values.Truthy(v) : -(Values.ToDecimal(v) ?? throw new ExpressionException("Unary '-' operator requires a numeric value"));
             case Binary b: return EvalBinary(b, c);
             case Call call:
                 functions.TryGet(call.Function, out var fn);
                 return fn.Invoke(call.Args.Select(a => Eval(a, c)).ToList(), c);
-            default: throw new ExpressionException("Node tidak dikenal");
+            default: throw new ExpressionException("Unknown expression node");
         }
     }
 
@@ -395,9 +395,9 @@ public sealed class ExpressionEvaluator(FunctionRegistry functions)
             "+" => x + y,
             "-" => x - y,
             "*" => x * y,
-            "/" => y == 0 ? throw new ExpressionException("Pembagian dengan nol") : x / y,
-            "%" => y == 0 ? throw new ExpressionException("Pembagian dengan nol") : x % y,
-            _ => throw new ExpressionException($"Operator '{b.Op}' tidak dikenal")
+            "/" => y == 0 ? throw new ExpressionException("Division by zero") : x / y,
+            "%" => y == 0 ? throw new ExpressionException("Division by zero") : x % y,
+            _ => throw new ExpressionException($"Unknown operator '{b.Op}'")
         };
     }
 

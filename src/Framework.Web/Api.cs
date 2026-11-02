@@ -177,7 +177,7 @@ public static class DocApi
         {
             RequireRole(user, UserContext.SystemManager);
             var v = sp.GetRequiredService<IMetadataProvider>().History(doctype).FirstOrDefault(x => x.Version == version)
-                ?? throw new DocumentNotFoundException("Versi metadata", $"{doctype} v{version}");
+                ?? throw new DocumentNotFoundException("Metadata version", $"{doctype} v{version}");
             return Task.FromResult(Results.Ok(v.Def));
         }));
 
@@ -284,7 +284,7 @@ public static class DocApi
 
     private static void RequireRole(UserContext user, string role)
     {
-        if (!user.Roles.Contains(role)) throw new PermissionDeniedException($"Butuh role '{role}'");
+        if (!user.Roles.Contains(role)) throw new PermissionDeniedException($"Requires role '{role}'.");
     }
 
     /// <summary>API generik opt-in per DocType (RFC §13).</summary>
@@ -293,13 +293,13 @@ public static class DocApi
         if (!sp.GetRequiredService<IMetadataProvider>().Current.TryGet(doctype, out var meta) || meta.Def.IsChild)
             throw new DocumentNotFoundException("DocType", doctype);
         if (!meta.Def.Api.Enabled || !meta.Def.Api.Operations.Contains(op))
-            throw new DocumentNotFoundException($"Operasi API '{op}' untuk", doctype);
+            throw new DocumentNotFoundException($"API operation '{op}' for", doctype);
     }
 
     private static int IfMatch(HttpContext http)
     {
         var raw = http.Request.Headers.IfMatch.FirstOrDefault()?.Trim('"', ' ');
-        return int.TryParse(raw, out var v) ? v : throw new InvalidPayloadException("Header If-Match berisi versi dokumen wajib dikirim");
+        return int.TryParse(raw, out var v) ? v : throw new InvalidPayloadException("If-Match header containing document version is required");
     }
 
     private static Dictionary<string, object?> ToPayload(Dictionary<string, JsonElement> body) =>
@@ -317,14 +317,14 @@ public static class DocApi
             return doc.RootElement.EnumerateArray().Select(e =>
             {
                 var a = e.EnumerateArray().ToArray();
-                if (a.Length != 3) throw new InvalidPayloadException("Filter harus berupa [field, operator, nilai]");
+                if (a.Length != 3) throw new InvalidPayloadException("Filter must be [field, operator, value]");
                 object? value = a[2].ValueKind == JsonValueKind.Array
                     ? a[2].EnumerateArray().Select(Scalar).ToList()
                     : Scalar(a[2]);
                 return new FilterClause(a[0].GetString()!, a[1].GetString()!, value);
             }).ToList();
         }
-        catch (JsonException) { throw new InvalidPayloadException("Parameter filters bukan JSON yang valid"); }
+        catch (JsonException) { throw new InvalidPayloadException("Parameter filters is not valid JSON"); }
     }
 
     private static object? Scalar(JsonElement e) => e.ValueKind switch
@@ -334,7 +334,7 @@ public static class DocApi
         JsonValueKind.True => true,
         JsonValueKind.False => false,
         JsonValueKind.Null => null,
-        _ => throw new InvalidPayloadException("Nilai filter harus skalar atau daftar skalar")
+        _ => throw new InvalidPayloadException("Filter value must be a scalar or list of scalars")
     };
 
     public static Dictionary<string, object?> ToDto(Document d)

@@ -26,7 +26,7 @@ public static class DocTypeDataMigrator
                 case "RenameField":
                     if (!migrated.Data.TryGetValue(operation.FromField!, out var oldValue)) break;
                     if (migrated.Data.TryGetValue(operation.ToField!, out var existing) && existing is not null)
-                        throw new InvalidOperationException($"Dokumen {source.Name}: field '{operation.ToField}' sudah memiliki nilai; rename dibatalkan.");
+                        throw new InvalidOperationException($"Document {source.Name}: field '{operation.ToField}' already contains a value; rename aborted.");
                     migrated.Data[operation.ToField!] = oldValue;
                     migrated.Data.Remove(operation.FromField!);
                     changes.Add(new(operation.ToField!, null, Convert.ToString(oldValue, System.Globalization.CultureInfo.InvariantCulture)));
@@ -38,7 +38,7 @@ public static class DocTypeDataMigrator
                     var rawDefault = operation.Value!.Value;
                     var normalizedDefault = defaultField.Type.Normalize(rawDefault);
                     if (!normalizedDefault.Ok)
-                        throw new InvalidOperationException($"Dokumen {source.Name}: default untuk '{operation.Field}' tidak valid: {normalizedDefault.Error}");
+                        throw new InvalidOperationException($"Document {source.Name}: default for '{operation.Field}' is invalid: {normalizedDefault.Error}");
                     migrated.Data[operation.Field!] = normalizedDefault.Value;
                     changes.Add(new(operation.Field!, null, Convert.ToString(normalizedDefault.Value, System.Globalization.CultureInfo.InvariantCulture)));
                     break;
@@ -48,13 +48,13 @@ public static class DocTypeDataMigrator
                     var field = targetMeta.ByName[operation.Field!];
                     var normalized = field.Type.Normalize(value);
                     if (!normalized.Ok)
-                        throw new InvalidOperationException($"Dokumen {source.Name}: nilai '{operation.Field}' tidak dapat dikonversi ke {field.Def.Type}: {normalized.Error}");
+                        throw new InvalidOperationException($"Document {source.Name}: value for '{operation.Field}' cannot be converted to {field.Def.Type}: {normalized.Error}");
                     migrated.Data[operation.Field!] = normalized.Value;
                     changes.Add(new(operation.Field!, Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture), Convert.ToString(normalized.Value, System.Globalization.CultureInfo.InvariantCulture)));
                     break;
 
                 default:
-                    throw new InvalidOperationException($"Operasi migrasi '{operation.Type}' tidak didukung.");
+                    throw new InvalidOperationException($"Migration operation '{operation.Type}' is not supported.");
             }
         }
 

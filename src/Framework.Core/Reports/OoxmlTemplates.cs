@@ -121,7 +121,7 @@ public sealed class TemplateData
             "userid" => (UserId, "text"),
             "tenant" => (TenantId, "text"),
             "rowcount" => ((decimal)Detail.Rows.Count, "number"),
-            _ => throw new TemplateException($"{t.Raw}: nilai tidak ditemukan"),
+            _ => throw new TemplateException($"{t.Raw}: value not found"),
         };
     }
 
@@ -130,10 +130,10 @@ public sealed class TemplateData
         var fn = t.Name.ToLowerInvariant();
         if (fn == "count") return ((decimal)Detail.Rows.Count, "number");
         var i = Col(Detail, t.Column ?? "");
-        if (i < 0) throw new TemplateException($"{t.Raw}: kolom '{t.Column}' tidak ada di hasil query");
+        if (i < 0) throw new TemplateException($"{t.Raw}: column '{t.Column}' not found in query results");
         var nums = Detail.Rows.Select(r => r[i]).OfType<decimal>().ToList();
         if (nums.Count == 0) return (fn == "sum" ? 0m : null, "number");
-        return (fn switch { "sum" => nums.Sum(), "avg" => nums.Average(), "min" => nums.Min(), "max" => nums.Max(), _ => throw new TemplateException($"{t.Raw}: fungsi tidak dikenal") }, "number");
+        return (fn switch { "sum" => nums.Sum(), "avg" => nums.Average(), "min" => nums.Min(), "max" => nums.Max(), _ => throw new TemplateException($"{t.Raw}: unknown function") }, "number");
     }
 
     public (object? Value, string Kind) Loop(TemplateTag t, int row)
@@ -141,7 +141,7 @@ public sealed class TemplateData
         var i = Col(Detail, t.Name);
         if (i >= 0) return (row < Detail.Rows.Count ? Detail.Rows[row][i] : null, Detail.Columns[i].Kind);
         if (t.Name.Equals(TemplateTags.RowNumber, StringComparison.OrdinalIgnoreCase)) return (row < Detail.Rows.Count ? (decimal)(row + 1) : null, "number");
-        throw new TemplateException($"{t.Raw}: kolom '{t.Name}' tidak ada di hasil query");
+        throw new TemplateException($"{t.Raw}: column '{t.Name}' not found in query results");
     }
 
     // ---------- format teks (Word, dan sel Excel yang berisi teks campuran / format eksplisit) ----------
@@ -170,7 +170,7 @@ public sealed class TemplateData
                 _ => Convert.ToString(v, CultureInfo.InvariantCulture) ?? "",
             };
         }
-        catch (FormatException) { throw new TemplateException($"Format '{fmt}' tidak valid untuk nilai {v}"); }
+        catch (FormatException) { throw new TemplateException($"Format '{fmt}' is invalid for value {v}"); }
     }
 }
 
@@ -190,12 +190,12 @@ public sealed class OoxmlPackage
     public static OoxmlPackage Open(byte[] bytes, string expectedFormat, long? maxBytes = null)
     {
         var limit = maxBytes ?? MaxTemplateBytes;
-        if (bytes.Length > limit) throw new TemplateException($"File maksimal {limit / 1024 / 1024} MB");
+        if (bytes.Length > limit) throw new TemplateException($"File size exceeds maximum limit of {limit / 1024 / 1024} MB");
         var pkg = new OoxmlPackage();
         try
         {
             using var zip = new ZipArchive(new MemoryStream(bytes), ZipArchiveMode.Read);
-            if (zip.Entries.Count > MaxEntries) throw new TemplateException("Template berisi terlalu banyak bagian");
+            if (zip.Entries.Count > MaxEntries) throw new TemplateException("Template contains too many parts");
             long total = 0;
             foreach (var e in zip.Entries)
             {
@@ -208,20 +208,20 @@ public sealed class OoxmlPackage
                 while ((n = s.Read(buf)) > 0)
                 {
                     total += n;
-                    if (total > MaxUncompressedBytes) throw new TemplateException("Template terlalu besar setelah diekstrak (kemungkinan file rusak atau berbahaya)");
+                    if (total > MaxUncompressedBytes) throw new TemplateException("Template uncompressed size is too large (file may be corrupted or malicious)");
                     ms.Write(buf, 0, n);
                 }
                 pkg._entries.Add((e.FullName, ms.ToArray()));
             }
         }
-        catch (InvalidDataException) { throw new TemplateException("File bukan dokumen Office (.xlsx/.docx) yang valid"); }
+        catch (InvalidDataException) { throw new TemplateException("File is not a valid Office document (.xlsx/.docx)"); }
 
         var main = expectedFormat == ReportFormats.Xlsx ? "xl/workbook.xml" : "word/document.xml";
         if (!pkg.Has(main) || !pkg.Has("[Content_Types].xml"))
-            throw new TemplateException(expectedFormat == ReportFormats.Xlsx ? "File bukan workbook Excel (.xlsx)" : "File bukan dokumen Word (.docx)");
+            throw new TemplateException(expectedFormat == ReportFormats.Xlsx ? "File is not an Excel workbook (.xlsx)" : "File is not a Word document (.docx)");
         if (pkg.Names.Any(n => n.EndsWith("vbaProject.bin", StringComparison.OrdinalIgnoreCase)) ||
             Encoding.UTF8.GetString(pkg.Get("[Content_Types].xml")!).Contains("macroEnabled", StringComparison.OrdinalIgnoreCase))
-            throw new TemplateException("Template berisi makro (VBA) dan ditolak. Simpan ulang sebagai .xlsx/.docx biasa.");
+            throw new TemplateException("Template contains VBA macros and is rejected. Please save as standard .xlsx/.docx without macros.");
         return pkg;
     }
 
@@ -237,13 +237,13 @@ public sealed class OoxmlPackage
     /// <summary>XML diparse tanpa DTD dan tanpa resolver eksternal (mencegah XXE / entity expansion).</summary>
     public XDocument Xml(string name)
     {
-        var data = Get(name) ?? throw new TemplateException($"Bagian {name} tidak ada di template");
+        var data = Get(name) ?? throw new TemplateException($"Part '{name}' not found in template");
         try
         {
             using var r = XmlReader.Create(new MemoryStream(data), new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null });
             return XDocument.Load(r, LoadOptions.PreserveWhitespace);
         }
-        catch (XmlException ex) { throw new TemplateException($"Template rusak atau tidak aman ({name}): {ex.Message}"); }
+        catch (XmlException ex) { throw new TemplateException($"Template is corrupted or unsafe ({name}): {ex.Message}"); }
     }
 
     public void SetXml(string name, XDocument doc)

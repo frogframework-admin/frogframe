@@ -202,7 +202,7 @@ public sealed class InMemoryDocumentStore : IDocumentStore, IOutboxStore, IDatab
             foreach (var (doc, expected) in uow.Upserts)
             {
                 var exists = _docs.TryGetValue((doc.TenantId, doc.DocType, doc.Name), out var current);
-                if (expected is null && exists) throw new InvalidStateException($"Nama {doc.Name} sudah dipakai");
+                if (expected is null && exists) throw new InvalidStateException($"Name '{doc.Name}' is already in use.");
                 if (expected is not null && (!exists || current!.Version != expected))
                     throw new ConcurrencyException(doc.Name, expected.Value, current?.Version ?? 0);
             }

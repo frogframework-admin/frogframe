@@ -114,7 +114,7 @@ public sealed class MetadataSnapshot
     public required ImmutableDictionary<string, IReadOnlyList<DocTypeLinkDef>> IncomingLinks { get; init; }
 
     public CompiledDocType Get(string docType) =>
-        DocTypes.TryGetValue(docType, out var d) ? d : throw new KeyNotFoundException($"DocType '{docType}' tidak ditemukan");
+        DocTypes.TryGetValue(docType, out var d) ? d : throw new KeyNotFoundException($"DocType '{docType}' not found");
     public bool TryGet(string docType, out CompiledDocType meta) => DocTypes.TryGetValue(docType, out meta!);
 }
 
@@ -902,7 +902,7 @@ public sealed class MetadataRegistry : IMetadataProvider
             var (errors, changes, snap, attached) = TryWorkflow(draft, attach);
             if (errors.Count > 0) throw new MetadataCompilationException(errors);
             if (changes.Any(c => c.Risk == ChangeRisk.Risky) && !acknowledgeRisk)
-                throw new InvalidOperationException("Perubahan berisiko harus dikonfirmasi sebelum publish");
+                throw new InvalidOperationException("Risky changes must be confirmed before publishing");
 
             var now = Clock.GetUtcNow();
             var wv = new WorkflowVersion(draft.Name, draft.DocType, draft.Version, draft, MetadataStatus.Published, publishedBy, now,
@@ -996,7 +996,7 @@ public sealed class MetadataRegistry : IMetadataProvider
             var (errors, changes) = TryCompileWith(draft, out var snapshot);
             if (errors.Count > 0) throw new MetadataCompilationException(errors);
             if (changes.Any(c => c.Risk == ChangeRisk.Risky) && !acknowledgeRisk)
-                throw new InvalidOperationException("Perubahan berisiko harus dikonfirmasi sebelum publish");
+                throw new InvalidOperationException("Risky changes must be confirmed before publishing");
 
             var source = _current.TryGet(draft.Name, out var currentMeta) ? currentMeta : null;
             var target = snapshot!.Get(draft.Name);
@@ -1005,9 +1005,9 @@ public sealed class MetadataRegistry : IMetadataProvider
             IAtomicDocTypeMigrationPublisher? migrationPublisher = null;
             if (draft.DataMigration is not null)
             {
-                if (source is null) throw new InvalidOperationException("Migrasi data hanya dapat diterapkan pada DocType yang sudah aktif.");
+                if (source is null) throw new InvalidOperationException("Data migration can only be applied to an active DocType.");
                 if (_store is not IAtomicDocTypeMigrationPublisher publisher)
-                    throw new InvalidOperationException("Penyimpanan metadata ini tidak mendukung migrasi data atomik.");
+                    throw new InvalidOperationException("This metadata store does not support atomic data migration.");
                 migrationPublisher = publisher;
                 publishedDef = MetadataJson.ParseDocType(MetadataJson.Serialize(draft));
                 publishedDef.DataMigration = null;

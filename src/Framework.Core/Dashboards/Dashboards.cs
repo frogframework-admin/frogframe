@@ -235,7 +235,7 @@ public sealed class UnavailableReportingExecutor : IReportingQueryExecutor
 {
     public bool IsAvailable => false;
     public Task<QueryResultSet> ExecuteAsync(string tenantId, string sql, IReadOnlyList<SqlParam> parameters, int limit, CancellationToken ct = default, TimeSpan? timeout = null) =>
-        throw new ReportingUnavailableException("Dashboard SQL membutuhkan mode PostgreSQL dan connection string read-only (ConnectionStrings:DocFrameReadOnly).");
+        throw new ReportingUnavailableException("SQL dashboards require PostgreSQL mode and a read-only connection string (ConnectionStrings:DocFrameReadOnly).");
 }
 
 // ============================================================================
@@ -302,7 +302,7 @@ public sealed class DashboardService(IWidgetStore store, IReportingQueryExecutor
 
     private static void DemandDesigner(UserContext user)
     {
-        if (!CanDesign(user)) throw new PermissionDeniedException("Merancang widget dashboard hanya untuk System Manager");
+        if (!CanDesign(user)) throw new PermissionDeniedException("Designing dashboard widgets is restricted to System Manager.");
     }
 
     /// <summary>Langkah 1: deteksi parameter. Tipe awal ditebak dari nama (…Date/Tanggal → tanggal, Is…/Aktif → boolean).</summary>
@@ -332,11 +332,11 @@ public sealed class DashboardService(IWidgetStore store, IReportingQueryExecutor
         return p.Type switch
         {
             ParamTypes.Number => decimal.TryParse(raw.Replace(',', '.'), NumberStyles.Number, CultureInfo.InvariantCulture, out var d) ? d
-                : throw new QueryRejectedException($"Parameter @{p.Name} harus angka"),
+                : throw new QueryRejectedException($"Parameter @{p.Name} must be a number."),
             ParamTypes.Date => DateOnly.TryParseExact(raw, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt) ? dt
-                : throw new QueryRejectedException($"Parameter @{p.Name} harus tanggal yyyy-MM-dd"),
+                : throw new QueryRejectedException($"Parameter @{p.Name} must be date yyyy-MM-dd."),
             ParamTypes.Boolean => raw.ToLowerInvariant() is "true" or "1" or "ya" ? true : raw.ToLowerInvariant() is "false" or "0" or "tidak" ? false
-                : throw new QueryRejectedException($"Parameter @{p.Name} harus true/false"),
+                : throw new QueryRejectedException($"Parameter @{p.Name} must be true or false."),
             _ => raw,
         };
     }
@@ -360,8 +360,8 @@ public sealed class DashboardService(IWidgetStore store, IReportingQueryExecutor
         foreach (var name in a.Parameters)
         {
             var p = parameters.FirstOrDefault(x => x.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
-                ?? throw new QueryRejectedException($"Parameter @{name} belum didefinisikan");
-            if (!ParamTypes.All.Contains(p.Type)) throw new QueryRejectedException($"Tipe parameter @{name} tidak dikenal");
+                ?? throw new QueryRejectedException($"Parameter @{name} is not defined.");
+            if (!ParamTypes.All.Contains(p.Type)) throw new QueryRejectedException($"Unknown parameter type for @{name}.");
             values.Add(new SqlParam(Convert(p, valueOf(p)), p.Type));
         }
         return await executor.ExecuteAsync(user.TenantId, a.ParameterizedSql, values, limit, ct);
@@ -393,9 +393,9 @@ public sealed class DashboardService(IWidgetStore store, IReportingQueryExecutor
     public async Task<WidgetDef> SaveAsync(UserContext user, WidgetDef widget, bool pin, CancellationToken ct = default)
     {
         DemandDesigner(user);
-        if (string.IsNullOrWhiteSpace(widget.Name)) throw new QueryRejectedException("Nama widget wajib diisi");
+        if (string.IsNullOrWhiteSpace(widget.Name)) throw new QueryRejectedException("Widget name is required.");
         foreach (var p in widget.Config.Parameters)
-            if (!ParamBindings.All.Contains(p.Binding)) throw new QueryRejectedException($"Binding parameter @{p.Name} tidak dikenal");
+            if (!ParamBindings.All.Contains(p.Binding)) throw new QueryRejectedException($"Unknown parameter binding for @{p.Name}.");
         var result = await RunAsync(user, widget.Config.Sql, widget.Config.Parameters, p => p.DefaultValue, 1, ct);
         var errors = ValidateVisual(widget.Config.Visual, result.Columns);
         if (errors.Count > 0) throw new QueryRejectedException(string.Join(" ", errors));

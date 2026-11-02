@@ -66,22 +66,22 @@ public sealed class Document
 public sealed record FieldError(string Path, string Message);
 
 /// <summary>Kegagalan pada satu baris dalam insert batch (impor atomik); tidak ada yang tersimpan.</summary>
-public sealed class BatchRowException(int index, Exception inner) : Exception($"Baris ke-{index + 1}: {inner.Message}", inner)
+public sealed class BatchRowException(int index, Exception inner) : Exception($"Row {index + 1}: {inner.Message}", inner)
 {
     public int Index { get; } = index;
 }
 
 public sealed class ValidationFailedException(IReadOnlyList<FieldError> errors)
-    : Exception(errors.Count == 1 ? errors[0].Message : $"{errors.Count} kesalahan validasi")
+    : Exception(errors.Count == 1 ? errors[0].Message : $"{errors.Count} validation errors")
 {
     public IReadOnlyList<FieldError> Errors { get; } = errors;
 }
 
 public sealed class DocumentNotFoundException(string docType, string name)
-    : Exception($"{docType} '{name}' tidak ditemukan");
+    : Exception($"{docType} '{name}' not found");
 
 public sealed class ConcurrencyException(string name, int expected, int actual)
-    : Exception($"Dokumen {name} sudah diubah pengguna lain (versi Anda {expected}, versi terkini {actual}). Muat ulang lalu ulangi.");
+    : Exception($"Document {name} was modified by another user (expected version {expected}, current version {actual}). Reload and try again.");
 
 public sealed class InvalidPayloadException(string message, IReadOnlyList<string>? fields = null) : Exception(message)
 {

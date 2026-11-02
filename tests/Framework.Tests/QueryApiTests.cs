@@ -48,7 +48,7 @@ sealed partial class Tests
 
         var bad = await Assert.Throws<ValidationFailedException>(() => QueryApis.ExecuteAsync(U("dewi"), saved.Slug,
             new Dictionary<string, string?> { ["Dept"] = "IT", ["tenant"] = "globex", ["MinTotal"] = "banyak" }), "argumen ditolak");
-        Assert.True(bad.Errors.Any(e => e.Path == "tenant" && e.Message.Contains("tidak dikenal")) && bad.Errors.Any(e => e.Path == "MinTotal"), "asing & tipe: " + string.Join("; ", bad.Errors));
+        Assert.True(bad.Errors.Any(e => e.Path == "tenant" && (e.Message.Contains("unknown") || e.Message.Contains("tidak dikenal"))) && bad.Errors.Any(e => e.Path == "MinTotal"), "asing & tipe: " + string.Join("; ", bad.Errors));
         await Assert.Throws<PermissionDeniedException>(() => QueryApis.ExecuteAsync(U("andi"), saved.Slug, new Dictionary<string, string?>()), "role lain ditolak");
         await Assert.Throws<KeyNotFoundException>(() => QueryApis.ExecuteAsync(U("dewi"), "tidak-ada", new Dictionary<string, string?>()), "slug tidak ada");
 
@@ -57,7 +57,7 @@ sealed partial class Tests
 
         await Assert.Throws<ApiMethodException>(() => QueryApis.SaveAsync(admin, PengajuanApi("Slug Salah!")), "slug tidak valid");
         var dup = await Assert.Throws<ApiMethodException>(() => QueryApis.SaveAsync(admin, PengajuanApi()), "slug ganda");
-        Assert.True(dup.Message.Contains("sudah dipakai"), dup.Message);
+        Assert.True(dup.Message.Contains("already used") || dup.Message.Contains("sudah dipakai"), dup.Message);
         await Assert.Throws<PermissionDeniedException>(() => QueryApis.SaveAsync(U("dewi"), PengajuanApi("lain")), "hanya System Manager menerbitkan");
         await Assert.Throws<QueryRejectedException>(() => QueryApis.SaveAsync(admin, new QueryApiDef { Slug = "rusak", Name = "x", Config = new() { Sql = "DELETE FROM x" } }), "query non-SELECT ditolak saat terbit");
     }
@@ -76,7 +76,7 @@ sealed partial class Tests
         var maya = await QueryApis.ExecuteAsync(U("maya"), def.Slug, new Dictionary<string, string?>());
         Assert.True(maya.Data.Rows.All(r => (string)r[1]! == "Marketing"), "manager Marketing → data Marketing");
         var hack = await Assert.Throws<ValidationFailedException>(() => QueryApis.ExecuteAsync(U("budi"), def.Slug, new Dictionary<string, string?> { ["Dept"] = "Marketing" }), "menimpa departemen");
-        Assert.True(hack.Errors.Single().Message.Contains("otomatis dari akun"), "pesan jelas: " + hack.Errors.Single().Message);
+        Assert.True(hack.Errors.Single().Message.Contains("automatically populated") || hack.Errors.Single().Message.Contains("otomatis dari akun"), "pesan jelas: " + hack.Errors.Single().Message);
     }
 
     [Test, ReportingTest]
@@ -89,7 +89,7 @@ sealed partial class Tests
         var b = await QueryApis.PublishFromAsync(admin, "widget:w_uji", "rekap-departemen", "Rekap per departemen (v2)", null, sql + " LIMIT 10", [], ["Finance"]);
         Assert.True(b.Id == a.Id && b.Version == 2 && b.Config.Sql.EndsWith("LIMIT 10"), "simpan ulang widget → API yang sama diperbarui");
         var other = await Assert.Throws<ApiMethodException>(() => QueryApis.PublishFromAsync(admin, "report:rt_lain", "rekap-departemen", "x", null, sql, [], []), "slug milik sumber lain");
-        Assert.True(other.Message.Contains("sudah dipakai"), other.Message);
+        Assert.True(other.Message.Contains("already used") || other.Message.Contains("sudah dipakai"), other.Message);
 
         var counting = new CountingExecutor(sp.GetRequiredService<IReportingQueryExecutor>());
         var cached = new QueryApiService(sp.GetRequiredService<IQueryApiStore>(), counting, TimeProvider.System);

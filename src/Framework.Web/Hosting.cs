@@ -65,7 +65,7 @@ public sealed class CurrentUser
     public string? ActiveModuleId { get; private set; }
     public event Action? Changed;
     public event Action? ModuleChanged;
-    public UserContext Required => User ?? throw new PermissionDeniedException("Belum masuk");
+    public UserContext Required => User ?? throw new PermissionDeniedException("Not authenticated.");
     public void Set(UserContext? user) { User = user; Changed?.Invoke(); }
     public void SetActiveModule(string? moduleId)
     {
