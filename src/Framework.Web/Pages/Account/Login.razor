@@ -19,6 +19,13 @@
 <h1 class="auth-title">Log in</h1>
 <p class="auth-sub">Use the account provided by your administrator.</p>
 
+@if (ResetSuccess)
+{
+    <div class="auth-alert" style="background-color: #ecfdf5; color: #065f46; border-color: #a7f3d0;" role="alert">
+        Password has been successfully reset. Please log in with your new password.
+    </div>
+}
+
 @if (error is not null)
 {
     <div class="auth-alert" role="alert">@error</div>
@@ -35,6 +42,9 @@
         <label for="password">Password</label>
         <InputText id="password" type="password" class="auth-input" @bind-Value="Input.Password" autocomplete="current-password" />
         <ValidationMessage For="() => Input.Password" class="auth-error" />
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-top:-0.5rem;margin-bottom:0.75rem;">
+        <a href="/forgot-password" class="auth-link" style="font-size:0.875rem;color:var(--bb-primary, #2563eb);text-decoration:none;">Forgot password?</a>
     </div>
     <label class="auth-check"><InputCheckbox @bind-Value="Input.RememberMe" /> Remember me on this device</label>
     <button type="submit" class="auth-button">Log in</button>
@@ -53,6 +63,8 @@
     [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
     [SupplyParameterFromForm] private LoginModel Input { get; set; } = default!;
     [SupplyParameterFromQuery] private string? ReturnUrl { get; set; }
+    [SupplyParameterFromQuery(Name = "reset")] private string? Reset { get; set; }
+    private bool ResetSuccess => Reset == "1";
     private string? error;
 
     protected override async Task OnInitializedAsync()

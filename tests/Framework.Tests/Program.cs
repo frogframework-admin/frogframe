@@ -454,7 +454,7 @@ sealed partial class Tests
         int Count() => users.Values.Sum(u => inbox.ForUser(u.TenantId, u.Id).Count);
         var before = Count();
         var msg = sp.GetRequiredService<IOutboxStore>().Snapshot().First(m => m.Type == "workflow.transitioned");
-        await sp.GetServices<IEventHandler>().Single().HandleAsync(msg, default);
+        await sp.GetServices<IEventHandler>().Single(h => h.CanHandle(msg.Type)).HandleAsync(msg, default);
         Assert.Equal(before, Count(), "pemrosesan ulang tidak menggandakan");
     }
 
@@ -468,9 +468,9 @@ sealed partial class Tests
         {
             var r = await processor.ProcessDueAsync();
             if (r.Failed + r.DeadLettered == 0) clock.Advance(TimeSpan.FromMinutes(5)); // batch habis → majukan waktu ke percobaan berikutnya
-            if (store.Snapshot().All(m => m.DeadLettered)) break;
+            if (store.Snapshot().Where(m => m.ProcessedAt is null).All(m => m.DeadLettered)) break;
         }
-        var msgs = store.Snapshot();
+        var msgs = store.Snapshot().Where(m => m.ProcessedAt is null).ToList();
         Assert.True(msgs.All(m => m.DeadLettered && m.Attempts == OutboxProcessor.MaxAttempts), "semua pesan masuk dead-letter setelah batas percobaan");
     }
 
@@ -1477,7 +1477,8 @@ sealed partial class Tests
         var sp2 = await BuildProviderAsync();
         var w1 = new OutboxProcessor(sp.GetRequiredService<IOutboxStore>(), [counter], TimeProvider.System);
         var w2 = new OutboxProcessor(sp2.GetRequiredService<IOutboxStore>(), [counter], TimeProvider.System);
-        var total = sp.GetRequiredService<IOutboxStore>().Snapshot().Count;
+        var total = sp.GetRequiredService<IOutboxStore>().Snapshot().Count(m => m.ProcessedAt is null && !m.DeadLettered);
+        Assert.True(total > 0, "ada pesan outbox yang belum diproses");
         for (var round = 0; round < 5; round++) await Task.WhenAll(w1.ProcessDueAsync(), w2.ProcessDueAsync());
         Assert.Equal(total, seen.Count, "setiap pesan diproses tepat sekali");
         Assert.Equal(total, seen.Distinct().Count(), "tidak ada pesan ganda");

@@ -1,4 +1,5 @@
 using Framework.Documents;
+using Framework.Email;
 using Framework.Hooks;
 using Framework.Expressions;
 using Framework.Files;
@@ -122,6 +123,32 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IDatabaseHealthCheck>(sp => sp.GetRequiredService<InMemoryDocumentStore>());
         services.TryAddSingleton<INotificationStore, InMemoryNotificationStore>();
         services.TryAddSingleton<IFileStore, InMemoryFileStore>();
+        services.TryAddSingleton<IAttachmentStore, InMemoryAttachmentStore>();
+        services.AddSingleton<AttachmentService>();
+
+        // Email outgoing: SMTP jika dikonfigurasi, InMemory untuk dev/test
+        services.TryAddSingleton<IEmailSender>(sp =>
+        {
+            var cfg = sp.GetService<IConfiguration>();
+            var smtpHost = cfg?["Email:SmtpHost"];
+            if (!string.IsNullOrWhiteSpace(smtpHost))
+            {
+                var opts = new SmtpEmailOptions
+                {
+                    Host = smtpHost,
+                    Port = cfg.GetValue("Email:SmtpPort", 25),
+                    EnableSsl = cfg.GetValue("Email:EnableSsl", false),
+                    UserName = cfg["Email:SmtpUser"],
+                    Password = cfg["Email:SmtpPassword"],
+                    FromAddress = cfg["Email:FromAddress"] ?? "noreply@docframe.local",
+                    FromDisplayName = cfg["Email:FromDisplayName"] ?? "DocFrame"
+                };
+                return new SmtpEmailSender(opts);
+            }
+            return new InMemoryEmailSender();
+        });
+        services.TryAddSingleton<IEmailQueue, OutboxEmailQueue>();
+        services.AddSingleton<IEventHandler, OutboxEmailHandler>();
         // Dashboard SQL: default tidak tersedia (butuh PostgreSQL + koneksi read-only; lihat AddDocFrameworkReporting).
         services.TryAddSingleton<IWidgetStore, InMemoryWidgetStore>();
         services.TryAddSingleton<IReportingQueryExecutor, UnavailableReportingExecutor>();

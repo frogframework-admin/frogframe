@@ -79,6 +79,8 @@ public interface IOutboxStore
     IReadOnlyList<OutboxMessage> Snapshot();
     /// <summary>Menghapus pesan yang SUDAH diproses sebelum waktu tertentu (dead-letter tidak dihapus). Mengembalikan jumlahnya.</summary>
     Task<int> PruneAsync(DateTimeOffset processedBefore, int max, CancellationToken ct = default);
+    /// <summary>Menambahkan pesan baru ke outbox (misalnya pengiriman email atau notifikasi).</summary>
+    Task EnqueueAsync(OutboxMessage message, CancellationToken ct = default);
 }
 
 public interface IDatabaseHealthCheck
@@ -310,6 +312,16 @@ public sealed class InMemoryDocumentStore : IDocumentStore, IOutboxStore, IDatab
             _outbox.RemoveAll(old.Contains);
             return Task.FromResult(old.Count);
         }
+    }
+
+    public Task EnqueueAsync(OutboxMessage message, CancellationToken ct = default)
+    {
+        lock (_gate)
+        {
+            if (!_outbox.Any(m => m.IdempotencyKey == message.IdempotencyKey))
+                _outbox.Add(message);
+        }
+        return Task.CompletedTask;
     }
 }
 

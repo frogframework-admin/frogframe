@@ -1,5 +1,7 @@
+using System.Net;
 using System.Text.Json;
 using Framework.Documents;
+using Framework.Email;
 using Framework.Jobs;
 using Framework.Metadata;
 using Framework.Persistence;
@@ -53,6 +55,24 @@ public static class DocApi
             http.Response.Headers["Content-Security-Policy"] = "default-src 'none'; img-src 'self'; sandbox";
             http.Response.Headers.CacheControl = "private, max-age=300";
             return Results.File(f.Content, f.Record.ContentType);
+        });
+
+        // ---------- File lampiran dokumen (PDF/Office/CSV/teks/gambar) ----------
+        app.MapGet("/files/attachment/{id}", async (HttpContext http, string id) =>
+        {
+            var user = ClaimsUserMapper.ToUserContext(http.User);
+            if (user is null) return Results.Unauthorized();
+            var attService = http.RequestServices.GetRequiredService<AttachmentService>();
+            try
+            {
+                var (record, content) = await attService.GetFileAsync(user, id, http.RequestAborted);
+                http.Response.Headers["X-Content-Type-Options"] = "nosniff";
+                http.Response.Headers.CacheControl = "private, max-age=300";
+                return Results.File(content, record.ContentType, record.FileName);
+            }
+            catch (KeyNotFoundException) { return Results.NotFound(); }
+            catch (PermissionDeniedException) { return Results.NotFound(); }
+            catch (DocumentNotFoundException) { return Results.NotFound(); }
         });
 
         // ---------- Laporan file (Excel/Word) ----------
@@ -146,6 +166,64 @@ public static class DocApi
             if (result.Succeeded) return Results.Empty;
             return result.IsLockedOut ? Problem(423, "Account locked", "Too many failed attempts. Try again later.")
                 : Problem(401, "Login failed", "Invalid username or password, or account is disabled.");
+        }).AllowAnonymous();
+
+        api.MapPost("/auth/forgot-password", async (ForgotPasswordBody body, IServiceProvider sp, HttpContext http) =>
+        {
+            var identifier = (body.Identifier ?? body.Email ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(identifier))
+                return Problem(400, "Validation error", "Username or email is required.");
+
+            var repo = sp.GetRequiredService<IUserAccountRepository>();
+            var users = sp.GetRequiredService<UserManager<UserAccount>>();
+            var queue = sp.GetRequiredService<IEmailQueue>();
+
+            var user = await repo.FindByNormalizedEmailAsync(identifier.ToUpperInvariant(), http.RequestAborted)
+                       ?? await repo.FindByNormalizedUserNameAsync(identifier.ToUpperInvariant(), http.RequestAborted);
+
+            if (user is not null && user.IsActive && !string.IsNullOrWhiteSpace(user.Email))
+            {
+                var token = await users.GeneratePasswordResetTokenAsync(user);
+                var baseUrl = $"{http.Request.Scheme}://{http.Request.Host}";
+                var resetLink = $"{baseUrl}/reset-password?userId={Uri.EscapeDataString(user.Id)}&token={Uri.EscapeDataString(token)}";
+
+                var template = "Hello {{FullName}},\n\nA password reset was requested for your account ({{UserName}}).\nClick the link below to set a new password:\n\n{{ResetLink}}\n\nThis single-use link is valid for 24 hours. If you did not request this, please ignore this email.";
+                var bodyText = EmailTemplateEngine.Render(template, new Dictionary<string, string?>
+                {
+                    ["FullName"] = user.FullName,
+                    ["UserName"] = user.UserName,
+                    ["ResetLink"] = resetLink
+                });
+
+                var emailMsg = new EmailMessage
+                {
+                    To = [user.Email],
+                    Subject = "Reset Your DocFrame Password",
+                    BodyHtml = $"<p>Hello <b>{WebUtility.HtmlEncode(user.FullName)}</b>,</p><p>A password reset was requested for your account (<code>{WebUtility.HtmlEncode(user.UserName)}</code>).</p><p><a href=\"{WebUtility.HtmlEncode(resetLink)}\" style=\"display:inline-block;padding:10px 16px;background:#2563eb;color:#ffffff;text-decoration:none;border-radius:6px;\">Reset Password</a></p><p>Or copy this URL into your browser:<br/><a href=\"{WebUtility.HtmlEncode(resetLink)}\">{WebUtility.HtmlEncode(resetLink)}</a></p><p><small>This single-use link is valid for 24 hours. If you did not request this, please ignore this email.</small></p>",
+                    BodyText = bodyText
+                };
+
+                await queue.QueueAsync(user.TenantId, emailMsg, idempotencyKey: $"pwd-reset-{user.Id}-{token.GetHashCode()}", ct: http.RequestAborted);
+            }
+
+            return Results.Ok(new { message = "If the account exists and has a valid email address, password reset instructions have been sent." });
+        }).AllowAnonymous();
+
+        api.MapPost("/auth/reset-password", async (ResetPasswordBody body, UserManager<UserAccount> users) =>
+        {
+            if (string.IsNullOrWhiteSpace(body.UserId) || string.IsNullOrWhiteSpace(body.Token) || string.IsNullOrWhiteSpace(body.NewPassword))
+                return Problem(400, "Validation error", "UserId, token, and newPassword are required.");
+
+            var user = await users.FindByIdAsync(body.UserId);
+            if (user is null || !user.IsActive)
+                return Problem(400, "Reset failed", "Invalid user or reset token has expired.");
+
+            var result = await users.ResetPasswordAsync(user, body.Token, body.NewPassword);
+            if (result.Succeeded)
+                return Results.Ok(new { success = true, message = "Password has been successfully reset. You may now log in with your new password." });
+
+            var errors = string.Join("; ", result.Errors.Select(e => e.Description));
+            return Problem(400, "Reset failed", errors);
         }).AllowAnonymous();
 
         api.MapGet("/auth/me", (HttpContext http) => ClaimsUserMapper.ToUserContext(http.User) is { } u
@@ -273,11 +351,60 @@ public static class DocApi
             return inline == true ? Results.File(pdf, "application/pdf") : Results.File(pdf, "application/pdf", $"{name}.pdf");
         }));
 
+        // ---------- Lampiran Dokumen (Attachments) ----------
+        api.MapGet("/data/{doctype}/{name}/attachments", (HttpContext http, string doctype, string name) =>
+            Run(http, $"doc:{doctype}:read", async (user, sp) =>
+            {
+                var attService = sp.GetRequiredService<AttachmentService>();
+                var list = await attService.ListAsync(user, doctype, name, http.RequestAborted);
+                return Results.Ok(list);
+            }));
+
+        api.MapPost("/data/{doctype}/{name}/attachments", async (HttpContext http, string doctype, string name) =>
+            await Run(http, $"doc:{doctype}:write", async (user, sp) =>
+            {
+                var attService = sp.GetRequiredService<AttachmentService>();
+                string fileName = "";
+                Stream stream;
+
+                if (http.Request.HasFormContentType)
+                {
+                    var form = await http.Request.ReadFormAsync(http.RequestAborted);
+                    var file = form.Files.FirstOrDefault();
+                    if (file is null) return Problem(400, "Validation error", "No file found in multipart upload.");
+                    fileName = file.FileName;
+                    stream = file.OpenReadStream();
+                }
+                else
+                {
+                    fileName = http.Request.Headers["X-File-Name"].FirstOrDefault()
+                               ?? http.Request.Query["fileName"].FirstOrDefault()
+                               ?? "attachment";
+                    stream = http.Request.Body;
+                }
+
+                var isPrivate = true;
+                if (bool.TryParse(http.Request.Query["isPrivate"], out var p)) isPrivate = p;
+
+                var record = await attService.UploadAsync(user, doctype, name, fileName, stream, isPrivate, http.RequestAborted);
+                return Results.Created($"/api/files/attachment/{record.Id}", record);
+            }));
+
+        api.MapDelete("/data/{doctype}/{name}/attachments/{id}", (HttpContext http, string doctype, string name, string id) =>
+            Run(http, $"doc:{doctype}:write", async (user, sp) =>
+            {
+                var attService = sp.GetRequiredService<AttachmentService>();
+                await attService.DeleteAsync(user, id, http.RequestAborted);
+                return Results.NoContent();
+            }));
+
         return app;
     }
 
     public sealed record ActionBody(string? Comment);
     public sealed record LoginBody(string? UserName, string? Password);
+    public sealed record ForgotPasswordBody(string? Identifier, string? Email);
+    public sealed record ResetPasswordBody(string? UserId, string? Token, string? NewPassword);
     public sealed record GenerateReportBody(Dictionary<string, string?>? Parameters);
 
     private static DocumentService Docs(IServiceProvider sp) => sp.GetRequiredService<DocumentService>();

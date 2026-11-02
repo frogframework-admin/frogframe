@@ -1,5 +1,6 @@
 @page "/app/{DocType}/{Name}"
 @using System.Text.Json
+@using Framework.Files
 @inject DocumentService Docs
 @inject CurrentUser Current
 @inject IMetadataProvider Metadata
@@ -10,6 +11,7 @@
 @inject ToastService Toasts
 @inject IEnumerable<Framework.Actions.IFormAction> RegisteredFormActions
 @inject IServiceProvider Sp
+@inject AttachmentService Attachments
 
 <PageTitle>@(IsNew ? $"New {meta?.Title}" : Name) · DocFrame</PageTitle>
 
@@ -121,7 +123,11 @@ else if (meta is not null && doc is not null)
             {
                 <BbTabsTrigger Value="@t.Title">@t.Title@if (TabErrorCount(t) is > 0 and var n) { <span class="tab-count">@n</span> }</BbTabsTrigger>
             }
-            @if (!IsNew) { <BbTabsTrigger Value="@HistoryTab">History</BbTabsTrigger> }
+            @if (!IsNew)
+            {
+                <BbTabsTrigger Value="@AttachmentsTab">Attachments (@attachments.Count)</BbTabsTrigger>
+                <BbTabsTrigger Value="@HistoryTab">History</BbTabsTrigger>
+            }
         </BbTabsList>
 
         @foreach (var tab in meta.Layout.Where(TabVisible))
@@ -181,6 +187,68 @@ else if (meta is not null && doc is not null)
         }
         @if (!IsNew)
         {
+            <BbTabsContent Value="@AttachmentsTab">
+                <BbCard Class="crumbs" Style="margin-top:.75rem">
+                    <BbCardHeader>
+                        <BbCardTitle Class="card-title">Document Attachments</BbCardTitle>
+                        <BbCardDescription>Supported formats: PDF, Office (.docx, .xlsx), CSV, plain text, PNG, JPEG, WebP, GIF (Max 10 MB per file).</BbCardDescription>
+                    </BbCardHeader>
+                    <BbCardContent>
+                        @if (!string.IsNullOrEmpty(uploadError))
+                        {
+                            <BbAlert Variant="AlertVariant.Danger" Style="margin-bottom:1rem">
+                                <BbAlertDescription>@uploadError</BbAlertDescription>
+                            </BbAlert>
+                        }
+
+                        <div style="display:flex;gap:1rem;align-items:center;margin-bottom:1.25rem;">
+                            <InputFile OnChange="OnAttachmentSelected" disabled="@uploadingAttachment" class="form-control" />
+                            @if (uploadingAttachment)
+                            {
+                                <span>Uploading...</span>
+                            }
+                        </div>
+
+                        @if (attachments.Count == 0)
+                        {
+                            <div style="color:var(--bb-muted-foreground);padding:1rem 0;">No attachments uploaded for this document yet.</div>
+                        }
+                        else
+                        {
+                            <table class="table" style="width:100%;border-collapse:collapse;">
+                                <thead>
+                                    <tr style="text-align:left;border-bottom:1px solid var(--bb-border);">
+                                        <th style="padding:0.5rem;">File Name</th>
+                                        <th style="padding:0.5rem;">Type</th>
+                                        <th style="padding:0.5rem;">Size</th>
+                                        <th style="padding:0.5rem;">Uploaded By</th>
+                                        <th style="padding:0.5rem;">Date</th>
+                                        <th style="padding:0.5rem;text-align:right;">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var att in attachments)
+                                    {
+                                        <tr style="border-bottom:1px solid var(--bb-border);">
+                                            <td style="padding:0.5rem;font-weight:500;">
+                                                <a href="/api/files/attachment/@att.Id" target="_blank" rel="noopener noreferrer">@att.FileName</a>
+                                            </td>
+                                            <td style="padding:0.5rem;font-size:0.875rem;color:var(--bb-muted-foreground);">@att.ContentType</td>
+                                            <td style="padding:0.5rem;font-size:0.875rem;">@FormatBytes(att.Size)</td>
+                                            <td style="padding:0.5rem;font-size:0.875rem;">@att.UploadedBy</td>
+                                            <td style="padding:0.5rem;font-size:0.875rem;">@att.CreatedAt.ToLocalTime().ToString("g")</td>
+                                            <td style="padding:0.5rem;text-align:right;">
+                                                <a href="/api/files/attachment/@att.Id" target="_blank" class="btn btn-sm btn-outline-secondary" download="@att.FileName">Download</a>
+                                                <button type="button" class="btn btn-sm btn-outline-danger" style="margin-left:0.5rem;" @onclick="() => DeleteAttachment(att.Id)">Delete</button>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        }
+                    </BbCardContent>
+                </BbCard>
+            </BbTabsContent>
             <BbTabsContent Value="@HistoryTab">
                 <BbCard Class="crumbs" Style="margin-top:.75rem"><BbCardContent><div style="padding-top:1.25rem"><AuditTimeline Entries="audit" /></div></BbCardContent></BbCard>
             </BbTabsContent>
@@ -193,6 +261,7 @@ else if (meta is not null && doc is not null)
     [Parameter] public string Name { get; set; } = "";
 
     private const string HistoryTab = "__history";
+    private const string AttachmentsTab = "__attachments";
     private CompiledDocType? meta;
     private Document? doc;
     private Dictionary<string, object?> model = new();
@@ -201,6 +270,9 @@ else if (meta is not null && doc is not null)
     private Dictionary<string, string> errorSnapshot = new();
     private IReadOnlyList<ActionView> actions = [];
     private IReadOnlyList<AuditEntry> audit = [];
+    private IReadOnlyList<AttachmentRecord> attachments = [];
+    private string? uploadError;
+    private bool uploadingAttachment;
     private string activeTab = "";
     private string? fatal, banner, conflict;
     private bool busy, savingNow, dirty;
@@ -324,6 +396,7 @@ else if (meta is not null && doc is not null)
             dirty = false;
             actions = IsNew ? [] : await Docs.AvailableActionsAsync(User, doc);
             audit = IsNew ? [] : await Docs.GetAuditAsync(User, DocType, Name);
+            attachments = IsNew ? [] : await Attachments.ListAsync(User, DocType, Name);
         }
         catch (Exception ex) when (ex is PermissionDeniedException or DocumentNotFoundException)
         {
@@ -476,5 +549,53 @@ else if (meta is not null && doc is not null)
                 banner = ex.Message; break;
             default: System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex).Throw(); break;
         }
+    }
+
+    private async Task OnAttachmentSelected(InputFileChangeEventArgs e)
+    {
+        uploadError = null;
+        uploadingAttachment = true;
+        try
+        {
+            var file = e.File;
+            if (file is null) return;
+            using var stream = file.OpenReadStream(maxAllowedSize: AttachmentService.MaxAttachmentBytes);
+            await Attachments.UploadAsync(User, DocType, Name, file.Name, stream);
+            attachments = await Attachments.ListAsync(User, DocType, Name);
+            Toasts.Success($"Attachment '{file.Name}' uploaded.", "Success");
+        }
+        catch (Exception ex)
+        {
+            uploadError = ex.Message;
+        }
+        finally
+        {
+            uploadingAttachment = false;
+        }
+    }
+
+    private async Task DeleteAttachment(string id)
+    {
+        var confirm = await Dialogs.ConfirmAsync("Delete Attachment?", "This attachment will be permanently removed.",
+            new ConfirmDialogOptions { Destructive = true, ConfirmText = "Delete", CancelText = "Cancel" });
+        if (!confirm.Confirmed) return;
+
+        try
+        {
+            await Attachments.DeleteAsync(User, id);
+            attachments = await Attachments.ListAsync(User, DocType, Name);
+            Toasts.Success("Attachment removed.", "Deleted");
+        }
+        catch (Exception ex)
+        {
+            uploadError = ex.Message;
+        }
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
+        return $"{bytes / (1024.0 * 1024.0):F2} MB";
     }
 }

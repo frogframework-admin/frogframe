@@ -361,6 +361,20 @@ public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider 
         return await cmd.ExecuteNonQueryAsync(ct);
     }
 
+    public async Task EnqueueAsync(OutboxMessage m, CancellationToken ct = default)
+    {
+        await using var ins = db.CreateCommand(
+            "INSERT INTO docframe_outbox (id, tenant_id, type, payload, idempotency_key, created_at) VALUES ($1,$2,$3,$4::jsonb,$5,$6) " +
+            "ON CONFLICT (idempotency_key) DO NOTHING");
+        ins.Parameters.AddWithValue(m.Id);
+        ins.Parameters.AddWithValue(m.TenantId);
+        ins.Parameters.AddWithValue(m.Type);
+        ins.Parameters.AddWithValue(JsonSerializer.Serialize(m.Payload));
+        ins.Parameters.AddWithValue(m.IdempotencyKey);
+        ins.Parameters.AddWithValue(m.CreatedAt);
+        await ins.ExecuteNonQueryAsync(ct);
+    }
+
     public IReadOnlyList<OutboxMessage> Snapshot()
     {
         using var cmd = db.CreateCommand($"SELECT {OutboxColumns} FROM docframe_outbox ORDER BY created_at DESC LIMIT 200");
@@ -645,6 +659,7 @@ public static class PostgreSqlServiceCollectionExtensions
         services.Replace(ServiceDescriptor.Singleton<IMetadataVersionStore, PostgresMetadataVersionStore>());
         services.Replace(ServiceDescriptor.Singleton<Framework.Security.IUserAccountRepository, PostgresUserAccountRepository>());
         services.Replace(ServiceDescriptor.Singleton<Framework.Files.IFileStore, PostgresFileStore>());
+        services.Replace(ServiceDescriptor.Singleton<Framework.Files.IAttachmentStore, PostgresAttachmentStore>());
         services.AddSingleton<DocumentIndexSync>();
         services.Replace(ServiceDescriptor.Singleton<Framework.Security.IApiKeyStore, PostgresApiKeyStore>());
         services.Replace(ServiceDescriptor.Singleton<Framework.Api.IQueryApiStore, PostgresQueryApiStore>());
