@@ -13,9 +13,476 @@ h1:focus { outline: none; } /* FocusOnNavigate memindahkan fokus ke h1 untuk pem
 .row { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
 .spacer { flex: 1; }
 
-/* ---------- Kerangka ---------- */
-.app-header { display: flex; align-items: center; gap: .75rem; height: 3.5rem; padding: 0 1rem; border-bottom: 1px solid var(--border); background: var(--background); position: sticky; top: 0; z-index: 20; }
-.app-header .tenant { font-size: .8125rem; color: var(--muted-foreground); }
+/* ---------- Kerangka Header Biru Gradasi Fixed Pinned ---------- */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 3.5rem;
+  padding: 0 1.25rem;
+  background: linear-gradient(90deg, #1859c5 0%, #206de6 45%, #2575ee 75%, #1f6ce3 100%);
+  color: #ffffff;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 50 !important;
+  box-shadow: 0 2px 8px -2px rgba(15, 23, 42, 0.18);
+  flex-shrink: 0 !important;
+}
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1 1 0%;
+  min-width: 0;
+}
+.header-left button[data-sidebar="trigger"],
+.header-left .module-pill {
+  color: #ffffff !important;
+}
+.header-left .module-pill {
+  background: rgba(255, 255, 255, 0.14) !important;
+  border-color: rgba(255, 255, 255, 0.25) !important;
+}
+.header-left .module-pill:hover {
+  background: rgba(255, 255, 255, 0.24) !important;
+}
+.app-header .tenant {
+  font-size: 0.8125rem;
+  color: rgba(255, 255, 255, 0.78);
+  white-space: nowrap;
+}
+
+.header-center {
+  flex: 0 1 32rem;
+  width: 100%;
+  max-width: 32rem;
+  display: flex;
+  justify-content: center;
+  margin: 0 1rem;
+}
+.app-header .header-search {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 0.55rem;
+  padding: 0 0.85rem;
+  height: 2.35rem;
+  width: 100%;
+  box-shadow: 0 2px 6px -1px rgba(0, 0, 0, 0.08);
+  transition: all 0.15s ease;
+}
+.app-header .header-search:focus-within {
+  background: #ffffff;
+  border-color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.35);
+}
+.app-header .header-search-icon {
+  color: #475569;
+  flex-shrink: 0;
+}
+.app-header .header-search-input {
+  all: unset;
+  width: 100%;
+  font-size: 0.85rem;
+  color: #1e293b;
+}
+.app-header .header-search-input::placeholder {
+  color: #64748b;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  flex: 1 1 0%;
+  min-width: 0;
+}
+.app-header button.who-chip {
+  background: transparent;
+  color: #ffffff;
+  border: none;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 0.4rem;
+  transition: background 0.15s ease;
+}
+.app-header button.who-chip:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+.who-chip-chevron {
+  opacity: 0.85;
+}
+.app-header .who-chip-avatar {
+  border-color: rgba(255, 255, 255, 0.5);
+}
+.app-header .theme-toggle button {
+  color: #ffffff !important;
+}
+.app-header .theme-toggle button:hover {
+  background: rgba(255, 255, 255, 0.18) !important;
+}
+.header-logout-btn {
+  all: unset;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 0.35rem;
+  cursor: pointer;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #ffffff;
+  transition: background 0.15s ease;
+}
+.header-logout-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+/* ---------- Breadcrumb Bar ---------- */
+.page-top-bar {
+  padding: 0.85rem 2rem 0.25rem;
+  display: flex;
+  align-items: center;
+}
+.crumbs-trail {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+.crumb-home {
+  color: #1e6ce4;
+  display: inline-flex;
+  align-items: center;
+}
+.crumb-sep {
+  color: #94a3b8;
+}
+.crumb-link {
+  all: unset;
+  cursor: pointer;
+  color: #1e6ce4;
+  font-weight: 600;
+}
+.crumb-link:hover {
+  text-decoration: underline;
+}
+.crumb-active {
+  color: #334155;
+  font-weight: 600;
+}
+
+/* ---------- ListPage Header & Action Buttons ---------- */
+.list-header-custom {
+  margin-bottom: 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.list-title-box {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+.list-title-icon-badge {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 0.65rem;
+  background: #1c64d8;
+  color: #ffffff;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 4px 12px -2px rgba(28, 100, 216, 0.35);
+}
+.list-page-title {
+  font-size: 1.45rem !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.02em !important;
+  margin: 0 !important;
+  color: var(--foreground) !important;
+}
+.list-page-sub {
+  font-size: 0.825rem !important;
+  color: var(--muted-foreground) !important;
+  margin: 0.2rem 0 0 !important;
+}
+.btn-action-delete {
+  background: #fef2f2 !important;
+  color: #dc2626 !important;
+  border: 1px solid #fee2e2 !important;
+}
+.btn-action-delete:hover {
+  background: #fee2e2 !important;
+}
+.btn-action-import {
+  background: #ffffff !important;
+  border: 1px solid var(--border) !important;
+  color: var(--foreground) !important;
+}
+.btn-action-new {
+  background: #1c64d8 !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+  box-shadow: 0 2px 8px -1px rgba(28, 100, 216, 0.4) !important;
+}
+
+/* ---------- Background Wave Decoration Menempel dari Kiri ke Kanan Penuh ---------- */
+.app-inset {
+  position: relative !important;
+  min-height: 100vh !important;
+  min-height: 100dvh !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.bottom-full-wave {
+  position: fixed !important;
+  left: var(--sidebar-width, 16rem) !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: auto !important;
+  height: 18rem !important;
+  background-image: url('/_content/Framework.Web/img/bottom-wave-blue.png') !important;
+  background-repeat: no-repeat !important;
+  background-size: 100% 100% !important;
+  background-position: left bottom !important;
+  pointer-events: none !important;
+  z-index: 0 !important;
+  opacity: 0.95 !important;
+  transition: left 0.2s ease !important;
+}
+
+/* Saat sidebar dilipat (collapsed mode icon), geser wave agar menyesuaikan lebar 3rem */
+aside[data-state="collapsed"] ~ * .bottom-full-wave,
+[data-state="collapsed"] ~ .bottom-full-wave,
+[data-collapsible="icon"][data-state="collapsed"] ~ * .bottom-full-wave {
+  left: var(--sidebar-width-icon, 3rem) !important;
+}
+
+.app-main {
+  position: relative;
+  z-index: 1;
+  flex: 1 0 auto;
+  padding: 1.5rem 2rem 5rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* ---------- Warna Elemen Form & Filter List Sesuai Desain Biru Lembut ---------- */
+.filters .filter {
+  background: transparent;
+}
+
+.filters .filter > span {
+  font-size: 0.76rem !important;
+  font-weight: 700 !important;
+  color: #1e3a8a !important;
+}
+
+/* Kotak Input Search, DatePicker, Select di Halaman List */
+.filters input,
+.filters select,
+.filters button[role="combobox"],
+.filters [class*="bb:rounded-md"] {
+  background-color: #ffffff !important;
+  border: 1px solid #c7ddfc !important;
+  border-radius: 0.55rem !important;
+  color: #1e293b !important;
+  box-shadow: 0 1px 3px 0 rgba(30, 58, 138, 0.05) !important;
+}
+
+.filters input:focus,
+.filters select:focus,
+.filters button[role="combobox"]:focus {
+  border-color: #2563eb !important;
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15) !important;
+}
+
+/* Tombol Columns di kanan filter */
+.filters [class*="bb:inline-flex"] button,
+.filters button {
+  border: 1px solid #c7ddfc !important;
+  border-radius: 0.55rem !important;
+  background-color: #ffffff !important;
+  color: #1e3a8a !important;
+  font-weight: 600 !important;
+}
+
+/* Form Page Inputs (FormPage & Edit Page) */
+.form-col input,
+.form-col textarea,
+.form-col select,
+.form-col button[role="combobox"] {
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 0.5rem !important;
+  background-color: #ffffff !important;
+}
+
+.form-col input:focus,
+.form-col textarea:focus,
+.form-col select:focus,
+.form-col button[role="combobox"]:focus {
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15) !important;
+}
+
+.field-static {
+  background-color: #f1f5f9 !important;
+  border: 1px solid #e2e8f0 !important;
+  color: #1e293b !important;
+}
+
+/* Header Tabel Biru Muda (#eaf2fd) */
+.table-wrap {
+  border: 1px solid #dbeafe !important;
+  box-shadow: 0 2px 10px -2px rgba(30, 58, 138, 0.05) !important;
+}
+
+.table-wrap thead th,
+table.data thead th {
+  background-color: #eaf2fd !important;
+  color: #1e3a8a !important;
+  font-weight: 700 !important;
+  font-size: 0.825rem !important;
+  border-bottom: 1px solid #dbeafe !important;
+}
+
+/* ---------- Warna Sidebar Sesuai Gambar Referensi ---------- */
+aside[data-state][data-collapsible],
+[data-sidebar="sidebar"] {
+  background-color: var(--sidebar, #f0f6ff) !important;
+  border-right: 1px solid #e0edfe !important;
+}
+
+[data-sidebar="content"],
+[data-sidebar="footer"] {
+  background-color: transparent !important;
+}
+
+/* Header Brand Sidebar - Disamakan dengan warna Header Biru di sebelah kanan & hilangkan garis pemisah agar menyatu */
+[data-sidebar="header"] {
+  background: #1859c5 !important;
+  color: #ffffff !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-right: none !important;
+  height: 3.5rem !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 0.85rem !important;
+  box-sizing: border-box !important;
+}
+
+[data-sidebar="header"] [data-sidebar="menu"],
+[data-sidebar="header"] [data-sidebar="menu-item"],
+[data-sidebar="header"] [data-sidebar="menu-button"] {
+  width: 100% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: transparent !important;
+}
+
+[data-sidebar="header"] .brand {
+  color: #ffffff !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 0.6rem !important;
+  width: 100% !important;
+}
+
+[data-sidebar="header"] .brand-mark {
+  color: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.6) !important;
+  background: rgba(255, 255, 255, 0.15) !important;
+}
+
+[data-sidebar="header"] [data-sidebar="menu-button"]:hover {
+  background-color: transparent !important;
+  color: #ffffff !important;
+}
+
+/* Hilangkan garis pemisah putih/border di sisi kanan header sidebar agar menyatu mulus dengan header utama */
+aside[data-state][data-collapsible] [data-sidebar="header"] {
+  border-right: none !important;
+}
+
+/* Label Grup Menu (mis. 'Sistem') */
+[data-sidebar="group-label"] {
+  color: #3b82f6 !important;
+  font-weight: 700 !important;
+  font-size: 0.76rem !important;
+  letter-spacing: 0.02em !important;
+}
+
+/* Item Menu Teks & Ikon */
+[data-sidebar="menu-button"] {
+  color: #1e3a8a !important;
+  font-weight: 500 !important;
+  border-radius: 0.6rem !important;
+  transition: all 0.12s ease !important;
+}
+
+[data-sidebar="menu-button"] svg {
+  color: #2563eb !important;
+}
+
+/* Item Menu Hover & Aktif (Pill Biru Muda) */
+[data-sidebar="menu-button"]:hover {
+  background-color: #e0edfe !important;
+  color: #1d4ed8 !important;
+}
+
+[data-sidebar="menu-button"].active,
+[data-sidebar="menu-button"][aria-current="page"],
+[data-sidebar="menu-button"][data-active="true"] {
+  background-color: #dbeafe !important;
+  color: #1d4ed8 !important;
+  font-weight: 600 !important;
+}
+
+[data-sidebar="menu-button"].active svg,
+[data-sidebar="menu-button"][aria-current="page"] svg,
+[data-sidebar="menu-button"][data-active="true"] svg {
+  color: #1d4ed8 !important;
+}
+
+/* Tombol Modul Aktif (mis. Administration) */
+.module-switch-btn {
+  background-color: #dbeafe !important;
+  color: #1d4ed8 !important;
+  font-weight: 600 !important;
+  border-radius: 0.6rem !important;
+}
+
+/* Footer Sidebar (Profil User) */
+.sidebar-user-btn {
+  border-radius: 0.6rem !important;
+  transition: background-color 0.12s ease;
+}
+
+.sidebar-user-btn:hover {
+  background-color: #e0edfe !important;
+}
+
+.sidebar-user-btn .who span:first-child {
+  color: #0f2d59 !important;
+  font-weight: 700 !important;
+}
+
+.sidebar-user-btn .who .muted {
+  color: #64748b !important;
+}
 .app-header .user-select { width: 17rem; max-width: 50vw; }
 .app-main { padding: 1.5rem 2rem 4rem; width: 100%; box-sizing: border-box; }
 .brand { display: flex; align-items: center; gap: .6rem; font-weight: 700; min-width: 0; }

@@ -26,14 +26,14 @@
     --chart-3: oklch(0.7 0.14 70);
     --chart-4: oklch(0.55 0.2 27);
     --chart-5: oklch(0.6 0.08 230);
-    --sidebar: oklch(0.975 0.003 260);
-    --sidebar-foreground: oklch(0.27 0.02 260);
-    --sidebar-primary: oklch(0.43 0.15 278);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.935 0.018 278);
-    --sidebar-accent-foreground: oklch(0.3 0.11 278);
-    --sidebar-border: oklch(0.91 0.006 260);
-    --sidebar-ring: oklch(0.6 0.12 278);
+    --sidebar: #f0f6ff;                         /* Latar sidebar biru muda sangat lembut */
+    --sidebar-foreground: #1e3a8a;              /* Teks menu biru gelap (#1e3a8a) */
+    --sidebar-primary: #1d63cc;
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent: #dbeafe;                  /* Highlight menu terpilih / hover (#dbeafe) */
+    --sidebar-accent-foreground: #1d4ed8;       /* Teks menu terpilih biru kuat */
+    --sidebar-border: #dbeafe;
+    --sidebar-ring: #3b82f6;
     --alert-success: oklch(0.55 0.15 155);
     --alert-success-foreground: oklch(0.32 0.08 155);
     --alert-success-bg: oklch(0.985 0.012 155);

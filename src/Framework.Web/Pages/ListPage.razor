@@ -16,17 +16,23 @@
 }
 else if (meta is not null)
 {
-    <header class="page-head">
-        <div>
-            <h1>@meta.Title</h1>
-            <p>@(result is null ? "Loading…" : $"{TotalText} documents within your access scope")</p>
+    <header class="page-head list-header-custom">
+        <div class="list-title-box">
+            <div class="list-title-icon-badge">
+                <LucideIcon Name="layout-grid" Size="26" />
+            </div>
+            <div>
+                <h1 class="list-page-title">@meta.Title</h1>
+                <p class="list-page-sub">@(result is null ? "Loading…" : $"{TotalText} documents within your access scope")</p>
+            </div>
         </div>
         @if (Perms.Can(Current.Required, meta, DocActions.Create) || Perms.Can(Current.Required, meta, DocActions.Delete))
         {
-            <div class="row">
+            <div class="row list-action-buttons">
                 @if (Perms.Can(Current.Required, meta, DocActions.Delete))
                 {
                     <BbButton Variant="ButtonVariant.Destructive"
+                              Class="btn-action-delete"
                               Disabled="@(selectedItems.Count == 0 || busy)"
                               OnClick="DeleteSelected">
                         <LucideIcon Name="trash-2" Size="16" /> Delete @(selectedItems.Count > 0 ? $"({selectedItems.Count})" : "")
@@ -34,11 +40,15 @@ else if (meta is not null)
                 }
                 @if (Importer.CanImport(Current.Required, meta.Name))
                 {
-                    <BbButton Variant="ButtonVariant.Outline" Href="@($"/app/{meta.Name}/import")"><LucideIcon Name="file-up" Size="16" /> Import</BbButton>
+                    <BbButton Variant="ButtonVariant.Outline" Class="btn-action-import" Href="@($"/app/{meta.Name}/import")">
+                        <LucideIcon Name="file-up" Size="16" /> Import
+                    </BbButton>
                 }
                 @if (Perms.Can(Current.Required, meta, DocActions.Create))
                 {
-                    <BbButton Href="@($"/app/{meta.Name}/new")"><LucideIcon Name="plus" Size="16" /> New @meta.Title.ToLower()</BbButton>
+                    <BbButton Class="btn-action-new" Href="@($"/app/{meta.Name}/new")">
+                        <LucideIcon Name="plus" Size="16" /> New @meta.Title.ToLower()
+                    </BbButton>
                 }
             </div>
         }

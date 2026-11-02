@@ -154,41 +154,77 @@
 
     <BbSidebarInset Class="app-inset">
         <header class="app-header">
-            <BbSidebarTrigger />
-            <BbSeparator Orientation="SeparatorOrientation.Vertical" Style="height:1.25rem" />
-            @if (Current.User is { } cu)
-            {
-                var visibleMods = navModules.Where(m => m.IsVisibleFor(cu)).OrderBy(m => m.SortOrder).ThenBy(m => m.Name).ToList();
-                var active = ResolveActiveModule(visibleMods);
-                @if (active is not null)
+            <div class="header-left">
+                <BbSidebarTrigger />
+                <BbSeparator Orientation="SeparatorOrientation.Vertical" Style="height:1.25rem" />
+                @if (Current.User is { } cu)
                 {
-                    <button type="button" class="module-pill" title="Click to switch module" @onclick="() => isModulePickerOpen = true">
-                        <LucideIcon Name="@(string.IsNullOrWhiteSpace(active.Icon) ? "layout-grid" : active.Icon)" Size="14" />
-                        <span>@active.Name</span>
-                        <LucideIcon Name="chevrons-up-down" Size="13" />
+                    var visibleMods = navModules.Where(m => m.IsVisibleFor(cu)).OrderBy(m => m.SortOrder).ThenBy(m => m.Name).ToList();
+                    var active = ResolveActiveModule(visibleMods);
+                    @if (active is not null)
+                    {
+                        <button type="button" class="module-pill" title="Click to switch module" @onclick="() => isModulePickerOpen = true">
+                            <LucideIcon Name="@(string.IsNullOrWhiteSpace(active.Icon) ? "layout-grid" : active.Icon)" Size="14" />
+                            <span>@active.Name</span>
+                            <LucideIcon Name="chevrons-up-down" Size="13" />
+                        </button>
+                    }
+                    <span class="tenant">Tenant @cu.TenantId</span>
+                }
+                else
+                {
+                    <span class="tenant">Prototype</span>
+                }
+            </div>
+            
+            <div class="header-center">
+                <div class="header-search">
+                    <LucideIcon Name="search" Size="16" Class="header-search-icon" />
+                    <input type="text" placeholder="Search (Alt+Q)" class="header-search-input" />
+                </div>
+            </div>
+
+            <div class="header-right">
+                @if (Current.User is { } who)
+                {
+                    var headerAvatar = who.Attr("avatar");
+                    <button type="button" class="who-chip" title="@($"{string.Join(", ", who.Roles)} · Click for user info & profile photo")" @onclick="OpenUserProfile">
+                        @if (!string.IsNullOrWhiteSpace(headerAvatar))
+                        {
+                            <img class="who-chip-avatar" src="@($"/files/{headerAvatar}")" alt="@who.FullName" />
+                        }
+                        <span>@who.FullName</span>
+                        <LucideIcon Name="chevron-down" Size="13" Class="who-chip-chevron" />
                     </button>
                 }
-                <span class="tenant">Tenant @cu.TenantId</span>
-            }
-            else
-            {
-                <span class="tenant">Prototype</span>
-            }
-            <span class="spacer"></span>
-            @if (Current.User is { } who)
-            {
-                var headerAvatar = who.Attr("avatar");
-                <button type="button" class="who-chip" title="@($"{string.Join(", ", who.Roles)} · Click for user info & profile photo")" @onclick="OpenUserProfile">
-                    @if (!string.IsNullOrWhiteSpace(headerAvatar))
-                    {
-                        <img class="who-chip-avatar" src="@($"/files/{headerAvatar}")" alt="@who.FullName" />
-                    }
-                    <span>@who.FullName</span>
+                <BbSeparator Orientation="SeparatorOrientation.Vertical" Style="height:1.25rem;opacity:0.4;" />
+                <span class="theme-toggle"><BbDarkModeToggle Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" /></span>
+                <button type="button" class="header-logout-btn" @onclick="Logout">
+                    <LucideIcon Name="log-out" Size="16" />
+                    <span>Log out</span>
                 </button>
-            }
-            <span class="theme-toggle"><BbDarkModeToggle Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" /></span>
-            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="Logout"><LucideIcon Name="log-out" Size="16" /> Log out</BbButton>
+            </div>
         </header>
+        <div class="page-top-bar">
+            <div class="crumbs-trail">
+                <a href="" class="crumb-item crumb-home" title="Home"><LucideIcon Name="house" Size="14" /></a>
+                @if (Current.User is { } cuCurrent)
+                {
+                    var visibleMods = navModules.Where(m => m.IsVisibleFor(cuCurrent)).OrderBy(m => m.SortOrder).ThenBy(m => m.Name).ToList();
+                    var active = ResolveActiveModule(visibleMods);
+                    @if (active is not null)
+                    {
+                        <LucideIcon Name="chevron-right" Size="13" Class="crumb-sep" />
+                        <button type="button" class="crumb-link" @onclick="() => isModulePickerOpen = true">@active.Name</button>
+                    }
+                }
+                @if (CurrentDocTypeTitle() is { } docTitle)
+                {
+                    <LucideIcon Name="chevron-right" Size="13" Class="crumb-sep" />
+                    <span class="crumb-item crumb-active">@docTitle</span>
+                }
+            </div>
+        </div>
         <main class="app-main" id="content">
             @if (Current.User is null)
             {
@@ -199,6 +235,7 @@
                 @Body
             }
         </main>
+        <div class="bottom-full-wave" aria-hidden="true"></div>
     </BbSidebarInset>
 </BbSidebarProvider>
 
@@ -369,6 +406,29 @@
     private IEnumerable<DeskMenuItem> VisibleMenuItems(UserContext u) => MenuItems
         .Where(i => i.RequiresReadOf is null || (Metadata.Current.TryGet(i.RequiresReadOf, out var m) && Perms.Can(u, m, DocActions.Read)))
         .OrderBy(i => i.Order);
+
+    private string? CurrentDocTypeTitle()
+    {
+        var rel = Nav.ToBaseRelativePath(Nav.Uri).Trim('/');
+        if (rel.StartsWith("app/", StringComparison.OrdinalIgnoreCase))
+        {
+            var parts = rel.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length >= 2)
+            {
+                var dtName = parts[1];
+                if (Metadata.Current.TryGet(dtName, out var dt))
+                {
+                    return dt.Title;
+                }
+                return dtName;
+            }
+        }
+        else if (rel.Equals("inbox", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Inbox";
+        }
+        return null;
+    }
 
     private static string Initials(string name) => string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(p => p[0]));
 
