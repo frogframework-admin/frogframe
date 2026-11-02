@@ -20,6 +20,9 @@ LOG_PREFIX="[$(date +'%Y-%m-%d %H:%M:%S')] [DocFrame Backup]"
 
 echo "${LOG_PREFIX} Starting backup of '${PGDATABASE}' from ${PGHOST}:${PGPORT}..."
 
+# Never leave a partial/corrupt file that looks like a valid backup.
+trap 'rc=$?; if [ $rc -ne 0 ]; then rm -f "${BACKUP_FILE}"; echo "${LOG_PREFIX} ERROR: backup failed (exit $rc), partial file removed." >&2; fi' EXIT
+
 # Execute pg_dump with custom format (-Fc), verbose, and compression
 pg_dump \
   -h "${PGHOST}" \

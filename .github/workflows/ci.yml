@@ -42,6 +42,14 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore
 
+      - name: Check for vulnerable NuGet packages
+        run: |
+          dotnet list package --vulnerable --include-transitive 2>&1 | tee vulnerable.txt
+          if grep -q -i "has the following vulnerable packages" vulnerable.txt; then
+            echo "::error::Vulnerable NuGet packages found"
+            exit 1
+          fi
+
       - name: Build solution
         run: dotnet build --no-restore --configuration Release
 

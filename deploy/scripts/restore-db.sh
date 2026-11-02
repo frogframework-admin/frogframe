@@ -2,6 +2,7 @@
 # ==============================================================================
 # DocFrame Production PostgreSQL Restore Script
 # Restores a compressed, custom-format (-Fc) dump with safety checks.
+# Exits non-zero if pg_restore reports any error.
 # ==============================================================================
 set -euo pipefail
 
@@ -22,9 +23,15 @@ if [ ! -f "${BACKUP_FILE}" ]; then
   exit 1
 fi
 
+# Validate the archive before touching the target database.
+if ! pg_restore --list "${BACKUP_FILE}" > /dev/null; then
+  echo "Error: '${BACKUP_FILE}' is not a valid pg_dump custom-format archive."
+  exit 1
+fi
+
 if [ "${FORCE}" != "true" ] && [ "${2:-}" != "--force" ]; then
-  echo "WARNING: This will clean and restore database '${PGDATABASE}' on ${PGHOST}:${PGPORT}."
-  read -p "Are you sure you want to proceed? [y/N]: " CONFIRM
+  echo "WARNING: This will drop and recreate objects in database '${PGDATABASE}' on ${PGHOST}:${PGPORT}."
+  read -r -p "Are you sure you want to proceed? [y/N]: " CONFIRM
   if [ "${CONFIRM}" != "y" ] && [ "${CONFIRM}" != "Y" ]; then
     echo "Restore aborted by user."
     exit 0
@@ -34,19 +41,23 @@ fi
 LOG_PREFIX="[$(date +'%Y-%m-%d %H:%M:%S')] [DocFrame Restore]"
 echo "${LOG_PREFIX} Restoring database '${PGDATABASE}' from '${BACKUP_FILE}'..."
 
-pg_restore \
+# --single-transaction: all-or-nothing; a failure leaves the database unchanged.
+# --exit-on-error: stop at the first error instead of continuing silently.
+if ! pg_restore \
   -h "${PGHOST}" \
   -p "${PGPORT}" \
   -U "${PGUSER}" \
   -d "${PGDATABASE}" \
-  -Fc \
   --clean \
   --if-exists \
   --no-owner \
   --no-privileges \
-  -v \
-  "${BACKUP_FILE}" || true
+  --single-transaction \
+  --exit-on-error \
+  "${BACKUP_FILE}"; then
+  echo "${LOG_PREFIX} ERROR: pg_restore failed. The transaction was rolled back; the database was not changed." >&2
+  exit 1
+fi
 
 echo "${LOG_PREFIX} Database restored successfully."
-echo "${LOG_PREFIX} Note: Run 'dotnet run --project src/Apps.Sample' or SchemaMigrator to ensure schema consistency."
-
+echo "${LOG_PREFIX} Next: re-apply deploy/sql/reporting-readonly-user.sql and start the app so SchemaMigrator runs."
