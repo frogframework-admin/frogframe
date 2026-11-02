@@ -1,0 +1,241 @@
+@page "/admin/error-logs"
+@using Framework.Observability
+@using Framework.Security
+@inject IErrorLogStore ErrorStore
+@inject CurrentUser Current
+@inject ToastService Toasts
+@inject DialogService Dialogs
+
+<PageTitle>Error Log · DocFrame</PageTitle>
+
+@if (!Current.Required.IsAdmin)
+{
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>This page is only accessible to Administrators / System Managers.</BbAlertDescription></BbAlert>
+}
+else
+{
+    <header class="page-head">
+        <div>
+            <h1>Error Log</h1>
+            <p>Unhandled server exceptions across HTTP endpoints, APIs, and background processes.</p>
+        </div>
+        <div class="row" style="gap:.5rem">
+            <BbButton Variant="ButtonVariant.Outline" OnClick="ReloadAsync" Disabled="@busy">
+                <LucideIcon Name="refresh-cw" Size="16" /> Refresh
+            </BbButton>
+            <BbButton Variant="ButtonVariant.Destructive" OnClick="ClearAllAsync" Disabled="@(busy || errors.Count == 0)">
+                <LucideIcon Name="trash-2" Size="16" /> Clear All
+            </BbButton>
+        </div>
+    </header>
+
+    @if (selectedEntry is not null)
+    {
+        <BbCard Class="props-block" style="margin-bottom:1.5rem">
+            <BbCardHeader>
+                <div class="row" style="justify-content:space-between;align-items:center;width:100%">
+                    <BbCardTitle Class="card-title">
+                        <LucideIcon Name="alert-circle" Size="18" /> Error Details
+                    </BbCardTitle>
+                    <BbButton Size="ButtonSize.Small" Variant="ButtonVariant.Ghost" OnClick="() => selectedEntry = null">
+                        <LucideIcon Name="x" Size="16" /> Close
+                    </BbButton>
+                </div>
+            </BbCardHeader>
+            <BbCardContent>
+                <div class="stack" style="gap:1rem">
+                    <div class="row" style="gap:2rem">
+                        <div>
+                            <span style="font-size:0.75rem;color:var(--text-muted);text-transform:uppercase">Time</span>
+                            <div><strong>@selectedEntry.Timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</strong></div>
+                        </div>
+                        <div>
+                            <span style="font-size:0.75rem;color:var(--text-muted);text-transform:uppercase">Request</span>
+                            <div><code>@selectedEntry.Method @selectedEntry.Path</code></div>
+                        </div>
+                        <div>
+                            <span style="font-size:0.75rem;color:var(--text-muted);text-transform:uppercase">User</span>
+                            <div>@(string.IsNullOrWhiteSpace(selectedEntry.UserId) ? "Anonymous" : selectedEntry.UserId)</div>
+                        </div>
+                        <div>
+                            <span style="font-size:0.75rem;color:var(--text-muted);text-transform:uppercase">Type</span>
+                            <div><code>@selectedEntry.ErrorType</code></div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <span style="font-size:0.75rem;color:var(--text-muted);text-transform:uppercase">Message</span>
+                        <div style="background:var(--bg-muted);padding:.75rem 1rem;border-radius:6px;font-family:monospace;font-size:0.875rem;color:var(--color-destructive);margin-top:.25rem">
+                            @selectedEntry.Message
+                        </div>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(selectedEntry.StackTrace))
+                    {
+                        <div>
+                            <span style="font-size:0.75rem;color:var(--text-muted);text-transform:uppercase">Stack Trace</span>
+                            <pre style="background:var(--bg-muted);padding:1rem;border-radius:6px;font-size:0.75rem;overflow-x:auto;max-height:24rem;line-height:1.4;margin-top:.25rem">@selectedEntry.StackTrace</pre>
+                        </div>
+                    }
+
+                    <div class="row" style="justify-content:flex-end;gap:.5rem;margin-top:.5rem">
+                        @if (!selectedEntry.Seen)
+                        {
+                            <BbButton Size="ButtonSize.Small" Variant="ButtonVariant.Outline" OnClick="() => MarkSeenAsync(selectedEntry)">
+                                <LucideIcon Name="check" Size="14" /> Mark as Seen
+                            </BbButton>
+                        }
+                    </div>
+                </div>
+            </BbCardContent>
+        </BbCard>
+    }
+
+    <BbDataGrid TData="ErrorLogEntry"
+                Items="@errors"
+                ShowSearch="true"
+                SearchPlaceholder="Search error logs..."
+                ShowPagination="true"
+                InitialPageSize="15"
+                TableContainerClass="table-wrap"
+                RowClass="@(r => selectedEntry?.Id == r.Id ? "selected" : "")">
+        <Columns>
+            <BbDataGridPropertyColumn TData="ErrorLogEntry" TProp="DateTimeOffset" Property="r => r.Timestamp" Title="Timestamp" Width="13rem" Sortable="true">
+                <CellTemplate Context="item">
+                    @item.Timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridPropertyColumn TData="ErrorLogEntry" TProp="string" Property="r => r.Method" Title="Method" Width="6rem" Sortable="true">
+                <CellTemplate Context="item">
+                    <BbBadge Variant="BadgeVariant.Outline">@item.Method</BbBadge>
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridPropertyColumn TData="ErrorLogEntry" TProp="string" Property="r => r.Path" Title="Path" Width="14rem" Sortable="true" Filterable="true">
+                <CellTemplate Context="item">
+                    <code>@item.Path</code>
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridPropertyColumn TData="ErrorLogEntry" TProp="string" Property="r => r.ErrorType" Title="Error Type" Width="16rem" Sortable="true" Filterable="true">
+                <CellTemplate Context="item">
+                    <span style="font-weight:600;font-size:0.825rem">@item.ErrorType.Split('.').Last()</span>
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridPropertyColumn TData="ErrorLogEntry" TProp="string" Property="r => r.Message" Title="Message">
+                <CellTemplate Context="item">
+                    <span style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-overflow:ellipsis">
+                        @item.Message
+                    </span>
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridTemplateColumn TData="ErrorLogEntry" Title="Status" Width="7rem" Sortable="true" SortBy="r => r.Seen">
+                <ChildContent Context="item">
+                    @if (item.Seen)
+                    {
+                        <BbBadge Variant="BadgeVariant.Soft">Seen</BbBadge>
+                    }
+                    else
+                    {
+                        <BbBadge Variant="BadgeVariant.Destructive">New</BbBadge>
+                    }
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+
+            <BbDataGridTemplateColumn TData="ErrorLogEntry" Title="Action" Width="8rem">
+                <ChildContent Context="item">
+                    <BbButton Size="ButtonSize.Small" Variant="ButtonVariant.Ghost" OnClick="() => SelectEntry(item)">
+                        <LucideIcon Name="eye" Size="14" /> View
+                    </BbButton>
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+        </Columns>
+    </BbDataGrid>
+}
+
+@code {
+    private List<ErrorLogEntry> errors = [];
+    private ErrorLogEntry? selectedEntry;
+    private bool busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        busy = true;
+        try
+        {
+            var list = await ErrorStore.GetRecentAsync(Current.Required.TenantId, 100);
+            errors = list.ToList();
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error(ex.Message, "Failed to load error logs");
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private void SelectEntry(ErrorLogEntry entry)
+    {
+        selectedEntry = entry;
+    }
+
+    private async Task MarkSeenAsync(ErrorLogEntry entry)
+    {
+        try
+        {
+            await ErrorStore.MarkSeenAsync(entry.Id);
+            var idx = errors.FindIndex(e => e.Id == entry.Id);
+            if (idx >= 0)
+            {
+                errors[idx] = errors[idx] with { Seen = true };
+            }
+            if (selectedEntry?.Id == entry.Id)
+            {
+                selectedEntry = selectedEntry with { Seen = true };
+            }
+            Toasts.Success("Marked error as seen.", "Updated");
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error(ex.Message, "Failed to update error");
+        }
+    }
+
+    private async Task ClearAllAsync()
+    {
+        var res = await Dialogs.ConfirmAsync(
+            "Clear all error logs?",
+            "All recorded error logs for this tenant will be permanently deleted. This action cannot be undone.",
+            new ConfirmDialogOptions { Destructive = true, ConfirmText = "Clear Logs", CancelText = "Cancel" });
+
+        if (!res.Confirmed) return;
+
+        busy = true;
+        try
+        {
+            await ErrorStore.ClearAsync(Current.Required.TenantId);
+            selectedEntry = null;
+            await ReloadAsync();
+            Toasts.Success("Error logs cleared successfully.", "Cleared");
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error(ex.Message, "Failed to clear logs");
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+}
+

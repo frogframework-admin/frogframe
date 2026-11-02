@@ -43,6 +43,12 @@ sealed partial class Tests
 
         var menuAdmin = items.FirstOrDefault(x => x.Href == "admin/menus");
         Assert.True(menuAdmin is not null && menuAdmin.IsSystem && menuAdmin.AllowedRoles.Contains(UserContext.SystemManager), "Kelola Menu harus di-seed");
+
+        var scheduledJobs = items.FirstOrDefault(x => x.Href == "admin/jobs");
+        Assert.True(scheduledJobs is not null && scheduledJobs.IsSystem && scheduledJobs.AllowedRoles.Contains(UserContext.SystemManager), "Scheduled Jobs harus di-seed");
+
+        var errorLogs = items.FirstOrDefault(x => x.Href == "admin/error-logs");
+        Assert.True(errorLogs is not null && errorLogs.IsSystem && errorLogs.AllowedRoles.Contains(UserContext.SystemManager), "Error Log harus di-seed");
     }
 
     [Test]
@@ -69,11 +75,15 @@ sealed partial class Tests
         Assert.True(!empVisible.Any(x => x.Href == "admin/api-keys"), "Karyawan dilarang melihat Kunci API");
         Assert.True(!empVisible.Any(x => x.Href == "admin/users"), "Karyawan dilarang melihat Pengguna");
         Assert.True(!empVisible.Any(x => x.Href == "admin/menus"), "Karyawan dilarang melihat Kelola Menu");
+        Assert.True(!empVisible.Any(x => x.Href == "admin/jobs"), "Karyawan dilarang melihat Scheduled Jobs");
+        Assert.True(!empVisible.Any(x => x.Href == "admin/error-logs"), "Karyawan dilarang melihat Error Log");
 
         // Admin dapat melihat semua menu
         Assert.True(adminVisible.Any(x => x.Href == "admin/metadata"), "Admin dapat melihat Metadata DocType");
         Assert.True(adminVisible.Any(x => x.Href == "admin/workflows"), "Admin dapat melihat Workflow");
         Assert.True(adminVisible.Any(x => x.Href == "admin/menus"), "Admin dapat melihat Kelola Menu");
+        Assert.True(adminVisible.Any(x => x.Href == "admin/jobs"), "Admin dapat melihat Scheduled Jobs");
+        Assert.True(adminVisible.Any(x => x.Href == "admin/error-logs"), "Admin dapat melihat Error Log");
     }
 
     [Test]

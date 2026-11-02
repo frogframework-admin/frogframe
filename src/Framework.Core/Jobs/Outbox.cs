@@ -1,5 +1,6 @@
 using Framework.Documents;
 using Framework.Metadata;
+using Framework.Observability;
 using Framework.Persistence;
 using Framework.Security;
 
@@ -43,11 +44,13 @@ public sealed class OutboxProcessor(IOutboxStore outbox, IEnumerable<IEventHandl
                     await h.HandleAsync(msg, ct);
                 msg.ProcessedAt = clock.GetUtcNow();
                 ok++;
+                DocFrameTelemetry.OutboxEventsProcessed.Add(1, new KeyValuePair<string, object?>("type", msg.Type));
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 msg.Attempts++;
                 msg.LastError = ex.Message;
+                DocFrameTelemetry.OutboxEventsFailed.Add(1, new KeyValuePair<string, object?>("type", msg.Type));
                 if (msg.Attempts >= MaxAttempts) { msg.DeadLettered = true; dead++; }
                 else { msg.NextAttemptAt = clock.GetUtcNow().AddSeconds(Math.Pow(2, msg.Attempts)); failed++; }
             }

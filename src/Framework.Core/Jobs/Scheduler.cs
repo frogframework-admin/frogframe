@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Framework.Documents;
+using Framework.Observability;
 using Framework.Security;
 
 namespace Framework.Jobs;
@@ -316,6 +317,8 @@ public sealed class ScheduledJobRunner(
             sw.Stop();
         }
 
+        DocFrameTelemetry.ScheduledJobRuns.Add(1, new KeyValuePair<string, object?>("job", job.Name), new KeyValuePair<string, object?>("status", status));
+
         var entry = new ScheduledJobRunEntry
         {
             JobName = job.Name,
@@ -423,6 +426,7 @@ public sealed class ScheduledJobRunner(
                     finally
                     {
                         sw.Stop();
+                        DocFrameTelemetry.ScheduledJobRuns.Add(1, new KeyValuePair<string, object?>("job", job.Name), new KeyValuePair<string, object?>("status", status));
                         var entry = new ScheduledJobRunEntry
                         {
                             JobName = job.Name,

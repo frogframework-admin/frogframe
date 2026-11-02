@@ -1,0 +1,203 @@
+@page "/admin/jobs"
+@using Framework.Jobs
+@using Framework.Security
+@inject ScheduledJobRunner Runner
+@inject IScheduledJobLogStore LogStore
+@inject CurrentUser Current
+@inject ToastService Toasts
+
+<PageTitle>Scheduled Jobs · DocFrame</PageTitle>
+
+@if (!Current.Required.IsAdmin)
+{
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>This page is only accessible to Administrators / System Managers.</BbAlertDescription></BbAlert>
+}
+else
+{
+    <header class="page-head">
+        <div>
+            <h1>Scheduled Jobs</h1>
+            <p>Background tasks executed on cron schedules across tenants with distributed locking and audit history.</p>
+        </div>
+        <div class="row" style="gap:.5rem">
+            <BbButton Variant="ButtonVariant.Outline" OnClick="ReloadRunsAsync" Disabled="@busy">
+                <LucideIcon Name="refresh-cw" Size="16" /> Refresh
+            </BbButton>
+        </div>
+    </header>
+
+    <div class="stack" style="gap:2rem">
+        <BbCard>
+            <BbCardHeader>
+                <BbCardTitle Class="card-title">Registered Jobs (@Runner.RegisteredJobs.Count)</BbCardTitle>
+            </BbCardHeader>
+            <BbCardContent>
+                <div class="table-wrap">
+                    <table class="table" style="width:100%">
+                        <thead>
+                            <tr>
+                                <th style="text-align:left">Job Name</th>
+                                <th style="text-align:left">Schedule</th>
+                                <th style="text-align:left">Normalized Cron</th>
+                                <th style="text-align:right">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (Runner.RegisteredJobs.Count == 0)
+                            {
+                                <tr>
+                                    <td colspan="4" style="text-align:center;color:var(--text-muted);padding:1.5rem">No background jobs registered.</td>
+                                </tr>
+                            }
+                            else
+                            {
+                                @foreach (var job in Runner.RegisteredJobs)
+                                {
+                                    <tr>
+                                        <td>
+                                            <div class="row" style="gap:.5rem;align-items:center">
+                                                <LucideIcon Name="clock" Size="16" />
+                                                <strong>@job.Name</strong>
+                                            </div>
+                                        </td>
+                                        <td><code>@job.Schedule</code></td>
+                                        <td><span style="color:var(--text-muted)">@CronSchedule.Normalize(job.Schedule)</span></td>
+                                        <td style="text-align:right">
+                                            <BbButton Size="ButtonSize.Small" Variant="ButtonVariant.Outline"
+                                                      OnClick="() => RunJobAsync(job.Name)"
+                                                      Disabled="@busy">
+                                                <LucideIcon Name="play" Size="14" /> Run Now
+                                            </BbButton>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </BbCardContent>
+        </BbCard>
+
+        <BbCard>
+            <BbCardHeader>
+                <BbCardTitle Class="card-title">Recent Execution Runs</BbCardTitle>
+            </BbCardHeader>
+            <BbCardContent>
+                <BbDataGrid TData="ScheduledJobRunEntry"
+                            Items="@recentRuns"
+                            ShowSearch="true"
+                            SearchPlaceholder="Filter job history..."
+                            ShowPagination="true"
+                            InitialPageSize="15"
+                            TableContainerClass="table-wrap">
+                    <Columns>
+                        <BbDataGridPropertyColumn TData="ScheduledJobRunEntry" TProp="string" Property="r => r.JobName" Title="Job Name" Width="14rem" Sortable="true" Filterable="true">
+                            <CellTemplate Context="item">
+                                <strong>@item.JobName</strong>
+                            </CellTemplate>
+                        </BbDataGridPropertyColumn>
+
+                        <BbDataGridPropertyColumn TData="ScheduledJobRunEntry" TProp="string" Property="r => r.TenantId" Title="Tenant" Width="8rem" Sortable="true" Filterable="true" />
+
+                        <BbDataGridPropertyColumn TData="ScheduledJobRunEntry" TProp="DateTimeOffset" Property="r => r.StartedAt" Title="Started At" Width="14rem" Sortable="true">
+                            <CellTemplate Context="item">
+                                @item.StartedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")
+                            </CellTemplate>
+                        </BbDataGridPropertyColumn>
+
+                        <BbDataGridPropertyColumn TData="ScheduledJobRunEntry" TProp="int?" Property="r => r.DurationMs" Title="Duration" Width="8rem" Sortable="true">
+                            <CellTemplate Context="item">
+                                @(item.DurationMs.HasValue ? $"{item.DurationMs.Value} ms" : "—")
+                            </CellTemplate>
+                        </BbDataGridPropertyColumn>
+
+                        <BbDataGridTemplateColumn TData="ScheduledJobRunEntry" Title="Status" Width="9rem" Sortable="true" SortBy="r => r.Status">
+                            <ChildContent Context="item">
+                                @if (item.Status == "Success")
+                                {
+                                    <BbBadge Variant="BadgeVariant.Soft">Success</BbBadge>
+                                }
+                                else if (item.Status == "Failed")
+                                {
+                                    <BbBadge Variant="BadgeVariant.Destructive">Failed</BbBadge>
+                                }
+                                else
+                                {
+                                    <BbBadge Variant="BadgeVariant.Outline">@item.Status</BbBadge>
+                                }
+                            </ChildContent>
+                        </BbDataGridTemplateColumn>
+
+                        <BbDataGridPropertyColumn TData="ScheduledJobRunEntry" TProp="string" Property="r => r.Error" Title="Error Message">
+                            <CellTemplate Context="item">
+                                @if (!string.IsNullOrEmpty(item.Error))
+                                {
+                                    <span style="color:var(--color-destructive);font-family:monospace;font-size:0.825rem">@item.Error</span>
+                                }
+                                else
+                                {
+                                    <span style="color:var(--text-muted)">—</span>
+                                }
+                            </CellTemplate>
+                        </BbDataGridPropertyColumn>
+                    </Columns>
+                </BbDataGrid>
+            </BbCardContent>
+        </BbCard>
+    </div>
+}
+
+@code {
+    private List<ScheduledJobRunEntry> recentRuns = [];
+    private bool busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadRunsAsync();
+    }
+
+    private async Task ReloadRunsAsync()
+    {
+        busy = true;
+        try
+        {
+            var runs = await LogStore.GetRecentRunsAsync(Current.Required.TenantId, 100);
+            recentRuns = runs.ToList();
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error(ex.Message, "Failed to load runs");
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task RunJobAsync(string jobName)
+    {
+        busy = true;
+        try
+        {
+            var result = await Runner.RunJobNowAsync(jobName, Current.Required.TenantId);
+            if (result.Status == "Success")
+            {
+                Toasts.Success($"Job '{jobName}' completed in {result.DurationMs} ms.", "Job Executed");
+            }
+            else
+            {
+                Toasts.Error(result.Error ?? "Unknown error", $"Job '{jobName}' Failed");
+            }
+            await ReloadRunsAsync();
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error(ex.Message, $"Execution Failed");
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+}
+

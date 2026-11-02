@@ -1,3 +1,4 @@
+using Framework.Observability;
 using Framework.Persistence;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics;
@@ -55,6 +56,39 @@ public static class HttpHardeningExtensions
                 var ex = feature?.Error;
                 var logger = context.RequestServices.GetService<ILoggerFactory>()?.CreateLogger("DocFrame.Http");
                 logger?.LogError(ex, "Unhandled exception on {Method} {Path}", context.Request.Method, context.Request.Path);
+
+                DocFrameTelemetry.HttpErrors.Add(1);
+
+                if (ex is not null)
+                {
+                    try
+                    {
+                        var errorStore = context.RequestServices.GetService<IErrorLogStore>();
+                        if (errorStore is not null)
+                        {
+                            var user = context.RequestServices.GetService<CurrentUser>()?.User;
+                            var tenantId = user?.TenantId ?? "acme";
+                            var userId = user?.Id ?? context.User.Identity?.Name;
+
+                            await errorStore.LogAsync(new ErrorLogEntry
+                            {
+                                TenantId = tenantId,
+                                Timestamp = DateTimeOffset.UtcNow,
+                                Method = context.Request.Method,
+                                Path = context.Request.Path.Value ?? "",
+                                UserId = userId,
+                                ErrorType = ex.GetType().FullName ?? ex.GetType().Name,
+                                Message = ex.Message,
+                                StackTrace = ex.StackTrace,
+                                Seen = false
+                            });
+                        }
+                    }
+                    catch
+                    {
+                        // Ensure exception logging failure never masks original error
+                    }
+                }
 
                 if (context.Request.Path.StartsWithSegments("/api"))
                 {

@@ -3,6 +3,7 @@ using Framework.Expressions;
 using Framework.Files;
 using Framework.Hooks;
 using Framework.Metadata;
+using Framework.Observability;
 using Framework.Persistence;
 using Framework.Security;
 using Framework.Validation;
@@ -509,6 +510,7 @@ public sealed class DocumentService(
         uow.Outbox.Add(Event(current, "document.deleted", user));
         uow.Outbox.AddRange(deleteEvents);
         await store.CommitAsync(uow, ct);
+        DocFrameTelemetry.DocumentOperations.Add(1, new KeyValuePair<string, object?>("doctype", docType), new KeyValuePair<string, object?>("operation", "Delete"));
 
         await hooks.RunAsync(DocHookStage.AfterDelete, deleteContext, ct);
     }
@@ -784,6 +786,7 @@ public sealed class DocumentService(
         uow.Outbox.AddRange(ctx.Events);
         await store.CommitAsync(uow, ct); // event eksternal baru diproses setelah commit melalui outbox
         doc.TransientMessages.AddRange(ctx.Messages);
+        DocFrameTelemetry.DocumentOperations.Add(1, new KeyValuePair<string, object?>("doctype", doc.DocType), new KeyValuePair<string, object?>("operation", ctx.Operation.ToString()));
     }
 
     private HookContext CreateHookContext(DocumentContext ctx) =>

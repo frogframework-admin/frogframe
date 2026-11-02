@@ -389,6 +389,38 @@ public static class NavigationMenuDefaults
             IsActive = true,
             CreatedAt = now,
             UpdatedAt = now
+        },
+        new()
+        {
+            Id = $"menu_{tenantId}_scheduled_jobs",
+            TenantId = tenantId,
+            Title = "Scheduled Jobs",
+            Href = "admin/jobs",
+            Icon = "clock",
+            GroupId = GroupSistemId(tenantId),
+            GroupName = "System",
+            SortOrder = 160,
+            AllowedRoles = [UserContext.SystemManager, UserContext.Administrator],
+            IsSystem = true,
+            IsActive = true,
+            CreatedAt = now,
+            UpdatedAt = now
+        },
+        new()
+        {
+            Id = $"menu_{tenantId}_error_logs",
+            TenantId = tenantId,
+            Title = "Error Log",
+            Href = "admin/error-logs",
+            Icon = "triangle-alert",
+            GroupId = GroupSistemId(tenantId),
+            GroupName = "System",
+            SortOrder = 170,
+            AllowedRoles = [UserContext.SystemManager, UserContext.Administrator],
+            IsSystem = true,
+            IsActive = true,
+            CreatedAt = now,
+            UpdatedAt = now
         }
     ];
 }

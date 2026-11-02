@@ -7,6 +7,7 @@ using Framework.Reports;
 using Framework.Api;
 using Framework.Imports;
 using Framework.Navigation;
+using Framework.Observability;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Builder;
@@ -201,6 +202,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IDistributedLock, InMemoryDistributedLock>();
         services.TryAddSingleton<ITenantProvider, DefaultTenantProvider>();
         services.TryAddSingleton<IScheduledJobLogStore, InMemoryScheduledJobLogStore>();
+        services.TryAddSingleton<IErrorLogStore, InMemoryErrorLogStore>();
         services.AddSingleton<ScheduledJobRunner>();
         services.AddHostedService<SchedulerWorker>();
 

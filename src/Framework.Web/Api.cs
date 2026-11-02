@@ -12,6 +12,7 @@ using Framework.Reports;
 using Framework.Api;
 using Microsoft.Extensions.Logging;
 using System.Security.Claims;
+using Framework.Observability;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -393,6 +394,29 @@ public static class DocApi
         {
             // Jangan bocorkan detail internal (stack, SQL) ke klien API; detail ada di log server.
             http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("Framework.Api").LogError(ex, "API {Method} {Path} gagal", http.Request.Method, http.Request.Path);
+            DocFrameTelemetry.HttpErrors.Add(1);
+            try
+            {
+                if (http.RequestServices.GetService<IErrorLogStore>() is { } errorStore)
+                {
+                    _ = errorStore.LogAsync(new ErrorLogEntry
+                    {
+                        TenantId = user?.TenantId ?? "acme",
+                        Timestamp = DateTimeOffset.UtcNow,
+                        Method = http.Request.Method,
+                        Path = http.Request.Path.Value ?? "",
+                        UserId = user?.Id ?? http.User.Identity?.Name,
+                        ErrorType = ex.GetType().FullName ?? ex.GetType().Name,
+                        Message = ex.Message,
+                        StackTrace = ex.StackTrace,
+                        Seen = false
+                    });
+                }
+            }
+            catch
+            {
+                // Ignore failure in error logging
+            }
             return Problem(500, "Kesalahan internal", "Terjadi kesalahan di server. Hubungi administrator (rujuk waktu kejadian).");
         }
     }
