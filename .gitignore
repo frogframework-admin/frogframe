@@ -56,3 +56,7 @@ ehthumbs.db
 ## Secrets / Environment
 *.local.json
 .env
+
+## Database Backups
+backups/
+*.dump
