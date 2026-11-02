@@ -53,3 +53,4 @@ jobs:
           DOCFRAME_TEST_PG: "Host=127.0.0.1;Port=5432;Database=docframe;Username=docframe;Password=docframe"
           DOCFRAME_TEST_PG_RO: "Host=127.0.0.1;Port=5432;Database=docframe;Username=docframe_ro;Password=ganti-password-ini"
         run: dotnet run --project tests/Framework.Tests/Framework.Tests.csproj --configuration Release --no-build
+

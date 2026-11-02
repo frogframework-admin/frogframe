@@ -124,6 +124,7 @@ public interface IScheduledJobLogStore
 {
     Task<DateTimeOffset?> GetLastRunAsync(string jobName, string tenantId, CancellationToken ct = default);
     Task RecordRunAsync(ScheduledJobRunEntry entry, CancellationToken ct = default);
+    Task<IReadOnlyList<ScheduledJobRunEntry>> GetRecentRunsAsync(string? tenantId = null, int limit = 50, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -144,6 +145,16 @@ public sealed class InMemoryScheduledJobLogStore : IScheduledJobLogStore
         _lastRuns[(entry.JobName, entry.TenantId)] = entry.StartedAt;
         _entries.Add(entry);
         return Task.CompletedTask;
+    }
+
+    public Task<IReadOnlyList<ScheduledJobRunEntry>> GetRecentRunsAsync(string? tenantId = null, int limit = 50, CancellationToken ct = default)
+    {
+        var runs = _entries
+            .Where(e => tenantId is null || e.TenantId == tenantId)
+            .OrderByDescending(e => e.StartedAt)
+            .Take(limit)
+            .ToList();
+        return Task.FromResult<IReadOnlyList<ScheduledJobRunEntry>>(runs);
     }
 
     public IReadOnlyCollection<ScheduledJobRunEntry> Entries => _entries;
@@ -265,6 +276,68 @@ public sealed class ScheduledJobRunner(
     private readonly ISchedulerLogger _logger = logger ?? NullSchedulerLogger.Instance;
     private readonly IScheduledJobLogStore _logStore = logStore ?? new InMemoryScheduledJobLogStore();
     private readonly ConcurrentDictionary<(string JobName, string TenantId), DateTimeOffset> _lastRuns = new();
+
+    public IReadOnlyList<IScheduledJob> RegisteredJobs { get; } = jobs.ToList();
+
+    public async Task<ScheduledJobRunEntry> RunJobNowAsync(string jobName, string tenantId, CancellationToken ct = default)
+    {
+        var job = RegisteredJobs.FirstOrDefault(j => j.Name == jobName)
+            ?? throw new KeyNotFoundException($"Job '{jobName}' not found");
+
+        var now = DateTimeOffset.UtcNow;
+        var context = new ScheduledJobContext
+        {
+            TenantId = tenantId,
+            SystemUser = UserContext.System(tenantId),
+            Docs = documentService,
+            Services = serviceProvider,
+            ScheduledTime = now,
+            Logger = _logger
+        };
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        string status = "Success";
+        string? error = null;
+
+        try
+        {
+            _logger.LogJobStarting(job.Name, tenantId, now);
+            await job.ExecuteAsync(context, ct).ConfigureAwait(false);
+            _logger.LogJobCompleted(job.Name, tenantId);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            status = "Failed";
+            error = ex.Message;
+            _logger.LogJobFailed(ex, job.Name, tenantId);
+        }
+        finally
+        {
+            sw.Stop();
+        }
+
+        var entry = new ScheduledJobRunEntry
+        {
+            JobName = job.Name,
+            TenantId = tenantId,
+            StartedAt = now,
+            CompletedAt = DateTimeOffset.UtcNow,
+            DurationMs = (int)sw.ElapsedMilliseconds,
+            Status = status,
+            Error = error
+        };
+
+        try
+        {
+            await _logStore.RecordRunAsync(entry, ct).ConfigureAwait(false);
+        }
+        catch (Exception logEx) when (logEx is not OperationCanceledException)
+        {
+            _logger.LogJobFailed(logEx, job.Name, tenantId);
+        }
+
+        return entry;
+    }
 
     public async Task<DateTimeOffset?> GetLastRunAsync(string jobName, string tenantId, CancellationToken ct = default)
     {

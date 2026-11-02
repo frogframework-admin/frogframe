@@ -156,5 +156,33 @@ public sealed class PostgresScheduledJobLogStore(NpgsqlDataSource db) : ISchedul
 
         await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
     }
+
+    public async Task<IReadOnlyList<ScheduledJobRunEntry>> GetRecentRunsAsync(string? tenantId = null, int limit = 50, CancellationToken ct = default)
+    {
+        await using var cmd = db.CreateCommand(
+            "SELECT job_name, tenant_id, started_at, completed_at, duration_ms, status, error " +
+            "FROM docframe_scheduled_job_runs " +
+            "WHERE ($1 IS NULL OR tenant_id = $1) " +
+            "ORDER BY started_at DESC LIMIT $2");
+        cmd.Parameters.AddWithValue((object?)tenantId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue(limit);
+
+        var list = new List<ScheduledJobRunEntry>();
+        await using var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+        while (await reader.ReadAsync(ct).ConfigureAwait(false))
+        {
+            list.Add(new ScheduledJobRunEntry
+            {
+                JobName = reader.GetString(0),
+                TenantId = reader.GetString(1),
+                StartedAt = reader.GetFieldValue<DateTimeOffset>(2),
+                CompletedAt = reader.IsDBNull(3) ? null : reader.GetFieldValue<DateTimeOffset>(3),
+                DurationMs = reader.IsDBNull(4) ? null : reader.GetInt32(4),
+                Status = reader.GetString(5),
+                Error = reader.IsDBNull(6) ? null : reader.GetString(6)
+            });
+        }
+        return list;
+    }
 }
 
