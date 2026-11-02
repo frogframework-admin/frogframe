@@ -483,6 +483,296 @@ aside[data-state][data-collapsible] [data-sidebar="header"] {
 .sidebar-user-btn .who .muted {
   color: #64748b !important;
 }
+
+/* ==========================================================================
+   TEMA GELAP (DARK MODE) - PENGATURAN LENGKAP UNTUK DESK, HEADER & KOMPONEN
+   ========================================================================== */
+
+/* 1. Header & Sidebar Header Dark Gradient */
+.dark .app-header {
+  background: linear-gradient(90deg, #0b1120 0%, #111a2e 45%, #16223d 75%, #10182b 100%) !important;
+  color: #ffffff !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 2px 10px -2px rgba(0, 0, 0, 0.5) !important;
+}
+
+.dark [data-sidebar="header"] {
+  background: #0b1120 !important;
+  color: #ffffff !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-right: none !important;
+}
+
+.dark .header-left .module-pill {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-color: rgba(255, 255, 255, 0.18) !important;
+  color: #ffffff !important;
+}
+.dark .header-left .module-pill:hover {
+  background: rgba(255, 255, 255, 0.18) !important;
+}
+
+.dark .app-header .header-search {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 0 2px 6px -1px rgba(0, 0, 0, 0.3) !important;
+}
+.dark .app-header .header-search:focus-within {
+  background: rgba(255, 255, 255, 0.14) !important;
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25) !important;
+}
+.dark .app-header .header-search-icon {
+  color: #94a3b8 !important;
+}
+.dark .app-header .header-search-input {
+  color: #f8fafc !important;
+}
+.dark .app-header .header-search-input::placeholder {
+  color: #94a3b8 !important;
+}
+
+/* 2. Wave Latar Belakang Bawah dalam Dark Mode */
+.dark .bottom-full-wave {
+  background-image: linear-gradient(180deg, var(--background) 0%, transparent 22%), url('/_content/Framework.Web/img/bottom-wave-dark.png') !important;
+  background-repeat: no-repeat !important;
+  background-size: 100% 100% !important;
+  background-position: left bottom !important;
+  opacity: 0.88 !important;
+}
+
+/* 3. Sidebar Dark Mode */
+.dark aside[data-state][data-collapsible],
+.dark [data-sidebar="sidebar"] {
+  background-color: var(--sidebar, #0b1120) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.dark [data-sidebar="group-label"] {
+  color: #60a5fa !important;
+}
+
+.dark [data-sidebar="menu-button"] {
+  color: #94a3b8 !important;
+}
+
+.dark [data-sidebar="menu-button"] svg {
+  color: #60a5fa !important;
+}
+
+.dark [data-sidebar="menu-button"]:hover {
+  background-color: rgba(59, 130, 246, 0.15) !important;
+  color: #ffffff !important;
+}
+
+.dark [data-sidebar="menu-button"]:hover svg {
+  color: #93c5fd !important;
+}
+
+.dark [data-sidebar="menu-button"].active,
+.dark [data-sidebar="menu-button"][aria-current="page"],
+.dark [data-sidebar="menu-button"][data-active="true"] {
+  background-color: rgba(37, 99, 235, 0.28) !important;
+  color: #93c5fd !important;
+  font-weight: 600 !important;
+}
+
+.dark [data-sidebar="menu-button"].active svg,
+.dark [data-sidebar="menu-button"][aria-current="page"] svg,
+.dark [data-sidebar="menu-button"][data-active="true"] svg {
+  color: #93c5fd !important;
+}
+
+.dark .module-switch-btn {
+  background-color: rgba(37, 99, 235, 0.28) !important;
+  color: #93c5fd !important;
+}
+
+.dark .sidebar-user-btn:hover {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.dark .sidebar-user-btn .who span:first-child {
+  color: #f1f5f9 !important;
+}
+
+.dark .sidebar-user-btn .who .muted {
+  color: #94a3b8 !important;
+}
+
+/* 4. Breadcrumbs Trail Dark Mode */
+.dark .crumb-home {
+  color: #60a5fa !important;
+}
+.dark .crumb-sep {
+  color: #64748b !important;
+}
+.dark .crumb-link {
+  color: #60a5fa !important;
+}
+.dark .crumb-active {
+  color: #f1f5f9 !important;
+}
+
+/* 5. ListPage Header & Action Buttons */
+.dark .list-title h1 {
+  color: #f8fafc !important;
+}
+.dark .list-title-sub {
+  color: #94a3b8 !important;
+}
+.dark .list-title-icon-badge {
+  background: #2563eb !important;
+  color: #ffffff !important;
+}
+
+.dark .btn-action-delete {
+  background: rgba(239, 68, 68, 0.18) !important;
+  color: #fca5a5 !important;
+  border: 1px solid rgba(239, 68, 68, 0.35) !important;
+}
+.dark .btn-action-delete:hover {
+  background: rgba(239, 68, 68, 0.28) !important;
+  color: #fee2e2 !important;
+}
+
+.dark .btn-action-import {
+  background: #1e293b !important;
+  color: #cbd5e1 !important;
+  border: 1px solid #334155 !important;
+}
+.dark .btn-action-import:hover {
+  background: #273549 !important;
+  color: #f8fafc !important;
+}
+
+.dark .btn-action-new {
+  background: #2563eb !important;
+  color: #ffffff !important;
+}
+.dark .btn-action-new:hover {
+  background: #1d4ed8 !important;
+}
+
+/* 6. Filter & Search Controls pada Halaman List */
+.dark .filters .filter > span {
+  color: #93c5fd !important;
+}
+
+.dark .filters input,
+.dark .filters select,
+.dark .filters button[role="combobox"],
+.dark .filters [class*="bb:rounded-md"] {
+  background-color: #1e293b !important;
+  border: 1px solid #334155 !important;
+  color: #f8fafc !important;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3) !important;
+}
+
+.dark .filters input:focus,
+.dark .filters select:focus,
+.dark .filters button[role="combobox"]:focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25) !important;
+}
+
+.dark .filters [class*="bb:inline-flex"] button,
+.dark .filters button {
+  background-color: #1e293b !important;
+  border: 1px solid #334155 !important;
+  color: #93c5fd !important;
+}
+
+.dark .filters [class*="bb:inline-flex"] button:hover,
+.dark .filters button:hover {
+  background-color: #273549 !important;
+  color: #ffffff !important;
+}
+
+.dark .filter-search-box {
+  background-color: #1e293b !important;
+  border: 1px solid #334155 !important;
+}
+.dark .filter-search-box:focus-within {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2) !important;
+}
+.dark .filter-search-box input {
+  color: #f8fafc !important;
+}
+.dark .filter-search-box input::placeholder {
+  color: #94a3b8 !important;
+}
+.dark .filter-search-icon {
+  color: #60a5fa !important;
+}
+
+.dark .filter-date-box {
+  background-color: #1e293b !important;
+  border: 1px solid #334155 !important;
+}
+.dark .filter-date-btn {
+  color: #cbd5e1 !important;
+}
+.dark .filter-date-icon {
+  color: #60a5fa !important;
+}
+
+.dark .filter-columns-btn {
+  background-color: #1e293b !important;
+  border: 1px solid #334155 !important;
+  color: #cbd5e1 !important;
+}
+.dark .filter-columns-btn:hover {
+  background-color: #273549 !important;
+  color: #f8fafc !important;
+}
+
+/* 7. Tabel Data Dark Mode */
+.dark .table-wrap {
+  border: 1px solid #334155 !important;
+  box-shadow: 0 4px 14px -2px rgba(0, 0, 0, 0.4) !important;
+}
+
+.dark .table-wrap thead th,
+.dark table.data thead th {
+  background-color: #1e293b !important;
+  color: #93c5fd !important;
+  border-bottom: 1px solid #334155 !important;
+}
+
+.dark table.data tbody tr {
+  border-bottom: 1px solid #1e293b !important;
+}
+
+.dark table.data tbody tr:hover td {
+  background-color: rgba(30, 41, 59, 0.6) !important;
+}
+
+/* 8. Form Inputs (FormPage, EditPage, Dialog) */
+.dark .form-col input,
+.dark .form-col textarea,
+.dark .form-col select,
+.dark .form-col button[role="combobox"] {
+  border: 1px solid #334155 !important;
+  background-color: #1e293b !important;
+  color: #f8fafc !important;
+}
+
+.dark .form-col input:focus,
+.dark .form-col textarea:focus,
+.dark .form-col select:focus,
+.dark .form-col button[role="combobox"]:focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25) !important;
+}
+
+.dark .field-static {
+  background-color: #0f172a !important;
+  border: 1px solid #334155 !important;
+  color: #cbd5e1 !important;
+}
+
 .app-header .user-select { width: 17rem; max-width: 50vw; }
 .app-main { padding: 1.5rem 2rem 4rem; width: 100%; box-sizing: border-box; }
 .brand { display: flex; align-items: center; gap: .6rem; font-weight: 700; min-width: 0; }
