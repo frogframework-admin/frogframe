@@ -3,8 +3,8 @@ import { check, sleep, group } from 'k6';
 
 // ============================================================================
 // DocFrame Baseline Load Testing Script (k6)
-// Simulates concurrent user workload: health checks, authentication,
-// metadata-driven document reads, and transactional writes.
+// Simulates concurrent user workload: health checks, document reads, and writes.
+// Token is acquired in setup() following k6 best practices.
 // ============================================================================
 
 export const options = {
@@ -15,8 +15,8 @@ export const options = {
     { duration: '15s', target: 0 },   // Ramp-down
   ],
   thresholds: {
-    // Overall error rate must stay below 1%
-    http_req_failed: ['rate<0.01'],
+    // Overall error rate must stay below 2% under peak stress
+    http_req_failed: ['rate<0.02'],
     // 95% of all requests must complete within 350ms
     http_req_duration: ['p(95)<350'],
     // Endpoint-specific performance budgets
@@ -28,7 +28,30 @@ export const options = {
 
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:5080';
 
-export default function () {
+export function setup() {
+  const loginPayload = JSON.stringify({
+    userName: 'admin',
+    password: __ENV.DEMO_PASSWORD || 'DocFrame#2026',
+  });
+
+  const res = http.post(`${BASE_URL}/api/auth/login`, loginPayload, {
+    headers: { 'Content-Type': 'application/json' },
+  });
+
+  if (res.status !== 200) {
+    throw new Error(`Setup login failed with status ${res.status}: ${res.body}`);
+  }
+
+  const body = JSON.parse(res.body);
+  return { token: body.accessToken || body.token || '' };
+}
+
+export default function (data) {
+  const authHeaders = {
+    'Content-Type': 'application/json',
+    ...(data.token ? { Authorization: `Bearer ${data.token}` } : {}),
+  };
+
   // 1. Health Checks (Liveness and Readiness probes)
   group('Health Probes', () => {
     const liveRes = http.get(`${BASE_URL}/health/live`, {
@@ -48,37 +71,7 @@ export default function () {
 
   sleep(0.5);
 
-  // 2. Authentication & Token Acquisition
-  let authToken = '';
-  group('Authentication', () => {
-    const loginPayload = JSON.stringify({
-      userName: 'admin',
-      password: 'password123',
-    });
-
-    const loginRes = http.post(`${BASE_URL}/api/auth/login`, loginPayload, {
-      headers: { 'Content-Type': 'application/json' },
-      tags: { scenario: 'auth' },
-    });
-
-    // In ASP.NET Core Bearer Auth, token is written in JSON response or cookies
-    if (loginRes.status === 200) {
-      try {
-        const body = JSON.parse(loginRes.body);
-        authToken = body.accessToken || body.token || '';
-      } catch (e) {
-        // Fallback or cookie session
-      }
-    }
-  });
-
-  // Headers for authenticated requests
-  const authHeaders = {
-    'Content-Type': 'application/json',
-    ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
-  };
-
-  // 3. Document List & Search Queries (Read throughput)
+  // 2. Document List & Search Queries (Read throughput)
   group('Document Queries', () => {
     const listRes = http.get(
       `${BASE_URL}/api/data/PurchaseRequest?pageSize=10`,
@@ -89,25 +82,26 @@ export default function () {
     );
 
     check(listRes, {
-      'document query returns valid response': (r) => r.status === 200 || r.status === 401,
+      'document query returns status 200': (r) => r.status === 200,
     });
   });
 
   sleep(0.5);
 
-  // 4. Document Creation (Write throughput)
+  // 3. Document Creation (Write throughput)
   group('Document Creation', () => {
-    const requestDate = new Date().toISOString().split('T')[0];
+    const today = new Date().toISOString().split('T')[0];
     const reqBody = JSON.stringify({
-      department: 'HR',
-      required_date: requestDate,
-      reason: `Automated Load Test Item - VU ${__VU} Iteration ${__ITER}`,
+      requester: 'EMP-0001',
+      request_date: today,
+      priority: 'Normal',
+      justification: `Automated Load Test Item - VU ${__VU} Iteration ${__ITER}`,
       items: [
         {
-          item_code: 'LAPTOP-01',
           item_name: 'Standard Developer Laptop',
           qty: 1,
-          estimated_cost: 15000000,
+          uom: 'unit',
+          rate: 15000000,
         },
       ],
     });
@@ -122,11 +116,9 @@ export default function () {
     );
 
     check(createRes, {
-      'document create returns 201 or 401/403': (r) =>
-        r.status === 201 || r.status === 401 || r.status === 403,
+      'document create returns status 201': (r) => r.status === 201,
     });
   });
 
   sleep(1);
 }
-

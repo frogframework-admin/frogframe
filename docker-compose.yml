@@ -18,6 +18,8 @@ services:
       # Akun bootstrap admin (opsional jika tanpa data demo):
       - Bootstrap__AdminUserName=admin
       - Bootstrap__AdminPassword=DocFrame#2026
+      # Batas laju API untuk beban produksi / load testing
+      - Api__RateLimitPerMinute=10000
     depends_on:
       postgres:
         condition: service_healthy
