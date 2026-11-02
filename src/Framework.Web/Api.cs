@@ -144,12 +144,12 @@ public static class DocApi
             signIn.AuthenticationScheme = IdentityConstants.BearerScheme;
             var result = await signIn.PasswordSignInAsync(body.UserName ?? "", body.Password ?? "", isPersistent: false, lockoutOnFailure: true);
             if (result.Succeeded) return Results.Empty;
-            return result.IsLockedOut ? Problem(423, "Akun terkunci", "Terlalu banyak percobaan gagal. Coba lagi nanti.")
-                : Problem(401, "Login gagal", "Username atau password salah, atau akun nonaktif.");
+            return result.IsLockedOut ? Problem(423, "Account locked", "Too many failed attempts. Try again later.")
+                : Problem(401, "Login failed", "Invalid username or password, or account is disabled.");
         }).AllowAnonymous();
 
         api.MapGet("/auth/me", (HttpContext http) => ClaimsUserMapper.ToUserContext(http.User) is { } u
-            ? Results.Ok(u) : Problem(401, "Belum terautentikasi", "Tidak ada sesi atau token yang valid."));
+            ? Results.Ok(u) : Problem(401, "Not authenticated", "No valid session or token found."));
 
         // ---------- Metadata ----------
         api.MapGet("/meta/{doctype}", (HttpContext http, string doctype) => Run(http, $"doc:{doctype}:read", (user, sp) =>
@@ -362,38 +362,38 @@ public static class DocApi
         // Kunci API: hanya endpoint yang mendeklarasikan cakupan, dan cakupan itu harus diberikan pada kunci.
         if (http.User.FindFirst(Framework.Web.Identity.ApiKeyDefaults.KeyIdClaim) is not null && scope != AnyApiKeyScope)
         {
-            if (scope is null) return Problem(403, "Kunci API tidak berlaku", "Endpoint ini tidak bisa dipakai dengan kunci API.");
+            if (scope is null) return Problem(403, "API key not allowed", "This endpoint cannot be accessed with an API key.");
             if (!ApiScopes.Allows(http.User.FindAll(Framework.Web.Identity.ApiKeyDefaults.ScopeClaim).Select(c => c.Value), scope))
-                return Problem(403, "Di luar cakupan kunci API", $"Kunci ini tidak mencakup '{scope}'.");
+                return Problem(403, "Out of API key scope", $"This key does not cover '{scope}'.");
         }
         // Identitas dari klaim (cookie atau bearer) yang sudah divalidasi middleware autentikasi.
         var user = ClaimsUserMapper.ToUserContext(http.User);
-        if (user is null) return Problem(401, "Belum terautentikasi", "Login lewat POST /api/auth/login lalu kirim header Authorization: Bearer <token>.");
+        if (user is null) return Problem(401, "Not authenticated", "Log in via POST /api/auth/login and send Authorization: Bearer <token> header.");
         // Cookie dikirim otomatis oleh browser → permintaan yang mengubah data wajib memakai bearer token (perlindungan CSRF).
         var authz = http.Request.Headers.Authorization.ToString();
         var viaBearer = authz.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) || authz.StartsWith(Framework.Web.Identity.ApiKeyDefaults.Scheme + " ", StringComparison.OrdinalIgnoreCase);
         if (!viaBearer && !HttpMethods.IsGet(http.Request.Method) && !HttpMethods.IsHead(http.Request.Method))
-            return Problem(403, "Butuh bearer token", "API yang mengubah data harus memakai header Authorization: Bearer <token>, bukan cookie browser.");
+            return Problem(403, "Bearer token required", "Data-modifying APIs must use Authorization: Bearer <token> header, not browser cookies.");
         try { return await action(user, http.RequestServices); }
-        catch (ValidationFailedException ex) { return Problem(422, "Validasi gagal", ex.Message, ex.Errors); }
-        catch (PermissionDeniedException ex) { return Problem(403, "Akses ditolak", ex.Message); }
-        catch (DocumentNotFoundException ex) { return Problem(404, "Tidak ditemukan", ex.Message); }
-        catch (KeyNotFoundException ex) { return Problem(404, "Tidak ditemukan", ex.Message); }
-        catch (ConcurrencyException ex) { return Problem(409, "Konflik versi", ex.Message); }
-        catch (InvalidStateException ex) { return Problem(409, "Status dokumen tidak mengizinkan", ex.Message); }
-        catch (LinkedDocumentException ex) { return Problem(409, "Dokumen masih ditautkan", ex.Message); }
-        catch (InvalidPayloadException ex) { return Problem(400, "Payload tidak valid", ex.Message, ex.Fields.Select(f => new FieldError(f, "tidak diizinkan")).ToList()); }
-        catch (MetadataCompilationException ex) { return Problem(422, "Metadata tidak valid", "Periksa daftar error", ex.Errors.Select(e => new FieldError(e.Path, e.Message)).ToList()); }
-        catch (JsonException ex) { return Problem(400, "JSON tidak valid", ex.Message); }
-        catch (PdfUnavailableException ex) { return Problem(501, "PDF tidak tersedia", ex.Message); }
-        catch (InvalidOperationException ex) { return Problem(409, "Operasi ditolak", ex.Message); }
-        catch (ApiMethodException ex) { return Problem(400, "Permintaan ditolak", ex.Message); }
-        catch (Framework.Dashboards.QueryRejectedException ex) { return Problem(400, "Query ditolak", ex.Message); }
-        catch (Framework.Dashboards.ReportingUnavailableException ex) { return Problem(503, "Fitur query tidak tersedia", ex.Message); }
+        catch (ValidationFailedException ex) { return Problem(422, "Validation failed", ex.Message, ex.Errors); }
+        catch (PermissionDeniedException ex) { return Problem(403, "Access denied", ex.Message); }
+        catch (DocumentNotFoundException ex) { return Problem(404, "Not found", ex.Message); }
+        catch (KeyNotFoundException ex) { return Problem(404, "Not found", ex.Message); }
+        catch (ConcurrencyException ex) { return Problem(409, "Version conflict", ex.Message); }
+        catch (InvalidStateException ex) { return Problem(409, "Invalid document state", ex.Message); }
+        catch (LinkedDocumentException ex) { return Problem(409, "Document is linked", ex.Message); }
+        catch (InvalidPayloadException ex) { return Problem(400, "Invalid payload", ex.Message, ex.Fields.Select(f => new FieldError(f, "not allowed")).ToList()); }
+        catch (MetadataCompilationException ex) { return Problem(422, "Invalid metadata", "Check error list", ex.Errors.Select(e => new FieldError(e.Path, e.Message)).ToList()); }
+        catch (JsonException ex) { return Problem(400, "Invalid JSON", ex.Message); }
+        catch (PdfUnavailableException ex) { return Problem(501, "PDF unavailable", ex.Message); }
+        catch (InvalidOperationException ex) { return Problem(409, "Operation rejected", ex.Message); }
+        catch (ApiMethodException ex) { return Problem(400, "Request rejected", ex.Message); }
+        catch (Framework.Dashboards.QueryRejectedException ex) { return Problem(400, "Query rejected", ex.Message); }
+        catch (Framework.Dashboards.ReportingUnavailableException ex) { return Problem(503, "Query feature unavailable", ex.Message); }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             // Jangan bocorkan detail internal (stack, SQL) ke klien API; detail ada di log server.
-            http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("Framework.Api").LogError(ex, "API {Method} {Path} gagal", http.Request.Method, http.Request.Path);
+            http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("Framework.Api").LogError(ex, "API {Method} {Path} failed", http.Request.Method, http.Request.Path);
             DocFrameTelemetry.HttpErrors.Add(1);
             try
             {
@@ -417,7 +417,7 @@ public static class DocApi
             {
                 // Ignore failure in error logging
             }
-            return Problem(500, "Kesalahan internal", "Terjadi kesalahan di server. Hubungi administrator (rujuk waktu kejadian).");
+            return Problem(500, "Internal error", "An internal error occurred. Contact the administrator with timestamp.");
         }
     }
 

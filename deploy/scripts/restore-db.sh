@@ -49,3 +49,4 @@ pg_restore \
 
 echo "${LOG_PREFIX} Database restored successfully."
 echo "${LOG_PREFIX} Note: Run 'dotnet run --project src/Apps.Sample' or SchemaMigrator to ensure schema consistency."
+

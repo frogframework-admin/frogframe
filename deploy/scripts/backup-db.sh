@@ -40,3 +40,4 @@ echo "${LOG_PREFIX} Backup successful: ${BACKUP_FILE} (${FILESIZE})"
 echo "${LOG_PREFIX} Cleaning up backups older than ${RETENTION_DAYS} days..."
 find "${BACKUP_DIR}" -type f -name "${PGDATABASE}_*.dump" -mtime +"${RETENTION_DAYS}" -exec rm -f {} +
 echo "${LOG_PREFIX} Backup rotation complete."
+
