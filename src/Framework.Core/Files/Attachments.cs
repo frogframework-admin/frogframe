@@ -209,3 +209,4 @@ public sealed class AttachmentService(
         await store.DeleteAsync(user.TenantId, id, ct);
     }
 }
+

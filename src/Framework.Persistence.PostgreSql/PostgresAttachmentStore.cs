@@ -81,3 +81,4 @@ public sealed class PostgresAttachmentStore(NpgsqlDataSource db) : IAttachmentSt
         await cmd.ExecuteNonQueryAsync(ct);
     }
 }
+

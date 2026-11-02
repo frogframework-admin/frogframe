@@ -212,3 +212,4 @@ public sealed class OutboxEmailHandler(IEmailSender sender) : IEventHandler
         await sender.SendAsync(email, ct);
     }
 }
+

@@ -15,3 +15,4 @@ CREATE TABLE docframe_attachments (
 );
 
 CREATE INDEX ix_attachments_doc ON docframe_attachments (tenant_id, doctype, doc_name);
+
