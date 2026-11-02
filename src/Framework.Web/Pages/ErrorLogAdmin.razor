@@ -193,7 +193,7 @@ else
     {
         try
         {
-            await ErrorStore.MarkSeenAsync(entry.Id);
+            await ErrorStore.MarkSeenAsync(entry.Id, Current.Required.TenantId);
             var idx = errors.FindIndex(e => e.Id == entry.Id);
             if (idx >= 0)
             {

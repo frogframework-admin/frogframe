@@ -359,6 +359,9 @@ public static class DocApi
 
     private static async Task<IResult> Run(HttpContext http, string? scope, Func<UserContext, IServiceProvider, Task<IResult>> action)
     {
+        DocFrameTelemetry.HttpRequests.Add(1,
+            new KeyValuePair<string, object?>("method", http.Request.Method),
+            new KeyValuePair<string, object?>("scope", scope ?? "none"));
         // Kunci API: hanya endpoint yang mendeklarasikan cakupan, dan cakupan itu harus diberikan pada kunci.
         if (http.User.FindFirst(Framework.Web.Identity.ApiKeyDefaults.KeyIdClaim) is not null && scope != AnyApiKeyScope)
         {
@@ -399,9 +402,10 @@ public static class DocApi
             {
                 if (http.RequestServices.GetService<IErrorLogStore>() is { } errorStore)
                 {
-                    _ = errorStore.LogAsync(new ErrorLogEntry
+                    var tenantId = user?.TenantId ?? http.Request.Headers["X-Tenant-ID"].FirstOrDefault() ?? "unknown";
+                    await errorStore.LogAsync(new ErrorLogEntry
                     {
-                        TenantId = user?.TenantId ?? "acme",
+                        TenantId = tenantId,
                         Timestamp = DateTimeOffset.UtcNow,
                         Method = http.Request.Method,
                         Path = http.Request.Path.Value ?? "",

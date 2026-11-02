@@ -58,10 +58,11 @@ public sealed class PostgresErrorLogStore(NpgsqlDataSource db) : IErrorLogStore
         return list;
     }
 
-    public async Task MarkSeenAsync(Guid id, CancellationToken ct = default)
+    public async Task MarkSeenAsync(Guid id, string? tenantId = null, CancellationToken ct = default)
     {
-        await using var cmd = db.CreateCommand("UPDATE docframe_error_logs SET seen = true WHERE id = $1");
+        await using var cmd = db.CreateCommand("UPDATE docframe_error_logs SET seen = true WHERE id = $1 AND ($2 IS NULL OR tenant_id = $2)");
         cmd.Parameters.AddWithValue(id);
+        cmd.Parameters.AddWithValue((object?)tenantId ?? DBNull.Value);
         await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
     }
 

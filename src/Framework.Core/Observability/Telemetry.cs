@@ -19,6 +19,9 @@ public static class DocFrameTelemetry
     public static readonly Counter<long> DocumentOperations =
         Meter.CreateCounter<long>("docframe.documents.operations", "operations", "Count of document lifecycle operations (insert, update, submit, cancel, delete)");
 
+    public static readonly Counter<long> HttpRequests =
+        Meter.CreateCounter<long>("docframe.http.requests", "requests", "Count of incoming HTTP requests");
+
     public static readonly Counter<long> ScheduledJobRuns =
         Meter.CreateCounter<long>("docframe.scheduled_jobs.runs", "runs", "Count of scheduled job runs executed");
 

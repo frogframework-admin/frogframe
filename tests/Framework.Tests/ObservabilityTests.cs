@@ -63,8 +63,13 @@ sealed partial class Tests
         var one = await store.GetRecentAsync("acme", limit: 1);
         Assert.Equal(1, one.Count, "Limit parameter should be respected");
 
-        // Mark seen
-        await store.MarkSeenAsync(recent[0].Id);
+        // Mark seen with wrong tenant does not mark seen
+        await store.MarkSeenAsync(recent[0].Id, "other_tenant");
+        var unchanged = await store.GetRecentAsync("acme", limit: 10);
+        Assert.True(!unchanged.First(x => x.Id == recent[0].Id).Seen, "Entry should not be marked seen for wrong tenant");
+
+        // Mark seen with matching tenant
+        await store.MarkSeenAsync(recent[0].Id, "acme");
         var afterSeen = await store.GetRecentAsync("acme", limit: 10);
         Assert.True(afterSeen.First(x => x.Id == recent[0].Id).Seen, "Entry should be marked as seen");
 
@@ -106,8 +111,13 @@ sealed partial class Tests
         Assert.Equal("admin@example.com", saved.UserId, "User matches");
         Assert.True(!saved.Seen, "Should not be seen initially");
 
-        // Mark seen
-        await store.MarkSeenAsync(saved.Id);
+        // Mark seen with wrong tenant does not update
+        await store.MarkSeenAsync(saved.Id, "other_tenant");
+        var unupdatedList = await store.GetRecentAsync(tenantId, limit: 10);
+        Assert.True(!unupdatedList[0].Seen, "Should still not be seen when tenant does not match");
+
+        // Mark seen with matching tenant
+        await store.MarkSeenAsync(saved.Id, tenantId);
         var seenList = await store.GetRecentAsync(tenantId, limit: 10);
         Assert.True(seenList[0].Seen, "Should be marked seen");
 
@@ -166,12 +176,22 @@ sealed partial class Tests
             new KeyValuePair<string, object?>("docframe.job_name", "observability-test-job"),
             new KeyValuePair<string, object?>("docframe.status", "Success"));
 
-        // Activity source should be available
-        using var activity = DocFrameTelemetry.ActivitySource.StartActivity("test-span");
-        if (activity != null)
+        // Activity source listener verification
+        var activities = new List<Activity>();
+        using var listener = new ActivityListener
         {
-            activity.SetTag("docframe.test", true);
+            ShouldListenTo = s => s.Name == DocFrameTelemetry.SourceName,
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
+            ActivityStarted = a => activities.Add(a)
+        };
+        ActivitySource.AddActivityListener(listener);
+
+        using (var span = DocFrameTelemetry.ActivitySource.StartActivity("docframe.test.operation"))
+        {
+            span?.SetTag("docframe.tag", "sample");
         }
+
+        Assert.True(activities.Any(a => a.OperationName == "docframe.test.operation"), "ActivitySource produced test activity");
 
         return Task.CompletedTask;
     }

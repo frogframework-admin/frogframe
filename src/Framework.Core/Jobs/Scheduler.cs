@@ -285,6 +285,11 @@ public sealed class ScheduledJobRunner(
         var job = RegisteredJobs.FirstOrDefault(j => j.Name == jobName)
             ?? throw new KeyNotFoundException($"Job '{jobName}' not found");
 
+        using var activity = DocFrameTelemetry.ActivitySource.StartActivity("docframe.scheduler.job");
+        activity?.SetTag("docframe.job_name", job.Name);
+        activity?.SetTag("docframe.tenant", tenantId);
+        activity?.SetTag("docframe.trigger", "manual");
+
         var now = DateTimeOffset.UtcNow;
         var context = new ScheduledJobContext
         {
@@ -394,6 +399,11 @@ public sealed class ScheduledJobRunner(
 
                 using (lockHandle)
                 {
+                    using var activity = DocFrameTelemetry.ActivitySource.StartActivity("docframe.scheduler.job");
+                    activity?.SetTag("docframe.job_name", job.Name);
+                    activity?.SetTag("docframe.tenant", tenant);
+                    activity?.SetTag("docframe.trigger", "scheduled");
+
                     RecordRun(job.Name, tenant, now);
                     var context = new ScheduledJobContext
                     {

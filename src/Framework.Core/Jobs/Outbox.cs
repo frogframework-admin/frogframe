@@ -38,6 +38,11 @@ public sealed class OutboxProcessor(IOutboxStore outbox, IEnumerable<IEventHandl
         int ok = 0, failed = 0, dead = 0;
         foreach (var msg in await outbox.FetchDueAsync(clock.GetUtcNow(), 50, ct))
         {
+            using var activity = DocFrameTelemetry.ActivitySource.StartActivity("docframe.outbox.process");
+            activity?.SetTag("docframe.event_type", msg.Type);
+            activity?.SetTag("docframe.event_id", msg.Id);
+            activity?.SetTag("docframe.tenant", msg.TenantId);
+
             try
             {
                 foreach (var h in handlers.Where(h => h.CanHandle(msg.Type)))

@@ -19,6 +19,7 @@ builder.Services.AddBlazorBlueprintComponents(configureLocalizer: BbIndonesian.A
 
 // 1) Framework: metadata dimuat dari folder, dikompilasi & divalidasi saat startup (gagal cepat bila tidak valid).
 builder.Services.AddDocFramework(o => o.LoadFrom(Path.Combine(builder.Environment.ContentRootPath, "Metadata")));
+builder.Services.AddDocFrameOpenTelemetry(builder.Configuration);
 
 // Penyimpanan: "InMemory" (default, data hilang saat restart) atau "PostgreSql" (permanen, siap pilot).
 var usePostgres = string.Equals(builder.Configuration["Persistence:Provider"], "PostgreSql", StringComparison.OrdinalIgnoreCase);

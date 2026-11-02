@@ -20,7 +20,7 @@ public interface IErrorLogStore
 {
     Task LogAsync(ErrorLogEntry entry, CancellationToken ct = default);
     Task<IReadOnlyList<ErrorLogEntry>> GetRecentAsync(string? tenantId = null, int limit = 50, CancellationToken ct = default);
-    Task MarkSeenAsync(Guid id, CancellationToken ct = default);
+    Task MarkSeenAsync(Guid id, string? tenantId = null, CancellationToken ct = default);
     Task ClearAsync(string? tenantId = null, CancellationToken ct = default);
 }
 
@@ -44,9 +44,9 @@ public sealed class InMemoryErrorLogStore : IErrorLogStore
         return Task.FromResult<IReadOnlyList<ErrorLogEntry>>(result);
     }
 
-    public Task MarkSeenAsync(Guid id, CancellationToken ct = default)
+    public Task MarkSeenAsync(Guid id, string? tenantId = null, CancellationToken ct = default)
     {
-        if (_items.TryGetValue(id, out var entry))
+        if (_items.TryGetValue(id, out var entry) && (tenantId is null || entry.TenantId == tenantId))
         {
             _items[id] = entry with { Seen = true };
         }

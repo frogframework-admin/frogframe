@@ -23,6 +23,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
 using Microsoft.Extensions.Configuration;
 
 namespace Framework.Web;
@@ -235,6 +237,38 @@ public static class ServiceCollectionExtensions
         s.TryAddSingleton<IScheduledJobLogStore, InMemoryScheduledJobLogStore>();
         s.AddSingleton<IScheduledJob, TJob>();
         return s;
+    }
+
+    /// <summary>
+    /// Configures OpenTelemetry metrics and activity tracing for DocFrame.
+    /// If OpenTelemetry:OtlpEndpoint or OTEL_EXPORTER_OTLP_ENDPOINT is configured, exports to that collector.
+    /// </summary>
+    public static IServiceCollection AddDocFrameOpenTelemetry(this IServiceCollection services, IConfiguration? config = null)
+    {
+        var otlpEndpoint = config?["OpenTelemetry:OtlpEndpoint"] 
+            ?? Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT");
+
+        var otel = services.AddOpenTelemetry();
+
+        otel.WithTracing(tracing =>
+        {
+            tracing.AddSource(DocFrameTelemetry.SourceName);
+            if (!string.IsNullOrEmpty(otlpEndpoint))
+            {
+                tracing.AddOtlpExporter(opt => opt.Endpoint = new Uri(otlpEndpoint));
+            }
+        });
+
+        otel.WithMetrics(metrics =>
+        {
+            metrics.AddMeter(DocFrameTelemetry.SourceName);
+            if (!string.IsNullOrEmpty(otlpEndpoint))
+            {
+                metrics.AddOtlpExporter(opt => opt.Endpoint = new Uri(otlpEndpoint));
+            }
+        });
+
+        return services;
     }
     public const string ApiRateLimit = "docframe-api";
 }

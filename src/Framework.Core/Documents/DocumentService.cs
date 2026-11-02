@@ -349,8 +349,14 @@ public sealed class DocumentService(
     /// <param name="auditAction">Teks aksi di audit, mis. "Dibuat lewat impor #imp_x".</param>
     public async Task<Document> InsertAsync(UserContext user, string docType, IDictionary<string, object?> payload, string auditAction, CancellationToken ct = default)
     {
+        using var activity = DocFrameTelemetry.ActivitySource.StartActivity("docframe.document.insert");
+        activity?.SetTag("docframe.doctype", docType);
+        activity?.SetTag("docframe.tenant", user.TenantId);
+        activity?.SetTag("docframe.user", user.Id);
+
         using var hookScope = hooks.EnterDocument(docType, $"(insert:{Guid.NewGuid():N})");
         var p = await PrepareInsertAsync(user, docType, payload, allocateName: true, ct);
+        activity?.SetTag("docframe.name", p.Doc.Name);
         hookScope.Dispose();
         using var finalNameScope = hooks.EnterDocument(docType, p.Doc.Name);
         var uow = new UnitOfWork();
@@ -450,6 +456,12 @@ public sealed class DocumentService(
     public async Task<Document> UpdateAsync(UserContext user, string docType, string name, int expectedVersion,
         IDictionary<string, object?> patch, CancellationToken ct = default)
     {
+        using var activity = DocFrameTelemetry.ActivitySource.StartActivity("docframe.document.update");
+        activity?.SetTag("docframe.doctype", docType);
+        activity?.SetTag("docframe.name", name);
+        activity?.SetTag("docframe.tenant", user.TenantId);
+        activity?.SetTag("docframe.user", user.Id);
+
         using var hookScope = hooks.EnterDocument(docType, name);
         var meta = TopLevel(docType);
         permissions.Demand(user, meta, DocActions.Write);
@@ -484,6 +496,12 @@ public sealed class DocumentService(
 
     public async Task DeleteAsync(UserContext user, string docType, string name, int expectedVersion, CancellationToken ct = default)
     {
+        using var activity = DocFrameTelemetry.ActivitySource.StartActivity("docframe.document.delete");
+        activity?.SetTag("docframe.doctype", docType);
+        activity?.SetTag("docframe.name", name);
+        activity?.SetTag("docframe.tenant", user.TenantId);
+        activity?.SetTag("docframe.user", user.Id);
+
         using var hookScope = hooks.EnterDocument(docType, name);
         var meta = TopLevel(docType);
         permissions.Demand(user, meta, DocActions.Delete);
@@ -519,6 +537,13 @@ public sealed class DocumentService(
     public async Task<Document> RunActionAsync(UserContext user, string docType, string name, string action, int expectedVersion,
         string? comment, CancellationToken ct = default)
     {
+        using var activity = DocFrameTelemetry.ActivitySource.StartActivity("docframe.document.action");
+        activity?.SetTag("docframe.doctype", docType);
+        activity?.SetTag("docframe.name", name);
+        activity?.SetTag("docframe.action", action);
+        activity?.SetTag("docframe.tenant", user.TenantId);
+        activity?.SetTag("docframe.user", user.Id);
+
         using var hookScope = hooks.EnterDocument(docType, name);
         var meta = TopLevel(docType);
         permissions.Demand(user, meta, DocActions.Read);

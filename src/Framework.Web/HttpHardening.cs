@@ -67,7 +67,7 @@ public static class HttpHardeningExtensions
                         if (errorStore is not null)
                         {
                             var user = context.RequestServices.GetService<CurrentUser>()?.User;
-                            var tenantId = user?.TenantId ?? "acme";
+                            var tenantId = user?.TenantId ?? context.Request.Headers["X-Tenant-ID"].FirstOrDefault() ?? "unknown";
                             var userId = user?.Id ?? context.User.Identity?.Name;
 
                             await errorStore.LogAsync(new ErrorLogEntry

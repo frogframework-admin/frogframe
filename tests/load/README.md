@@ -52,3 +52,4 @@ Skrip pengujian menjalankan 4 tahapan beban bertingkat (*ramped virtual users*):
 | **Health Checks** (`/health/*`) | `p(95) < 50ms` | Pemeriksaan status liveness & readiness harus instan. |
 | **Pembacaan Dokumen** (`GET /api/data/*`) | `p(95) < 200ms` | Query terindeks dengan filter dan sorting. |
 | **Penulisan Dokumen** (`POST /api/data/*`) | `p(95) < 400ms` | Transaksi atomik dokumen + audit log + event outbox. |
+
