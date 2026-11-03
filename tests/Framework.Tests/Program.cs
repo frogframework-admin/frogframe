@@ -454,7 +454,8 @@ sealed partial class Tests
         int Count() => users.Values.Sum(u => inbox.ForUser(u.TenantId, u.Id).Count);
         var before = Count();
         var msg = sp.GetRequiredService<IOutboxStore>().Snapshot().First(m => m.Type == "workflow.transitioned");
-        await sp.GetServices<IEventHandler>().Single(h => h.CanHandle(msg.Type)).HandleAsync(msg, default);
+        foreach (var h in sp.GetServices<IEventHandler>().Where(h => h.CanHandle(msg.Type)))
+            await h.HandleAsync(msg, default);
         Assert.Equal(before, Count(), "pemrosesan ulang tidak menggandakan");
     }
 

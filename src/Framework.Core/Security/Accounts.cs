@@ -44,6 +44,7 @@ public sealed class UserAccount
         if (!string.IsNullOrWhiteSpace(Department)) a["department"] = Department;
         if (!string.IsNullOrWhiteSpace(EmployeeId)) a["employee"] = EmployeeId;
         if (!string.IsNullOrWhiteSpace(AvatarId)) a["avatar"] = AvatarId;
+        if (!string.IsNullOrWhiteSpace(Email)) a["email"] = Email;
         return a;
     }
 }

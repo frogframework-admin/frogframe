@@ -22,6 +22,13 @@ public sealed record UserContext(
         new("system", "System", tenantId, new HashSet<string> { SystemManager, Administrator }, new Dictionary<string, string>());
 }
 
+/// <summary>Pengguna aktif per tenant, untuk proses tanpa request (mis. menentukan penerima notifikasi).</summary>
+public interface IUserDirectory
+{
+    Task<UserContext?> FindAsync(string userId, CancellationToken ct = default);
+    Task<IReadOnlyList<UserContext>> ListAsync(string tenantId, CancellationToken ct = default);
+}
+
 public sealed class PermissionDeniedException(string message) : Exception(message);
 
 /// <summary>Cakupan baris yang boleh diakses. Diterjemahkan oleh store menjadi filter query.</summary>

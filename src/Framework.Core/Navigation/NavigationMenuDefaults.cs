@@ -296,6 +296,22 @@ public static class NavigationMenuDefaults
         },
         new()
         {
+            Id = $"menu_{tenantId}_notifications",
+            TenantId = tenantId,
+            Title = "Notification Rules",
+            Href = "admin/notifications",
+            Icon = "bell",
+            GroupId = GroupSistemId(tenantId),
+            GroupName = "System",
+            SortOrder = 138,
+            AllowedRoles = [UserContext.SystemManager, UserContext.Administrator],
+            IsSystem = true,
+            IsActive = true,
+            CreatedAt = now,
+            UpdatedAt = now
+        },
+        new()
+        {
             Id = $"menu_{tenantId}_roles",
             TenantId = tenantId,
             Title = "User Roles",

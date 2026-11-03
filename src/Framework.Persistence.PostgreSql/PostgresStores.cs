@@ -1,7 +1,9 @@
 using System.Text.Json;
 using Framework.Documents;
 using Framework.Metadata;
+using Framework.Notifications;
 using Framework.Persistence;
+using Framework.Preferences;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -419,6 +421,163 @@ public sealed class PostgresNotificationStore(NpgsqlDataSource db) : INotificati
     }
 }
 
+public sealed class PostgresNotificationRuleStore(NpgsqlDataSource db) : INotificationRuleStore
+{
+    public async Task<IReadOnlyList<NotificationRule>> ListAsync(string tenantId, string? docType = null, bool onlyActive = false, CancellationToken ct = default)
+    {
+        var sql = "SELECT id, tenant_id, name, doctype, trigger, trigger_field, days_offset, condition, channel, receiver_type, receiver_value, subject_template, message_template, is_active, created_at, modified_at FROM docframe_notification_rules WHERE tenant_id = $1";
+        if (onlyActive) sql += " AND is_active = true";
+        if (!string.IsNullOrEmpty(docType)) sql += " AND doctype = $2";
+        sql += " ORDER BY modified_at DESC";
+
+        await using var cmd = db.CreateCommand(sql);
+        cmd.Parameters.AddWithValue(tenantId);
+        if (!string.IsNullOrEmpty(docType)) cmd.Parameters.AddWithValue(docType);
+
+        await using var r = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+        var list = new List<NotificationRule>();
+        while (await r.ReadAsync(ct).ConfigureAwait(false))
+        {
+            list.Add(ReadRule(r));
+        }
+        return list;
+    }
+
+    public async Task<NotificationRule?> GetAsync(string tenantId, string id, CancellationToken ct = default)
+    {
+        await using var cmd = db.CreateCommand("SELECT id, tenant_id, name, doctype, trigger, trigger_field, days_offset, condition, channel, receiver_type, receiver_value, subject_template, message_template, is_active, created_at, modified_at FROM docframe_notification_rules WHERE tenant_id = $1 AND id = $2");
+        cmd.Parameters.AddWithValue(tenantId);
+        cmd.Parameters.AddWithValue(id);
+
+        await using var r = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+        if (await r.ReadAsync(ct).ConfigureAwait(false))
+        {
+            return ReadRule(r);
+        }
+        return null;
+    }
+
+    public async Task SaveAsync(NotificationRule rule, CancellationToken ct = default)
+    {
+        await using var cmd = db.CreateCommand(@"
+            INSERT INTO docframe_notification_rules 
+                (id, tenant_id, name, doctype, trigger, trigger_field, days_offset, condition, channel, receiver_type, receiver_value, subject_template, message_template, is_active, created_at, modified_at)
+            VALUES 
+                ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+            ON CONFLICT (id) DO UPDATE SET
+                name = EXCLUDED.name,
+                doctype = EXCLUDED.doctype,
+                trigger = EXCLUDED.trigger,
+                trigger_field = EXCLUDED.trigger_field,
+                days_offset = EXCLUDED.days_offset,
+                condition = EXCLUDED.condition,
+                channel = EXCLUDED.channel,
+                receiver_type = EXCLUDED.receiver_type,
+                receiver_value = EXCLUDED.receiver_value,
+                subject_template = EXCLUDED.subject_template,
+                message_template = EXCLUDED.message_template,
+                is_active = EXCLUDED.is_active,
+                modified_at = EXCLUDED.modified_at");
+
+        cmd.Parameters.AddWithValue(rule.Id);
+        cmd.Parameters.AddWithValue(rule.TenantId);
+        cmd.Parameters.AddWithValue(rule.Name);
+        cmd.Parameters.AddWithValue(rule.DocType);
+        cmd.Parameters.AddWithValue(rule.Trigger.ToString());
+        cmd.Parameters.AddWithValue((object?)rule.TriggerField ?? DBNull.Value);
+        cmd.Parameters.AddWithValue((object?)rule.DaysOffset ?? DBNull.Value);
+        cmd.Parameters.AddWithValue((object?)rule.Condition ?? DBNull.Value);
+        cmd.Parameters.AddWithValue(rule.Channel.ToString());
+        cmd.Parameters.AddWithValue(rule.ReceiverType.ToString());
+        cmd.Parameters.AddWithValue((object?)rule.ReceiverValue ?? DBNull.Value);
+        cmd.Parameters.AddWithValue(rule.SubjectTemplate);
+        cmd.Parameters.AddWithValue(rule.MessageTemplate);
+        cmd.Parameters.AddWithValue(rule.IsActive);
+        cmd.Parameters.AddWithValue(rule.CreatedAt);
+        cmd.Parameters.AddWithValue(rule.ModifiedAt);
+
+        await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+    }
+
+    public async Task DeleteAsync(string tenantId, string id, CancellationToken ct = default)
+    {
+        await using var cmd = db.CreateCommand("DELETE FROM docframe_notification_rules WHERE tenant_id = $1 AND id = $2");
+        cmd.Parameters.AddWithValue(tenantId);
+        cmd.Parameters.AddWithValue(id);
+        await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+    }
+
+    private static NotificationRule ReadRule(NpgsqlDataReader r)
+    {
+        return new NotificationRule
+        {
+            Id = r.GetString(0),
+            TenantId = r.GetString(1),
+            Name = r.GetString(2),
+            DocType = r.GetString(3),
+            Trigger = Enum.Parse<NotificationTrigger>(r.GetString(4)),
+            TriggerField = r.IsDBNull(5) ? null : r.GetString(5),
+            DaysOffset = r.IsDBNull(6) ? null : r.GetInt32(6),
+            Condition = r.IsDBNull(7) ? null : r.GetString(7),
+            Channel = Enum.Parse<NotificationChannel>(r.GetString(8)),
+            ReceiverType = Enum.Parse<NotificationReceiverType>(r.GetString(9)),
+            ReceiverValue = r.IsDBNull(10) ? null : r.GetString(10),
+            SubjectTemplate = r.GetString(11),
+            MessageTemplate = r.GetString(12),
+            IsActive = r.GetBoolean(13),
+            CreatedAt = r.GetFieldValue<DateTimeOffset>(14),
+            ModifiedAt = r.GetFieldValue<DateTimeOffset>(15)
+        };
+    }
+}
+
+public sealed class PostgresUserPreferenceStore(NpgsqlDataSource db) : IUserPreferenceStore
+{
+    private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
+
+    public async Task<T?> GetAsync<T>(string tenantId, string userId, string key, CancellationToken ct = default)
+    {
+        await using var cmd = db.CreateCommand("SELECT pref_value::text FROM docframe_user_preferences WHERE tenant_id = $1 AND user_id = $2 AND pref_key = $3");
+        cmd.Parameters.AddWithValue(tenantId);
+        cmd.Parameters.AddWithValue(userId);
+        cmd.Parameters.AddWithValue(key);
+
+        var val = await cmd.ExecuteScalarAsync(ct).ConfigureAwait(false);
+        if (val is null or DBNull) return default;
+
+        var json = (string)val;
+        return JsonSerializer.Deserialize<T>(json, JsonOpts);
+    }
+
+    public async Task SetAsync<T>(string tenantId, string userId, string key, T value, CancellationToken ct = default)
+    {
+        var json = JsonSerializer.Serialize(value, JsonOpts);
+        await using var cmd = db.CreateCommand(@"
+            INSERT INTO docframe_user_preferences (tenant_id, user_id, pref_key, pref_value, updated_at)
+            VALUES ($1, $2, $3, $4::jsonb, $5)
+            ON CONFLICT (tenant_id, user_id, pref_key) DO UPDATE SET
+                pref_value = EXCLUDED.pref_value,
+                updated_at = EXCLUDED.updated_at");
+        cmd.Parameters.AddWithValue(tenantId);
+        cmd.Parameters.AddWithValue(userId);
+        cmd.Parameters.AddWithValue(key);
+        cmd.Parameters.AddWithValue(json);
+        cmd.Parameters.AddWithValue(DateTimeOffset.UtcNow);
+
+        await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+    }
+
+    public async Task DeleteAsync(string tenantId, string userId, string key, CancellationToken ct = default)
+    {
+        await using var cmd = db.CreateCommand("DELETE FROM docframe_user_preferences WHERE tenant_id = $1 AND user_id = $2 AND pref_key = $3");
+        cmd.Parameters.AddWithValue(tenantId);
+        cmd.Parameters.AddWithValue(userId);
+        cmd.Parameters.AddWithValue(key);
+
+        await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+    }
+}
+
 public sealed class PostgresMetadataVersionStore(NpgsqlDataSource db) : IMetadataVersionStore, IAtomicDocTypeMigrationPublisher
 {
     public DataMigrationPreviewResult PreviewMigration(CompiledDocType source, CompiledDocType target, int maxDocuments)
@@ -656,6 +815,8 @@ public static class PostgreSqlServiceCollectionExtensions
         services.Replace(ServiceDescriptor.Singleton<IOutboxStore>(sp => sp.GetRequiredService<PostgresDocumentStore>()));
         services.Replace(ServiceDescriptor.Singleton<IDatabaseHealthCheck>(sp => sp.GetRequiredService<PostgresDocumentStore>()));
         services.Replace(ServiceDescriptor.Singleton<INotificationStore, PostgresNotificationStore>());
+        services.Replace(ServiceDescriptor.Singleton<Framework.Notifications.INotificationRuleStore, PostgresNotificationRuleStore>());
+        services.Replace(ServiceDescriptor.Singleton<Framework.Preferences.IUserPreferenceStore, PostgresUserPreferenceStore>());
         services.Replace(ServiceDescriptor.Singleton<IMetadataVersionStore, PostgresMetadataVersionStore>());
         services.Replace(ServiceDescriptor.Singleton<Framework.Security.IUserAccountRepository, PostgresUserAccountRepository>());
         services.Replace(ServiceDescriptor.Singleton<Framework.Files.IFileStore, PostgresFileStore>());

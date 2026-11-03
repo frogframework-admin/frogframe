@@ -8,7 +8,10 @@ using Framework.Reports;
 using Framework.Api;
 using Framework.Imports;
 using Framework.Navigation;
+using Framework.Notifications;
 using Framework.Observability;
+using Framework.Presence;
+using Framework.Preferences;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Builder;
@@ -20,6 +23,7 @@ using Framework.Persistence;
 using Framework.Security;
 using Framework.Validation;
 using Framework.Web.Printing;
+using Framework.Web.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
@@ -30,12 +34,7 @@ using Microsoft.Extensions.Configuration;
 
 namespace Framework.Web;
 
-/// <summary>Pengguna aktif per tenant, untuk proses tanpa request (mis. menentukan penerima notifikasi).</summary>
-public interface IUserDirectory
-{
-    Task<UserContext?> FindAsync(string userId, CancellationToken ct = default);
-    Task<IReadOnlyList<UserContext>> ListAsync(string tenantId, CancellationToken ct = default);
-}
+
 
 internal sealed class DocumentHookLogger(ILogger<DocumentHookLogger> logger) : IDocHookLogger
 {
@@ -125,6 +124,11 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IFileStore, InMemoryFileStore>();
         services.TryAddSingleton<IAttachmentStore, InMemoryAttachmentStore>();
         services.AddSingleton<AttachmentService>();
+        services.TryAddSingleton<IDocumentPresenceService, DocumentPresenceService>();
+        services.TryAddSingleton<INotificationRuleStore, InMemoryNotificationRuleStore>();
+        services.AddSingleton<NotificationRuleEngine>();
+        services.AddSingleton<IEventHandler, NotificationRuleEventHandler>();
+        services.TryAddSingleton<IUserPreferenceStore, InMemoryUserPreferenceStore>();
 
         // Email outgoing: SMTP jika dikonfigurasi, InMemory untuk dev/test
         services.TryAddSingleton<IEmailSender>(sp =>
@@ -236,6 +240,7 @@ public static class ServiceCollectionExtensions
         services.AddHostedService<SchedulerWorker>();
 
         services.AddScoped<CurrentUser>();
+        services.AddScoped<GlobalSearchService>();
 
         // Cetak & PDF
         services.TryAddSingleton<ILetterheadProvider, ConfigLetterheadProvider>();

@@ -1,0 +1,484 @@
+@page "/admin/notifications"
+@using Framework.Notifications
+@using Framework.Metadata
+@using Framework.Security
+@inject INotificationRuleStore RuleStore
+@inject IMetadataProvider Metadata
+@inject CurrentUser Current
+@inject ToastService Toasts
+@inject DialogService Dialogs
+@inject TimeProvider Clock
+
+<PageTitle>Notification Rules · DocFrame</PageTitle>
+
+@if (!Current.Required.IsAdmin)
+{
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>This page is only accessible to System Managers / Administrators.</BbAlertDescription></BbAlert>
+}
+else
+{
+    <header class="page-head">
+        <div>
+            <h1>Notification Rules</h1>
+            <p>Automate email and in-app notifications on document lifecycle events, field value changes, and date offsets without writing code.</p>
+        </div>
+        <div class="row" style="gap:.5rem">
+            <BbButton OnClick="StartCreate"><LucideIcon Name="bell-plus" Size="16" /> New Rule</BbButton>
+        </div>
+    </header>
+
+    @if (error is not null)
+    {
+        <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@error</BbAlertDescription></BbAlert>
+    }
+
+    <!-- Filter Bar -->
+    <div class="props-row" style="margin-bottom:1rem;gap:1rem;align-items:center;">
+        <div style="min-width:14rem">
+            <BbSelect TValue="string" Value="@filterDocType" ValueChanged="OnFilterDocTypeChanged" AriaLabel="Filter DocType" Options="DocTypeFilterOptions" />
+        </div>
+    </div>
+
+    <!-- Data Grid of Notification Rules -->
+    <BbDataGrid TData="NotificationRule"
+                Items="@filteredRules"
+                ShowSearch="true"
+                SearchPlaceholder="Search rule name or doctype..."
+                ShowPagination="true"
+                InitialPageSize="10"
+                TableContainerClass="table-wrap">
+        <Columns>
+            <BbDataGridPropertyColumn TData="NotificationRule" TProp="string" Property="r => r.Name" Title="Rule Name" Width="18rem" Sortable="true" Filterable="true">
+                <CellTemplate Context="r">
+                    <div class="row" style="gap:.5rem;align-items:center;flex-wrap:nowrap">
+                        <LucideIcon Name="bell" Size="16" />
+                        <strong>@r.Name</strong>
+                    </div>
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridPropertyColumn TData="NotificationRule" TProp="string" Property="r => r.DocType" Title="DocType" Width="12rem" Sortable="true" Filterable="true">
+                <CellTemplate Context="r">
+                    <span class="badge">@r.DocType</span>
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridTemplateColumn TData="NotificationRule" Title="Trigger" Width="13rem" Sortable="true">
+                <ChildContent Context="r">
+                    <BbBadge Variant="BadgeVariant.Outline">@TriggerDisplay(r)</BbBadge>
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+
+            <BbDataGridTemplateColumn TData="NotificationRule" Title="Channel" Width="9rem">
+                <ChildContent Context="r">
+                    <BbBadge Variant="@(r.Channel == NotificationChannel.Both ? BadgeVariant.Default : BadgeVariant.Soft)">
+                        @r.Channel.ToString()
+                    </BbBadge>
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+
+            <BbDataGridTemplateColumn TData="NotificationRule" Title="Receiver" Width="13rem">
+                <ChildContent Context="r">
+                    <span class="muted small">@r.ReceiverType:</span> <strong>@(r.ReceiverValue ?? "Owner")</strong>
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+
+            <BbDataGridTemplateColumn TData="NotificationRule" Title="Status" Width="7rem">
+                <ChildContent Context="r">
+                    @if (r.IsActive)
+                    {
+                        <BbBadge Variant="BadgeVariant.Soft">Active</BbBadge>
+                    }
+                    else
+                    {
+                        <BbBadge Variant="BadgeVariant.Outline">Inactive</BbBadge>
+                    }
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+
+            <BbDataGridTemplateColumn TData="NotificationRule" Title="Actions" Width="8rem">
+                <ChildContent Context="r">
+                    <div class="row" style="gap:.35rem">
+                        <BbButton Size="ButtonSize.Small" Variant="ButtonVariant.Ghost" OnClick="() => StartEdit(r)" Title="Edit Rule">
+                            <LucideIcon Name="pencil" Size="14" />
+                        </BbButton>
+                        <BbButton Size="ButtonSize.Small" Variant="ButtonVariant.Ghost" OnClick="() => ToggleActive(r)" Title="@(r.IsActive ? "Deactivate" : "Activate")">
+                            <LucideIcon Name="@(r.IsActive ? "pause" : "play")" Size="14" />
+                        </BbButton>
+                        <BbButton Size="ButtonSize.Small" Variant="ButtonVariant.Ghost" OnClick="() => DeleteRule(r)" Title="Delete Rule">
+                            <LucideIcon Name="trash-2" Size="14" />
+                        </BbButton>
+                    </div>
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+        </Columns>
+    </BbDataGrid>
+}
+
+<!-- Editor Drawer (2x default width / 48rem) -->
+<AdminDrawer Open="@isDrawerOpen"
+             OpenChanged="@OnDrawerOpenChanged"
+             WidthScale="@DrawerWidthScale"
+             Title="@(isEditing ? "Edit Notification Rule" : "New Notification Rule")"
+             Description="Configure triggering conditions, recipient target, and notification content.">
+    <ChildContent>
+        @if (dialogError is not null)
+        {
+            <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@dialogError</BbAlertDescription></BbAlert>
+        }
+
+        <div class="stack" style="gap:1rem;margin-top:.5rem">
+            <div class="props-row">
+                <BbField style="flex:2">
+                    <BbFieldLabel For="rule-name">Rule Name *</BbFieldLabel>
+                    <FormTextInput Id="rule-name" Value="@editName" ValueChanged="v => editName = v ?? string.Empty" Placeholder="e.g. Notify Manager on High Priority PR" />
+                </BbField>
+
+                <BbField style="flex:1">
+                    <BbFieldLabel>DocType *</BbFieldLabel>
+                    <BbSelect TValue="string" Value="@editDocType" ValueChanged="OnEditDocTypeChanged" AriaLabel="DocType" Options="DocTypeOptions" />
+                </BbField>
+            </div>
+
+            <div class="props-row">
+                <BbField style="flex:1">
+                    <BbFieldLabel>Trigger Event *</BbFieldLabel>
+                    <BbSelect TValue="string" Value="@editTrigger" ValueChanged="v => editTrigger = v ?? nameof(NotificationTrigger.OnCreate)" AriaLabel="Trigger Event" Options="TriggerOptions" />
+                </BbField>
+
+                @if (editTrigger == nameof(NotificationTrigger.OnValueChange))
+                {
+                    <BbField style="flex:1">
+                        <BbFieldLabel For="trig-field">Watched Field *</BbFieldLabel>
+                        <FormTextInput Id="trig-field" Value="@editTriggerField" ValueChanged="v => editTriggerField = v" Placeholder="e.g. priority or total" />
+                    </BbField>
+                }
+                else if (editTrigger is nameof(NotificationTrigger.DaysBeforeDate) or nameof(NotificationTrigger.DaysAfterDate))
+                {
+                    <BbField style="flex:1">
+                        <BbFieldLabel For="trig-field">Date Field *</BbFieldLabel>
+                        <FormTextInput Id="trig-field" Value="@editTriggerField" ValueChanged="v => editTriggerField = v" Placeholder="e.g. required_by" />
+                    </BbField>
+                    <BbField style="width:7rem">
+                        <BbFieldLabel For="trig-days">Days Offset</BbFieldLabel>
+                        <input id="trig-days" type="number" class="form-control" style="width:100%" @bind="editDaysOffset" min="0" max="365" />
+                    </BbField>
+                }
+            </div>
+
+            <BbField>
+                <BbFieldLabel For="rule-cond">Condition Expression (Optional)</BbFieldLabel>
+                <FormTextInput Id="rule-cond" Value="@editCondition" ValueChanged="v => editCondition = v" Placeholder="e.g. total > 10000000 && priority == 'Tinggi'" />
+                <BbFieldDescription>Standard expression evaluated on document save. Leave empty to trigger unconditionally.</BbFieldDescription>
+            </BbField>
+
+            <div class="props-row">
+                <BbField style="flex:1">
+                    <BbFieldLabel>Channel *</BbFieldLabel>
+                    <BbSelect TValue="string" Value="@editChannel" ValueChanged="v => editChannel = v ?? nameof(NotificationChannel.InApp)" AriaLabel="Channel" Options="ChannelOptions" />
+                </BbField>
+
+                <BbField style="flex:1">
+                    <BbFieldLabel>Receiver Type *</BbFieldLabel>
+                    <BbSelect TValue="string" Value="@editReceiverType" ValueChanged="v => editReceiverType = v ?? nameof(NotificationReceiverType.Role)" AriaLabel="Receiver Type" Options="ReceiverTypeOptions" />
+                </BbField>
+
+                @if (editReceiverType is not nameof(NotificationReceiverType.Owner))
+                {
+                    <BbField style="flex:1">
+                        <BbFieldLabel For="rec-val">@(editReceiverType == nameof(NotificationReceiverType.Role) ? "Role Name *" : editReceiverType == nameof(NotificationReceiverType.Field) ? "Field Name *" : "User ID *")</BbFieldLabel>
+                        <FormTextInput Id="rec-val" Value="@editReceiverValue" ValueChanged="v => editReceiverValue = v" Placeholder="@(editReceiverType == nameof(NotificationReceiverType.Role) ? "e.g. Finance" : editReceiverType == nameof(NotificationReceiverType.Field) ? "e.g. user_id or email" : "e.g. budi")" />
+                    </BbField>
+                }
+            </div>
+
+            <BbField>
+                <BbFieldLabel For="sub-tpl">Subject Template *</BbFieldLabel>
+                <FormTextInput Id="sub-tpl" Value="@editSubjectTemplate" ValueChanged="v => editSubjectTemplate = v ?? string.Empty" Placeholder="e.g. {{name}}: New Purchase Request for {{vendor}}" />
+                <BbFieldDescription>Supports <code>{{field_name}}</code>, <code>{{name}}</code>, <code>{{owner}}</code>, <code>{{actor}}</code></BbFieldDescription>
+            </BbField>
+
+            <BbField>
+                <BbFieldLabel For="msg-tpl">Message Template *</BbFieldLabel>
+                <FormTextArea Id="msg-tpl" Value="@editMessageTemplate" ValueChanged="v => editMessageTemplate = v ?? string.Empty" Rows="4" Placeholder="e.g. {{name}} has been submitted by {{actor}}. Total: {{total}}." />
+            </BbField>
+
+            <div class="label-row">
+                <BbCheckbox Id="rule-active" Checked="@editIsActive" CheckedChanged="v => editIsActive = v" />
+                <BbLabel For="rule-active">Active rule</BbLabel>
+            </div>
+        </div>
+    </ChildContent>
+
+    <FooterContent>
+        <div class="row" style="gap:.5rem;justify-content:flex-end;width:100%">
+            <BbButton Variant="ButtonVariant.Outline" OnClick="CloseDrawer">Cancel</BbButton>
+            <BbButton OnClick="SaveRule">Save Rule</BbButton>
+        </div>
+    </FooterContent>
+</AdminDrawer>
+
+@code {
+    /// <summary>Configurable drawer width multiplier (default 2.0 = 2x normal width / 48rem).</summary>
+    [Parameter] public double DrawerWidthScale { get; set; } = 2.0;
+
+    private List<NotificationRule> rules = [];
+    private string filterDocType = "";
+    private string? error;
+    private string? dialogError;
+
+    private bool isDrawerOpen;
+    private bool isEditing;
+    private string? editingId;
+
+    private void OnDrawerOpenChanged(bool open) => isDrawerOpen = open;
+    private void CloseDrawer() => isDrawerOpen = false;
+
+    // Form fields
+    private string editName = "";
+    private string editDocType = "";
+    private string editTrigger = nameof(NotificationTrigger.OnCreate);
+    private string? editTriggerField;
+    private int editDaysOffset = 1;
+    private string? editCondition;
+    private string editChannel = nameof(NotificationChannel.InApp);
+    private string editReceiverType = nameof(NotificationReceiverType.Role);
+    private string? editReceiverValue = "Manager";
+    private string editSubjectTemplate = "";
+    private string editMessageTemplate = "";
+    private bool editIsActive = true;
+
+    private IEnumerable<NotificationRule> filteredRules =>
+        rules.Where(r => string.IsNullOrEmpty(filterDocType) || string.Equals(r.DocType, filterDocType, StringComparison.OrdinalIgnoreCase));
+
+    private IReadOnlyList<SelectOption<string>> DocTypeFilterOptions =>
+        new[] { new SelectOption<string>("", "All DocTypes") }
+            .Concat(Metadata.Current.DocTypes.Values
+                .Where(d => !d.Def.IsChild)
+                .OrderBy(d => d.Title)
+                .Select(d => new SelectOption<string>(d.Name, d.Title)))
+            .ToList();
+
+    private IReadOnlyList<SelectOption<string>> DocTypeOptions =>
+        Metadata.Current.DocTypes.Values
+            .Where(d => !d.Def.IsChild)
+            .OrderBy(d => d.Title)
+            .Select(d => new SelectOption<string>(d.Name, d.Title))
+            .ToList();
+
+    private static readonly IReadOnlyList<SelectOption<string>> TriggerOptions =
+    [
+        new(nameof(NotificationTrigger.OnCreate), "On Create (Document Inserted)"),
+        new(nameof(NotificationTrigger.OnSubmit), "On Submit (Document / Workflow Submitted)"),
+        new(nameof(NotificationTrigger.OnValueChange), "On Value Change (Field Value Changed)"),
+        new(nameof(NotificationTrigger.DaysBeforeDate), "Days Before Date (Upcoming Offset)"),
+        new(nameof(NotificationTrigger.DaysAfterDate), "Days After Date (Passed Offset)"),
+    ];
+
+    private static readonly IReadOnlyList<SelectOption<string>> ChannelOptions =
+    [
+        new(nameof(NotificationChannel.InApp), "In-App Notification (Inbox)"),
+        new(nameof(NotificationChannel.Email), "Email Only"),
+        new(nameof(NotificationChannel.Both), "Both (In-App & Email)"),
+    ];
+
+    private static readonly IReadOnlyList<SelectOption<string>> ReceiverTypeOptions =
+    [
+        new(nameof(NotificationReceiverType.Role), "Role Members"),
+        new(nameof(NotificationReceiverType.Owner), "Document Owner"),
+        new(nameof(NotificationReceiverType.Field), "Document Field (User / Email)"),
+        new(nameof(NotificationReceiverType.SpecificUser), "Specific User"),
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRulesAsync();
+    }
+
+    private async Task LoadRulesAsync()
+    {
+        try
+        {
+            if (Current.User is { } u)
+            {
+                rules = (await RuleStore.ListAsync(u.TenantId)).ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+    }
+
+    private void OnFilterDocTypeChanged(string? dt)
+    {
+        filterDocType = dt ?? "";
+    }
+
+    private void OnEditDocTypeChanged(string? dt)
+    {
+        editDocType = dt ?? "";
+    }
+
+    private void StartCreate()
+    {
+        isEditing = false;
+        editingId = null;
+        editName = "";
+        editDocType = Metadata.Current.DocTypes.Values.FirstOrDefault(d => !d.Def.IsChild)?.Name ?? "PurchaseRequest";
+        editTrigger = nameof(NotificationTrigger.OnCreate);
+        editTriggerField = null;
+        editDaysOffset = 1;
+        editCondition = null;
+        editChannel = nameof(NotificationChannel.InApp);
+        editReceiverType = nameof(NotificationReceiverType.Role);
+        editReceiverValue = "Manager";
+        editSubjectTemplate = "{{name}}: New {{doctype}} created";
+        editMessageTemplate = "{{name}} has been created by {{actor}}.";
+        editIsActive = true;
+        dialogError = null;
+        isDrawerOpen = true;
+    }
+
+    private void StartEdit(NotificationRule r)
+    {
+        isEditing = true;
+        editingId = r.Id;
+        editName = r.Name;
+        editDocType = r.DocType;
+        editTrigger = r.Trigger.ToString();
+        editTriggerField = r.TriggerField;
+        editDaysOffset = r.DaysOffset ?? 1;
+        editCondition = r.Condition;
+        editChannel = r.Channel.ToString();
+        editReceiverType = r.ReceiverType.ToString();
+        editReceiverValue = r.ReceiverValue;
+        editSubjectTemplate = r.SubjectTemplate;
+        editMessageTemplate = r.MessageTemplate;
+        editIsActive = r.IsActive;
+        dialogError = null;
+        isDrawerOpen = true;
+    }
+
+    private async Task SaveRule()
+    {
+        if (string.IsNullOrWhiteSpace(editName))
+        {
+            dialogError = "Rule name is required.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(editDocType))
+        {
+            dialogError = "DocType is required.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(editSubjectTemplate))
+        {
+            dialogError = "Subject template is required.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(editMessageTemplate))
+        {
+            dialogError = "Message template is required.";
+            return;
+        }
+
+        var trig = Enum.Parse<NotificationTrigger>(editTrigger);
+        if (trig is NotificationTrigger.OnValueChange or NotificationTrigger.DaysBeforeDate or NotificationTrigger.DaysAfterDate)
+        {
+            if (string.IsNullOrWhiteSpace(editTriggerField))
+            {
+                dialogError = $"Watched / Date field is required for {editTrigger}.";
+                return;
+            }
+        }
+
+        var recType = Enum.Parse<NotificationReceiverType>(editReceiverType);
+        if (recType is not NotificationReceiverType.Owner && string.IsNullOrWhiteSpace(editReceiverValue))
+        {
+            dialogError = "Receiver value is required.";
+            return;
+        }
+
+        try
+        {
+            var u = Current.Required;
+            var now = Clock.GetUtcNow();
+            var id = editingId ?? Guid.NewGuid().ToString("N");
+
+            var rule = new NotificationRule
+            {
+                Id = id,
+                TenantId = u.TenantId,
+                Name = editName.Trim(),
+                DocType = editDocType.Trim(),
+                Trigger = trig,
+                TriggerField = editTriggerField?.Trim(),
+                DaysOffset = editDaysOffset,
+                Condition = string.IsNullOrWhiteSpace(editCondition) ? null : editCondition.Trim(),
+                Channel = Enum.Parse<NotificationChannel>(editChannel),
+                ReceiverType = recType,
+                ReceiverValue = editReceiverValue?.Trim(),
+                SubjectTemplate = editSubjectTemplate.Trim(),
+                MessageTemplate = editMessageTemplate.Trim(),
+                IsActive = editIsActive,
+                CreatedAt = isEditing ? (rules.FirstOrDefault(r => r.Id == id)?.CreatedAt ?? now) : now,
+                ModifiedAt = now
+            };
+
+            await RuleStore.SaveAsync(rule);
+            Toasts.Success($"Notification rule '{rule.Name}' saved.", "Notification Rules");
+            isDrawerOpen = false;
+            await LoadRulesAsync();
+        }
+        catch (Exception ex)
+        {
+            dialogError = ex.Message;
+        }
+    }
+
+    private async Task ToggleActive(NotificationRule r)
+    {
+        try
+        {
+            var updated = r with { IsActive = !r.IsActive, ModifiedAt = Clock.GetUtcNow() };
+            await RuleStore.SaveAsync(updated);
+            Toasts.Success($"Rule '{r.Name}' {(updated.IsActive ? "activated" : "deactivated")}.", "Notification Rules");
+            await LoadRulesAsync();
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error(ex.Message, "Error");
+        }
+    }
+
+    private async Task DeleteRule(NotificationRule r)
+    {
+        var confirmed = await Dialogs.ConfirmAsync("Delete Notification Rule", $"Are you sure you want to delete notification rule '{r.Name}'?");
+        if (!confirmed.Confirmed) return;
+
+        try
+        {
+            await RuleStore.DeleteAsync(r.TenantId, r.Id);
+            Toasts.Success($"Rule '{r.Name}' deleted.", "Notification Rules");
+            await LoadRulesAsync();
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error(ex.Message, "Error");
+        }
+    }
+
+    private static string TriggerDisplay(NotificationRule r) => r.Trigger switch
+    {
+        NotificationTrigger.OnCreate => "On Create",
+        NotificationTrigger.OnSubmit => "On Submit",
+        NotificationTrigger.OnValueChange => $"On Value Change ({r.TriggerField})",
+        NotificationTrigger.DaysBeforeDate => $"{r.DaysOffset}d before {r.TriggerField}",
+        NotificationTrigger.DaysAfterDate => $"{r.DaysOffset}d after {r.TriggerField}",
+        _ => r.Trigger.ToString()
+    };
+}

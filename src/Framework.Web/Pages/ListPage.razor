@@ -7,6 +7,8 @@
 @inject Framework.Imports.DataImportService Importer
 @inject DialogService Dialogs
 @inject ToastService Toasts
+@inject Framework.Preferences.IUserPreferenceStore UserPrefs
+@implements IDisposable
 
 <PageTitle>@(meta?.Title ?? DocType) · DocFrame</PageTitle>
 
@@ -71,6 +73,8 @@ else if (meta is not null)
                     OnRowClick="@(row => Go((string)row["name"]!))"
                     RowClass="@(row => selectedItems.Contains((string)row["name"]!) ? "clickable selected" : "clickable")"
                     Resizable="true"
+                    OnColumnResize="HandleColumnResize"
+                    StateChanged="OnGridStateChanged"
                     ShowPagination="true"
                     InitialPageSize="10"
                     PageSizes="@([10, 20, 50, 100])"
@@ -103,7 +107,14 @@ else if (meta is not null)
                             }
                         </div>
                     }
-                    <div style="margin-left:auto;align-self:flex-end">
+                    <div style="margin-left:auto;align-self:flex-end;display:flex;align-items:center;gap:.5rem">
+                        @if (hasCustomLayout)
+                        {
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ResetColumnsLayout" Title="Reset kolom ke bawaan">
+                                <LucideIcon Name="rotate-ccw" Size="14" />
+                                <span>Reset Kolom</span>
+                            </BbButton>
+                        }
                         <BbDataGridColumnVisibility TData="Dictionary<string, object?>" />
                     </div>
                 </div>
@@ -139,7 +150,8 @@ else if (meta is not null)
                     </ChildContent>
                 </BbDataGridTemplateColumn>
 
-                <BbDataGridTemplateColumn TData="Dictionary<string, object?>" Id="name" Title="Number" Hideable="false" Resizable="true" Sortable="true" SortBy="@(r => (string)r["name"]!)">
+                <BbDataGridTemplateColumn TData="Dictionary<string, object?>" Id="name" Title="Number" Hideable="false" Resizable="true" Sortable="true" SortBy="@(r => (string)r["name"]!)"
+                                          Width="@GetColWidth("name")">
                     <ChildContent Context="row">
                         <a class="doc-link" href="/app/@meta.Name/@((string)row["name"]!)">@((string)row["name"]!)</a>
                     </ChildContent>
@@ -149,7 +161,9 @@ else if (meta is not null)
                 {
                     var colKey = c;
                     var cf = meta.ByName.GetValueOrDefault(colKey);
-                    <BbDataGridTemplateColumn TData="Dictionary<string, object?>" Id="@colKey" Title="@LabelOf(colKey)" Resizable="true" Sortable="true" SortBy="@(r => (object?)(r.GetValueOrDefault(colKey) ?? ""))">
+                    <BbDataGridTemplateColumn TData="Dictionary<string, object?>" Id="@colKey" Title="@LabelOf(colKey)" Resizable="true" Sortable="true" SortBy="@(r => (object?)(r.GetValueOrDefault(colKey) ?? ""))"
+                                              Width="@GetColWidth(colKey)"
+                                              Visible="@IsColVisible(colKey)">
                         <ChildContent Context="row">
                             @if (cf?.Type.Editor == "image")
                             {
@@ -172,7 +186,9 @@ else if (meta is not null)
 
                 @if (HasStatus)
                 {
-                    <BbDataGridTemplateColumn TData="Dictionary<string, object?>" Id="status" Title="Status" Resizable="true" Sortable="true" SortBy="@(r => (object?)(r.GetValueOrDefault("workflow_state") ?? ""))">
+                    <BbDataGridTemplateColumn TData="Dictionary<string, object?>" Id="status" Title="Status" Resizable="true" Sortable="true" SortBy="@(r => (object?)(r.GetValueOrDefault("workflow_state") ?? ""))"
+                                              Width="@GetColWidth("status")"
+                                              Visible="@IsColVisible("status")">
                         <ChildContent Context="row">
                             @{
                                 var st = row.GetValueOrDefault("workflow_state") as string;
@@ -183,7 +199,9 @@ else if (meta is not null)
                     </BbDataGridTemplateColumn>
                 }
 
-                <BbDataGridTemplateColumn TData="Dictionary<string, object?>" Id="modified" Title="Modified" Resizable="true" Sortable="true" SortBy="@(r => (object)r["modified"]!)">
+                <BbDataGridTemplateColumn TData="Dictionary<string, object?>" Id="modified" Title="Modified" Resizable="true" Sortable="true" SortBy="@(r => (object)r["modified"]!)"
+                                          Width="@GetColWidth("modified")"
+                                          Visible="@IsColVisible("modified")">
                     <ChildContent Context="row">
                         <span class="muted nowrap">@Fmt.When((DateTimeOffset)row["modified"]!)</span>
                     </ChildContent>
@@ -211,6 +229,10 @@ else if (meta is not null)
     private readonly Dictionary<string, FilterClause> filters = new();
     private readonly HashSet<string> selectedItems = [];
     private bool busy;
+
+    private Framework.Preferences.DataGridPreference gridPref = new();
+    private bool hasCustomLayout;
+    private System.Threading.Timer? saveDebounceTimer;
 
     private bool IsAllSelected => result?.Items.Count > 0 && result.Items.All(r => selectedItems.Contains((string)r["name"]!));
     private bool IsSomeSelected => !IsAllSelected && result?.Items.Any(r => selectedItems.Contains((string)r["name"]!)) == true;
@@ -252,6 +274,22 @@ else if (meta is not null)
         if (!Metadata.Current.TryGet(DocType, out var m) || m.Def.IsChild) { fatal = $"DocType '{DocType}' not found."; return; }
         meta = m;
         if (!Perms.Can(Current.Required, meta, DocActions.Read)) { fatal = $"You do not have permission to view {meta.Title}."; return; }
+
+        if (Current.User is { } u)
+        {
+            var saved = await UserPrefs.GetAsync<Framework.Preferences.DataGridPreference>(u.TenantId, u.Id, $"grid:{DocType}");
+            if (saved is not null && saved.Columns.Count > 0)
+            {
+                gridPref = saved;
+                hasCustomLayout = true;
+            }
+            else
+            {
+                gridPref = new();
+                hasCustomLayout = false;
+            }
+        }
+
         await Reload(1);
     }
 
@@ -353,5 +391,103 @@ else if (meta is not null)
         {
             error = ex.Message;
         }
+    }
+
+    private string? GetColWidth(string colId) =>
+        gridPref.Columns.TryGetValue(colId, out var pref) && !string.IsNullOrWhiteSpace(pref.Width)
+            ? pref.Width
+            : null;
+
+    private bool IsColVisible(string colId) =>
+        !gridPref.Columns.TryGetValue(colId, out var pref) || pref.Visible;
+
+    private void HandleColumnResize((string ColumnId, string Width) args)
+    {
+        if (string.IsNullOrWhiteSpace(args.ColumnId)) return;
+        if (!gridPref.Columns.TryGetValue(args.ColumnId, out var pref))
+        {
+            pref = new Framework.Preferences.GridColumnPreference { Visible = true };
+        }
+        gridPref.Columns[args.ColumnId] = pref with { Width = args.Width };
+        hasCustomLayout = true;
+        ScheduleSavePreference();
+    }
+
+    private void OnGridStateChanged(BlazorBlueprint.Primitives.DataGrid.DataGridState<Dictionary<string, object?>> state)
+    {
+        if (state?.Columns?.Entries is null) return;
+        bool changed = false;
+        foreach (var entry in state.Columns.Entries)
+        {
+            if (entry.ColumnId == "_select") continue;
+            if (!gridPref.Columns.TryGetValue(entry.ColumnId, out var pref))
+            {
+                if (!entry.Visible || !string.IsNullOrWhiteSpace(entry.Width))
+                {
+                    gridPref.Columns[entry.ColumnId] = new Framework.Preferences.GridColumnPreference
+                    {
+                        Visible = entry.Visible,
+                        Width = entry.Width
+                    };
+                    changed = true;
+                }
+            }
+            else
+            {
+                var widthToSave = !string.IsNullOrWhiteSpace(entry.Width) ? entry.Width : pref.Width;
+                if (pref.Visible != entry.Visible || pref.Width != widthToSave)
+                {
+                    gridPref.Columns[entry.ColumnId] = pref with { Visible = entry.Visible, Width = widthToSave };
+                    changed = true;
+                }
+            }
+        }
+
+        if (changed)
+        {
+            hasCustomLayout = true;
+            ScheduleSavePreference();
+        }
+    }
+
+    private void ScheduleSavePreference()
+    {
+        saveDebounceTimer?.Dispose();
+        saveDebounceTimer = new System.Threading.Timer(async _ =>
+        {
+            await SavePreferenceAsync();
+        }, null, 500, System.Threading.Timeout.Infinite);
+    }
+
+    private async Task SavePreferenceAsync()
+    {
+        try
+        {
+            if (Current.User is { } u && !string.IsNullOrEmpty(DocType))
+            {
+                await UserPrefs.SetAsync(u.TenantId, u.Id, $"grid:{DocType}", gridPref);
+            }
+        }
+        catch
+        {
+            // Background save error shouldn't crash the UI
+        }
+    }
+
+    private async Task ResetColumnsLayout()
+    {
+        if (Current.User is { } u && !string.IsNullOrEmpty(DocType))
+        {
+            await UserPrefs.DeleteAsync(u.TenantId, u.Id, $"grid:{DocType}");
+        }
+        gridPref = new();
+        hasCustomLayout = false;
+        Toasts.Success("Tata letak kolom telah dikembalikan ke bawaan.", "Reset Kolom");
+        await Reload(result?.Page ?? 1);
+    }
+
+    public void Dispose()
+    {
+        saveDebounceTimer?.Dispose();
     }
 }

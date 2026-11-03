@@ -1,6 +1,8 @@
 @page "/app/{DocType}/{Name}"
+@implements IAsyncDisposable
 @using System.Text.Json
 @using Framework.Files
+@using Framework.Presence
 @inject DocumentService Docs
 @inject CurrentUser Current
 @inject IMetadataProvider Metadata
@@ -12,6 +14,7 @@
 @inject IEnumerable<Framework.Actions.IFormAction> RegisteredFormActions
 @inject IServiceProvider Sp
 @inject AttachmentService Attachments
+@inject IDocumentPresenceService Presence
 
 <PageTitle>@(IsNew ? $"New {meta?.Title}" : Name) · DocFrame</PageTitle>
 
@@ -42,10 +45,16 @@ else if (meta is not null && doc is not null)
                 else { <span>Not saved yet</span> }
             </p>
         </div>
-        @if (!IsNew || meta.Workflow is not null)
-        {
-            <StatusStamp Label="@Fmt.StateLabel(doc.WorkflowState, doc.DocStatus)" Tone="@Fmt.Tone(meta, doc)" />
-        }
+        <div class="row" style="gap:.75rem;align-items:center;flex-wrap:wrap">
+            @if (!IsNew)
+            {
+                <DocumentPresenceBar Users="@presenceUsers" CurrentSessionId="@sessionId" />
+            }
+            @if (!IsNew || meta.Workflow is not null)
+            {
+                <StatusStamp Label="@Fmt.StateLabel(doc.WorkflowState, doc.DocStatus)" Tone="@Fmt.Tone(meta, doc)" />
+            }
+        </div>
     </header>
 
     <div class="toolbar" role="toolbar" aria-label="Document actions">
@@ -92,6 +101,18 @@ else if (meta is not null && doc is not null)
             <span class="muted small">Document is locked with status @Fmt.StateLabel(doc.WorkflowState, doc.DocStatus).</span>
         }
     </div>
+
+    @if (!IsNew && OtherEditingUsers.Count > 0)
+    {
+        var editors = string.Join(", ", OtherEditingUsers.Select(u => u.FullName));
+        <div class="presence-warning-banner" role="alert">
+            <LucideIcon Name="alert-triangle" Size="18" Class="presence-warning-icon" />
+            <div class="presence-warning-content">
+                <strong>Dokumen Sedang Diedit Pengguna Lain</strong>
+                <span><strong>@editors</strong> saat ini sedang mengedit dokumen ini. Perubahan simultan berisiko menyebabkan konflik versi saat disimpan.</span>
+            </div>
+        </div>
+    }
 
     @if (conflict is not null)
     {
@@ -277,6 +298,15 @@ else if (meta is not null && doc is not null)
     private string? fatal, banner, conflict;
     private bool busy, savingNow, dirty;
 
+    private readonly string sessionId = Guid.NewGuid().ToString("N");
+    private IDisposable? presenceSub;
+    private PeriodicTimer? heartbeatTimer;
+    private CancellationTokenSource? presenceCts;
+    private IReadOnlyList<DocumentPresenceUser> presenceUsers = [];
+
+    private IReadOnlyList<DocumentPresenceUser> OtherEditingUsers =>
+        presenceUsers.Where(u => u.SessionId != sessionId && u.Status == PresenceStatus.Editing).ToList();
+
     private bool IsNew => Name == "new";
     private UserContext User => Current.Required;
 
@@ -379,6 +409,8 @@ else if (meta is not null && doc is not null)
     private async Task Load()
     {
         fatal = null; banner = null; conflict = null; errors.Clear();
+        await CleanupPresenceAsync();
+
         if (!Metadata.Current.TryGet(DocType, out var m) || m.Def.IsChild) { fatal = $"DocType '{DocType}' not found."; return; }
         meta = m;
         try
@@ -397,6 +429,13 @@ else if (meta is not null && doc is not null)
             actions = IsNew ? [] : await Docs.AvailableActionsAsync(User, doc);
             audit = IsNew ? [] : await Docs.GetAuditAsync(User, DocType, Name);
             attachments = IsNew ? [] : await Attachments.ListAsync(User, DocType, Name);
+
+            if (!IsNew)
+            {
+                presenceSub = Presence.Subscribe(User.TenantId, DocType, Name, OnPresenceChanged);
+                presenceUsers = await Presence.HeartbeatAsync(User.TenantId, DocType, Name, sessionId, User, PresenceStatus.Viewing);
+                StartHeartbeatLoop();
+            }
         }
         catch (Exception ex) when (ex is PermissionDeniedException or DocumentNotFoundException)
         {
@@ -423,7 +462,7 @@ else if (meta is not null && doc is not null)
         await Changed();
     }
 
-    private Task Changed()
+    private async Task Changed()
     {
         // Pratinjau compute di UI memakai engine ekspresi yang sama dengan server.
         Evaluator.ApplyCompute(meta!, model, User, Metadata.Current.Get);
@@ -435,9 +474,14 @@ else if (meta is not null && doc is not null)
             var noLongerRequired = meta!.ByName.TryGetValue(root, out var f) && (errors[key].Contains("wajib") || errors[key].Contains("required")) && !State(f).Required;
             if (changed || noLongerRequired) errors.Remove(key);
         }
+        var wasDirty = dirty;
         dirty = Snapshot() != original;
         banner = null;
-        return Task.CompletedTask;
+
+        if (!IsNew && dirty != wasDirty)
+        {
+            await UpdatePresenceStatusAsync(dirty ? PresenceStatus.Editing : PresenceStatus.Viewing);
+        }
     }
 
     private Dictionary<string, object?> BuildPayload()
@@ -597,5 +641,80 @@ else if (meta is not null && doc is not null)
         if (bytes < 1024) return $"{bytes} B";
         if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
         return $"{bytes / (1024.0 * 1024.0):F2} MB";
+    }
+
+    private void StartHeartbeatLoop()
+    {
+        presenceCts?.Cancel();
+        presenceCts = new CancellationTokenSource();
+        heartbeatTimer?.Dispose();
+        heartbeatTimer = new PeriodicTimer(TimeSpan.FromSeconds(10));
+        var ct = presenceCts.Token;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                while (await heartbeatTimer.WaitForNextTickAsync(ct))
+                {
+                    if (ct.IsCancellationRequested) break;
+                    var status = dirty ? PresenceStatus.Editing : PresenceStatus.Viewing;
+                    await Presence.HeartbeatAsync(User.TenantId, DocType, Name, sessionId, User, status, ct);
+                }
+            }
+            catch (OperationCanceledException) { }
+            catch { }
+        }, ct);
+    }
+
+    private async Task UpdatePresenceStatusAsync(PresenceStatus status)
+    {
+        try
+        {
+            presenceUsers = await Presence.HeartbeatAsync(User.TenantId, DocType, Name, sessionId, User, status);
+        }
+        catch { }
+    }
+
+    private void OnPresenceChanged(PresenceChange change)
+    {
+        _ = InvokeAsync(() =>
+        {
+            presenceUsers = change.ActiveUsers;
+            StateHasChanged();
+        });
+    }
+
+    private async ValueTask CleanupPresenceAsync()
+    {
+        presenceSub?.Dispose();
+        presenceSub = null;
+
+        if (presenceCts is not null)
+        {
+            presenceCts.Cancel();
+            presenceCts.Dispose();
+            presenceCts = null;
+        }
+
+        if (heartbeatTimer is not null)
+        {
+            heartbeatTimer.Dispose();
+            heartbeatTimer = null;
+        }
+
+        if (!IsNew && doc is not null)
+        {
+            try
+            {
+                await Presence.LeaveAsync(User.TenantId, DocType, Name, sessionId);
+            }
+            catch { }
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await CleanupPresenceAsync();
     }
 }

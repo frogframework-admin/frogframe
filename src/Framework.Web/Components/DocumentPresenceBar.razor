@@ -1,0 +1,100 @@
+@using Framework.Presence
+
+@if (Others.Count > 0)
+{
+    <div class="doc-presence-container" title="@GetHoverTitle()">
+        <div class="doc-presence-avatars">
+            @foreach (var user in Others.Take(4))
+            {
+                var isEditing = user.Status == PresenceStatus.Editing;
+                <div class="presence-avatar-wrapper @(isEditing ? "is-editing" : "is-viewing")"
+                     title="@($"{user.FullName} ({StatusText(user.Status)})")">
+                    @if (!string.IsNullOrWhiteSpace(user.AvatarId))
+                    {
+                        <img class="presence-avatar-img" src="@($"/files/{user.AvatarId}")" alt="@user.FullName" />
+                    }
+                    else
+                    {
+                        <span class="presence-avatar-initials" style="background-color: @GetColorForUser(user.UserId)">
+                            @GetInitials(user.FullName)
+                        </span>
+                    }
+                    <span class="presence-status-dot @(isEditing ? "dot-editing" : "dot-viewing")"
+                          title="@StatusText(user.Status)">
+                        <LucideIcon Name="@(isEditing ? "pencil" : "eye")" Size="9" />
+                    </span>
+                </div>
+            }
+            @if (Others.Count > 4)
+            {
+                <span class="presence-avatar-more">+@(Others.Count - 4)</span>
+            }
+        </div>
+
+        @if (OtherEditors.Count > 0)
+        {
+            <div class="presence-pill pill-editing">
+                <span class="presence-pulse-badge"></span>
+                <LucideIcon Name="pencil" Size="13" />
+                <span>@(OtherEditors.Count == 1 ? $"{OtherEditors[0].FullName} sedang mengedit" : $"{OtherEditors.Count} pengguna sedang mengedit")</span>
+            </div>
+        }
+        else
+        {
+            <div class="presence-pill pill-viewing">
+                <LucideIcon Name="eye" Size="13" />
+                <span>@(Others.Count == 1 ? $"{Others[0].FullName} sedang melihat" : $"{Others.Count} pengguna sedang melihat")</span>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public IReadOnlyList<DocumentPresenceUser> Users { get; set; } = [];
+    [Parameter] public string CurrentSessionId { get; set; } = "";
+
+    private IReadOnlyList<DocumentPresenceUser> Others =>
+        Users.Where(u => u.SessionId != CurrentSessionId).ToList();
+
+    private IReadOnlyList<DocumentPresenceUser> OtherEditors =>
+        Others.Where(u => u.Status == PresenceStatus.Editing).ToList();
+
+    private static string StatusText(PresenceStatus status) =>
+        status == PresenceStatus.Editing ? "Sedang Mengedit" : "Sedang Melihat";
+
+    private string GetHoverTitle()
+    {
+        if (Others.Count == 0) return "Tidak ada pengguna lain";
+        var lines = Others.Select(u => $"{u.FullName}: {StatusText(u.Status)}");
+        return string.Join("\n", lines);
+    }
+
+    private static string GetInitials(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "?";
+        var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 1) return parts[0][0].ToString().ToUpperInvariant();
+        return $"{parts[0][0]}{parts[^1][0]}".ToUpperInvariant();
+    }
+
+    private static string GetColorForUser(string userId)
+    {
+        // Palette warna pastel solid modern yang kontras dengan teks putih
+        var colors = new[]
+        {
+            "#2563eb", // Blue
+            "#7c3aed", // Violet
+            "#059669", // Emerald
+            "#d97706", // Amber
+            "#dc2626", // Red
+            "#0284c7", // Sky
+            "#4f46e5", // Indigo
+            "#0d9488", // Teal
+            "#c026d3", // Fuchsia
+            "#ea580c"  // Orange
+        };
+        var hash = Math.Abs(userId.GetHashCode());
+        return colors[hash % colors.Length];
+    }
+}
+

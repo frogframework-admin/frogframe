@@ -10,6 +10,7 @@
 @inject IEnumerable<DeskMenuItem> MenuItems
 @inject INavigationMenuStore MenuStore
 @inject ToastService Toasts
+@inject IJSRuntime JS
 
 <BbSidebarProvider DefaultOpen="true">
     <BbSidebar Collapsible="true">
@@ -179,10 +180,11 @@
             </div>
             
             <div class="header-center">
-                <div class="header-search">
+                <button type="button" class="header-search-btn" @onclick="OpenAwesomebar" title="Search or jump to (Ctrl+K or Alt+Q)">
                     <LucideIcon Name="search" Size="16" Class="header-search-icon" />
-                    <input type="text" placeholder="Search (Alt+Q)" class="header-search-input" />
-                </div>
+                    <span class="header-search-placeholder">Search (Ctrl+K / Alt+Q)</span>
+                    <kbd class="header-search-kbd">Ctrl+K</kbd>
+                </button>
             </div>
 
             <div class="header-right">
@@ -241,6 +243,7 @@
 </BbSidebarProvider>
 
 <UserProfileDrawer @bind-Open="isProfileOpen" />
+<AwesomebarModal @bind-Open="isAwesomebarOpen" OnToggleTheme="ToggleTheme" OnOpenProfile="OpenUserProfile" OnSwitchModule="SwitchModuleFromAwesomebar" />
 
 @if (Current.User is { } modalUser)
 {
@@ -284,8 +287,50 @@
     private IReadOnlyList<NavigationMenuItem> navMenus = [];
     private bool isModulePickerOpen;
     private bool isProfileOpen;
+    private bool isAwesomebarOpen;
+    private DotNetObjectReference<DeskLayout>? dotNetRef;
 
     private void OpenUserProfile() => isProfileOpen = true;
+
+    [JSInvokable]
+    public void OpenAwesomebarFromJs()
+    {
+        isAwesomebarOpen = true;
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private void OpenAwesomebar() => isAwesomebarOpen = true;
+
+    private async Task ToggleTheme()
+    {
+        await JS.InvokeVoidAsync("docframe.toggleTheme");
+    }
+
+    private void SwitchModuleFromAwesomebar(string modId)
+    {
+        Current.SetActiveModule(modId);
+        var mod = navModules.FirstOrDefault(m => m.Id == modId);
+        if (mod is not null)
+        {
+            Toasts.Success($"Switched to {mod.Name} module.", "Active Module");
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            dotNetRef = DotNetObjectReference.Create(this);
+            try
+            {
+                await JS.InvokeVoidAsync("docframe.initGlobalShortcuts", dotNetRef);
+            }
+            catch
+            {
+                // In case JS isn't available yet or in non-interactive environment
+            }
+        }
+    }
 
     protected override void OnInitialized()
     {
@@ -439,5 +484,6 @@
         Current.ModuleChanged -= OnModuleChanged;
         MenuStore.Changed -= OnMenusChanged;
         timer?.Dispose();
+        dotNetRef?.Dispose();
     }
 }

@@ -1,0 +1,285 @@
+@using Framework.Web.Services
+@inject GlobalSearchService SearchService
+@inject CurrentUser Current
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject ToastService Toasts
+
+@if (Open)
+{
+    <div class="awesomebar-backdrop" @onclick="Close" @onkeydown="HandleBackdropKey" tabindex="-1">
+        <div class="awesomebar-container" @onclick:stopPropagation="true">
+            <div class="awesomebar-card">
+                <!-- Search Input Header -->
+                <div class="awesomebar-header">
+                    <LucideIcon Name="search" Size="18" Class="awesomebar-search-icon" />
+                    <input id="awesomebar-search-input"
+                           type="text"
+                           class="awesomebar-input"
+                           placeholder="Search documents, doctypes, pages, commands… (Ctrl+K / Alt+Q)"
+                           value="@search"
+                           @oninput="OnSearchInput"
+                           @onkeydown="HandleKeyDown"
+                           autocomplete="off"
+                           spellcheck="false" />
+                    @if (!string.IsNullOrEmpty(search))
+                    {
+                        <button type="button" class="awesomebar-clear-btn" @onclick="ClearSearch" title="Clear search">
+                            <LucideIcon Name="x" Size="15" />
+                        </button>
+                    }
+                    <button type="button" class="awesomebar-close-btn" @onclick="Close" title="Close (Esc)">
+                        <kbd>Esc</kbd>
+                    </button>
+                </div>
+
+                <!-- Results List Body -->
+                <div class="awesomebar-body">
+                    @if (isLoading)
+                    {
+                        <div class="awesomebar-loading">
+                            <div class="awesomebar-spinner"></div>
+                            <span>Searching DocFrame records…</span>
+                        </div>
+                    }
+
+                    @if (items.Count == 0 && !isLoading)
+                    {
+                        <div class="awesomebar-empty">
+                            <LucideIcon Name="file-question" Size="32" Class="awesomebar-empty-icon" />
+                            <div class="awesomebar-empty-title">No matching results</div>
+                            <div class="awesomebar-empty-desc">
+                                Try searching for another DocType, document ID (e.g. <code>PR-</code>), menu, or command.
+                            </div>
+                        </div>
+                    }
+                    else if (items.Count > 0)
+                    {
+                        <div class="awesomebar-results">
+                            @{
+                                var currentIndex = 0;
+                                var groups = items.GroupBy(i => i.Category).ToList();
+                            }
+                            @foreach (var group in groups)
+                            {
+                                <div class="awesomebar-group-header">
+                                    <span>@GroupLabel(group.Key)</span>
+                                </div>
+
+                                @foreach (var item in group)
+                                {
+                                    var itemIndex = currentIndex++;
+                                    var isSelected = itemIndex == selectedIndex;
+                                    <div class="awesomebar-item @(isSelected ? "selected" : "")"
+                                         @onclick="() => SelectItem(item)"
+                                         @onmouseenter="() => selectedIndex = itemIndex">
+                                        <div class="awesomebar-item-icon">
+                                            <LucideIcon Name="@(string.IsNullOrWhiteSpace(item.Icon) ? "file-text" : item.Icon)" Size="17" />
+                                        </div>
+                                        <div class="awesomebar-item-content">
+                                            <div class="awesomebar-item-title">@item.Title</div>
+                                            @if (!string.IsNullOrWhiteSpace(item.Subtitle))
+                                            {
+                                                <div class="awesomebar-item-subtitle">@item.Subtitle</div>
+                                            }
+                                        </div>
+                                        @if (!string.IsNullOrWhiteSpace(item.Badge))
+                                        {
+                                            <span class="awesomebar-item-badge @BadgeTone(item)">@item.Badge</span>
+                                        }
+                                        <LucideIcon Name="corner-down-left" Size="13" Class="awesomebar-item-enter" />
+                                    </div>
+                                }
+                            }
+                        </div>
+                    }
+                </div>
+
+                <!-- Footer with Shortcut Navigation Hints -->
+                <div class="awesomebar-footer">
+                    <div class="awesomebar-shortcuts">
+                        <span><kbd>↑</kbd> <kbd>↓</kbd> Navigate</span>
+                        <span><kbd>↵</kbd> Select</span>
+                        <span><kbd>Esc</kbd> Close</span>
+                    </div>
+                    <div class="awesomebar-tip">
+                        Tip: Type <strong>"new "</strong> to create a draft document
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public EventCallback<bool> OpenChanged { get; set; }
+    [Parameter] public EventCallback OnToggleTheme { get; set; }
+    [Parameter] public EventCallback OnOpenProfile { get; set; }
+    [Parameter] public EventCallback<string> OnSwitchModule { get; set; }
+
+    private string search = "";
+    private bool isLoading = false;
+    private int selectedIndex = 0;
+    private IReadOnlyList<AwesomebarItem> items = [];
+    private CancellationTokenSource? cts;
+    private bool previousOpen = false;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Open && !previousOpen)
+        {
+            search = "";
+            selectedIndex = 0;
+            previousOpen = true;
+            await TriggerSearchAsync(string.Empty);
+            await JS.InvokeVoidAsync("docframe.focusInput", "#awesomebar-search-input");
+        }
+        else if (!Open && previousOpen)
+        {
+            previousOpen = false;
+            cts?.Cancel();
+        }
+    }
+
+    private async Task OnSearchInput(ChangeEventArgs e)
+    {
+        search = e.Value?.ToString() ?? string.Empty;
+        await TriggerSearchAsync(search);
+    }
+
+    private async Task TriggerSearchAsync(string query)
+    {
+        cts?.Cancel();
+        cts = new CancellationTokenSource();
+        var token = cts.Token;
+
+        try
+        {
+            if (Current.User is not { } u) return;
+
+            // Debounce ringan untuk live search database
+            if (!string.IsNullOrEmpty(query))
+            {
+                isLoading = true;
+                await Task.Delay(120, token);
+            }
+
+            var results = await SearchService.SearchAsync(u, query, token);
+            if (!token.IsCancellationRequested)
+            {
+                items = results;
+                selectedIndex = 0;
+                isLoading = false;
+                StateHasChanged();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Abaikan pembatalan pencarian sebelumnya
+        }
+        catch (Exception)
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "ArrowDown")
+        {
+            if (items.Count > 0)
+            {
+                selectedIndex = (selectedIndex + 1) % items.Count;
+            }
+        }
+        else if (e.Key == "ArrowUp")
+        {
+            if (items.Count > 0)
+            {
+                selectedIndex = (selectedIndex - 1 + items.Count) % items.Count;
+            }
+        }
+        else if (e.Key == "Enter")
+        {
+            if (selectedIndex >= 0 && selectedIndex < items.Count)
+            {
+                await SelectItem(items[selectedIndex]);
+            }
+        }
+        else if (e.Key == "Escape")
+        {
+            await Close();
+        }
+    }
+
+    private async Task HandleBackdropKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            await Close();
+        }
+    }
+
+    private async Task SelectItem(AwesomebarItem item)
+    {
+        await Close();
+
+        if (!string.IsNullOrEmpty(item.Href))
+        {
+            Nav.NavigateTo(item.Href);
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(item.ActionKey))
+        {
+            if (item.ActionKey == "toggle_theme")
+            {
+                await OnToggleTheme.InvokeAsync();
+            }
+            else if (item.ActionKey == "open_profile")
+            {
+                await OnOpenProfile.InvokeAsync();
+            }
+            else if (item.ActionKey.StartsWith("switch_mod:"))
+            {
+                var modId = item.ActionKey["switch_mod:".Length..];
+                await OnSwitchModule.InvokeAsync(modId);
+            }
+        }
+    }
+
+    private async Task ClearSearch()
+    {
+        search = "";
+        await TriggerSearchAsync(string.Empty);
+        await JS.InvokeVoidAsync("docframe.focusInput", "#awesomebar-search-input");
+    }
+
+    private async Task Close()
+    {
+        Open = false;
+        cts?.Cancel();
+        await OpenChanged.InvokeAsync(false);
+    }
+
+    private static string GroupLabel(AwesomebarCategory cat) => cat switch
+    {
+        AwesomebarCategory.Navigation => "Navigation & Pages",
+        AwesomebarCategory.Action => "Create Record",
+        AwesomebarCategory.Document => "Documents & Records",
+        AwesomebarCategory.Report => "Reports",
+        AwesomebarCategory.Command => "System Commands",
+        _ => "General"
+    };
+
+    private static string BadgeTone(AwesomebarItem item)
+    {
+        if (item.Badge == "Create" || item.Badge == "New") return "badge-create";
+        if (item.Badge == "Submitted") return "badge-submitted";
+        if (item.Badge == "Cancelled") return "badge-cancelled";
+        if (item.Badge == "Draft") return "badge-draft";
+        return "badge-default";
+    }
+}
+

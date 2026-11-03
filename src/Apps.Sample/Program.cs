@@ -2,6 +2,7 @@ using Apps.Sample.Components;
 using Apps.Sample.Domain;
 using Apps.Sample.Hooks;
 using BlazorBlueprint.Components;
+using Framework.Notifications;
 using Framework.Web;
 using Framework.Web.Layout;
 using Framework.Web.Identity;
@@ -73,6 +74,7 @@ builder.Services.AddApiMethod<SisaAnggaranMethod>();
 builder.Services.AddApiMethod<AjukanMassalMethod>();
 // Menu tambahan di grup HR (tampil bagi yang boleh membaca data Karyawan).
 builder.Services.AddDeskMenuItem(new DeskMenuItem("HR", "Struktur Organisasi", "/hr/struktur-organisasi", "network", RequiresReadOf: "Employee"));
+builder.Services.AddScheduledJob<NotificationRuleDateJob>();
 
 // Hardening HTTP production: ForwardedHeaders & HSTS
 builder.Services.AddDocFrameHttpHardening(builder.Configuration);
