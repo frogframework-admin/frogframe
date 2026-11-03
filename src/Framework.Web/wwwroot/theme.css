@@ -109,3 +109,96 @@
 
   *, ::after, ::before, ::backdrop, ::file-selector-button { border-color: var(--border); }
 }
+
+
+/* ==========================================================================
+   Variabel merek (brand) dipakai oleh desk.css. Ganti tema dengan
+   <html data-theme="maroon"> atau <html data-theme="green">. Default: biru.
+   ========================================================================== */
+:root {
+  --topbar-bg: linear-gradient(90deg, #1859c5 0%, #206de6 45%, #2575ee 75%, #1f6ce3 100%);
+  --topbar-fg: #ffffff;
+  --brand-strong: #1859c5;      /* header sidebar */
+  --brand: #1c64d8;             /* badge / tombol utama */
+  --brand-link: #1e6ce4;        /* tautan breadcrumb */
+  --brand-ink: #1e3a8a;         /* teks menu & label */
+  --brand-ink-hover: #1d4ed8;   /* teks hover / aktif */
+  --brand-icon: #2563eb;
+  --brand-label: #3b82f6;
+  --brand-soft: #dbeafe;        /* pill aktif, border tabel */
+  --brand-softer: #e0edfe;      /* hover */
+  --table-header-bg: #eaf2fd;
+  --brand-border: #c7ddfc;
+  --brand-name: #0f2d59;
+  --wave-image: url('/_content/Framework.Web/img/bottom-wave-blue.png');
+  /* dark */
+  --topbar-bg-dark: linear-gradient(90deg, #0b1120 0%, #111a2e 45%, #16223d 75%, #10182b 100%);
+  --brand-strong-dark: #0b1120;
+  --dk-accent: #60a5fa;
+  --dk-accent-text: #93c5fd;
+  --dk-focus: #3b82f6;
+  --dk-solid: #2563eb;
+  --wave-image-dark: url('/_content/Framework.Web/img/bottom-wave-dark.png');
+}
+
+:root[data-theme="maroon"] {
+  --primary: oklch(0.42 0.15 20);
+  --ring: oklch(0.58 0.14 20);
+  --sidebar: #fff3f3;
+  --sidebar-foreground: #7f1d1d;
+  --sidebar-primary: #b91c1c;
+  --sidebar-accent: #fee2e2;
+  --sidebar-accent-foreground: #991b1b;
+  --sidebar-border: #fee2e2;
+  --sidebar-ring: #ef4444;
+  --topbar-bg: linear-gradient(90deg, #7f1d1d 0%, #991b1b 45%, #a32121 75%, #8f1d1d 100%);
+  --brand-strong: #7f1d1d;
+  --brand: #a32121;
+  --brand-link: #b91c1c;
+  --brand-ink: #7f1d1d;
+  --brand-ink-hover: #991b1b;
+  --brand-icon: #b91c1c;
+  --brand-label: #dc2626;
+  --brand-soft: #fee2e2;
+  --brand-softer: #fff0f0;
+  --table-header-bg: #fdecec;
+  --brand-border: #fbcaca;
+  --brand-name: #5b1212;
+  --topbar-bg-dark: linear-gradient(90deg, #1a0b0b 0%, #2a1111 45%, #3a1515 75%, #241010 100%);
+  --brand-strong-dark: #1a0b0b;
+  --dk-accent: #f87171;
+  --dk-accent-text: #fca5a5;
+  --dk-focus: #ef4444;
+  --dk-solid: #b91c1c;
+}
+
+:root[data-theme="green"] {
+  --primary: oklch(0.45 0.12 155);
+  --ring: oklch(0.6 0.12 155);
+  --sidebar: #f0fdf4;
+  --sidebar-foreground: #14532d;
+  --sidebar-primary: #15803d;
+  --sidebar-accent: #dcfce7;
+  --sidebar-accent-foreground: #166534;
+  --sidebar-border: #dcfce7;
+  --sidebar-ring: #22c55e;
+  --topbar-bg: linear-gradient(90deg, #14532d 0%, #166534 45%, #15803d 75%, #166534 100%);
+  --brand-strong: #14532d;
+  --brand: #15803d;
+  --brand-link: #16a34a;
+  --brand-ink: #14532d;
+  --brand-ink-hover: #166534;
+  --brand-icon: #16a34a;
+  --brand-label: #22c55e;
+  --brand-soft: #dcfce7;
+  --brand-softer: #ecfdf3;
+  --table-header-bg: #e8f8ee;
+  --brand-border: #bbf7d0;
+  --brand-name: #0f3d22;
+  --topbar-bg-dark: linear-gradient(90deg, #07150c 0%, #0e2316 45%, #123220 75%, #0b1c12 100%);
+  --brand-strong-dark: #07150c;
+  --dk-accent: #4ade80;
+  --dk-accent-text: #86efac;
+  --dk-focus: #22c55e;
+  --dk-solid: #15803d;
+}

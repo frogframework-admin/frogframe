@@ -147,6 +147,7 @@
                     </div>
                     <div class="who"><span style="font-weight:600;font-size:.85rem">@me.FullName</span>
                         <span class="muted small">@string.Join(", ", me.Roles.Where(r => r != "Employee").DefaultIfEmpty("Employee"))</span></div>
+                    <LucideIcon Name="chevron-right" Size="16" Class="sidebar-user-chevron" />
                 </button>
             </BbSidebarFooter>
         }

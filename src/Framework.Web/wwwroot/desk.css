@@ -20,7 +20,7 @@ h1:focus { outline: none; } /* FocusOnNavigate memindahkan fokus ke h1 untuk pem
   justify-content: space-between;
   height: 3.5rem;
   padding: 0 1.25rem;
-  background: linear-gradient(90deg, #1859c5 0%, #206de6 45%, #2575ee 75%, #1f6ce3 100%);
+  background: var(--topbar-bg);
   color: #ffffff;
   border-bottom: 1px solid rgba(255, 255, 255, 0.15);
   position: sticky !important;
@@ -159,7 +159,7 @@ h1:focus { outline: none; } /* FocusOnNavigate memindahkan fokus ke h1 untuk pem
   font-weight: 500;
 }
 .crumb-home {
-  color: #1e6ce4;
+  color: var(--brand-link);
   display: inline-flex;
   align-items: center;
 }
@@ -169,7 +169,7 @@ h1:focus { outline: none; } /* FocusOnNavigate memindahkan fokus ke h1 untuk pem
 .crumb-link {
   all: unset;
   cursor: pointer;
-  color: #1e6ce4;
+  color: var(--brand-link);
   font-weight: 600;
 }
 .crumb-link:hover {
@@ -196,7 +196,7 @@ h1:focus { outline: none; } /* FocusOnNavigate memindahkan fokus ke h1 untuk pem
   width: 2.75rem;
   height: 2.75rem;
   border-radius: 0.65rem;
-  background: #1c64d8;
+  background: var(--brand);
   color: #ffffff;
   display: grid;
   place-items: center;
@@ -228,7 +228,7 @@ h1:focus { outline: none; } /* FocusOnNavigate memindahkan fokus ke h1 untuk pem
   color: var(--foreground) !important;
 }
 .btn-action-new {
-  background: #1c64d8 !important;
+  background: var(--brand) !important;
   color: #ffffff !important;
   font-weight: 600 !important;
   box-shadow: 0 2px 8px -1px rgba(28, 100, 216, 0.4) !important;
@@ -250,7 +250,7 @@ h1:focus { outline: none; } /* FocusOnNavigate memindahkan fokus ke h1 untuk pem
   bottom: 0 !important;
   width: auto !important;
   height: 18rem !important;
-  background-image: url('/_content/Framework.Web/img/bottom-wave-blue.png') !important;
+  background-image: var(--wave-image) !important;
   background-repeat: no-repeat !important;
   background-size: 100% 100% !important;
   background-position: left bottom !important;
@@ -284,7 +284,7 @@ aside[data-state="collapsed"] ~ * .bottom-full-wave,
 .filters .filter > span {
   font-size: 0.76rem !important;
   font-weight: 700 !important;
-  color: #1e3a8a !important;
+  color: var(--brand-ink) !important;
 }
 
 /* Kotak Input Search, DatePicker, Select di Halaman List */
@@ -293,7 +293,7 @@ aside[data-state="collapsed"] ~ * .bottom-full-wave,
 .filters button[role="combobox"],
 .filters [class*="bb:rounded-md"] {
   background-color: #ffffff !important;
-  border: 1px solid #c7ddfc !important;
+  border: 1px solid var(--brand-border) !important;
   border-radius: 0.55rem !important;
   color: #1e293b !important;
   box-shadow: 0 1px 3px 0 rgba(30, 58, 138, 0.05) !important;
@@ -302,7 +302,7 @@ aside[data-state="collapsed"] ~ * .bottom-full-wave,
 .filters input:focus,
 .filters select:focus,
 .filters button[role="combobox"]:focus {
-  border-color: #2563eb !important;
+  border-color: var(--brand-icon) !important;
   outline: none !important;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15) !important;
 }
@@ -310,10 +310,10 @@ aside[data-state="collapsed"] ~ * .bottom-full-wave,
 /* Tombol Columns di kanan filter */
 .filters [class*="bb:inline-flex"] button,
 .filters button {
-  border: 1px solid #c7ddfc !important;
+  border: 1px solid var(--brand-border) !important;
   border-radius: 0.55rem !important;
   background-color: #ffffff !important;
-  color: #1e3a8a !important;
+  color: var(--brand-ink) !important;
   font-weight: 600 !important;
 }
 
@@ -331,7 +331,7 @@ aside[data-state="collapsed"] ~ * .bottom-full-wave,
 .form-col textarea:focus,
 .form-col select:focus,
 .form-col button[role="combobox"]:focus {
-  border-color: #2563eb !important;
+  border-color: var(--brand-icon) !important;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15) !important;
 }
 
@@ -341,26 +341,26 @@ aside[data-state="collapsed"] ~ * .bottom-full-wave,
   color: #1e293b !important;
 }
 
-/* Header Tabel Biru Muda (#eaf2fd) */
+/* Header Tabel Biru Muda (var(--table-header-bg)) */
 .table-wrap {
-  border: 1px solid #dbeafe !important;
+  border: 1px solid var(--brand-soft) !important;
   box-shadow: 0 2px 10px -2px rgba(30, 58, 138, 0.05) !important;
 }
 
 .table-wrap thead th,
 table.data thead th {
-  background-color: #eaf2fd !important;
-  color: #1e3a8a !important;
+  background-color: var(--table-header-bg) !important;
+  color: var(--brand-ink) !important;
   font-weight: 700 !important;
   font-size: 0.825rem !important;
-  border-bottom: 1px solid #dbeafe !important;
+  border-bottom: 1px solid var(--brand-soft) !important;
 }
 
 /* ---------- Warna Sidebar Sesuai Gambar Referensi ---------- */
 aside[data-state][data-collapsible],
 [data-sidebar="sidebar"] {
   background-color: var(--sidebar, #f0f6ff) !important;
-  border-right: 1px solid #e0edfe !important;
+  border-right: 1px solid var(--brand-softer) !important;
 }
 
 [data-sidebar="content"],
@@ -370,7 +370,7 @@ aside[data-state][data-collapsible],
 
 /* Header Brand Sidebar - Disamakan dengan warna Header Biru di sebelah kanan & hilangkan garis pemisah agar menyatu */
 [data-sidebar="header"] {
-  background: #1859c5 !important;
+  background: var(--brand-strong) !important;
   color: #ffffff !important;
   border-bottom: 1px solid rgba(255, 255, 255, 0.15) !important;
   border-right: none !important;
@@ -419,7 +419,7 @@ aside[data-state][data-collapsible] [data-sidebar="header"] {
 
 /* Label Grup Menu (mis. 'Sistem') */
 [data-sidebar="group-label"] {
-  color: #3b82f6 !important;
+  color: var(--brand-label) !important;
   font-weight: 700 !important;
   font-size: 0.76rem !important;
   letter-spacing: 0.02em !important;
@@ -427,40 +427,40 @@ aside[data-state][data-collapsible] [data-sidebar="header"] {
 
 /* Item Menu Teks & Ikon */
 [data-sidebar="menu-button"] {
-  color: #1e3a8a !important;
+  color: var(--brand-ink) !important;
   font-weight: 500 !important;
   border-radius: 0.6rem !important;
   transition: all 0.12s ease !important;
 }
 
 [data-sidebar="menu-button"] svg {
-  color: #2563eb !important;
+  color: var(--brand-icon) !important;
 }
 
 /* Item Menu Hover & Aktif (Pill Biru Muda) */
 [data-sidebar="menu-button"]:hover {
-  background-color: #e0edfe !important;
-  color: #1d4ed8 !important;
+  background-color: var(--brand-softer) !important;
+  color: var(--brand-ink-hover) !important;
 }
 
 [data-sidebar="menu-button"].active,
 [data-sidebar="menu-button"][aria-current="page"],
 [data-sidebar="menu-button"][data-active="true"] {
-  background-color: #dbeafe !important;
-  color: #1d4ed8 !important;
+  background-color: var(--brand-soft) !important;
+  color: var(--brand-ink-hover) !important;
   font-weight: 600 !important;
 }
 
 [data-sidebar="menu-button"].active svg,
 [data-sidebar="menu-button"][aria-current="page"] svg,
 [data-sidebar="menu-button"][data-active="true"] svg {
-  color: #1d4ed8 !important;
+  color: var(--brand-ink-hover) !important;
 }
 
 /* Tombol Modul Aktif (mis. Administration) */
 .module-switch-btn {
-  background-color: #dbeafe !important;
-  color: #1d4ed8 !important;
+  background-color: var(--brand-soft) !important;
+  color: var(--brand-ink-hover) !important;
   font-weight: 600 !important;
   border-radius: 0.6rem !important;
 }
@@ -472,11 +472,11 @@ aside[data-state][data-collapsible] [data-sidebar="header"] {
 }
 
 .sidebar-user-btn:hover {
-  background-color: #e0edfe !important;
+  background-color: var(--brand-softer) !important;
 }
 
 .sidebar-user-btn .who span:first-child {
-  color: #0f2d59 !important;
+  color: var(--brand-name) !important;
   font-weight: 700 !important;
 }
 
@@ -490,14 +490,14 @@ aside[data-state][data-collapsible] [data-sidebar="header"] {
 
 /* 1. Header & Sidebar Header Dark Gradient */
 .dark .app-header {
-  background: linear-gradient(90deg, #0b1120 0%, #111a2e 45%, #16223d 75%, #10182b 100%) !important;
+  background: var(--topbar-bg-dark) !important;
   color: #ffffff !important;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
   box-shadow: 0 2px 10px -2px rgba(0, 0, 0, 0.5) !important;
 }
 
 .dark [data-sidebar="header"] {
-  background: #0b1120 !important;
+  background: var(--brand-strong-dark) !important;
   color: #ffffff !important;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
   border-right: none !important;
@@ -519,7 +519,7 @@ aside[data-state][data-collapsible] [data-sidebar="header"] {
 }
 .dark .app-header .header-search:focus-within {
   background: rgba(255, 255, 255, 0.14) !important;
-  border-color: #3b82f6 !important;
+  border-color: var(--dk-focus) !important;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25) !important;
 }
 .dark .app-header .header-search-icon {
@@ -534,7 +534,7 @@ aside[data-state][data-collapsible] [data-sidebar="header"] {
 
 /* 2. Wave Latar Belakang Bawah dalam Dark Mode */
 .dark .bottom-full-wave {
-  background-image: linear-gradient(180deg, var(--background) 0%, transparent 22%), url('/_content/Framework.Web/img/bottom-wave-dark.png') !important;
+  background-image: linear-gradient(180deg, var(--background) 0%, transparent 22%), var(--wave-image-dark) !important;
   background-repeat: no-repeat !important;
   background-size: 100% 100% !important;
   background-position: left bottom !important;
@@ -549,7 +549,7 @@ aside[data-state][data-collapsible] [data-sidebar="header"] {
 }
 
 .dark [data-sidebar="group-label"] {
-  color: #60a5fa !important;
+  color: var(--dk-accent) !important;
 }
 
 .dark [data-sidebar="menu-button"] {
@@ -557,7 +557,7 @@ aside[data-state][data-collapsible] [data-sidebar="header"] {
 }
 
 .dark [data-sidebar="menu-button"] svg {
-  color: #60a5fa !important;
+  color: var(--dk-accent) !important;
 }
 
 .dark [data-sidebar="menu-button"]:hover {
@@ -566,26 +566,26 @@ aside[data-state][data-collapsible] [data-sidebar="header"] {
 }
 
 .dark [data-sidebar="menu-button"]:hover svg {
-  color: #93c5fd !important;
+  color: var(--dk-accent-text) !important;
 }
 
 .dark [data-sidebar="menu-button"].active,
 .dark [data-sidebar="menu-button"][aria-current="page"],
 .dark [data-sidebar="menu-button"][data-active="true"] {
   background-color: rgba(37, 99, 235, 0.28) !important;
-  color: #93c5fd !important;
+  color: var(--dk-accent-text) !important;
   font-weight: 600 !important;
 }
 
 .dark [data-sidebar="menu-button"].active svg,
 .dark [data-sidebar="menu-button"][aria-current="page"] svg,
 .dark [data-sidebar="menu-button"][data-active="true"] svg {
-  color: #93c5fd !important;
+  color: var(--dk-accent-text) !important;
 }
 
 .dark .module-switch-btn {
   background-color: rgba(37, 99, 235, 0.28) !important;
-  color: #93c5fd !important;
+  color: var(--dk-accent-text) !important;
 }
 
 .dark .sidebar-user-btn:hover {
@@ -602,27 +602,27 @@ aside[data-state][data-collapsible] [data-sidebar="header"] {
 
 /* 4. Breadcrumbs Trail Dark Mode */
 .dark .crumb-home {
-  color: #60a5fa !important;
+  color: var(--dk-accent) !important;
 }
 .dark .crumb-sep {
   color: #64748b !important;
 }
 .dark .crumb-link {
-  color: #60a5fa !important;
+  color: var(--dk-accent) !important;
 }
 .dark .crumb-active {
   color: #f1f5f9 !important;
 }
 
 /* 5. ListPage Header & Action Buttons */
-.dark .list-title h1 {
+.dark .list-page-title {
   color: #f8fafc !important;
 }
-.dark .list-title-sub {
+.dark .list-page-sub {
   color: #94a3b8 !important;
 }
 .dark .list-title-icon-badge {
-  background: #2563eb !important;
+  background: var(--dk-solid) !important;
   color: #ffffff !important;
 }
 
@@ -647,16 +647,16 @@ aside[data-state][data-collapsible] [data-sidebar="header"] {
 }
 
 .dark .btn-action-new {
-  background: #2563eb !important;
+  background: var(--dk-solid) !important;
   color: #ffffff !important;
 }
 .dark .btn-action-new:hover {
-  background: #1d4ed8 !important;
+  background: color-mix(in srgb, var(--dk-solid) 80%, black) !important;
 }
 
 /* 6. Filter & Search Controls pada Halaman List */
 .dark .filters .filter > span {
-  color: #93c5fd !important;
+  color: var(--dk-accent-text) !important;
 }
 
 .dark .filters input,
@@ -669,10 +669,14 @@ aside[data-state][data-collapsible] [data-sidebar="header"] {
   box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3) !important;
 }
 
+.dark .filters input::placeholder {
+  color: #94a3b8 !important;
+}
+
 .dark .filters input:focus,
 .dark .filters select:focus,
 .dark .filters button[role="combobox"]:focus {
-  border-color: #3b82f6 !important;
+  border-color: var(--dk-focus) !important;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25) !important;
 }
 
@@ -680,7 +684,7 @@ aside[data-state][data-collapsible] [data-sidebar="header"] {
 .dark .filters button {
   background-color: #1e293b !important;
   border: 1px solid #334155 !important;
-  color: #93c5fd !important;
+  color: var(--dk-accent-text) !important;
 }
 
 .dark .filters [class*="bb:inline-flex"] button:hover,
@@ -689,43 +693,8 @@ aside[data-state][data-collapsible] [data-sidebar="header"] {
   color: #ffffff !important;
 }
 
-.dark .filter-search-box {
-  background-color: #1e293b !important;
-  border: 1px solid #334155 !important;
-}
-.dark .filter-search-box:focus-within {
-  border-color: #3b82f6 !important;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2) !important;
-}
-.dark .filter-search-box input {
-  color: #f8fafc !important;
-}
-.dark .filter-search-box input::placeholder {
-  color: #94a3b8 !important;
-}
-.dark .filter-search-icon {
-  color: #60a5fa !important;
-}
-
-.dark .filter-date-box {
-  background-color: #1e293b !important;
-  border: 1px solid #334155 !important;
-}
-.dark .filter-date-btn {
-  color: #cbd5e1 !important;
-}
-.dark .filter-date-icon {
-  color: #60a5fa !important;
-}
-
-.dark .filter-columns-btn {
-  background-color: #1e293b !important;
-  border: 1px solid #334155 !important;
-  color: #cbd5e1 !important;
-}
-.dark .filter-columns-btn:hover {
-  background-color: #273549 !important;
-  color: #f8fafc !important;
+.dark .filters svg {
+  color: var(--dk-accent) !important;
 }
 
 /* 7. Tabel Data Dark Mode */
@@ -737,7 +706,7 @@ aside[data-state][data-collapsible] [data-sidebar="header"] {
 .dark .table-wrap thead th,
 .dark table.data thead th {
   background-color: #1e293b !important;
-  color: #93c5fd !important;
+  color: var(--dk-accent-text) !important;
   border-bottom: 1px solid #334155 !important;
 }
 
@@ -747,6 +716,26 @@ aside[data-state][data-collapsible] [data-sidebar="header"] {
 
 .dark table.data tbody tr:hover td {
   background-color: rgba(30, 41, 59, 0.6) !important;
+}
+
+.dark .doc-link {
+  color: var(--dk-accent-text) !important;
+}
+.dark .doc-link:hover {
+  color: #ffffff !important;
+}
+
+.dark .list-foot,
+.dark nav[role="navigation"] {
+  color: #94a3b8 !important;
+}
+
+.dark nav[role="navigation"] button {
+  color: #cbd5e1 !important;
+}
+.dark nav[role="navigation"] button:hover {
+  background-color: #1e293b !important;
+  color: #ffffff !important;
 }
 
 /* 8. Form Inputs (FormPage, EditPage, Dialog) */
@@ -763,7 +752,7 @@ aside[data-state][data-collapsible] [data-sidebar="header"] {
 .dark .form-col textarea:focus,
 .dark .form-col select:focus,
 .dark .form-col button[role="combobox"]:focus {
-  border-color: #3b82f6 !important;
+  border-color: var(--dk-focus) !important;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25) !important;
 }
 
@@ -771,6 +760,125 @@ aside[data-state][data-collapsible] [data-sidebar="header"] {
   background-color: #0f172a !important;
   border: 1px solid #334155 !important;
   color: #cbd5e1 !important;
+}
+
+/* 9. Organization Chart (OrgTree) Dark Mode */
+.dark .org-tree li::before,
+.dark .org-tree li::after,
+.dark .org-tree ul ul::before,
+.dark .org-tree li:only-child > .org-card::before {
+  border-color: #334155 !important;
+}
+
+.dark .org-card {
+  background: #0f172a !important;
+  border-color: #334155 !important;
+}
+
+.dark .org-card.highlight {
+  border-color: var(--dk-focus) !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25) !important;
+}
+
+.dark .org-card-link:hover {
+  background: rgba(30, 41, 59, 0.7) !important;
+}
+
+.dark .org-avatar {
+  background: rgba(37, 99, 235, 0.25) !important;
+  color: var(--dk-accent-text) !important;
+}
+
+.dark .org-toggle {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  color: #cbd5e1 !important;
+}
+.dark .org-toggle:hover {
+  border-color: var(--dk-focus) !important;
+  color: #ffffff !important;
+}
+
+/* 10. Desk Launcher Dark Mode Elements */
+.dark .module-tile-icon {
+  background: rgba(59, 130, 246, 0.15) !important;
+  border-color: rgba(59, 130, 246, 0.25) !important;
+  color: var(--dk-accent-text) !important;
+}
+
+.dark .module-tile:hover {
+  border-color: rgba(59, 130, 246, 0.35) !important;
+  box-shadow: 0 12px 26px -6px rgba(0, 0, 0, 0.45) !important;
+}
+
+.dark .section-link {
+  color: var(--dk-accent) !important;
+}
+
+.dark .workspace-stat-card:hover {
+  border-color: rgba(59, 130, 246, 0.35) !important;
+  box-shadow: 0 6px 18px -4px rgba(0, 0, 0, 0.4) !important;
+}
+
+.dark .workspace-stat-card .stat-num.primary {
+  color: var(--dk-accent) !important;
+}
+
+.dark .doc-code:hover {
+  color: var(--dk-accent) !important;
+}
+
+.dark .desk-status-pill.tone-positive {
+  background: rgba(34, 197, 94, 0.18) !important;
+  color: #86efac !important;
+}
+.dark .desk-status-pill.tone-pending {
+  background: rgba(99, 102, 241, 0.18) !important;
+  color: #a5b4fc !important;
+}
+.dark .desk-status-pill.tone-warning {
+  background: rgba(234, 179, 8, 0.18) !important;
+  color: #fde047 !important;
+}
+.dark .desk-status-pill.tone-negative {
+  background: rgba(239, 68, 68, 0.18) !important;
+  color: #fca5a5 !important;
+}
+
+.dark .desk-act-btn.primary {
+  background: var(--dk-solid) !important;
+  border-color: var(--dk-solid) !important;
+  color: #ffffff !important;
+}
+.dark .desk-act-btn.primary:hover {
+  background: color-mix(in srgb, var(--dk-solid) 80%, black) !important;
+  border-color: color-mix(in srgb, var(--dk-solid) 80%, black) !important;
+}
+
+/* 11. Admin Pages & Form Headers Dark Mode */
+.dark .admin-nav a {
+  color: var(--foreground) !important;
+}
+.dark .admin-nav a:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+}
+.dark .admin-nav a.active {
+  background: rgba(37, 99, 235, 0.28) !important;
+  color: var(--dk-accent-text) !important;
+}
+
+.dark table.grid th {
+  background: #1e293b !important;
+  color: #94a3b8 !important;
+  border-color: #334155 !important;
+}
+
+.dark table.grid td {
+  border-color: #334155 !important;
+}
+
+.dark .doc-head h1 {
+  color: #f8fafc !important;
 }
 
 .app-header .user-select { width: 17rem; max-width: 50vw; }
@@ -1918,3 +2026,14 @@ button.who-chip {
   display: block;
   border: 1px solid var(--border);
 }
+
+/* Chevron di ujung kanan kartu profil sidebar */
+.sidebar-user-chevron {
+  margin-left: auto;
+  flex-shrink: 0;
+  opacity: .6;
+  color: var(--brand-ink);
+}
+.dark .sidebar-user-chevron { color: var(--dk-accent-text); }
+[data-sidebar-collapsed="true"] .sidebar-user-chevron,
+aside[data-state="collapsed"] .sidebar-user-chevron { display: none; }
