@@ -8,6 +8,7 @@
 @inject CurrentUser Current
 @inject NavigationManager Nav
 @inject ToastService Toasts
+@inject IJSRuntime JS
 
 <AdminDrawer Open="@Open"
              OpenChanged="@OpenChanged"
@@ -108,6 +109,24 @@
             </BbField>
 
             <BbField>
+                <BbFieldLabel>Color Theme</BbFieldLabel>
+                <div class="row" style="gap:.5rem;flex-wrap:wrap;padding-top:.25rem">
+                    <button type="button" class="theme-choice-btn @(currentTheme == "blue" ? "active" : "")" @onclick="@(() => SetThemeAsync("blue"))">
+                        <span class="theme-dot" style="background:#1c64d8;"></span> Blue (Default)
+                    </button>
+                    <button type="button" class="theme-choice-btn @(currentTheme == "maroon" ? "active" : "")" @onclick="@(() => SetThemeAsync("maroon"))">
+                        <span class="theme-dot" style="background:#a32121;"></span> Maroon
+                    </button>
+                    <button type="button" class="theme-choice-btn @(currentTheme == "green" ? "active" : "")" @onclick="@(() => SetThemeAsync("green"))">
+                        <span class="theme-dot" style="background:#15803d;"></span> Green
+                    </button>
+                    <button type="button" class="theme-choice-btn @(currentTheme == "purple" ? "active" : "")" @onclick="@(() => SetThemeAsync("purple"))">
+                        <span class="theme-dot" style="background:#6d28d9;"></span> Purple
+                    </button>
+                </div>
+            </BbField>
+
+            <BbField>
                 <BbFieldLabel>Account Information</BbFieldLabel>
                 <div class="muted small">
                     Created @Fmt.When(account.CreatedAt)
@@ -144,6 +163,7 @@
     private bool busy;
     private bool uploading;
     private string? error;
+    private string currentTheme = "blue";
 
     protected override async Task OnParametersSetAsync()
     {
@@ -155,11 +175,27 @@
             {
                 account = await Users.FindByIdAsync(u.Id);
             }
+            try
+            {
+                currentTheme = await JS.InvokeAsync<string>("docframe.getTheme");
+                if (string.IsNullOrEmpty(currentTheme)) currentTheme = "blue";
+            }
+            catch
+            {
+                currentTheme = "blue";
+            }
         }
         else if (!Open)
         {
             wasOpen = false;
         }
+    }
+
+    private async Task SetThemeAsync(string theme)
+    {
+        currentTheme = theme;
+        await JS.InvokeVoidAsync("docframe.setTheme", theme);
+        Toasts.Success($"Theme updated to {char.ToUpper(theme[0]) + theme[1..]}.", "Theme Changed");
     }
 
     private async Task UploadPhoto(InputFileChangeEventArgs e)

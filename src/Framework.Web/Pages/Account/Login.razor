@@ -16,48 +16,93 @@
 
 <PageTitle>Log in · DocFrame</PageTitle>
 
-<h1 class="auth-title">Log in</h1>
-<p class="auth-sub">Use the account provided by your administrator.</p>
+<div class="grid lg:grid-cols-2 min-h-screen login-split-layout">
+    <!-- Left column - form -->
+    <div class="relative flex flex-col items-center justify-center p-8 login-split-form">
+        <div class="login-form-container">
+            <div class="auth-brand">
+                <span class="brand-mark" aria-hidden="true">D</span>
+                <span>DocFrame</span>
+            </div>
 
-@if (ResetSuccess)
-{
-    <div class="auth-alert" style="background-color: #ecfdf5; color: #065f46; border-color: #a7f3d0;" role="alert">
-        Password has been successfully reset. Please log in with your new password.
-    </div>
-}
+            <h1 class="auth-title">Log in</h1>
+            <p class="auth-sub">Use the account provided by your administrator.</p>
 
-@if (error is not null)
-{
-    <div class="auth-alert" role="alert">@error</div>
-}
+            @if (ResetSuccess)
+            {
+                <div class="auth-alert auth-success" role="alert">
+                    Password has been successfully reset. Please log in with your new password.
+                </div>
+            }
 
-<EditForm Model="Input" method="post" OnValidSubmit="LoginAsync" FormName="login" class="auth-form">
-    <DataAnnotationsValidator />
-    <div class="auth-field">
-        <label for="username">Username</label>
-        <InputText id="username" class="auth-input" @bind-Value="Input.UserName" autocomplete="username" autofocus />
-        <ValidationMessage For="() => Input.UserName" class="auth-error" />
-    </div>
-    <div class="auth-field">
-        <label for="password">Password</label>
-        <InputText id="password" type="password" class="auth-input" @bind-Value="Input.Password" autocomplete="current-password" />
-        <ValidationMessage For="() => Input.Password" class="auth-error" />
-    </div>
-    <div style="display:flex;justify-content:flex-end;margin-top:-0.5rem;margin-bottom:0.75rem;">
-        <a href="/forgot-password" class="auth-link" style="font-size:0.875rem;color:var(--bb-primary, #2563eb);text-decoration:none;">Forgot password?</a>
-    </div>
-    <label class="auth-check"><InputCheckbox @bind-Value="Input.RememberMe" /> Remember me on this device</label>
-    <button type="submit" class="auth-button">Log in</button>
-</EditForm>
+            @if (error is not null)
+            {
+                <div class="auth-alert" role="alert">@error</div>
+            }
 
-@if (Config.GetValue<bool>("Demo:ShowAccounts"))
-{
-    <details class="auth-demo">
-        <summary>Demo accounts (development environment only)</summary>
-        <p>Password for all accounts: <code>@Config["Demo:Password"]</code></p>
-        <p><code>andi</code> · <code>sari</code> requester · <code>budi</code> · <code>maya</code> manager · <code>dewi</code> finance · <code>rina</code> procurement · <code>admin</code> System Manager · <code>tono</code> globex tenant</p>
-    </details>
-}
+            <EditForm Model="Input" method="post" OnValidSubmit="LoginAsync" FormName="login" class="auth-form">
+                <DataAnnotationsValidator />
+                <div class="auth-field">
+                    <label for="username">Username</label>
+                    <InputText id="username" class="auth-input" @bind-Value="Input.UserName" autocomplete="username" autofocus />
+                    <ValidationMessage For="() => Input.UserName" class="auth-error" />
+                </div>
+                <div class="auth-field">
+                    <label for="password">Password</label>
+                    <InputText id="password" type="password" class="auth-input" @bind-Value="Input.Password" autocomplete="current-password" />
+                    <ValidationMessage For="() => Input.Password" class="auth-error" />
+                </div>
+                <div style="display:flex;justify-content:flex-end;margin-top:-0.5rem;margin-bottom:0.75rem;">
+                    <a href="/forgot-password" class="auth-link">Forgot password?</a>
+                </div>
+                <label class="auth-check"><InputCheckbox @bind-Value="Input.RememberMe" /> Remember me on this device</label>
+                <button type="submit" class="auth-button">Log in</button>
+            </EditForm>
+
+            @if (Config.GetValue<bool>("Demo:ShowAccounts"))
+            {
+                <details class="auth-demo">
+                    <summary>Demo accounts (development environment only)</summary>
+                    <p>Password for all accounts: <code>@Config["Demo:Password"]</code></p>
+                    <p><code>andi</code> · <code>sari</code> requester · <code>budi</code> · <code>maya</code> manager · <code>dewi</code> finance · <code>rina</code> procurement · <code>admin</code> System Manager · <code>tono</code> globex tenant</p>
+                </details>
+            }
+        </div>
+    </div>
+
+    <!-- Right column - cover image -->
+    <div class="relative hidden lg:block bg-muted overflow-hidden login-split-cover">
+        <div class="absolute inset-0"
+             style="background-image: radial-gradient(circle, color-mix(in oklch, var(--foreground) 10%, transparent) 1px, transparent 1px); background-size: 24px 24px;">
+        </div>
+        <div class="absolute inset-0"
+             style="background: radial-gradient(ellipse at center, transparent 40%, var(--muted) 100%);">
+        </div>
+        <div class="absolute inset-0"
+             style="background: radial-gradient(circle at 50% 50%, color-mix(in oklch, var(--primary) 12%, transparent) 0%, transparent 65%); pointer-events: none;">
+        </div>
+
+        <!-- Cover Card Showcase -->
+        <div class="relative z-10 flex flex-col items-center max-w-md text-center p-8 login-cover-card">
+            <div class="login-cover-icon" style="margin-bottom: 1.5rem;">
+                <span class="brand-mark" style="width: 4.25rem; height: 4.25rem; font-size: 2.15rem; border-width: 3px; box-shadow: 0 16px 36px -8px color-mix(in oklch, var(--primary) 35%, transparent);" aria-hidden="true">D</span>
+            </div>
+            <h2 style="font-size: 1.85rem; font-weight: 800; color: var(--foreground); margin: 0 0 0.65rem; letter-spacing: -0.025em;">
+                DocFrame Platform
+            </h2>
+            <p style="font-size: 0.95rem; color: var(--muted-foreground); line-height: 1.6; margin: 0 0 1.75rem;">
+                Streamlined document workflows, customizable metadata, and unified real-time enterprise management.
+            </p>
+            <div class="login-cover-badges" style="display: flex; gap: 0.6rem; flex-wrap: wrap; justify-content: center;">
+                <span class="login-feature-pill">Metadata-Driven</span>
+                <span class="login-feature-pill">Stateful Workflows</span>
+                <span class="login-feature-pill">Multi-Tenant</span>
+            </div>
+        </div>
+
+        <div class="login-cover-bottom-wave" style="position: absolute; bottom: 0; left: 0; right: 0; height: 90px; background-image: var(--wave-image); background-size: cover; background-position: center bottom; opacity: 0.45; pointer-events: none;"></div>
+    </div>
+</div>
 
 @code {
     [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;

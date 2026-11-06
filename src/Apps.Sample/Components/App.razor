@@ -15,6 +15,16 @@
     <ImportMap />
     <HeadOutlet @rendermode="PageRenderMode" />
     <script src="_content/BlazorBlueprint.Components/js/theme-init.js"></script>
+    <script>
+        (function () {
+            try {
+                var t = localStorage.getItem('docframe-theme');
+                if (t && t !== 'blue') {
+                    document.documentElement.setAttribute('data-theme', t);
+                }
+            } catch (e) {}
+        })();
+    </script>
 </head>
 <body>
     <Routes @rendermode="PageRenderMode" />

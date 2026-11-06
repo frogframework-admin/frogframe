@@ -4,6 +4,14 @@ window.docframe = window.docframe || {};
 (function () {
     var globalDotNetHelper = null;
 
+    // Apply saved theme preference as early as possible
+    try {
+        var savedTheme = localStorage.getItem('docframe-theme');
+        if (savedTheme && savedTheme !== 'blue') {
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        }
+    } catch (e) {}
+
     window.docframe.initGlobalShortcuts = function (dotNetHelper) {
         globalDotNetHelper = dotNetHelper;
 
@@ -53,5 +61,20 @@ window.docframe = window.docframe || {};
                 try { localStorage.setItem('bb-theme', 'dark'); } catch(e){}
             }
         }
+    };
+
+    window.docframe.setTheme = function (themeName) {
+        var html = document.documentElement;
+        if (themeName && themeName !== 'blue') {
+            html.setAttribute('data-theme', themeName);
+            try { localStorage.setItem('docframe-theme', themeName); } catch (e) {}
+        } else {
+            html.removeAttribute('data-theme');
+            try { localStorage.setItem('docframe-theme', 'blue'); } catch (e) {}
+        }
+    };
+
+    window.docframe.getTheme = function () {
+        return document.documentElement.getAttribute('data-theme') || 'blue';
     };
 })();

@@ -272,6 +272,50 @@ public sealed class GlobalSearchService(
             ));
         }
 
+        if ("theme color tema warna blue biru maroon green hijau purple ungu".Contains(q, StringComparison.OrdinalIgnoreCase))
+        {
+            results.Add(new AwesomebarItem(
+                Id: "cmd_theme_blue",
+                Title: "Theme: Blue (Default)",
+                Subtitle: "Switch color theme to Sapphire Blue",
+                Category: AwesomebarCategory.Command,
+                Href: null,
+                Icon: "palette",
+                Badge: "Theme",
+                ActionKey: "switch_theme:blue"
+            ));
+            results.Add(new AwesomebarItem(
+                Id: "cmd_theme_maroon",
+                Title: "Theme: Maroon",
+                Subtitle: "Switch color theme to Wine Red",
+                Category: AwesomebarCategory.Command,
+                Href: null,
+                Icon: "palette",
+                Badge: "Theme",
+                ActionKey: "switch_theme:maroon"
+            ));
+            results.Add(new AwesomebarItem(
+                Id: "cmd_theme_green",
+                Title: "Theme: Green",
+                Subtitle: "Switch color theme to Emerald Green",
+                Category: AwesomebarCategory.Command,
+                Href: null,
+                Icon: "palette",
+                Badge: "Theme",
+                ActionKey: "switch_theme:green"
+            ));
+            results.Add(new AwesomebarItem(
+                Id: "cmd_theme_purple",
+                Title: "Theme: Purple",
+                Subtitle: "Switch color theme to Royal Indigo",
+                Category: AwesomebarCategory.Command,
+                Href: null,
+                Icon: "palette",
+                Badge: "Theme",
+                ActionKey: "switch_theme:purple"
+            ));
+        }
+
         if ("profile user akun me saya".Contains(q, StringComparison.OrdinalIgnoreCase))
         {
             results.Add(new AwesomebarItem(

@@ -241,6 +241,12 @@
             {
                 await OnOpenProfile.InvokeAsync();
             }
+            else if (item.ActionKey.StartsWith("switch_theme:"))
+            {
+                var theme = item.ActionKey["switch_theme:".Length..];
+                await JS.InvokeVoidAsync("docframe.setTheme", theme);
+                Toasts.Success($"Theme updated to {char.ToUpper(theme[0]) + theme[1..]}.", "Theme Changed");
+            }
             else if (item.ActionKey.StartsWith("switch_mod:"))
             {
                 var modId = item.ActionKey["switch_mod:".Length..];
