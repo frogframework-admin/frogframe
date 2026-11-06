@@ -168,8 +168,14 @@ public sealed class ValidationEngine(DocumentEvaluator evaluator, IValidatorRegi
                 }
                 if (f.Def.Type == "Select" && f.Def.Options is { } opts && !opts.Contains(s))
                     errors.Add(new(path, $"{f.Label} harus salah satu dari: {string.Join(", ", opts)}"));
-                if (f.Def.Type == "Link" && await lookup.GetAsync(f.Def.LinkTo!, s, ct) is null)
-                    errors.Add(new(path, $"{f.Label}: {f.Def.LinkTo} '{s}' tidak ditemukan"));
+                if (f.Def.Type == "Link")
+                {
+                    var linked = await lookup.GetAsync(f.Def.LinkTo!, s, ct);
+                    if (linked is null)
+                        errors.Add(new(path, $"{f.Label}: {f.Def.LinkTo} '{s}' tidak ditemukan"));
+                    else if (f.Def.LinkFilters.FirstOrDefault(lf => !LinkFilters.Matches(linked, lf)) is { } failed)
+                        errors.Add(new(path, $"{f.Label}: {f.Def.LinkTo} '{s}' tidak memenuhi syarat ({LinkFilters.Describe(failed)})"));
+                }
             }
 
             foreach (var vName in f.Def.Validators ?? [])

@@ -13,6 +13,8 @@ public sealed class DocTypeDef
     public string? Module { get; set; }
     public string? Description { get; set; }
     public bool IsChild { get; set; }
+    /// <summary>Single DocType: tepat satu dokumen per tenant (mis. pengaturan). Nama dokumen = nama DocType; tidak bisa dihapus.</summary>
+    public bool IsSingle { get; set; }
     public StorageDef Storage { get; set; } = new();
     public DocumentDef Document { get; set; } = new();
     public NamingDef Naming { get; set; } = new();
@@ -122,6 +124,18 @@ public sealed class DocumentDef
     public bool AllowDelete { get; set; } = true;
 }
 
+/// <summary>
+/// Filter statis untuk field Link: dokumen tujuan harus memenuhi semua filter (mis. is_group = false).
+/// Diterapkan di pencarian/lookup DAN diperiksa ulang server saat dokumen disimpan.
+/// </summary>
+public sealed class LinkFilterDef
+{
+    public string Field { get; set; } = "";
+    /// <summary>"=", "!=", atau "in" (Value berupa array).</summary>
+    public string Op { get; set; } = "=";
+    public System.Text.Json.JsonElement Value { get; set; }
+}
+
 public sealed class ImportDef
 {
     public bool Enabled { get; set; } = true;
@@ -150,6 +164,8 @@ public sealed class FieldDef
     /// <summary>"linkField.targetField" — nilai diambil server dari dokumen tertaut.</summary>
     public string? FetchFrom { get; set; }
     public string? LinkTo { get; set; }
+    /// <summary>Filter statis untuk Link (lihat LinkFilterDef).</summary>
+    public List<LinkFilterDef> LinkFilters { get; set; } = [];
     public string? ChildDocType { get; set; }
     public List<string>? Options { get; set; }
     public decimal? Min { get; set; }

@@ -1,0 +1,116 @@
+{
+  "name": "AccountingPeriod",
+  "version": 1,
+  "title": "Periode Akuntansi",
+  "module": "ACCOUNTING",
+  "naming": {
+    "pattern": "field:period_name"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "period_name",
+      "type": "Data",
+      "label": "Nama periode",
+      "requiredWhen": "true",
+      "pattern": "^[0-9]{4}-[0-9]{2}$",
+      "patternMessage": "Format YYYY-MM, mis. 2026-11",
+      "inListView": true,
+      "section": "Periode",
+      "column": 1
+    },
+    {
+      "name": "start_date",
+      "type": "Date",
+      "label": "Tanggal mulai",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Periode",
+      "column": 1
+    },
+    {
+      "name": "end_date",
+      "type": "Date",
+      "label": "Tanggal akhir",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Periode",
+      "column": 2
+    },
+    {
+      "name": "status",
+      "type": "Select",
+      "label": "Status",
+      "options": [
+        "Terbuka",
+        "Ditutup"
+      ],
+      "default": "Terbuka",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Periode",
+      "column": 2
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit",
+        "cancel",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "report"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "period_name",
+    "searchFields": [
+      "period_name"
+    ],
+    "filters": [
+      "status"
+    ],
+    "defaultSort": [
+      {
+        "field": "period_name",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

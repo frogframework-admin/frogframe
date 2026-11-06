@@ -1,4 +1,12 @@
 # Script untuk rebuild dan deploy ulang container DocFrame saat ada perubahan kode
+Write-Host "Mempublikasikan aplikasi (dotnet publish)..." -ForegroundColor Cyan
+dotnet publish src/Apps.Sample/Apps.Sample.csproj -c Release -o ./publish
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Gagal melakukan publish aplikasi." -ForegroundColor Red
+    exit $LASTEXITCODE
+}
+
 Write-Host "Membangun ulang (rebuild) dan memperbarui container docframe-app..." -ForegroundColor Cyan
 docker compose up -d --build app
 
@@ -7,4 +15,3 @@ if ($LASTEXITCODE -eq 0) {
 } else {
     Write-Host "Build gagal. Silakan periksa pesan error di atas." -ForegroundColor Red
 }
-

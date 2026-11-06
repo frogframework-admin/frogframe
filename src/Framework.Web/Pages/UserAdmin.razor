@@ -2,6 +2,7 @@
 @using System.Security.Cryptography
 @using Microsoft.AspNetCore.Identity
 @inject UserManager<UserAccount> Users
+@inject RoleCatalog RoleCatalogSvc
 @inject IUserAccountRepository Accounts
 @inject IRoleStore RoleStore
 @inject IMetadataProvider Metadata
@@ -232,11 +233,7 @@ else
     private string? error, tempPassword, tempFor;
 
     /// <summary>Role yang dikenal: dari master role, permission semua DocType, role workflow, dan System Manager/Administrator.</summary>
-    private IEnumerable<string> KnownRoles => Metadata.Current.DocTypes.Values.SelectMany(d => d.Def.Permissions.Select(p => p.Role))
-        .Concat(Metadata.Current.Workflows.Values.SelectMany(w => w.Def.Transitions.SelectMany(t => t.AllowedRoles)))
-        .Append(UserContext.SystemManager)
-        .Append(UserContext.Administrator)
-        .Concat(storedRoles.Select(r => r.Name))
+    private IEnumerable<string> KnownRoles => RoleCatalogSvc.Names(Current.Required.TenantId)
         .Concat(edit?.Roles ?? []).Distinct().Order();
 
     protected override async Task OnInitializedAsync()
@@ -305,6 +302,13 @@ else
         if (edit.Roles.Count == 0)
         {
             error = "Select at least one role.";
+            Toasts.Error(error, "Failed to Save");
+            return;
+        }
+        var unknown = await RoleCatalogSvc.UnknownAccountRolesAsync(Current.Required.TenantId, edit.Roles);
+        if (unknown.Count > 0)
+        {
+            error = "Role belum ada di master role: " + string.Join(", ", unknown) + ". Buat dulu di Role Admin.";
             Toasts.Error(error, "Failed to Save");
             return;
         }

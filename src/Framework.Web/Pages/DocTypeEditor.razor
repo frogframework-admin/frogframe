@@ -1,6 +1,7 @@
 @page "/admin/metadata/{DocTypeName}/editor"
 @using System.Text.Json
 @inject MetadataRegistry Registry
+@inject RoleCatalog RoleCatalogSvc
 @inject CurrentUser Current
 @inject ToastService Toasts
 @inject DialogService Dialogs
@@ -255,7 +256,7 @@ else
                             @if (ActiveWorkflow is { } aw)
                             {
                                 <WorkflowDiagram Workflow="aw" />
-                                <div class="row" style="margin-top:.75rem"><BbButton Variant="ButtonVariant.Outline" Href="@($"/admin/workflows/{aw.Name}/editor")"><LucideIcon Name="git-branch" Size="16" /> Edit workflow</BbButton></div>
+                                <div class="row" style="margin-top:.75rem"><BbButton Variant="ButtonVariant.Outline" Href="@($"/admin/workflows/{aw.Name}/editor")" OnClick="@(() => Nav.NavigateTo($"/admin/workflows/{aw.Name}/editor"))"><LucideIcon Name="git-branch" Size="16" /> Edit workflow</BbButton></div>
                             }
                             else
                             {
@@ -270,8 +271,8 @@ else
                                             <LucideIcon Name="link" Size="16" /> Link selected workflow
                                         </BbButton>
                                     }
-                                    <BbButton Href="@($"/admin/workflows/new?doctype={design.Def.Name}")"><LucideIcon Name="git-branch-plus" Size="16" /> Create workflow</BbButton>
-                                    <BbButton Variant="ButtonVariant.Ghost" Href="/admin/workflows">Manage all workflows</BbButton>
+                                    <BbButton Href="@($"/admin/workflows/new?doctype={design.Def.Name}")" OnClick="@(() => Nav.NavigateTo($"/admin/workflows/new?doctype={design.Def.Name}"))"><LucideIcon Name="git-branch-plus" Size="16" /> Create workflow</BbButton>
+                                    <BbButton Variant="ButtonVariant.Ghost" Href="/admin/workflows" OnClick="@(() => Nav.NavigateTo("/admin/workflows"))">Manage all workflows</BbButton>
                                 </div>
                             }
                         </BbCardContent>
@@ -352,7 +353,7 @@ else
                             <BbField><BbFieldLabel For="d-desc">Description</BbFieldLabel><BbTextarea Id="d-desc" Value="@design.Def.Description" UpdateTiming="UpdateTiming.OnChange" ValueChanged="v => Mutate(() => design.Def.Description = string.IsNullOrWhiteSpace(v) ? null : v)" /></BbField>
                             @if (!design.Def.IsChild)
                             {
-                                <BbField><BbFieldLabel For="d-module">Module</BbFieldLabel><BbInput Id="d-module" Value="@design.Def.Module" ValueChanged="v => Mutate(() => design.Def.Module = string.IsNullOrWhiteSpace(v) ? null : v.Trim())" /></BbField>
+                                <BbField><BbFieldLabel For="d-module">Modul (wajib, dari Master Modules)</BbFieldLabel><BbSelect TValue="string" Value="@(design.Def.Module ?? "")" ValueChanged="v => Mutate(() => design.Def.Module = string.IsNullOrWhiteSpace(v) ? null : v)" Options="ModuleOptions(design.Def.Module)" AriaLabel="Modul" /></BbField>
                                 <BbField IsInvalid="@errors.Any(e => e.Path == "naming.pattern")">
                                     <BbFieldLabel For="d-naming">Naming series pattern</BbFieldLabel>
                                     <BbInput Id="d-naming" Class="code-input" Value="@design.Def.Naming.Pattern" ValueChanged="v => Mutate(() => design.Def.Naming.Pattern = v ?? string.Empty)" />
@@ -433,6 +434,14 @@ else
 }
 
 @code {
+    /// <summary>Pilihan modul dari Master Modules. Nilai lama yang belum ada di master tetap tampil agar bisa diperbaiki.</summary>
+    private IEnumerable<SelectOption<string>> ModuleOptions(string? current)
+    {
+        var codes = RoleCatalogSvc.ModuleCodes(Current.Required.TenantId).OrderBy(c => c, StringComparer.Ordinal).ToList();
+        if (!string.IsNullOrWhiteSpace(current) && !codes.Contains(current)) codes.Insert(0, current);
+        return new[] { new SelectOption<string>("", "(pilih modul)") }.Concat(codes.Select(c => new SelectOption<string>(c, c)));
+    }
+
     [Parameter] public string DocTypeName { get; set; } = "";
     /// <summary>Configurable drawer width multiplier (default 2.0 = 2x normal width).</summary>
     [Parameter] public double DrawerWidthScale { get; set; } = 2.0;
@@ -597,7 +606,7 @@ else
     private void Recompile()
     {
         var def = design!.ToDef(version);
-        (snapshot, errors) = Registry.CompileDraft(def);
+        (snapshot, errors) = Registry.CompileDraft(def, RoleCatalogSvc.Scope(Current.Required.TenantId));
         if (snapshot is not null) lastGoodSnapshot = snapshot;
         var now = MetadataJson.Serialize(def);
         dirty = now != originalJson;
@@ -708,16 +717,16 @@ else
 
     private void Check()
     {
-        preview = Registry.Preview(design!.ToDef(version));
+        preview = Registry.Preview(design!.ToDef(version), RoleCatalogSvc.Scope(Current.Required.TenantId));
         migrationPreview = null;
     }
 
     private void RunMigrationPreview()
     {
         var draft = design!.ToDef(version);
-        preview = Registry.Preview(draft);
+        preview = Registry.Preview(draft, RoleCatalogSvc.Scope(Current.Required.TenantId));
         migrationPreview = preview.Valid && draft.DataMigration is not null
-            ? Registry.PreviewDataMigration(draft)
+            ? Registry.PreviewDataMigration(draft, scope: RoleCatalogSvc.Scope(Current.Required.TenantId))
             : null;
     }
 
@@ -729,7 +738,7 @@ else
             var migratedDocuments = draft.DataMigration is null ? 0 : migrationPreview is { Valid: true } result
                 ? result.Documents
                 : throw new InvalidOperationException("Run a successful migration dry-run before publishing.");
-            var v = Registry.Publish(draft, Current.Required.Id, ack, migratedDocuments);
+            var v = Registry.Publish(draft, Current.Required.Id, ack, migratedDocuments, RoleCatalogSvc.Scope(Current.Required.TenantId));
             Toasts.Success("Forms, lists, and APIs will immediately use this version.", $"{v.DocType} v{v.Version} published");
             Load();
         }

@@ -227,8 +227,8 @@ sealed partial class Tests
             await Assert.Throws<PermissionDeniedException>(() => Reports.GenerateAsync(U("andi"), saved.Id, new Dictionary<string, string?>()), "role lain ditolak");
             Assert.True((await Reports.ListAsync(U("andi"))).All(d => d.Id != saved.Id), "tidak tampil di daftar role lain");
 
-            var output = await Reports.GenerateAsync(U("dewi"), saved.Id, new Dictionary<string, string?> { ["Dept"] = "Marketing" });
-            Assert.True(output.Rows == 2 && output.FileName.StartsWith("Pengajuan Marketing 20") && output.FileName.EndsWith("." + format), $"parameter dipakai: {output.FileName}, {output.Rows} baris");
+            var output = await Reports.GenerateAsync(U("dewi"), saved.Id, new Dictionary<string, string?> { ["Dept"] = "MARKETING" });
+            Assert.True(output.Rows == 2 && output.FileName.StartsWith("Pengajuan MARKETING 20") && output.FileName.EndsWith("." + format), $"parameter dipakai: {output.FileName}, {output.Rows} baris");
             var text = format == ReportFormats.Xlsx ? LibreOffice(output.Content, "xlsx", "csv") : LibreOffice(output.Content, "docx", "txt:Text");
             if (text is not null)
                 Assert.True(text.Contains("PR-2026-00004") && text.Contains("Sari Wulandari") && !text.Contains("PR-2026-00001") && text.Contains("PT Acme Indonesia"),
@@ -252,7 +252,7 @@ sealed partial class Tests
             new ReportLimits { MaxRowsExcel = 2 });
         var big = await Assert.Throws<TemplateException>(() => tiny.GenerateAsync(admin, saved.Id, new Dictionary<string, string?> { ["Dept"] = "IT" }), "3 baris > batas 2");
         Assert.True(big.Message.Contains("exceed") || big.Message.Contains("melebihi"), "pesan meminta mempersempit parameter: " + big.Message);
-        var ok = await tiny.GenerateAsync(admin, saved.Id, new Dictionary<string, string?> { ["Dept"] = "Marketing" });
+        var ok = await tiny.GenerateAsync(admin, saved.Id, new Dictionary<string, string?> { ["Dept"] = "MARKETING" });
         Assert.Equal(2, ok.Rows, "tepat di batas tetap dibuat");
     }
 }

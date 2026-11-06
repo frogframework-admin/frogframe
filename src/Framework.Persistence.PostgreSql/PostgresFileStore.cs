@@ -41,6 +41,15 @@ public sealed class PostgresFileStore(NpgsqlDataSource db) : IFileStore
         return await r.ReadAsync(ct) ? (Read(r), r.GetFieldValue<byte[]>(10)) : null;
     }
 
+    public async Task<int> PruneOrphansAsync(DateTimeOffset cutoff, CancellationToken ct = default)
+    {
+        // Hanya file yang belum pernah ditautkan (doctype kosong) dan sudah lewat batas waktu.
+        await using var cmd = db.CreateCommand(
+            "DELETE FROM docframe_files WHERE id IN (SELECT id FROM docframe_files WHERE doctype IS NULL AND created_at < $1 LIMIT 500)");
+        cmd.Parameters.AddWithValue(cutoff);
+        return await cmd.ExecuteNonQueryAsync(ct);
+    }
+
     public async Task AttachAsync(string tenantId, string id, string docType, string docName, string field, CancellationToken ct = default)
     {
         await using var cmd = db.CreateCommand("UPDATE docframe_files SET doctype = $3, doc_name = $4, field = $5 WHERE tenant_id = $1 AND id = $2");

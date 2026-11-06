@@ -67,6 +67,29 @@
                         .ThenBy(g => g.Name)
                         .ToList();
 
+                    var moduleDocs = ReadableDocTypes(u)
+                        .Where(d => !d.Def.IsChild && BelongsToModule(d, activeMod, visibleModules))
+                        .OrderBy(d => d.Def.Title)
+                        .ToList();
+                    if (moduleDocs.Count > 0)
+                    {
+                        <BbSidebarGroup>
+                            <BbSidebarGroupLabel>Dokumen</BbSidebarGroupLabel>
+                            <BbSidebarGroupContent>
+                                <BbSidebarMenu>
+                                    @foreach (var d in moduleDocs)
+                                    {
+                                        <BbSidebarMenuItem>
+                                            <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="@($"app/{d.Name}")" Tooltip="@d.Title">
+                                                <LucideIcon Name="@IconFor(d)" Size="18" /><span>@d.Title</span>
+                                            </BbSidebarMenuButton>
+                                        </BbSidebarMenuItem>
+                                    }
+                                </BbSidebarMenu>
+                            </BbSidebarGroupContent>
+                        </BbSidebarGroup>
+                    }
+
                     @foreach (var grp in moduleGroups)
                     {
                         var grpMenus = visibleMenus
@@ -78,10 +101,8 @@
 
                         var explicitHrefs = grpMenus.Select(m => m.Href.TrimStart('/')).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-                        var grpDocTypes = ReadableDocTypes(u)
-                            .Where(d => string.Equals(d.Def.Module ?? "Umum", grp.Name, StringComparison.OrdinalIgnoreCase)
-                                     && !explicitHrefs.Contains($"app/{d.Name}"))
-                            .ToList();
+                        // DocType tidak lagi dicocokkan dengan nama grup; tampil per modul di bagian "Dokumen".
+                        var grpDocTypes = new List<CompiledDocType>();
 
                         var grpDeskItems = VisibleMenuItems(u)
                             .Where(i => string.Equals(i.Group, grp.Name, StringComparison.OrdinalIgnoreCase)
@@ -438,6 +459,16 @@
 
     private void RefreshUnread() =>
         unread = Current.User is { } u ? Notifications.ForUser(u.TenantId, u.Id).Count(n => !n.Read) : 0;
+
+    /// <summary>
+    /// DocType termasuk modul aktif bila modulnya cocok. DocType yang modulnya tidak bisa di-resolve (data lama)
+    /// ditampilkan di modul pertama yang terlihat agar tidak hilang dari menu.
+    /// </summary>
+    private bool BelongsToModule(CompiledDocType d, NavigationModule active, IReadOnlyList<NavigationModule> visible)
+    {
+        var resolved = NavigationMenuDefaults.ResolveModule(navModules, d.Def.Module);
+        return resolved is null ? visible.FirstOrDefault()?.Id == active.Id : resolved.Id == active.Id;
+    }
 
     private IEnumerable<CompiledDocType> ReadableDocTypes(UserContext u) =>
         Metadata.Current.DocTypes.Values.Where(d => !d.Def.IsChild && Perms.Can(u, d, DocActions.Read)).OrderBy(d => d.Def.Module).ThenBy(d => d.Title);

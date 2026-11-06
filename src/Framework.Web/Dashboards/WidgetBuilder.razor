@@ -2,6 +2,7 @@
 @page "/dashboard/widgets/{WidgetId}"
 @using Framework.Dashboards
 @inject DashboardService Dashboards
+@inject RoleCatalog RoleCatalogSvc
 @inject IMetadataProvider Metadata
 @inject CurrentUser Current
 @inject ToastService Toasts
@@ -224,7 +225,7 @@ else
                             <div>
                                 <div class="props-sub" style="margin-bottom:.4rem">Viewable by (empty = all users)</div>
                                 <div class="wf-roles">
-                                    @foreach (var role in MetadataRoles.Known(Metadata.Current, widget.Config.Roles))
+                                    @foreach (var role in MetadataRoles.Known(Metadata.Current, widget.Config.Roles, RoleCatalogSvc.Names(Current.Required.TenantId)))
                                     {
                                         var r = role;
                                         <div class="label-row"><BbCheckbox Id="@($"r-{r}")" Checked="widget.Config.Roles.Contains(r)" CheckedChanged="v => ToggleRole(r, v)" /><BbLabel For="@($"r-{r}")">@r</BbLabel></div>

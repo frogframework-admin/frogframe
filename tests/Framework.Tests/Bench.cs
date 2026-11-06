@@ -73,7 +73,7 @@ public static class Bench
                        jsonb_build_object(
                          'requester', 'EMP-' || lpad((i % 500)::text, 4, '0'),
                          'requester_name', 'Karyawan ' || (i % 500),
-                         'department', (ARRAY['IT','Marketing','Finance','Operasional','Direksi','Infrastruktur'])[1 + i % 6],
+                         'department', (ARRAY['IT','MARKETING','FINANCE','OPERASIONAL','DIREKSI','INFRASTRUKTUR'])[1 + i % 6],
                          'priority', (ARRAY['Rendah','Normal','Tinggi'])[1 + (i / 7) % 3],
                          'request_date', to_char(date '2024-01-01' + (i % 900), 'YYYY-MM-DD'),
                          'justification', 'Kebutuhan operasional nomor ' || i,

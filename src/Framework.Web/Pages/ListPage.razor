@@ -274,6 +274,15 @@ else if (meta is not null)
         if (!Metadata.Current.TryGet(DocType, out var m) || m.Def.IsChild) { fatal = $"DocType '{DocType}' not found."; return; }
         meta = m;
         if (!Perms.Can(Current.Required, meta, DocActions.Read)) { fatal = $"You do not have permission to view {meta.Title}."; return; }
+        // Single DocType: tidak ada daftar; langsung buka dokumen tunggalnya (atau form baru bila belum ada).
+        if (meta.Def.IsSingle)
+        {
+            var exists = true;
+            try { await Docs.GetAsync(Current.Required, DocType, DocType); }
+            catch (DocumentNotFoundException) { exists = false; }
+            Nav.NavigateTo($"/app/{DocType}/{(exists ? DocType : "new")}", replace: true);
+            return;
+        }
 
         if (Current.User is { } u)
         {

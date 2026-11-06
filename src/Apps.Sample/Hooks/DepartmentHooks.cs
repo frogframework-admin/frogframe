@@ -15,6 +15,9 @@ public sealed class DepartmentBeforeValidateHook : IBeforeValidate<Department>
     {
         if (context.Doc.Data.GetValueOrDefault("code") is string code)
             context.Doc.Data["code"] = code.Trim().ToUpperInvariant();
+        // Induk juga harus mengikuti aturan kode, agar Link ke induk cocok dengan nama dokumen yang tersimpan.
+        if (context.Doc.Data.GetValueOrDefault("parent_department") is string parent)
+            context.Doc.Data["parent_department"] = parent.Trim().ToUpperInvariant();
         return Task.CompletedTask;
     }
 }

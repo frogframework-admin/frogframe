@@ -10,6 +10,7 @@ public static class NavigationMenuDefaults
     public static string ModuleProcurementId(string tenantId) => $"mod_{tenantId}_procurement";
     public static string ModuleAnalyticsId(string tenantId) => $"mod_{tenantId}_analytics";
     public static string ModuleAdminId(string tenantId) => $"mod_{tenantId}_admin";
+    public static string ModuleAccountingId(string tenantId) => $"mod_{tenantId}_accounting";
 
     public static string GroupHrId(string tenantId) => $"grp_{tenantId}_hr";
     public static string GroupPengadaanId(string tenantId) => $"grp_{tenantId}_pengadaan";
@@ -18,12 +19,18 @@ public static class NavigationMenuDefaults
     public static string GroupLaporanId(string tenantId) => $"grp_{tenantId}_laporan";
     public static string GroupSistemId(string tenantId) => $"grp_{tenantId}_sistem";
 
+    /// <summary>Mencari modul untuk DocType.module. Hanya kode yang dikenal (tidak peka huruf besar).</summary>
+    public static NavigationModule? ResolveModule(IEnumerable<NavigationModule> modules, string? code) =>
+        string.IsNullOrWhiteSpace(code) ? null
+        : modules.FirstOrDefault(m => string.Equals(m.Code, code.Trim(), StringComparison.OrdinalIgnoreCase));
+
     public static IReadOnlyList<NavigationModule> CreateDefaultModules(string tenantId, DateTimeOffset now) =>
     [
         new()
         {
             Id = ModuleHrId(tenantId),
             TenantId = tenantId,
+            Code = "HR",
             Name = "Human Resources",
             Description = "Employee records, departments, and organization structure",
             Icon = "users",
@@ -38,6 +45,7 @@ public static class NavigationMenuDefaults
         {
             Id = ModuleProcurementId(tenantId),
             TenantId = tenantId,
+            Code = "PROCUREMENT",
             Name = "Procurement",
             Description = "Purchase requests, product catalog, and vendor management",
             Icon = "shopping-cart",
@@ -50,8 +58,24 @@ public static class NavigationMenuDefaults
         },
         new()
         {
+            Id = ModuleAccountingId(tenantId),
+            TenantId = tenantId,
+            Code = "ACCOUNTING",
+            Name = "Accounting",
+            Description = "Chart of accounts, accounting periods, journal entries, and general ledger",
+            Icon = "calculator",
+            SortOrder = 25,
+            AllowedRoles = ["Finance"],
+            IsSystem = true,
+            IsActive = true,
+            CreatedAt = now,
+            UpdatedAt = now
+        },
+        new()
+        {
             Id = ModuleAnalyticsId(tenantId),
             TenantId = tenantId,
+            Code = "ANALYTICS",
             Name = "Analytics",
             Description = "Interactive dashboards, analytical reports, and Excel/Word exports",
             Icon = "chart-column",
@@ -66,6 +90,7 @@ public static class NavigationMenuDefaults
         {
             Id = ModuleAdminId(tenantId),
             TenantId = tenantId,
+            Code = "ADMINISTRATION",
             Name = "Administration",
             Description = "Manage users, roles, modules, menus, DocType metadata, and API integrations",
             Icon = "settings",

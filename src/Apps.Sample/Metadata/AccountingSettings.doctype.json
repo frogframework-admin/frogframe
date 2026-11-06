@@ -1,0 +1,158 @@
+{
+  "name": "AccountingSettings",
+  "version": 1,
+  "title": "Pengaturan Akuntansi",
+  "module": "ACCOUNTING",
+  "isSingle": true,
+  "document": {
+    "trackChanges": true,
+    "allowDelete": false
+  },
+  "fields": [
+    {
+      "name": "default_receivable_account",
+      "type": "Link",
+      "label": "Akun piutang default",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "root_type",
+          "op": "=",
+          "value": "Aset"
+        }
+      ],
+      "section": "Akun default",
+      "column": 1
+    },
+    {
+      "name": "default_payable_account",
+      "type": "Link",
+      "label": "Akun utang default",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "root_type",
+          "op": "=",
+          "value": "Kewajiban"
+        }
+      ],
+      "section": "Akun default",
+      "column": 1
+    },
+    {
+      "name": "default_income_account",
+      "type": "Link",
+      "label": "Akun pendapatan default",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "root_type",
+          "op": "=",
+          "value": "Pendapatan"
+        }
+      ],
+      "section": "Akun default",
+      "column": 2
+    },
+    {
+      "name": "default_expense_account",
+      "type": "Link",
+      "label": "Akun beban default",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "root_type",
+          "op": "=",
+          "value": "Beban"
+        }
+      ],
+      "section": "Akun default",
+      "column": 2
+    },
+    {
+      "name": "default_sales_discount_account",
+      "type": "Link",
+      "label": "Akun potongan penjualan",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "root_type",
+          "op": "=",
+          "value": "Pendapatan"
+        }
+      ],
+      "section": "Akun default",
+      "column": 2
+    },
+    {
+      "name": "retained_earnings_account",
+      "type": "Link",
+      "label": "Akun laba ditahan",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "root_type",
+          "op": "=",
+          "value": "Ekuitas"
+        }
+      ],
+      "section": "Ekuitas",
+      "column": 1
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": null,
+    "searchFields": [],
+    "filters": []
+  }
+}

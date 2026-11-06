@@ -18,11 +18,11 @@ public static class DemoAccounts
     public static readonly (string Id, string Name, string Tenant, string Department, string? Employee, string[] Roles)[] All =
     [
         ("andi", "Andi Pratama", "acme", "IT", "EMP-0001", ["Employee"]),
-        ("sari", "Sari Wulandari", "acme", "Marketing", "EMP-0002", ["Employee"]),
+        ("sari", "Sari Wulandari", "acme", "MARKETING", "EMP-0002", ["Employee"]),
         ("budi", "Budi Santoso", "acme", "IT", "EMP-0003", ["Employee", "Manager"]),
-        ("maya", "Maya Lestari", "acme", "Marketing", "EMP-0004", ["Employee", "Manager"]),
-        ("dewi", "Dewi Anggraini", "acme", "Finance", "EMP-0005", ["Employee", "Finance"]),
-        ("rina", "Rina Kusuma", "acme", "Operasional", "EMP-0006", ["Employee", "Procurement"]),
+        ("maya", "Maya Lestari", "acme", "MARKETING", "EMP-0004", ["Employee", "Manager"]),
+        ("dewi", "Dewi Anggraini", "acme", "FINANCE", "EMP-0005", ["Employee", "Finance"]),
+        ("rina", "Rina Kusuma", "acme", "OPERASIONAL", "EMP-0006", ["Employee", "Procurement"]),
         ("admin", "Admin Sistem", "acme", "IT", null, [UserContext.SystemManager]),
         ("tono", "Tono Wijaya", "globex", "IT", "EMP-0001", ["Employee", "Manager"]),
     ];
@@ -196,17 +196,17 @@ public static class Seeder
         // Struktur organisasi: departemen (berinduk) lebih dulu, karena departemen karyawan adalah Link.
         foreach (var (code, name, parent) in new (string, string, string?)[]
         {
-            ("Direksi", "Direksi", null), ("IT", "Teknologi Informasi", "Direksi"), ("Marketing", "Pemasaran", "Direksi"),
-            ("Finance", "Keuangan", "Direksi"), ("Operasional", "Operasional", "Direksi"), ("Infrastruktur", "Infrastruktur TI", "IT"),
+            ("DIREKSI", "Direksi", null), ("IT", "Teknologi Informasi", "DIREKSI"), ("MARKETING", "Pemasaran", "DIREKSI"),
+            ("FINANCE", "Keuangan", "DIREKSI"), ("OPERASIONAL", "Operasional", "DIREKSI"), ("INFRASTRUKTUR", "Infrastruktur TI", "IT"),
         })
             await docs.InsertAsync(admin, "Department", new Dictionary<string, object?> { ["code"] = code, ["department_name"] = name, ["parent_department"] = parent });
 
         var employees = new (string Name, string Dept, string? User, string Jabatan)[]
         {
-            ("Andi Pratama", "IT", "andi", "Staf Pengembang"), ("Sari Wulandari", "Marketing", "sari", "Staf Pemasaran"),
-            ("Budi Santoso", "IT", "budi", "Manajer TI"), ("Maya Lestari", "Marketing", "maya", "Manajer Pemasaran"),
-            ("Dewi Anggraini", "Finance", "dewi", "Manajer Keuangan"), ("Rina Kusuma", "Operasional", "rina", "Kepala Pengadaan"),
-            ("Joko Susilo", "Infrastruktur", null, "Teknisi Infrastruktur"), ("Hendra Kusuma", "Direksi", null, "Direktur Utama"),
+            ("Andi Pratama", "IT", "andi", "Staf Pengembang"), ("Sari Wulandari", "MARKETING", "sari", "Staf Pemasaran"),
+            ("Budi Santoso", "IT", "budi", "Manajer TI"), ("Maya Lestari", "MARKETING", "maya", "Manajer Pemasaran"),
+            ("Dewi Anggraini", "FINANCE", "dewi", "Manajer Keuangan"), ("Rina Kusuma", "OPERASIONAL", "rina", "Kepala Pengadaan"),
+            ("Joko Susilo", "INFRASTRUKTUR", null, "Teknisi Infrastruktur"), ("Hendra Kusuma", "DIREKSI", null, "Direktur Utama"),
         };
         foreach (var (name, dept, user, jabatan) in employees)
             await docs.InsertAsync(admin, "Employee", new Dictionary<string, object?>
@@ -221,8 +221,8 @@ public static class Seeder
             var e = await docs.GetAsync(admin, "Employee", emp);
             await docs.UpdateAsync(admin, "Employee", emp, e.Version, new Dictionary<string, object?> { ["atasan_id"] = boss });
         }
-        foreach (var (dept, head) in new[] { ("Direksi", "EMP-0008"), ("IT", "EMP-0003"), ("Marketing", "EMP-0004"), ("Finance", "EMP-0005"),
-                                             ("Operasional", "EMP-0006"), ("Infrastruktur", "EMP-0007") })
+        foreach (var (dept, head) in new[] { ("DIREKSI", "EMP-0008"), ("IT", "EMP-0003"), ("MARKETING", "EMP-0004"), ("FINANCE", "EMP-0005"),
+                                             ("OPERASIONAL", "EMP-0006"), ("INFRASTRUKTUR", "EMP-0007") })
         {
             var d = await docs.GetAsync(admin, "Department", dept);
             await docs.UpdateAsync(admin, "Department", dept, d.Version, new Dictionary<string, object?> { ["head"] = head });

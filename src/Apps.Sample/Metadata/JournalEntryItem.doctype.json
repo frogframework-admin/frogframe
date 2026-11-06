@@ -1,0 +1,52 @@
+{
+  "name": "JournalEntryItem",
+  "version": 1,
+  "title": "Baris Jurnal",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "account",
+      "type": "Link",
+      "label": "Akun",
+      "linkTo": "Account",
+      "requiredWhen": "true",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "debit",
+      "type": "Currency",
+      "label": "Debit",
+      "default": 0,
+      "min": 0
+    },
+    {
+      "name": "credit",
+      "type": "Currency",
+      "label": "Kredit",
+      "default": 0,
+      "min": 0
+    },
+    {
+      "name": "department",
+      "type": "Link",
+      "label": "Departemen",
+      "linkTo": "Department"
+    },
+    {
+      "name": "remarks",
+      "type": "Data",
+      "label": "Keterangan"
+    }
+  ]
+}

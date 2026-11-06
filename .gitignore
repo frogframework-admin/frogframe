@@ -57,6 +57,10 @@ ehthumbs.db
 *.local.json
 .env
 
+## Publish output
+publish/
+Dockerfile.multistage
+
 ## Database Backups
 backups/
 *.dump

@@ -41,7 +41,8 @@ else
             break;
         case "link":
             <div class="fill-trigger">
-                <LinkInput Id="@Id" Target="@(Field.Def.LinkTo!)" Value="@(Value as string)" Label="@Field.Label" ShowLookup="@Field.Def.LookupDialog" ValueChanged="v => Emit(v)" />
+                <LinkInput Id="@Id" Target="@(Field.Def.LinkTo!)" Value="@(Value as string)" Label="@Field.Label" ShowLookup="@Field.Def.LookupDialog" ValueChanged="v => Emit(v)"
+                           LookupFilters="@(Field.Def.LinkFilters.Count > 0 ? Framework.Metadata.LinkFilters.ToClauses(Field.Def.LinkFilters) : null)" />
             </div>
             break;
         default:

@@ -136,6 +136,8 @@ public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider 
                     throw new ConcurrencyException(name, expected, await CurrentVersion(conn, tx, tenant, docType, name, ct));
             }
 
+            if (uow.Ledger.Count > 0) await WriteLedgerAsync(conn, tx, uow, ct);
+
             foreach (var a in uow.Audits)
             {
                 await using var ins = new NpgsqlCommand(
@@ -158,12 +160,111 @@ public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider 
                 ins.Parameters.AddWithValue(JsonSerializer.Serialize(m.Payload)); ins.Parameters.AddWithValue(m.IdempotencyKey); ins.Parameters.AddWithValue(m.CreatedAt);
                 await ins.ExecuteNonQueryAsync(ct);
             }
-            await tx.CommitAsync(ct);
+            await tx.CommitAsync(ct); // constraint trigger keseimbangan GL berjalan di sini
+        }
+        catch (PostgresException ex) when (ex.MessageText.StartsWith("docframe_gl:") || ex.ConstraintName?.StartsWith("ck_gl") == true
+                                           || ex.ConstraintName is "uq_gl_voucher_line" or "uq_gl_reversal")
+        {
+            await tx.RollbackAsync(CancellationToken.None);
+            throw new Framework.Accounting.LedgerException(ex.ConstraintName switch
+            {
+                "uq_gl_voucher_line" => "Voucher versi ini sudah diposting",
+                "uq_gl_reversal" => "Baris ini sudah pernah dibalik",
+                "ck_gl_one_side" => "Setiap baris harus berisi debit ATAU kredit",
+                _ => ex.MessageText.Replace("docframe_gl: ", ""),
+            });
         }
         catch
         {
             await tx.RollbackAsync(CancellationToken.None);
             throw;
+        }
+    }
+
+    /// <summary>
+    /// Menulis baris buku besar dalam transaksi dokumen: kunci per tenant (urutan seq), periode Terbuka dikunci
+    /// FOR SHARE (penutupan bersamaan menunggu), akun diperiksa, lalu seq dan rantai hash dihitung.
+    /// </summary>
+    private static async Task WriteLedgerAsync(NpgsqlConnection conn, NpgsqlTransaction tx, UnitOfWork uow, CancellationToken ct)
+    {
+        foreach (var tenantGroup in uow.Ledger.GroupBy(x => x.Voucher.TenantId).OrderBy(g => g.Key, StringComparer.Ordinal))
+        {
+            var tenant = tenantGroup.Key;
+            await using (var lk = new NpgsqlCommand("SELECT pg_advisory_xact_lock(hashtext('docframe.gl'), hashtext($1))", conn, tx))
+            { lk.Parameters.AddWithValue(tenant); await lk.ExecuteScalarAsync(ct); }
+
+            var periods = new Dictionary<DateOnly, string>();
+            foreach (var date in tenantGroup.Select(x => x.Line.PostingDate).Distinct())
+            {
+                await using var q = new NpgsqlCommand(
+                    "SELECT name FROM docframe_documents WHERE tenant_id = $1 AND doctype = $2 AND data->>'status' = 'Terbuka' " +
+                    "AND (data->>'start_date')::date <= $3 AND (data->>'end_date')::date >= $3 ORDER BY name LIMIT 1 FOR SHARE", conn, tx);
+                q.Parameters.AddWithValue(tenant); q.Parameters.AddWithValue(Framework.Accounting.Ledger.PeriodDocType); q.Parameters.AddWithValue(date);
+                periods[date] = await q.ExecuteScalarAsync(ct) as string
+                    ?? throw new Framework.Accounting.LedgerException($"Tanggal posting {date:yyyy-MM-dd} tidak berada di periode akuntansi yang Terbuka");
+            }
+
+            var accounts = tenantGroup.Select(x => x.Line.Account).Distinct().ToArray();
+            var found = new Dictionary<string, (string? Group, string? Active)>();
+            await using (var q = new NpgsqlCommand(
+                "SELECT name, data->>'is_group', data->>'is_active' FROM docframe_documents WHERE tenant_id = $1 AND doctype = $2 AND name = ANY($3)", conn, tx))
+            {
+                q.Parameters.AddWithValue(tenant); q.Parameters.AddWithValue(Framework.Accounting.Ledger.AccountDocType); q.Parameters.AddWithValue(accounts);
+                await using var r = await q.ExecuteReaderAsync(ct);
+                while (await r.ReadAsync(ct)) found[r.GetString(0)] = (r.IsDBNull(1) ? null : r.GetString(1), r.IsDBNull(2) ? null : r.GetString(2));
+            }
+            foreach (var a in accounts)
+            {
+                if (!found.TryGetValue(a, out var info)) throw new Framework.Accounting.LedgerException($"Akun '{a}' tidak ditemukan");
+                if (info.Group == "true") throw new Framework.Accounting.LedgerException($"Akun '{a}' adalah akun induk dan tidak bisa menerima posting");
+                if (info.Active == "false") throw new Framework.Accounting.LedgerException($"Akun '{a}' nonaktif");
+            }
+
+            long seq = 0; var prev = Framework.Accounting.Ledger.Genesis;
+            await using (var q = new NpgsqlCommand("SELECT seq, entry_hash FROM docframe_gl_entries WHERE tenant_id = $1 ORDER BY seq DESC LIMIT 1", conn, tx))
+            {
+                q.Parameters.AddWithValue(tenant);
+                await using var r = await q.ExecuteReaderAsync(ct);
+                if (await r.ReadAsync(ct)) { seq = r.GetInt64(0); prev = r.GetString(1); }
+            }
+
+            foreach (var voucher in tenantGroup.GroupBy(x => (x.Voucher.DocType, x.Voucher.Name, x.Voucher.Version)))
+            {
+                var lineNo = 0;
+                foreach (var (doc, l) in voucher)
+                {
+                    seq++; lineNo++;
+                    var period = periods[l.PostingDate];
+                    var hash = Framework.Accounting.Ledger.Hash(prev, Framework.Accounting.Ledger.Canonical(tenant, seq, l.PostingDate, period, l.Account, l.Debit, l.Credit,
+                        doc.DocType, doc.Name, doc.Version, lineNo, l.PartyType, l.Party, l.AgainstVoucherType, l.AgainstVoucherName, l.Department, l.Remarks, l.ReversalOf));
+                    await using var ins = new NpgsqlCommand(
+                        "INSERT INTO docframe_gl_entries (id, tenant_id, seq, posting_date, period_id, account_id, debit, credit, voucher_type, voucher_name, " +
+                        "voucher_version, line_number, party_type, party, against_voucher_type, against_voucher_name, department_id, remarks, reversal_of, " +
+                        "prev_hash, entry_hash, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)", conn, tx);
+                    object N(object? v) => v ?? DBNull.Value;
+                    foreach (var v in new object[] { Guid.NewGuid(), tenant, seq, l.PostingDate, period, l.Account, l.Debit, l.Credit, doc.DocType, doc.Name,
+                                 doc.Version, lineNo, N(l.PartyType), N(l.Party), N(l.AgainstVoucherType), N(l.AgainstVoucherName), N(l.Department), N(l.Remarks),
+                                 l.ReversalOf is { } rv ? rv : DBNull.Value, prev, hash, doc.ModifiedBy })
+                        ins.Parameters.AddWithValue(v);
+                    await ins.ExecuteNonQueryAsync(ct);
+                    prev = hash;
+                }
+            }
+
+            // Penjaga sisa tagihan (di bawah kunci tenant): pelunasan tidak boleh membuat saldo terbuka berbalik tanda.
+            var touched = tenantGroup.Where(x => x.Line.AgainstVoucherName is not null && x.Line.AgainstVoucherName != x.Voucher.Name)
+                .Select(x => (x.Line.AgainstVoucherType!, x.Line.AgainstVoucherName!, x.Line.Account)).Distinct().ToList();
+            foreach (var (aType, aName, account) in touched)
+            {
+                var rows = new List<(string, string, string, string, decimal, decimal)>();
+                await using var q = new NpgsqlCommand(
+                    "SELECT voucher_name, debit, credit FROM docframe_gl_entries WHERE tenant_id = $1 AND against_voucher_type = $2 AND against_voucher_name = $3 AND account_id = $4", conn, tx);
+                q.Parameters.AddWithValue(tenant); q.Parameters.AddWithValue(aType); q.Parameters.AddWithValue(aName); q.Parameters.AddWithValue(account);
+                await using (var r = await q.ExecuteReaderAsync(ct))
+                    while (await r.ReadAsync(ct)) rows.Add((aType, aName, account, r.GetString(0), r.GetDecimal(1), r.GetDecimal(2)));
+                if (Framework.Accounting.Ledger.OpenItemViolation(rows, [(aType, aName, account)]) is { } v)
+                    throw new Framework.Accounting.LedgerException(v);
+            }
         }
     }
 
@@ -807,11 +908,18 @@ public static class PostgreSqlServiceCollectionExtensions
     /// Mengganti penyimpanan in-memory dengan PostgreSQL. Boleh dipanggil sebelum atau sesudah AddDocFramework.
     /// Jalankan <see cref="MigrateDocFrameworkDatabaseAsync"/> saat startup sebelum aplikasi melayani request.
     /// </summary>
-    public static IServiceCollection AddDocFrameworkPostgreSql(this IServiceCollection services, string connectionString)
+    /// <param name="schemaConnectionString">
+    /// Opsional: koneksi PEMILIK skema untuk DDL (migrasi, sinkronisasi indeks). Bila diisi, <paramref name="connectionString"/>
+    /// sebaiknya peran app tanpa hak UPDATE/DELETE pada buku besar (lihat deploy/sql/gl-roles.sql). Kosong = satu koneksi.
+    /// </param>
+    public static IServiceCollection AddDocFrameworkPostgreSql(this IServiceCollection services, string connectionString, string? schemaConnectionString = null)
     {
         services.AddSingleton(_ => NpgsqlDataSource.Create(connectionString));
+        services.AddSingleton(sp => new SchemaDataSource(string.IsNullOrWhiteSpace(schemaConnectionString)
+            ? sp.GetRequiredService<NpgsqlDataSource>() : NpgsqlDataSource.Create(schemaConnectionString), owns: !string.IsNullOrWhiteSpace(schemaConnectionString)));
         services.AddSingleton<PostgresDocumentStore>();
         services.Replace(ServiceDescriptor.Singleton<IDocumentStore>(sp => sp.GetRequiredService<PostgresDocumentStore>()));
+        services.Replace(ServiceDescriptor.Singleton<Framework.Accounting.ILedgerReader, PostgresLedgerReader>());
         services.Replace(ServiceDescriptor.Singleton<IOutboxStore>(sp => sp.GetRequiredService<PostgresDocumentStore>()));
         services.Replace(ServiceDescriptor.Singleton<IDatabaseHealthCheck>(sp => sp.GetRequiredService<PostgresDocumentStore>()));
         services.Replace(ServiceDescriptor.Singleton<INotificationStore, PostgresNotificationStore>());
@@ -833,7 +941,12 @@ public static class PostgreSqlServiceCollectionExtensions
         services.Replace(ServiceDescriptor.Singleton<Framework.Observability.IErrorLogStore, PostgresErrorLogStore>());
         services.AddDataProtection()
             .SetApplicationName("DocFrame");
-        services.Replace(ServiceDescriptor.Singleton<Microsoft.AspNetCore.DataProtection.Repositories.IXmlRepository, PostgresXmlRepository>());
+        services.AddSingleton<Microsoft.AspNetCore.DataProtection.Repositories.IXmlRepository, PostgresXmlRepository>();
+        services.AddOptions<Microsoft.AspNetCore.DataProtection.KeyManagement.KeyManagementOptions>()
+            .Configure<Microsoft.AspNetCore.DataProtection.Repositories.IXmlRepository>((options, repo) =>
+            {
+                options.XmlRepository = repo;
+            });
         services.AddSingleton<SchemaMigrator>();
         return services;
     }

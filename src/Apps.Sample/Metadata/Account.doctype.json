@@ -1,0 +1,172 @@
+{
+  "name": "Account",
+  "version": 1,
+  "title": "Akun",
+  "module": "ACCOUNTING",
+  "naming": {
+    "pattern": "field:code"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "code",
+      "type": "Data",
+      "label": "Kode akun",
+      "requiredWhen": "true",
+      "maxLength": 20,
+      "pattern": "^[0-9A-Za-z.-]{1,20}$",
+      "inListView": true,
+      "section": "Akun",
+      "column": 1
+    },
+    {
+      "name": "account_name",
+      "type": "Data",
+      "label": "Nama akun",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Akun",
+      "column": 1
+    },
+    {
+      "name": "parent_account",
+      "type": "Link",
+      "label": "Akun induk",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "section": "Akun",
+      "column": 1
+    },
+    {
+      "name": "root_type",
+      "type": "Select",
+      "label": "Tipe",
+      "options": [
+        "Aset",
+        "Kewajiban",
+        "Ekuitas",
+        "Pendapatan",
+        "Beban"
+      ],
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Akun",
+      "column": 2
+    },
+    {
+      "name": "balance_type",
+      "type": "Select",
+      "label": "Saldo normal",
+      "options": [
+        "Debit",
+        "Kredit"
+      ],
+      "requiredWhen": "true",
+      "section": "Akun",
+      "column": 2
+    },
+    {
+      "name": "is_group",
+      "type": "Check",
+      "label": "Akun induk (grup)",
+      "default": false,
+      "inListView": true,
+      "section": "Akun",
+      "column": 2
+    },
+    {
+      "name": "is_active",
+      "type": "Check",
+      "label": "Aktif",
+      "default": true,
+      "inListView": true,
+      "section": "Akun",
+      "column": 2
+    },
+    {
+      "name": "is_cash_or_bank",
+      "type": "Check",
+      "label": "Kas / bank",
+      "default": false,
+      "section": "Akun",
+      "column": 2
+    },
+    {
+      "name": "is_control_account",
+      "type": "Check",
+      "label": "Akun kontrol (hanya lewat faktur/pembayaran/saldo awal)",
+      "default": false,
+      "section": "Akun",
+      "column": 2
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit",
+        "cancel",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "report"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "account_name",
+    "searchFields": [
+      "code",
+      "account_name"
+    ],
+    "filters": [
+      "root_type",
+      "is_group"
+    ],
+    "defaultSort": [
+      {
+        "field": "code",
+        "direction": "asc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

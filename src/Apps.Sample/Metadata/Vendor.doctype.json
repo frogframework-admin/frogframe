@@ -2,7 +2,7 @@
   "name": "Vendor",
   "version": 1,
   "title": "Pemasok",
-  "module": "Pengadaan",
+  "module": "PROCUREMENT",
   "naming": { "pattern": "VND-{####}" },
   "fields": [
     { "name": "vendor_name", "type": "Data", "label": "Nama pemasok", "requiredWhen": "true", "inListView": true },

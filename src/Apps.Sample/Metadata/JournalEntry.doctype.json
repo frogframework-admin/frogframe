@@ -1,0 +1,122 @@
+{
+  "name": "JournalEntry",
+  "version": 1,
+  "title": "Jurnal Umum",
+  "module": "ACCOUNTING",
+  "naming": {
+    "pattern": "JV-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "posting_date",
+      "type": "Date",
+      "label": "Tanggal posting",
+      "requiredWhen": "true",
+      "default": "$today",
+      "inListView": true,
+      "section": "Jurnal",
+      "column": 1
+    },
+    {
+      "name": "reference_no",
+      "type": "Data",
+      "label": "No. referensi",
+      "section": "Jurnal",
+      "column": 1
+    },
+    {
+      "name": "remarks",
+      "type": "Text",
+      "label": "Keterangan",
+      "inListView": true,
+      "section": "Jurnal",
+      "column": 2
+    },
+    {
+      "name": "items",
+      "type": "Table",
+      "label": "Baris jurnal",
+      "childDocType": "JournalEntryItem",
+      "requiredWhen": "true",
+      "section": "Baris"
+    },
+    {
+      "name": "total_debit",
+      "type": "Currency",
+      "label": "Total debit",
+      "compute": "sum(items.debit)",
+      "inListView": true,
+      "section": "Total",
+      "column": 1
+    },
+    {
+      "name": "total_credit",
+      "type": "Currency",
+      "label": "Total kredit",
+      "compute": "sum(items.credit)",
+      "section": "Total",
+      "column": 2
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit",
+        "cancel",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "report"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "remarks",
+    "searchFields": [
+      "name",
+      "reference_no",
+      "remarks"
+    ],
+    "filters": [
+      "posting_date"
+    ],
+    "defaultSort": [
+      {
+        "field": "modified",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

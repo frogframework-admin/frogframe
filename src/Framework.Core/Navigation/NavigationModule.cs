@@ -8,8 +8,21 @@ namespace Framework.Navigation;
 /// </summary>
 public sealed class NavigationModule
 {
+    private static readonly System.Text.RegularExpressions.Regex CodeRx = new("^[A-Z][A-Z0-9_]{1,31}$");
+
+    /// <summary>Menormalkan dan memvalidasi kode modul: huruf besar, 2–32 karakter, huruf/angka/garis bawah.</summary>
+    public static string NormalizeCode(string? code)
+    {
+        var c = (code ?? "").Trim().ToUpperInvariant();
+        if (!CodeRx.IsMatch(c))
+            throw new ArgumentException("Kode modul harus 2–32 karakter: huruf, angka, atau garis bawah, diawali huruf (mis. PROCUREMENT).");
+        return c;
+    }
+
     public string Id { get; set; } = "";
     public string TenantId { get; set; } = "default";
+    /// <summary>Kode unik per tenant (huruf besar), mis. HR, PROCUREMENT. Dipakai DocType.module sebagai referensi.</summary>
+    public string Code { get; set; } = "";
     public string Name { get; set; } = "";
     public string? Description { get; set; }
     public string Icon { get; set; } = "layout-grid";

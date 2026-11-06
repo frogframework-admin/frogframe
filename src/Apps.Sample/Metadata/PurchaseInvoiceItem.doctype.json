@@ -1,0 +1,91 @@
+{
+  "name": "PurchaseInvoiceItem",
+  "version": 1,
+  "title": "Baris Faktur Pembelian",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "item_description",
+      "type": "Data",
+      "label": "Uraian",
+      "requiredWhen": "true"
+    },
+    {
+      "name": "qty",
+      "type": "Float",
+      "label": "Qty",
+      "requiredWhen": "true",
+      "default": 1
+    },
+    {
+      "name": "rate",
+      "type": "Currency",
+      "label": "Harga satuan",
+      "requiredWhen": "true",
+      "min": 0
+    },
+    {
+      "name": "discount_percent",
+      "type": "Float",
+      "label": "Diskon %",
+      "default": 0,
+      "min": 0,
+      "max": 100
+    },
+    {
+      "name": "discount_amount",
+      "type": "Currency",
+      "label": "Diskon (Rp)",
+      "default": 0,
+      "min": 0
+    },
+    {
+      "name": "amount",
+      "type": "Currency",
+      "label": "Jumlah (setelah diskon)",
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "expense_account",
+      "type": "Link",
+      "label": "Akun beban",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "root_type",
+          "op": "=",
+          "value": "Beban"
+        }
+      ]
+    },
+    {
+      "name": "tax_rate",
+      "type": "Link",
+      "label": "Pajak",
+      "linkTo": "TaxRate",
+      "linkFilters": [
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "department",
+      "type": "Link",
+      "label": "Departemen",
+      "linkTo": "Department"
+    }
+  ]
+}

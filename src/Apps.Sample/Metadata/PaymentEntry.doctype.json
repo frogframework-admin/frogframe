@@ -1,0 +1,176 @@
+{
+  "name": "PaymentEntry",
+  "version": 1,
+  "title": "Pembayaran",
+  "module": "ACCOUNTING",
+  "naming": {
+    "pattern": "PAY-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "payment_type",
+      "type": "Select",
+      "label": "Jenis",
+      "options": [
+        "Penerimaan",
+        "Pengeluaran"
+      ],
+      "default": "Penerimaan",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Pembayaran",
+      "column": 1
+    },
+    {
+      "name": "customer",
+      "type": "Link",
+      "label": "Pelanggan",
+      "linkTo": "Customer",
+      "visibleWhen": "payment_type == 'Penerimaan'",
+      "requiredWhen": "payment_type == 'Penerimaan'",
+      "inListView": true,
+      "section": "Pembayaran",
+      "column": 1
+    },
+    {
+      "name": "vendor",
+      "type": "Link",
+      "label": "Pemasok",
+      "linkTo": "Vendor",
+      "visibleWhen": "payment_type == 'Pengeluaran'",
+      "requiredWhen": "payment_type == 'Pengeluaran'",
+      "section": "Pembayaran",
+      "column": 1
+    },
+    {
+      "name": "posting_date",
+      "type": "Date",
+      "label": "Tanggal",
+      "requiredWhen": "true",
+      "default": "$today",
+      "inListView": true,
+      "section": "Pembayaran",
+      "column": 2
+    },
+    {
+      "name": "payment_account",
+      "type": "Link",
+      "label": "Akun kas/bank",
+      "linkTo": "Account",
+      "requiredWhen": "true",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "is_cash_or_bank",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "section": "Pembayaran",
+      "column": 2
+    },
+    {
+      "name": "paid_amount",
+      "type": "Currency",
+      "label": "Jumlah dibayar",
+      "requiredWhen": "true",
+      "min": 0,
+      "inListView": true,
+      "section": "Pembayaran",
+      "column": 2
+    },
+    {
+      "name": "remarks",
+      "type": "Text",
+      "label": "Catatan",
+      "section": "Pembayaran",
+      "column": 2
+    },
+    {
+      "name": "allocations",
+      "type": "Table",
+      "label": "Alokasi ke faktur",
+      "childDocType": "PaymentAllocation",
+      "requiredWhen": "true",
+      "section": "Alokasi"
+    },
+    {
+      "name": "total_allocated",
+      "type": "Currency",
+      "label": "Total dialokasikan",
+      "readOnlyWhen": "true",
+      "section": "Alokasi"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit",
+        "cancel",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "report"
+      ],
+      "scope": "all"
+    }
+  ],
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  },
+  "listView": {
+    "titleField": "customer",
+    "searchFields": [
+      "name",
+      "customer",
+      "vendor"
+    ],
+    "filters": [
+      "payment_type",
+      "posting_date"
+    ],
+    "defaultSort": [
+      {
+        "field": "modified",
+        "direction": "desc"
+      }
+    ]
+  }
+}

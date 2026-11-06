@@ -2,7 +2,7 @@
   "name": "Product",
   "version": 2,
   "title": "Produk",
-  "module": "Pengadaan",
+  "module": "PROCUREMENT",
   "description": "Katalog barang/jasa standar untuk pengajuan pembelian.",
   "naming": {
     "pattern": "PRD-{####}"

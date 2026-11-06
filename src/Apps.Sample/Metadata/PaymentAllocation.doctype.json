@@ -1,0 +1,27 @@
+{
+  "name": "PaymentAllocation",
+  "version": 1,
+  "title": "Alokasi Pembayaran",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "voucher_name",
+      "type": "Data",
+      "label": "No. faktur",
+      "requiredWhen": "true"
+    },
+    {
+      "name": "outstanding",
+      "type": "Currency",
+      "label": "Sisa tagihan",
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "allocated_amount",
+      "type": "Currency",
+      "label": "Dialokasikan",
+      "requiredWhen": "true",
+      "min": 0
+    }
+  ]
+}

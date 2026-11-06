@@ -1,0 +1,163 @@
+{
+  "name": "PurchaseInvoice",
+  "version": 1,
+  "title": "Faktur Pembelian",
+  "module": "ACCOUNTING",
+  "naming": {
+    "pattern": "PI-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "vendor",
+      "type": "Link",
+      "label": "Pemasok",
+      "linkTo": "Vendor",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Faktur",
+      "column": 1
+    },
+    {
+      "name": "posting_date",
+      "type": "Date",
+      "label": "Tanggal faktur",
+      "requiredWhen": "true",
+      "default": "$today",
+      "inListView": true,
+      "section": "Faktur",
+      "column": 1
+    },
+    {
+      "name": "due_date",
+      "type": "Date",
+      "label": "Jatuh tempo",
+      "section": "Faktur",
+      "column": 2
+    },
+    {
+      "name": "supplier_invoice_no",
+      "type": "Data",
+      "label": "No. faktur pemasok",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Faktur",
+      "column": 2
+    },
+    {
+      "name": "remarks",
+      "type": "Text",
+      "label": "Catatan",
+      "section": "Faktur",
+      "column": 2
+    },
+    {
+      "name": "items",
+      "type": "Table",
+      "label": "Baris",
+      "childDocType": "PurchaseInvoiceItem",
+      "requiredWhen": "true",
+      "section": "Baris"
+    },
+    {
+      "name": "gross_total",
+      "type": "Currency",
+      "label": "Total bruto",
+      "readOnlyWhen": "true",
+      "section": "Total",
+      "column": 1
+    },
+    {
+      "name": "discount_total",
+      "type": "Currency",
+      "label": "Total diskon",
+      "readOnlyWhen": "true",
+      "section": "Total",
+      "column": 1
+    },
+    {
+      "name": "subtotal",
+      "type": "Currency",
+      "label": "DPP (setelah diskon)",
+      "readOnlyWhen": "true",
+      "section": "Total",
+      "column": 2
+    },
+    {
+      "name": "tax_amount",
+      "type": "Currency",
+      "label": "Pajak",
+      "readOnlyWhen": "true",
+      "section": "Total",
+      "column": 2
+    },
+    {
+      "name": "grand_total",
+      "type": "Currency",
+      "label": "Total tagihan",
+      "readOnlyWhen": "true",
+      "inListView": true,
+      "section": "Total",
+      "column": 2
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit",
+        "cancel",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "report"
+      ],
+      "scope": "all"
+    }
+  ],
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  },
+  "listView": {
+    "titleField": "vendor",
+    "searchFields": [
+      "name",
+      "vendor"
+    ],
+    "filters": [
+      "posting_date"
+    ],
+    "defaultSort": [
+      {
+        "field": "modified",
+        "direction": "desc"
+      }
+    ]
+  }
+}

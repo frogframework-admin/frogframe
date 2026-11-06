@@ -32,6 +32,8 @@ public interface IFileStore
     Task<FileRecord?> GetInfoAsync(string tenantId, string id, CancellationToken ct = default);
     Task<(FileRecord Record, byte[] Content)?> GetAsync(string tenantId, string id, CancellationToken ct = default);
     Task AttachAsync(string tenantId, string id, string docType, string docName, string field, CancellationToken ct = default);
+    /// <summary>Menghapus file yang tidak pernah ditautkan ke dokumen dan lebih tua dari <paramref name="cutoff"/>. Mengembalikan jumlahnya.</summary>
+    Task<int> PruneOrphansAsync(DateTimeOffset cutoff, CancellationToken ct = default);
 }
 
 public sealed class InMemoryFileStore : IFileStore
@@ -55,6 +57,13 @@ public sealed class InMemoryFileStore : IFileStore
         if (_files.TryGetValue(id, out var f) && f.Record.TenantId == tenantId)
             _files[id] = (f.Record with { DocType = docType, DocName = docName, Field = field }, f.Content);
         return Task.CompletedTask;
+    }
+
+    public Task<int> PruneOrphansAsync(DateTimeOffset cutoff, CancellationToken ct = default)
+    {
+        var orphans = _files.Where(kv => kv.Value.Record.DocType is null && kv.Value.Record.CreatedAt < cutoff).Select(kv => kv.Key).ToList();
+        foreach (var id in orphans) _files.TryRemove(id, out _);
+        return Task.FromResult(orphans.Count);
     }
 }
 

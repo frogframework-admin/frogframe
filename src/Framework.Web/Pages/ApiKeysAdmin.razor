@@ -2,6 +2,7 @@
 @using Framework.Api
 @using Microsoft.AspNetCore.Identity
 @inject ApiKeyService Keys
+@inject RoleCatalog RoleCatalogSvc
 @inject ApiMethodRegistry Methods
 @inject QueryApiService QueryApis
 @inject IUserAccountRepository Accounts
@@ -64,7 +65,7 @@ else
                         <div>
                             <div class="props-sub" style="margin-bottom:.35rem">Integration account roles</div>
                             <div class="wf-roles">
-                                @foreach (var role in MetadataRoles.Known(Metadata.Current).Where(r => r != UserContext.SystemManager))
+                                @foreach (var role in MetadataRoles.Known(Metadata.Current, RoleCatalogSvc.Names(Current.Required.TenantId)).Where(r => r != UserContext.SystemManager))
                                 {
                                     var r = role;
                                     <div class="label-row"><BbCheckbox Id="@($"ar-{r}")" Checked="newRoles.Contains(r)" CheckedChanged="v => { if (v) newRoles.Add(r); else newRoles.Remove(r); }" /><BbLabel For="@($"ar-{r}")">@r</BbLabel></div>

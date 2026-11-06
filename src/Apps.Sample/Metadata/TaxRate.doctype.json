@@ -1,0 +1,163 @@
+{
+  "name": "TaxRate",
+  "version": 1,
+  "title": "Tarif Pajak",
+  "module": "ACCOUNTING",
+  "naming": {
+    "pattern": "field:tax_code"
+  },
+  "fields": [
+    {
+      "name": "tax_code",
+      "type": "Data",
+      "label": "Kode pajak",
+      "requiredWhen": "true",
+      "pattern": "^[A-Z0-9_]{2,20}$",
+      "patternMessage": "Huruf besar/angka/garis bawah, mis. PPN_STD",
+      "inListView": true
+    },
+    {
+      "name": "tax_name",
+      "type": "Data",
+      "label": "Nama",
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "rate",
+      "type": "Float",
+      "label": "Tarif (%)",
+      "requiredWhen": "true",
+      "min": 0,
+      "max": 100,
+      "inListView": true
+    },
+    {
+      "name": "tax_base_factor",
+      "type": "Float",
+      "label": "Faktor dasar pengenaan",
+      "default": 1,
+      "min": 0,
+      "max": 1
+    },
+    {
+      "name": "rounding",
+      "type": "Select",
+      "label": "Pembulatan pajak",
+      "options": [
+        "Bulat ke bawah (Rupiah)",
+        "Half-up (2 desimal)"
+      ],
+      "default": "Bulat ke bawah (Rupiah)",
+      "requiredWhen": "true"
+    },
+    {
+      "name": "output_account",
+      "type": "Link",
+      "label": "Akun PPN keluaran",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "root_type",
+          "op": "=",
+          "value": "Kewajiban"
+        }
+      ],
+      "requiredWhen": "true"
+    },
+    {
+      "name": "input_account",
+      "type": "Link",
+      "label": "Akun PPN masukan",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "root_type",
+          "op": "=",
+          "value": "Aset"
+        }
+      ],
+      "requiredWhen": "true"
+    },
+    {
+      "name": "is_active",
+      "type": "Check",
+      "label": "Aktif",
+      "default": true,
+      "inListView": true
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit",
+        "cancel",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "report"
+      ],
+      "scope": "all"
+    }
+  ],
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  },
+  "listView": {
+    "titleField": "tax_name",
+    "searchFields": [
+      "tax_code",
+      "tax_name"
+    ],
+    "filters": [
+      "is_active"
+    ]
+  }
+}

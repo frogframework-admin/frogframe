@@ -43,7 +43,7 @@ sealed partial class Tests
 
         var it = await QueryApis.ExecuteAsync(U("dewi"), saved.Slug, new Dictionary<string, string?>());
         Assert.Equal(3, it.Data.Rows.Count, "default Dept=IT");
-        var mk = await QueryApis.ExecuteAsync(U("dewi"), saved.Slug, new Dictionary<string, string?> { ["dept"] = "Marketing", ["MinTotal"] = "1000000" });
+        var mk = await QueryApis.ExecuteAsync(U("dewi"), saved.Slug, new Dictionary<string, string?> { ["dept"] = "MARKETING", ["MinTotal"] = "1000000" });
         Assert.True(mk.Data.Rows.Count >= 1 && mk.Data.Rows.All(r => (decimal)r[2]! >= 1_000_000m), "parameter dari pemanggil (nama tidak peka huruf besar)");
 
         var bad = await Assert.Throws<ValidationFailedException>(() => QueryApis.ExecuteAsync(U("dewi"), saved.Slug,
@@ -74,8 +74,8 @@ sealed partial class Tests
         var budi = await QueryApis.ExecuteAsync(U("budi"), def.Slug, new Dictionary<string, string?>());
         Assert.True(budi.Data.Rows.Count > 0 && budi.Data.Rows.All(r => (string)r[1]! == "IT"), "manager IT → data IT");
         var maya = await QueryApis.ExecuteAsync(U("maya"), def.Slug, new Dictionary<string, string?>());
-        Assert.True(maya.Data.Rows.All(r => (string)r[1]! == "Marketing"), "manager Marketing → data Marketing");
-        var hack = await Assert.Throws<ValidationFailedException>(() => QueryApis.ExecuteAsync(U("budi"), def.Slug, new Dictionary<string, string?> { ["Dept"] = "Marketing" }), "menimpa departemen");
+        Assert.True(maya.Data.Rows.All(r => (string)r[1]! == "MARKETING"), "manager Marketing → data Marketing");
+        var hack = await Assert.Throws<ValidationFailedException>(() => QueryApis.ExecuteAsync(U("budi"), def.Slug, new Dictionary<string, string?> { ["Dept"] = "MARKETING" }), "menimpa departemen");
         Assert.True(hack.Errors.Single().Message.Contains("automatically populated") || hack.Errors.Single().Message.Contains("otomatis dari akun"), "pesan jelas: " + hack.Errors.Single().Message);
     }
 

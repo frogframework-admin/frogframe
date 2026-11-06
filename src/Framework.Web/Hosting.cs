@@ -119,6 +119,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<InMemoryDocumentStore>();
         services.TryAddSingleton<IDocumentStore>(sp => sp.GetRequiredService<InMemoryDocumentStore>());
         services.TryAddSingleton<IOutboxStore>(sp => sp.GetRequiredService<InMemoryDocumentStore>());
+        services.TryAddSingleton<Framework.Accounting.ILedgerReader>(sp => sp.GetRequiredService<InMemoryDocumentStore>());
         services.TryAddSingleton<IDatabaseHealthCheck>(sp => sp.GetRequiredService<InMemoryDocumentStore>());
         services.TryAddSingleton<INotificationStore, InMemoryNotificationStore>();
         services.TryAddSingleton<IFileStore, InMemoryFileStore>();
@@ -170,6 +171,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<INavigationMenuStore, InMemoryNavigationMenuStore>();
         // Master roles pengguna.
         services.TryAddSingleton<IRoleStore, InMemoryRoleStore>();
+        services.AddSingleton<RoleCatalog>(); // satu sumber nama role (master) untuk editor, publish, dan akun
         services.AddSingleton(sp =>
         {
             var cfg = sp.GetService<IConfiguration>();
@@ -229,6 +231,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<OutboxProcessor>();
         services.AddSingleton<ReportService>();
         services.AddHostedService<OutboxWorker>();
+        services.AddHostedService<FileOrphanWorker>(); // pembersihan file yang tidak pernah ditautkan
 
         // Background Scheduler
         services.TryAddSingleton<ISchedulerLogger, WebSchedulerLogger>();
@@ -366,6 +369,34 @@ public sealed class SchedulerWorker(
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 log.LogError(ex, "Scheduler worker encountered an error");
+            }
+        }
+    }
+}
+
+/// <summary>
+/// Menghapus file yang diunggah tetapi tidak pernah ditautkan ke dokumen (mis. dokumen tidak disimpan).
+/// Files:OrphanHours (default 24) = umur minimum; Files:PruneEveryHours (default 6) = jarak pembersihan.
+/// </summary>
+public sealed class FileOrphanWorker(IFileStore files, TimeProvider clock, ILogger<FileOrphanWorker> log, IConfiguration? config = null) : BackgroundService
+{
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        var every = TimeSpan.FromHours(Math.Max(1, config?.GetValue("Files:PruneEveryHours", 6) ?? 6));
+        var keep = TimeSpan.FromHours(Math.Max(1, config?.GetValue("Files:OrphanHours", 24) ?? 24));
+        using var timer = new PeriodicTimer(every);
+        while (await timer.WaitForNextTickAsync(stoppingToken))
+        {
+            try
+            {
+                int n;
+                var total = 0;
+                do { n = await files.PruneOrphansAsync(clock.GetUtcNow() - keep, stoppingToken); total += n; } while (n == 500);
+                if (total > 0) log.LogInformation("File yatim dihapus: {Count}", total);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                log.LogError(ex, "Pembersihan file yatim gagal");
             }
         }
     }

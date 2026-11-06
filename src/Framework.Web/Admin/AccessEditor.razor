@@ -1,3 +1,5 @@
+@inject RoleCatalog RoleCatalogSvc
+@inject CurrentUser Current
 @* DocType access editor: permission rules, document rules, and API. Permission changes are classified
    as "risky" by the diff (requires security review) so publishing requires confirmation. *@
 
@@ -112,7 +114,7 @@
         [("list", "List"), ("read", "Read"), ("create", "Create"), ("update", "Update"), ("delete", "Delete"), ("action", "Workflow action")];
 
     private IEnumerable<SelectOption<string>> RoleOptions =>
-        MetadataRoles.Known(Snapshot, Def.Permissions.Select(p => p.Role)).Select(r => new SelectOption<string>(r, r));
+        MetadataRoles.Known(Snapshot, Def.Permissions.Select(p => p.Role), RoleCatalogSvc.Names(Current.Required.TenantId)).Select(r => new SelectOption<string>(r, r));
     private static readonly IEnumerable<SelectOption<string>> ScopeOptions =
         [new("all", "All documents"), new("owner", "Own records"), new("match", "Match user attribute")];
     private static readonly IEnumerable<SelectOption<string>> LevelOptions = [new("0", "0 (general)"), new("1", "1"), new("2", "2")];

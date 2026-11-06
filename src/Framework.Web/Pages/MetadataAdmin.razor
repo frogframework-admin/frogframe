@@ -3,6 +3,7 @@
 @implements IDisposable
 @using System.Text.Json
 @inject MetadataRegistry Registry
+@inject RoleCatalog RoleCatalogSvc
 @inject CurrentUser Current
 @inject ToastService Toasts
 @inject NavigationManager Nav
@@ -20,7 +21,7 @@ else
             <h1>DocType Metadata</h1>
             <p>Manage DocType definitions, schema versions, workflows, and application form structures.</p>
         </div>
-        <BbButton Href="/admin/metadata/new"><LucideIcon Name="plus" Size="16" /> New DocType</BbButton>
+        <BbButton Href="/admin/metadata/new" OnClick="@(() => Nav.NavigateTo("/admin/metadata/new"))"><LucideIcon Name="plus" Size="16" /> New DocType</BbButton>
     </header>
 
     <BbDataGrid TData="DocTypeRow"
@@ -35,7 +36,7 @@ else
                 <CellTemplate Context="item">
                     <div>
                         <div style="display:flex;align-items:center;gap:.4rem">
-                            <a href="@($"/admin/metadata/{item.Name}/editor")" style="font-weight:600;color:inherit;text-decoration:none" class="hover:underline">
+                            <a href="@($"/admin/metadata/{item.Name}/editor")" @onclick="() => Edit(item.Name)" style="font-weight:600;color:inherit;text-decoration:none" class="hover:underline">
                                 @item.Title
                             </a>
                             @if (item.IsChild)
@@ -98,8 +99,8 @@ else
 
             <BbDataGridTemplateColumn TData="DocTypeRow" Title="Actions" Width="8.5rem" NoWrap="true">
                 <ChildContent Context="item">
-                    <div style="display:inline-flex;align-items:center;gap:.35rem;flex-wrap:nowrap" @onclick:stopPropagation="true">
-                        <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Href="@($"/admin/metadata/{item.Name}/editor")" Title="Visual editor">
+                    <div style="display:inline-flex;align-items:center;gap:.35rem;flex-wrap:nowrap">
+                        <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Href="@($"/admin/metadata/{item.Name}/editor")" OnClick="() => Edit(item.Name)" Title="Visual editor">
                             <LucideIcon Name="pencil" Size="14" /> Edit
                         </BbButton>
                         <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Version history &amp; JSON" Title="Version history &amp; JSON" OnClick="() => OpenDetail(item.Name)">
@@ -125,7 +126,7 @@ else
             @if (selectedMeta is not null)
             {
                 <div class="row" style="margin-bottom:.75rem">
-                    <BbButton Href="@($"/admin/metadata/{selectedMeta.Name}/editor")">
+                    <BbButton Href="@($"/admin/metadata/{selectedMeta.Name}/editor")" OnClick="() => Edit(selectedMeta.Name)">
                         <LucideIcon Name="pencil-ruler" Size="16" /> Open in Visual Editor
                     </BbButton>
                 </div>
@@ -164,13 +165,13 @@ else
                             @if (selectedMeta.Workflow is { } cw)
                             {
                                 <WorkflowDiagram Workflow="cw.Def" />
-                                <div class="row" style="margin-top:.75rem"><BbButton Variant="ButtonVariant.Outline" Href="@($"/admin/workflows/{cw.Def.Name}/editor")"><LucideIcon Name="git-branch" Size="16" /> Edit workflow</BbButton></div>
+                                <div class="row" style="margin-top:.75rem"><BbButton Variant="ButtonVariant.Outline" Href="@($"/admin/workflows/{cw.Def.Name}/editor")" OnClick="@(() => Nav.NavigateTo($"/admin/workflows/{cw.Def.Name}/editor"))"><LucideIcon Name="git-branch" Size="16" /> Edit workflow</BbButton></div>
                             }
                             else
                             {
                                 <div class="row">
-                                    <BbButton Variant="ButtonVariant.Outline" Href="@($"/admin/workflows/new?doctype={selectedMeta.Name}")"><LucideIcon Name="git-branch-plus" Size="16" /> Create workflow</BbButton>
-                                    <BbButton Variant="ButtonVariant.Ghost" Href="/admin/workflows">Manage workflows</BbButton>
+                                    <BbButton Variant="ButtonVariant.Outline" Href="@($"/admin/workflows/new?doctype={selectedMeta.Name}")" OnClick="@(() => Nav.NavigateTo($"/admin/workflows/new?doctype={selectedMeta.Name}"))"><LucideIcon Name="git-branch-plus" Size="16" /> Create workflow</BbButton>
+                                    <BbButton Variant="ButtonVariant.Ghost" Href="/admin/workflows" OnClick="@(() => Nav.NavigateTo("/admin/workflows"))">Manage workflows</BbButton>
                                 </div>
                             }
                         </BbCardContent>
@@ -312,6 +313,8 @@ else
         docTypes = list;
     }
 
+    private void Edit(string docTypeName) => Nav.NavigateTo($"/admin/metadata/{docTypeName}/editor");
+
     private void OpenDetail(string docTypeName)
     {
         Selected = docTypeName;
@@ -360,7 +363,7 @@ else
     private void Check()
     {
         message = null;
-        if (Parse() is { } def) preview = Registry.Preview(def);
+        if (Parse() is { } def) preview = Registry.Preview(def, RoleCatalogSvc.Scope(Current.Required.TenantId));
     }
 
     private void Publish()
@@ -368,7 +371,7 @@ else
         if (Parse() is not { } def) return;
         try
         {
-            var v = Registry.Publish(def, Current.Required.Id, ack);
+            var v = Registry.Publish(def, Current.Required.Id, ack, scope: RoleCatalogSvc.Scope(Current.Required.TenantId));
             Toasts.Success("Forms and lists will now use this version immediately.", $"{v.DocType} v{v.Version} published");
             LoadRows();
             if (Registry.Current.TryGet(def.Name, out var updated))

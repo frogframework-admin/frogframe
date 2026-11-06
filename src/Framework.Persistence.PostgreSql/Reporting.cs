@@ -383,8 +383,9 @@ public static class ReportingServiceCollectionExtensions
         services.AddSingleton(options);
         services.AddSingleton(_ => new ReadOnlyDataSource(NpgsqlDataSource.Create(readOnlyConnectionString)));
         services.AddSingleton(sp => new AnalyticsDataSource(string.IsNullOrWhiteSpace(options.AnalyticsConnectionString)
-            ? sp.GetRequiredService<NpgsqlDataSource>()
-            : NpgsqlDataSource.Create(options.AnalyticsConnectionString), owns: true));
+            // Tanpa instance analitik terpisah: pakai koneksi PEMILIK skema, karena sinkronisasi membuat skema & view (DDL).
+            ? sp.GetRequiredService<SchemaDataSource>().Source
+            : NpgsqlDataSource.Create(options.AnalyticsConnectionString), owns: !string.IsNullOrWhiteSpace(options.AnalyticsConnectionString)));
         services.AddSingleton<ReportingSchemaSync>();
         services.Replace(ServiceDescriptor.Singleton<IReportingQueryExecutor, PostgresReportingQueryExecutor>());
         services.Replace(ServiceDescriptor.Singleton<IWidgetStore, PostgresWidgetStore>());

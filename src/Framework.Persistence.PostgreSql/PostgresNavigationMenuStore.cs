@@ -6,7 +6,7 @@ namespace Framework.Persistence.PostgreSql;
 
 public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvider clock) : INavigationMenuStore
 {
-    private const string ModuleCols = "id, tenant_id, name, description, icon, sort_order, allowed_roles, is_system, is_active, created_at, updated_at";
+    private const string ModuleCols = "id, tenant_id, name, description, icon, sort_order, allowed_roles, is_system, is_active, created_at, updated_at, code";
     private const string GroupCols = "id, tenant_id, module_id, name, icon, sort_order, is_system, is_active, created_at, updated_at";
     private const string MenuCols = "id, tenant_id, title, href, icon, group_id, group_name, sort_order, allowed_roles, is_system, is_active, badge_key, created_at, updated_at";
 
@@ -26,7 +26,8 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
         IsSystem = r.GetBoolean(7),
         IsActive = r.GetBoolean(8),
         CreatedAt = r.GetFieldValue<DateTimeOffset>(9),
-        UpdatedAt = r.GetFieldValue<DateTimeOffset>(10)
+        UpdatedAt = r.GetFieldValue<DateTimeOffset>(10),
+        Code = r.IsDBNull(11) ? "" : r.GetString(11)
     };
 
     private static NavigationMenuGroup ReadGroup(NpgsqlDataReader r) => new()
@@ -98,10 +99,19 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
         module.UpdatedAt = clock.GetUtcNow();
         if (module.CreatedAt == default) module.CreatedAt = module.UpdatedAt;
         if (string.IsNullOrWhiteSpace(module.Id)) module.Id = Guid.NewGuid().ToString("N");
+        module.Code = NavigationModule.NormalizeCode(module.Code);
+
+        // Kode adalah kunci referensi DocType: setelah tersimpan tidak boleh berubah.
+        await using (var cur = db.CreateCommand("SELECT code FROM docframe_navigation_modules WHERE id = $1 AND tenant_id = $2"))
+        {
+            cur.Parameters.AddWithValue(module.Id); cur.Parameters.AddWithValue(module.TenantId);
+            if (await cur.ExecuteScalarAsync(ct) is string existingCode && existingCode.Length > 0 && existingCode != module.Code)
+                throw new InvalidOperationException($"Kode modul '{existingCode}' tidak bisa diubah karena dipakai DocType.");
+        }
 
         await using var cmd = db.CreateCommand(
-            $"INSERT INTO docframe_navigation_modules ({ModuleCols}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) " +
-            "ON CONFLICT (id) DO UPDATE SET name=$3, description=$4, icon=$5, sort_order=$6, allowed_roles=$7, is_system=$8, is_active=$9, updated_at=$11");
+            $"INSERT INTO docframe_navigation_modules ({ModuleCols}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) " +
+            "ON CONFLICT (id) DO UPDATE SET name=$3, description=$4, icon=$5, sort_order=$6, allowed_roles=$7, is_system=$8, is_active=$9, updated_at=$11, code=$12");
 
         cmd.Parameters.AddWithValue(module.Id);
         cmd.Parameters.AddWithValue(module.TenantId);
@@ -114,8 +124,13 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
         cmd.Parameters.AddWithValue(module.IsActive);
         cmd.Parameters.AddWithValue(module.CreatedAt);
         cmd.Parameters.AddWithValue(module.UpdatedAt);
+        cmd.Parameters.AddWithValue(module.Code);
 
-        await cmd.ExecuteNonQueryAsync(ct);
+        try { await cmd.ExecuteNonQueryAsync(ct); }
+        catch (PostgresException ex) when (ex.SqlState == "23505")
+        {
+            throw new InvalidOperationException($"Kode modul '{module.Code}' sudah dipakai modul lain.");
+        }
         Changed?.Invoke();
     }
 
@@ -397,7 +412,7 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
     private async Task SaveModuleInternalAsync(NavigationModule module, CancellationToken ct)
     {
         await using var cmd = db.CreateCommand(
-            $"INSERT INTO docframe_navigation_modules ({ModuleCols}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT (id) DO NOTHING");
+            $"INSERT INTO docframe_navigation_modules ({ModuleCols}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) ON CONFLICT DO NOTHING");
         cmd.Parameters.AddWithValue(module.Id);
         cmd.Parameters.AddWithValue(module.TenantId);
         cmd.Parameters.AddWithValue(module.Name);
@@ -409,6 +424,7 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
         cmd.Parameters.AddWithValue(module.IsActive);
         cmd.Parameters.AddWithValue(module.CreatedAt);
         cmd.Parameters.AddWithValue(module.UpdatedAt);
+        cmd.Parameters.AddWithValue(module.Code);
         await cmd.ExecuteNonQueryAsync(ct);
     }
 

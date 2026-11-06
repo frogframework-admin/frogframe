@@ -14,8 +14,9 @@ namespace Framework.Persistence.PostgreSql;
 /// dibutuhkan dibuang. Dibangun dengan CONCURRENTLY sehingga tabel tetap bisa ditulis selama pembangunan.
 /// Ekspresi indeks harus identik dengan ekspresi yang dihasilkan SqlQueryBuilder agar planner memakainya.
 /// </summary>
-public sealed class DocumentIndexSync(NpgsqlDataSource db, IMetadataProvider metadata, ILogger<DocumentIndexSync> log)
+public sealed class DocumentIndexSync(SchemaDataSource schema, IMetadataProvider metadata, ILogger<DocumentIndexSync> log)
 {
+    private readonly NpgsqlDataSource db = schema.Source;
     public const string Prefix = "ix_df_";
     private const long LockKey = 0x496E646578; // "Index"
     private int _subscribed;

@@ -32,6 +32,12 @@ public static class DocActions
     public static readonly ImmutableHashSet<string> All = [Read, Create, Write, Delete, Submit, Cancel, Amend, Export, Report];
 }
 
+/// <summary>
+/// Daftar yang diizinkan untuk diacu metadata saat publish: nama role master dan kode modul master tenant.
+/// null = tidak diperiksa (startup).
+/// </summary>
+public sealed record MetadataScope(IReadOnlySet<string> Roles, IReadOnlySet<string> Modules);
+
 public sealed record MetadataError(string Source, string Path, string Message)
 {
     public override string ToString() => $"{Source} › {Path}: {Message}";
@@ -127,7 +133,32 @@ public sealed partial class MetadataCompiler(IFieldTypeRegistry fieldTypes, Func
     [GeneratedRegex(@"^match:([a-z][a-z0-9_]*)=([a-z][a-z0-9_]*)$")] private static partial Regex MatchScopeRx();
     private static readonly string[] DynamicDefaults = ["$today", "$user", "$employee"];
 
-    public MetadataSnapshot Compile(IReadOnlyCollection<DocTypeDef> docTypes, IReadOnlyCollection<WorkflowDef> workflows)
+    private readonly object _roleGate = new();
+    private MetadataScope? _scope;
+
+    /// <summary>
+    /// Kompilasi metadata. <paramref name="scope"/> = daftar role master tenant; null = tidak diperiksa
+    /// (dipakai saat startup). Jika diisi, setiap role di permission DocType dan transisi workflow harus ada di daftar.
+    /// </summary>
+    public MetadataSnapshot Compile(IReadOnlyCollection<DocTypeDef> docTypes, IReadOnlyCollection<WorkflowDef> workflows, MetadataScope? scope = null)
+    {
+        lock (_roleGate)
+        {
+            _scope = scope;
+            try { return CompileCore(docTypes, workflows); }
+            finally { _scope = null; }
+        }
+    }
+
+    /// <summary>Role yang dipakai metadata harus terdaftar di master role (bila daftar diberikan).</summary>
+    private void CheckRole(string src, string path, string? role, List<MetadataError> errors)
+    {
+        if (_scope is null || string.IsNullOrWhiteSpace(role)) return;
+        if (!_scope.Roles.Contains(role))
+            errors.Add(new(src, path, $"Role '{role}' belum ada di master role. Buat dulu di Role Admin, atau pilih role yang tersedia."));
+    }
+
+    private MetadataSnapshot CompileCore(IReadOnlyCollection<DocTypeDef> docTypes, IReadOnlyCollection<WorkflowDef> workflows)
     {
         var errors = new List<MetadataError>();
         var defs = new Dictionary<string, DocTypeDef>();
@@ -245,6 +276,16 @@ public sealed partial class MetadataCompiler(IFieldTypeRegistry fieldTypes, Func
                         errors.Add(new(src, path, $"linkTo '{f.LinkTo}' tidak ditemukan"));
                     else if (target.IsChild)
                         errors.Add(new(src, path, "Link tidak boleh menunjuk child DocType"));
+                    else
+                        foreach (var lf in f.LinkFilters)
+                        {
+                            if (!LinkFilters.Ops.Contains(lf.Op))
+                                errors.Add(new(src, path, $"Filter Link: operator '{lf.Op}' tidak didukung (pakai =, !=, in)"));
+                            if (!StandardFields.All.Contains(lf.Field) && target.Fields.All(tf => tf.Name != lf.Field))
+                                errors.Add(new(src, path, $"Filter Link: field '{lf.Field}' tidak ada di {target.Name}"));
+                            if (lf.Op == "in" && lf.Value.ValueKind != System.Text.Json.JsonValueKind.Array)
+                                errors.Add(new(src, path, "Filter Link: operator 'in' butuh nilai berupa array"));
+                        }
                     break;
                 case "Table":
                     if (d.IsChild) errors.Add(new(src, path, "Child table bertingkat tidak didukung"));
@@ -427,9 +468,21 @@ public sealed partial class MetadataCompiler(IFieldTypeRegistry fieldTypes, Func
             else errors.Add(new(src, path + ".type", $"Operasi migrasi '{migration.Type}' tidak didukung"));
         }
 
+        if (d.IsSingle && d.IsChild) errors.Add(new(src, "isSingle", "Child table tidak bisa sekaligus Single DocType"));
+
+        // Setiap DocType (bukan child table) wajib punya modul dari master modul tenant.
+        if (_scope is not null && !d.IsChild)
+        {
+            if (string.IsNullOrWhiteSpace(d.Module))
+                errors.Add(new(src, "module", "Module wajib diisi: pilih modul dari Master Modul."));
+            else if (!_scope.Modules.Contains(d.Module))
+                errors.Add(new(src, "module", $"Module '{d.Module}' belum ada di Master Modul. Buat dulu di Master Modules, atau pilih modul yang tersedia."));
+        }
+
         foreach (var p in d.Permissions)
         {
             if (string.IsNullOrWhiteSpace(p.Role)) errors.Add(new(src, "permissions", "Role wajib diisi"));
+            CheckRole(src, $"permissions.{p.Role}", p.Role, errors);
             foreach (var a in p.Actions.Where(a => !DocActions.All.Contains(a)))
                 errors.Add(new(src, $"permissions.{p.Role}", $"Aksi '{a}' tidak dikenal"));
             if (p.Scope is not ("all" or "owner"))
@@ -585,6 +638,7 @@ public sealed partial class MetadataCompiler(IFieldTypeRegistry fieldTypes, Func
             if (!states.ContainsKey(t.To)) errors.Add(new(src, path, $"State tujuan '{t.To}' tidak ada"));
             if (string.IsNullOrWhiteSpace(t.Action)) errors.Add(new(src, path, "Action wajib diisi"));
             if (t.AllowedRoles.Count == 0) errors.Add(new(src, path, "Minimal satu role diizinkan"));
+            foreach (var role in t.AllowedRoles) CheckRole(src, path, role, errors);
             if (states.TryGetValue(t.From, out var fs) && states.TryGetValue(t.To, out var ts) && ts.DocStatus < fs.DocStatus)
                 errors.Add(new(src, path, "Transisi tidak boleh menurunkan docStatus; gunakan amend"));
             transitions.Add(new CompiledTransition { Def = t, Condition = ParseExpr(t.Condition, src, $"{path}.condition", errors, roots, validateRoots: docType is not null) });
@@ -817,6 +871,23 @@ public sealed class MetadataRegistry : IMetadataProvider
     public event Action<MetadataSnapshot>? Published;
     public MetadataSnapshot Current => Volatile.Read(ref _current);
 
+    /// <summary>
+    /// Memeriksa metadata yang sedang aktif terhadap master role & modul tenant TANPA mempublikasikan apa pun.
+    /// Dipakai saat startup untuk melaporkan metadata lama yang tidak lagi cocok dengan master.
+    /// </summary>
+    public IReadOnlyList<MetadataError> AuditAgainst(MetadataScope scope)
+    {
+        lock (_gate)
+        {
+            try
+            {
+                _compiler.Compile(_current.DocTypes.Values.Select(c => c.Def).ToList(), _workflows, scope);
+                return [];
+            }
+            catch (MetadataCompilationException ex) { return ex.Errors; }
+        }
+    }
+
     // ---------------- Workflow ----------------
 
     public IReadOnlyList<WorkflowDef> Workflows { get { lock (_gate) return _workflows.ToList(); } }
@@ -853,19 +924,19 @@ public sealed class MetadataRegistry : IMetadataProvider
         return (docs, wfs, attached);
     }
 
-    public (MetadataSnapshot? Snapshot, IReadOnlyList<MetadataError> Errors) CompileWorkflowDraft(WorkflowDef draft, bool attach)
+    public (MetadataSnapshot? Snapshot, IReadOnlyList<MetadataError> Errors) CompileWorkflowDraft(WorkflowDef draft, bool attach, MetadataScope? scope = null)
     {
         lock (_gate)
         {
             if (attach && string.IsNullOrWhiteSpace(draft.DocType))
                 return (null, [new(draft.Name, "docType", "Pilih DocType sebelum mengaitkan workflow")]);
             var (docs, wfs, _) = WithWorkflow(draft, attach);
-            try { return (_compiler.Compile(docs, wfs), []); }
+            try { return (_compiler.Compile(docs, wfs, scope), []); }
             catch (MetadataCompilationException ex) { return (null, ex.Errors); }
         }
     }
 
-    private (List<MetadataError> Errors, List<MetadataChange> Changes, MetadataSnapshot? Snapshot, DocTypeDef? Attached) TryWorkflow(WorkflowDef draft, bool attach)
+    private (List<MetadataError> Errors, List<MetadataChange> Changes, MetadataSnapshot? Snapshot, DocTypeDef? Attached) TryWorkflow(WorkflowDef draft, bool attach, MetadataScope? scope = null)
     {
         var errors = new List<MetadataError>();
         var existing = _workflows.FirstOrDefault(w => w.Name == draft.Name);
@@ -881,25 +952,25 @@ public sealed class MetadataRegistry : IMetadataProvider
             changes.AddRange(MetadataDiff.Compare(_current.Get(draft.DocType).Def, attached)
                 .Select(c => c with { Path = $"{draft.DocType}.{c.Path}", Description = $"{draft.DocType}: {c.Description}" }));
         MetadataSnapshot? snap = null;
-        try { if (errors.Count == 0) snap = _compiler.Compile(docs, wfs); }
+        try { if (errors.Count == 0) snap = _compiler.Compile(docs, wfs, scope); }
         catch (MetadataCompilationException ex) { errors.AddRange(ex.Errors); }
         return (errors, changes, snap, attached);
     }
 
-    public PublishPreview PreviewWorkflow(WorkflowDef draft, bool attach)
+    public PublishPreview PreviewWorkflow(WorkflowDef draft, bool attach, MetadataScope? scope = null)
     {
         lock (_gate)
         {
-            var (errors, changes, _, _) = TryWorkflow(draft, attach);
+            var (errors, changes, _, _) = TryWorkflow(draft, attach, scope);
             return new PublishPreview(errors.Count == 0, errors, changes, changes.Count == 0 ? ChangeRisk.Safe : changes.Max(c => c.Risk));
         }
     }
 
-    public WorkflowVersion PublishWorkflow(WorkflowDef draft, string publishedBy, bool acknowledgeRisk, bool attach)
+    public WorkflowVersion PublishWorkflow(WorkflowDef draft, string publishedBy, bool acknowledgeRisk, bool attach, MetadataScope? scope = null)
     {
         lock (_gate)
         {
-            var (errors, changes, snap, attached) = TryWorkflow(draft, attach);
+            var (errors, changes, snap, attached) = TryWorkflow(draft, attach, scope);
             if (errors.Count > 0) throw new MetadataCompilationException(errors);
             if (changes.Any(c => c.Risk == ChangeRisk.Risky) && !acknowledgeRisk)
                 throw new InvalidOperationException("Risky changes must be confirmed before publishing");
@@ -934,11 +1005,11 @@ public sealed class MetadataRegistry : IMetadataProvider
         lock (_gate) return _history.TryGetValue(docType, out var h) ? h.ToList() : [];
     }
 
-    public PublishPreview Preview(DocTypeDef draft)
+    public PublishPreview Preview(DocTypeDef draft, MetadataScope? scope = null)
     {
         lock (_gate)
         {
-            var (errors, changes) = TryCompileWith(draft, out _);
+            var (errors, changes) = TryCompileWith(draft, out _, scope);
             var risk = changes.Count == 0 ? ChangeRisk.Safe : changes.Max(c => c.Risk);
             return new PublishPreview(errors.Count == 0, errors, changes, risk);
         }
@@ -948,7 +1019,7 @@ public sealed class MetadataRegistry : IMetadataProvider
     /// Mengompilasi draft bersama metadata aktif lainnya tanpa mempublikasikannya (untuk validasi langsung dan
     /// pratinjau di editor). Berbeda dengan Preview, versi draft tidak diwajibkan lebih tinggi.
     /// </summary>
-    public (MetadataSnapshot? Snapshot, IReadOnlyList<MetadataError> Errors) CompileDraft(DocTypeDef draft)
+    public (MetadataSnapshot? Snapshot, IReadOnlyList<MetadataError> Errors) CompileDraft(DocTypeDef draft, MetadataScope? scope = null)
     {
         lock (_gate)
         {
@@ -956,7 +1027,7 @@ public sealed class MetadataRegistry : IMetadataProvider
             var defs = _current.DocTypes.Values.Select(c => c.Def).Where(d => d.Name != draft.Name).Append(draft).ToList();
             try
             {
-                var snapshot = _compiler.Compile(defs, _workflows);
+                var snapshot = _compiler.Compile(defs, _workflows, scope);
                 var migrationErrors = ValidateDataMigrations(old, draft);
                 return migrationErrors.Count == 0 ? (snapshot, []) : (null, migrationErrors);
             }
@@ -964,11 +1035,11 @@ public sealed class MetadataRegistry : IMetadataProvider
         }
     }
 
-    public DataMigrationPreviewResult PreviewDataMigration(DocTypeDef draft, int maxDocuments = 10_000)
+    public DataMigrationPreviewResult PreviewDataMigration(DocTypeDef draft, int maxDocuments = 10_000, MetadataScope? scope = null)
     {
         lock (_gate)
         {
-            var (errors, _) = TryCompileWith(draft, out var snapshot);
+            var (errors, _) = TryCompileWith(draft, out var snapshot, scope);
             if (errors.Count > 0) return new(false, 0, string.Join("; ", errors.Select(e => e.Message)));
             if (draft.DataMigration is null) return new(false, 0, "Draft tidak memiliki rencana migrasi data.");
             if (_store is not IAtomicDocTypeMigrationPublisher migrationPublisher)
@@ -980,20 +1051,20 @@ public sealed class MetadataRegistry : IMetadataProvider
     }
 
     /// <summary>Publish versi baru secara immutable. Perubahan berisiko butuh konfirmasi eksplisit.</summary>
-    public MetadataVersion Publish(DocTypeDef draft, string publishedBy, bool acknowledgeRisk)
+    public MetadataVersion Publish(DocTypeDef draft, string publishedBy, bool acknowledgeRisk, MetadataScope? scope = null)
     {
-        if (draft.DataMigration is null) return Publish(draft, publishedBy, acknowledgeRisk, 0);
-        var dryRun = PreviewDataMigration(draft);
+        if (draft.DataMigration is null) return Publish(draft, publishedBy, acknowledgeRisk, 0, scope);
+        var dryRun = PreviewDataMigration(draft, scope: scope);
         if (!dryRun.Valid)
             throw new InvalidOperationException($"Migration dry-run failed: {dryRun.Error}");
-        return Publish(draft, publishedBy, acknowledgeRisk, dryRun.Documents);
+        return Publish(draft, publishedBy, acknowledgeRisk, dryRun.Documents, scope);
     }
 
-    public MetadataVersion Publish(DocTypeDef draft, string publishedBy, bool acknowledgeRisk, int migratedDocuments)
+    public MetadataVersion Publish(DocTypeDef draft, string publishedBy, bool acknowledgeRisk, int migratedDocuments, MetadataScope? scope = null)
     {
         lock (_gate)
         {
-            var (errors, changes) = TryCompileWith(draft, out var snapshot);
+            var (errors, changes) = TryCompileWith(draft, out var snapshot, scope);
             if (errors.Count > 0) throw new MetadataCompilationException(errors);
             if (changes.Any(c => c.Risk == ChangeRisk.Risky) && !acknowledgeRisk)
                 throw new InvalidOperationException("Risky changes must be confirmed before publishing");
@@ -1012,7 +1083,7 @@ public sealed class MetadataRegistry : IMetadataProvider
                 publishedDef = MetadataJson.ParseDocType(MetadataJson.Serialize(draft));
                 publishedDef.DataMigration = null;
                 var defs = _current.DocTypes.Values.Select(c => c.Def).Where(d => d.Name != draft.Name).Append(publishedDef).ToList();
-                publishedSnapshot = _compiler.Compile(defs, _workflows);
+                publishedSnapshot = _compiler.Compile(defs, _workflows, scope);
             }
             var version = new MetadataVersion(draft.Name, draft.Version, publishedDef, MetadataStatus.Published, publishedBy, Clock.GetUtcNow(), changes);
             if (draft.DataMigration is not null)
@@ -1032,7 +1103,7 @@ public sealed class MetadataRegistry : IMetadataProvider
         }
     }
 
-    private (List<MetadataError> Errors, IReadOnlyList<MetadataChange> Changes) TryCompileWith(DocTypeDef draft, out MetadataSnapshot? snapshot)
+    private (List<MetadataError> Errors, IReadOnlyList<MetadataChange> Changes) TryCompileWith(DocTypeDef draft, out MetadataSnapshot? snapshot, MetadataScope? scope = null)
     {
         snapshot = null;
         var current = _current.DocTypes.TryGetValue(draft.Name, out var existing) ? existing.Def : null;
@@ -1043,7 +1114,7 @@ public sealed class MetadataRegistry : IMetadataProvider
         var defs = _current.DocTypes.Values.Select(c => c.Def).Where(d => d.Name != draft.Name).Append(draft).ToList();
         try
         {
-            if (errors.Count == 0) snapshot = _compiler.Compile(defs, _workflows);
+            if (errors.Count == 0) snapshot = _compiler.Compile(defs, _workflows, scope);
             errors.AddRange(ValidateDataMigrations(current, draft));
         }
         catch (MetadataCompilationException ex) { errors.AddRange(ex.Errors); }

@@ -1,6 +1,8 @@
 @page "/admin/roles"
 @using Framework.Security
 @inject IRoleStore RoleStore
+@inject IMetadataProvider Metadata
+@inject RoleCatalog RoleCatalogSvc
 @inject CurrentUser Current
 @inject ToastService Toasts
 @inject DialogService Dialogs
@@ -233,6 +235,14 @@ else
                 return;
             }
 
+            // Role yang masih dipakai metadata/akun tidak boleh di-rename (nama adalah kunci referensi).
+            var original = await RoleStore.GetAsync(edit.Id, edit.TenantId);
+            if (original is not null && original.Name != edit.Name)
+            {
+                var blocked = await RoleCatalogSvc.BlockingUseAsync(edit.TenantId, original.Name, Metadata.Current);
+                if (blocked is not null) { error = "Tidak bisa diganti nama: " + blocked; return; }
+            }
+
             await RoleStore.SaveAsync(edit);
             Toasts.Success($"Role \"{edit.Name}\" successfully saved.", "Successfully Saved");
             isDrawerOpen = false;
@@ -262,6 +272,13 @@ else
             new ConfirmDialogOptions { Destructive = true, ConfirmText = "Delete Role", CancelText = "Cancel" });
 
         if (!res.Confirmed) return;
+
+        var blocked = await RoleCatalogSvc.BlockingUseAsync(item.TenantId, item.Name, Metadata.Current);
+        if (blocked is not null)
+        {
+            Toasts.Error(blocked, "Tidak bisa dihapus");
+            return;
+        }
 
         busy = true;
         try

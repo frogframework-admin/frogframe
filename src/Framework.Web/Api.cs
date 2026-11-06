@@ -263,14 +263,14 @@ public static class DocApi
         {
             RequireRole(user, UserContext.SystemManager);
             var def = MetadataJson.ParseDocType(body.GetRawText());
-            return Task.FromResult(Results.Ok(sp.GetRequiredService<MetadataRegistry>().Preview(def)));
+            return Task.FromResult(Results.Ok(sp.GetRequiredService<MetadataRegistry>().Preview(def, sp.GetRequiredService<RoleCatalog>().Scope(user.TenantId))));
         }));
 
         api.MapPost("/admin/metadata/publish", (HttpContext http, JsonElement body, bool acknowledgeRisk) => Run(http, (user, sp) =>
         {
             RequireRole(user, UserContext.SystemManager);
             var def = MetadataJson.ParseDocType(body.GetRawText());
-            var v = sp.GetRequiredService<MetadataRegistry>().Publish(def, user.Id, acknowledgeRisk);
+            var v = sp.GetRequiredService<MetadataRegistry>().Publish(def, user.Id, acknowledgeRisk, sp.GetRequiredService<RoleCatalog>().Scope(user.TenantId));
             return Task.FromResult(Results.Ok(new { v.DocType, v.Version, v.Changes }));
         }));
 
@@ -328,8 +328,9 @@ public static class DocApi
             return Results.Ok(await Docs(sp).GetAuditAsync(user, doctype, name, http.RequestAborted));
         }));
 
-        api.MapGet("/links/{target}", (HttpContext http, string target, string? q) => Run(http, $"doc:{target}:list", async (user, sp) =>
-            Results.Ok(await Docs(sp).SearchLinkAsync(user, target, q, http.RequestAborted))));
+        // ?doctype=…&field=… (opsional): terapkan filter Link dari field asal, mis. hanya akun daun untuk baris jurnal.
+        api.MapGet("/links/{target}", (HttpContext http, string target, string? q, string? doctype, string? field) => Run(http, $"doc:{target}:list", async (user, sp) =>
+            Results.Ok(await Docs(sp).SearchLinkAsync(user, target, q, http.RequestAborted, doctype, field))));
 
         // ---------- Report ----------
         api.MapGet("/reports/{name}", (HttpContext http, string name) => Run(http, async (user, sp) =>

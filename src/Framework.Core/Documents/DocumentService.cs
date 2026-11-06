@@ -289,12 +289,23 @@ public sealed class DocumentService(
             .ToList();
     }
 
-    public async Task<IReadOnlyList<LinkOption>> SearchLinkAsync(UserContext user, string target, string? q, CancellationToken ct = default)
+    public async Task<IReadOnlyList<LinkOption>> SearchLinkAsync(UserContext user, string target, string? q, CancellationToken ct = default,
+        string? sourceDocType = null, string? sourceField = null, IReadOnlyList<FilterClause>? filters = null)
     {
         var meta = TopLevel(target);
         permissions.Demand(user, meta, DocActions.Read);
-        var res = await ListAsync(user, target, new ListRequest(Search: q, PageSize: 10, SortField: null), ct);
+        // Filter hanya mempersempit hasil; server tetap memeriksa filter field saat dokumen disimpan.
+        var all = (LinkFiltersFor(target, sourceDocType, sourceField) ?? []).Concat(filters ?? []).ToList();
+        var res = await ListAsync(user, target, new ListRequest(Filters: all.Count > 0 ? all : null, Search: q, PageSize: 10, SortField: null), ct);
         return res.Items.Select(i => new LinkOption((string)i[StandardFields.Name]!, i.GetValueOrDefault("_title")?.ToString())).ToList();
+    }
+
+    /// <summary>Filter Link statis dari field asal (bila diberikan dan memang menunjuk ke target ini).</summary>
+    public IReadOnlyList<FilterClause>? LinkFiltersFor(string target, string? sourceDocType, string? sourceField)
+    {
+        if (sourceDocType is null || sourceField is null || !Meta.DocTypes.TryGetValue(sourceDocType, out var src)) return null;
+        return src.ByName.TryGetValue(sourceField, out var f) && f.Def.LinkTo == target && f.Def.LinkFilters.Count > 0
+            ? LinkFilters.ToClauses(f.Def.LinkFilters) : null;
     }
 
     public async Task<IReadOnlyList<AuditEntry>> GetAuditAsync(UserContext user, string docType, string name, CancellationToken ct = default)
@@ -397,7 +408,10 @@ public sealed class DocumentService(
         if (!permissions.InScope(user, meta, DocActions.Create, draft.Owner, draft.Data))
             throw new PermissionDeniedException("Document is outside the scope of data you are allowed to create.");
 
-        var newName = NamingField(meta) is { } nf
+        if (meta.Def.IsSingle && await store.GetAsync(user.TenantId, docType, meta.Name, ct) is not null)
+            throw new ValidationFailedException([new FieldError(StandardFields.Name, $"{meta.Title} hanya boleh satu per tenant dan sudah ada. Buka dan ubah dokumen yang ada.")]);
+        var newName = meta.Def.IsSingle ? meta.Name
+            : NamingField(meta) is { } nf
             ? await NameFromFieldAsync(user, meta, nf, draft, ct)
             : allocateName ? await store.NextNameAsync(user.TenantId, docType, meta.Def.Naming.Pattern, now, ct) : "(baru)";
         var doc = CloneWithName(draft, newName);
@@ -441,6 +455,12 @@ public sealed class DocumentService(
                 if (p.Meta.Def.Document.TrackChanges) uow.Audits.Add(Audit(p.Doc, user, auditAction, Diff(p.Meta, null, p.Doc)));
                 p.Ctx.Events.Add(Event(p.Doc, "document.inserted", user));
                 uow.Outbox.AddRange(p.Ctx.Events);
+                if (p.Ctx.Ledger.Count > 0)
+                {
+                    var lines = p.Ctx.Ledger.Select(l => (p.Doc, l)).ToList();
+                    Framework.Accounting.Ledger.ValidateShape(lines);
+                    uow.Ledger.AddRange(lines);
+                }
                 prepared.Add(p);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
@@ -496,6 +516,8 @@ public sealed class DocumentService(
 
     public async Task DeleteAsync(UserContext user, string docType, string name, int expectedVersion, CancellationToken ct = default)
     {
+        if (Meta.DocTypes.TryGetValue(docType, out var singleMeta) && singleMeta.Def.IsSingle)
+            throw new InvalidStateException($"{singleMeta.Title} adalah dokumen tunggal dan tidak bisa dihapus.");
         using var activity = DocFrameTelemetry.ActivitySource.StartActivity("docframe.document.delete");
         activity?.SetTag("docframe.doctype", docType);
         activity?.SetTag("docframe.name", name);
@@ -605,7 +627,7 @@ public sealed class DocumentService(
                     throw new LinkedDocumentException("cancel", meta.Title, name, link.LinkingDocType, link.LinkingDocName, link.FieldLabel);
             }
             foreach (var h in handlers.For<IBeforeCancel>(docType)) await h.BeforeCancelAsync(ctx, ct);
-            var cancelContext = CreateHookContext(meta, user, doc, current, ctx.Events, action, fromState, toState, ctx.Messages);
+            var cancelContext = CreateHookContext(meta, user, doc, current, ctx.Events, action, fromState, toState, ctx.Messages, ctx.Ledger);
             await hooks.RunAsync(DocHookStage.OnCancel, cancelContext, ct);
         }
         ThrowIfErrors(ctx);
@@ -805,20 +827,28 @@ public sealed class DocumentService(
         foreach (var h in handlers.For<IAfterSave>(ctx.Meta.Name)) await h.AfterSaveAsync(ctx, ct);
         RunVisualHooks(ctx.Meta, "AfterSave", CreateHookContext(ctx), ctx.Previous);
         await hooks.RunAsync(DocHookStage.AfterSave,
-            CreateHookContext(ctx.Meta, ctx.User, doc, ctx.Previous, ctx.Events), ct);
+            CreateHookContext(ctx.Meta, ctx.User, doc, ctx.Previous, ctx.Events, messages: ctx.Messages, ledger: ctx.Ledger), ct);
         ThrowIfErrors(ctx);
         if (audit is not null && ctx.Meta.Def.Document.TrackChanges) uow.Audits.Add(audit);
         uow.Outbox.AddRange(ctx.Events);
-        await store.CommitAsync(uow, ct); // event eksternal baru diproses setelah commit melalui outbox
+        if (ctx.Ledger.Count > 0)
+        {
+            var lines = ctx.Ledger.Select(l => (doc, l)).ToList();
+            Framework.Accounting.Ledger.ValidateShape(lines); // seimbang & satu sisi, sebelum menyentuh database
+            uow.Ledger.AddRange(lines);
+        }
+        try { await store.CommitAsync(uow, ct); } // event eksternal baru diproses setelah commit melalui outbox
+        catch (Framework.Accounting.LedgerException ex) { throw new ValidationFailedException([new FieldError("ledger", ex.Message)]); }
         doc.TransientMessages.AddRange(ctx.Messages);
         DocFrameTelemetry.DocumentOperations.Add(1, new KeyValuePair<string, object?>("doctype", doc.DocType), new KeyValuePair<string, object?>("operation", ctx.Operation.ToString()));
     }
 
     private HookContext CreateHookContext(DocumentContext ctx) =>
-        CreateHookContext(ctx.Meta, ctx.User, ctx.Doc, ctx.Previous, ctx.Events, messages: ctx.Messages);
+        CreateHookContext(ctx.Meta, ctx.User, ctx.Doc, ctx.Previous, ctx.Events, messages: ctx.Messages, ledger: ctx.Ledger);
 
     private HookContext CreateHookContext(CompiledDocType meta, UserContext user, Document doc, Document? previous,
-        List<OutboxMessage> events, string? action = null, string? fromState = null, string? toState = null, List<string>? messages = null)
+        List<OutboxMessage> events, string? action = null, string? fromState = null, string? toState = null, List<string>? messages = null,
+        List<Framework.Accounting.LedgerLine>? ledger = null)
     {
         IDocumentService docs = new HookDocumentReader(this, user);
         return new HookContext
@@ -826,6 +856,7 @@ public sealed class DocumentService(
             User = user, Meta = meta, Doc = doc, Previous = previous,
             Lookup = new HookLookup(docs), Docs = docs, Events = events,
             Messages = messages ?? [],
+            Ledger = ledger ?? [],
             Action = action, FromState = fromState, ToState = toState,
         };
     }

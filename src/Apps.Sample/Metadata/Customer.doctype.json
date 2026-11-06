@@ -1,0 +1,120 @@
+{
+  "name": "Customer",
+  "version": 1,
+  "title": "Pelanggan",
+  "module": "ACCOUNTING",
+  "naming": {
+    "pattern": "field:code"
+  },
+  "fields": [
+    {
+      "name": "code",
+      "type": "Data",
+      "label": "Kode",
+      "requiredWhen": "true",
+      "pattern": "^[A-Z0-9_-]{2,20}$",
+      "inListView": true
+    },
+    {
+      "name": "customer_name",
+      "type": "Data",
+      "label": "Nama pelanggan",
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "npwp",
+      "type": "Data",
+      "label": "NPWP"
+    },
+    {
+      "name": "receivable_account",
+      "type": "Link",
+      "label": "Akun piutang (opsional)",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "root_type",
+          "op": "=",
+          "value": "Aset"
+        },
+        {
+          "field": "is_control_account",
+          "op": "=",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "is_active",
+      "type": "Check",
+      "label": "Aktif",
+      "default": true,
+      "inListView": true
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit",
+        "cancel",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "report"
+      ],
+      "scope": "all"
+    }
+  ],
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  },
+  "listView": {
+    "titleField": "customer_name",
+    "searchFields": [
+      "code",
+      "customer_name",
+      "npwp"
+    ],
+    "filters": [
+      "is_active"
+    ]
+  }
+}

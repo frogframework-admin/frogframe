@@ -2,6 +2,7 @@
 @page "/admin/workflows/new"
 @using System.Text.Json
 @inject MetadataRegistry Registry
+@inject RoleCatalog RoleCatalogSvc
 @inject CurrentUser Current
 @inject ToastService Toasts
 @inject DialogService Dialogs
@@ -237,7 +238,7 @@ else
         [new("neutral", "Neutral"), new("pending", "Pending"), new("positive", "Positive"), new("negative", "Negative")];
 
     private IEnumerable<SelectOption<string>> StateOptions => wf!.States.Where(s => !string.IsNullOrWhiteSpace(s.Name)).Select(s => new SelectOption<string>(s.Name, s.Name));
-    private IReadOnlyList<string> Roles => MetadataRoles.Known(Registry.Current, wf!.Transitions.SelectMany(t => t.AllowedRoles));
+    private IReadOnlyList<string> Roles => MetadataRoles.Known(Registry.Current, wf!.Transitions.SelectMany(t => t.AllowedRoles), RoleCatalogSvc.Names(Current.Required.TenantId));
     private IEnumerable<SelectOption<string>> DocTypeOptions => new[] { new SelectOption<string>("", "Choose a DocType") }
         .Concat(Registry.Current.DocTypes.Values.Where(d => !d.Def.IsChild).OrderBy(d => d.Title).Select(d => new SelectOption<string>(d.Name, d.Title)));
     private string? EffectiveDocType => string.IsNullOrWhiteSpace(wf?.DocType) ? targetDocType : wf.DocType;
@@ -312,7 +313,7 @@ else
 
     private void Recompile()
     {
-        (_, errors) = Registry.CompileWorkflowDraft(DraftForCompile(), attach);
+        (_, errors) = Registry.CompileWorkflowDraft(DraftForCompile(), attach, RoleCatalogSvc.Scope(Current.Required.TenantId));
         dirty = isNew || MetadataJson.Serialize(wf) != originalJson || targetDocType != originalTargetDocType || attach != originalAttach;
         preview = null; ack = false;
     }
@@ -390,13 +391,13 @@ else
         if (!on) t.AllowedRoles.Remove(role);
     }
 
-    private void Check() => preview = Registry.PreviewWorkflow(DraftForCompile(), attach);
+    private void Check() => preview = Registry.PreviewWorkflow(DraftForCompile(), attach, RoleCatalogSvc.Scope(Current.Required.TenantId));
 
     private void Publish()
     {
         try
         {
-            var v = Registry.PublishWorkflow(DraftForCompile(), Current.Required.Id, ack, attach);
+            var v = Registry.PublishWorkflow(DraftForCompile(), Current.Required.Id, ack, attach, RoleCatalogSvc.Scope(Current.Required.TenantId));
             Toasts.Success(attach ? $"Attached to {v.DocType}; documents will now use this workflow." : "Workflow published independently.", $"Workflow {v.Name} v{v.Version} published");
             if (isNew) Nav.NavigateTo($"/admin/workflows/{v.Name}/editor");
             else Init();

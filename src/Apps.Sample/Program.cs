@@ -2,7 +2,9 @@ using Apps.Sample.Components;
 using Apps.Sample.Domain;
 using Apps.Sample.Hooks;
 using BlazorBlueprint.Components;
+using Framework.Metadata;
 using Framework.Notifications;
+using Framework.Security;
 using Framework.Web;
 using Framework.Web.Layout;
 using Framework.Web.Identity;
@@ -25,8 +27,11 @@ builder.Services.AddDocFrameOpenTelemetry(builder.Configuration);
 // Penyimpanan: "InMemory" (default, data hilang saat restart) atau "PostgreSql" (permanen, siap pilot).
 var usePostgres = string.Equals(builder.Configuration["Persistence:Provider"], "PostgreSql", StringComparison.OrdinalIgnoreCase);
 if (usePostgres)
+    // DocFrame = peran app (operasi data). DocFrameSchema (opsional) = pemilik skema untuk migrasi & indeks;
+    // dengan pemisahan ini peran app tidak bisa mengubah/menghapus buku besar (lihat deploy/sql/gl-roles.sql).
     builder.Services.AddDocFrameworkPostgreSql(builder.Configuration.GetConnectionString("DocFrame")
-        ?? throw new InvalidOperationException("ConnectionStrings:DocFrame wajib diisi bila Persistence:Provider = PostgreSql"));
+        ?? throw new InvalidOperationException("ConnectionStrings:DocFrame wajib diisi bila Persistence:Provider = PostgreSql"),
+        builder.Configuration.GetConnectionString("DocFrameSchema"));
 
 // Login: ASP.NET Core Identity (cookie untuk browser, bearer token untuk API). Klaim → UserContext.
 builder.Services.AddDocFrameworkIdentity();
@@ -50,6 +55,15 @@ builder.Services.AddDocHook<PurchaseRequest, PurchaseRequestBeforeInsertHook>();
 builder.Services.AddDocHook<PurchaseRequest, PurchaseRequestAfterSaveHook>();
 builder.Services.AddDocHook<PurchaseRequest, PurchaseRequestOnLoadHook>();
 builder.Services.AddDocHook<PurchaseRequest, PurchaseRequestBeforeTransitionHook>();
+// Akuntansi: aturan akun & periode, posting jurnal ke buku besar (dalam transaksi yang sama dengan dokumen)
+builder.Services.AddDocHook<Account, AccountRulesHook>();
+builder.Services.AddDocHook<AccountingPeriod, AccountingPeriodRulesHook>();
+builder.Services.AddDocHook<JournalEntry, JournalEntryPostingHook>();
+builder.Services.AddDocHook<JournalEntry, JournalEntryRulesHook>();
+builder.Services.AddDocHook<AccountingSettings, AccountingSettingsRulesHook>();
+builder.Services.AddDocHook<SalesInvoice, SalesInvoiceHook>();
+builder.Services.AddDocHook<PurchaseInvoice, PurchaseInvoiceHook>();
+builder.Services.AddDocHook<PaymentEntry, PaymentEntryHook>();
 
 // HR hooks: Employee, Department
 builder.Services.AddDocHook<Employee, EmployeeOnLoadHook>();
@@ -134,6 +148,20 @@ if (useReporting)
     await app.Services.SyncReportingSchemaAsync();
     // Peringatan di log bila user read-only belum siap. Aplikasi tetap berjalan; dashboard menampilkan pesannya.
     reportingProblem = await app.Services.CheckReportingConnectionAsync();
+}
+
+// Audit metadata terhadap master role & modul tiap tenant yang dipantau (Metadata:AuditTenants).
+// Hanya melaporkan ke log; tidak mengubah metadata. Mencegah masalah baru ketahuan saat publish ulang.
+{
+    var auditTenants = app.Configuration.GetSection("Metadata:AuditTenants").Get<string[]>() ?? [];
+    var registry = app.Services.GetRequiredService<MetadataRegistry>();
+    var catalog = app.Services.GetRequiredService<RoleCatalog>();
+    foreach (var tenant in auditTenants)
+    {
+        foreach (var issue in registry.AuditAgainst(catalog.Scope(tenant)))
+            app.Logger.LogWarning("Metadata tidak cocok dengan master (tenant {Tenant}): {Source} › {Path}: {Message}",
+                tenant, issue.Source, issue.Path, issue.Message);
+    }
 }
 
 // Akun: data demo (pengembangan) atau satu admin awal dari konfigurasi "Bootstrap" (pilot).

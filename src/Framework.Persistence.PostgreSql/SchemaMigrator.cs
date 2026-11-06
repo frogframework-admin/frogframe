@@ -8,8 +8,16 @@ namespace Framework.Persistence.PostgreSql;
 /// Migrasi skema berurutan dari file Migrations/NNN_nama.sql (embedded resource).
 /// Aman untuk banyak instance: dikunci dengan advisory lock dan tiap file berjalan dalam satu transaksi.
 /// </summary>
-public sealed class SchemaMigrator(NpgsqlDataSource db, ILogger<SchemaMigrator> log)
+/// <summary>Koneksi pemilik skema untuk DDL. Sama dengan koneksi app bila peran tidak dipisah.</summary>
+public sealed class SchemaDataSource(NpgsqlDataSource source, bool owns = false) : IAsyncDisposable
 {
+    public NpgsqlDataSource Source { get; } = source;
+    public ValueTask DisposeAsync() => owns ? Source.DisposeAsync() : ValueTask.CompletedTask;
+}
+
+public sealed class SchemaMigrator(SchemaDataSource schema, ILogger<SchemaMigrator> log)
+{
+    private readonly NpgsqlDataSource db = schema.Source;
     private const long LockKey = 0x446F634672616D65; // "DocFrame"
 
     public async Task MigrateAsync(CancellationToken ct = default)

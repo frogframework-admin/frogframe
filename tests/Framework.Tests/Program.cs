@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Text.Json;
 using Apps.Sample.Domain;
+using Apps.Sample.Hooks;
 using Framework.Documents;
 using Framework.Expressions;
 using Framework.Jobs;
@@ -26,6 +27,16 @@ using Npgsql;
 // Runner kecil: setiap method bertanda [Test] dijalankan pada aplikasi in-process baru (data seed segar).
 // Jalankan: dotnet run --project tests/Framework.Tests  [filter-nama-test]
 if (args.FirstOrDefault() == "--bench") return await Bench.RunAsync(args);
+if (args.FirstOrDefault() == "--inspect-grid-tree")
+{
+    var t = typeof(BlazorBlueprint.Components.BbDataGrid<string>);
+    foreach (var m in t.GetMethods(BindingFlags.NonPublic | BindingFlags.Instance))
+    {
+        if (m.Name.Contains("Row") || m.Name.Contains("Click") || m.Name.Contains("Cell"))
+            Console.WriteLine($"Grid Method: {m.Name}");
+    }
+    return 0;
+}
 
 var tests = typeof(Tests).GetMethods(BindingFlags.Public | BindingFlags.Instance)
     .Where(m => m.GetCustomAttribute<TestAttribute>() is not null).ToList();
@@ -151,6 +162,30 @@ sealed partial class Tests
         }).Build());
         services.AddDocFramework(o => o.LoadFrom(Path.Combine(AppContext.BaseDirectory, "Metadata")));
         services.AddDocHandler<PurchaseRequestHandler>();
+        services.AddDocHook<PurchaseRequest, PurchaseRequestBeforeValidateHook>();
+        services.AddDocHook<PurchaseRequest, PurchaseRequestBeforeInsertHook>();
+        services.AddDocHook<PurchaseRequest, PurchaseRequestAfterSaveHook>();
+        services.AddDocHook<PurchaseRequest, PurchaseRequestOnLoadHook>();
+        services.AddDocHook<PurchaseRequest, PurchaseRequestBeforeTransitionHook>();
+        services.AddDocHook<Account, AccountRulesHook>();
+        services.AddDocHook<AccountingPeriod, AccountingPeriodRulesHook>();
+        services.AddDocHook<JournalEntry, JournalEntryPostingHook>();
+        services.AddDocHook<JournalEntry, JournalEntryRulesHook>();
+        services.AddDocHook<AccountingSettings, AccountingSettingsRulesHook>();
+        services.AddDocHook<SalesInvoice, SalesInvoiceHook>();
+        services.AddDocHook<PurchaseInvoice, PurchaseInvoiceHook>();
+        services.AddDocHook<PaymentEntry, PaymentEntryHook>();
+        services.AddDocHook<Employee, EmployeeOnLoadHook>();
+        services.AddDocHook<Employee, EmployeeAfterSaveHook>();
+        services.AddDocHook<Department, DepartmentBeforeValidateHook>();
+        services.AddDocHook<Department, DepartmentBeforeInsertHook>();
+        services.AddDocHook<Department, DepartmentBeforeUpdateHook>();
+        services.AddDocHook<Department, DepartmentRefreshHierarchyHook>();
+        services.AddDocHook<Vendor, VendorBeforeValidateHook>();
+        services.AddDocHook<Vendor, VendorBeforeInsertHook>();
+        services.AddDocHook<Vendor, VendorBeforeUpdateHook>();
+        services.AddDocHook<Vendor, VendorOnLoadHook>();
+        services.AddDocHook<Vendor, VendorAfterSaveHook>();
         services.AddFieldValidator<NpwpValidator>();
         services.AddEventHandler<WorkflowNotificationHandler>();
         services.AddReport<SpendByDepartmentReport>();

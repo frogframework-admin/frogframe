@@ -84,6 +84,12 @@ public sealed class InMemoryNavigationMenuStore(TimeProvider clock) : INavigatio
         module.UpdatedAt = clock.GetUtcNow();
         if (module.CreatedAt == default) module.CreatedAt = module.UpdatedAt;
         if (string.IsNullOrWhiteSpace(module.Id)) module.Id = Guid.NewGuid().ToString("N");
+        module.Code = NavigationModule.NormalizeCode(module.Code);
+        if (modules.Values.Any(m => m.TenantId == module.TenantId && m.Id != module.Id && m.Code == module.Code))
+            throw new InvalidOperationException($"Kode modul '{module.Code}' sudah dipakai modul lain.");
+        // Kode adalah kunci referensi DocType: setelah tersimpan tidak boleh berubah.
+        if (modules.TryGetValue(module.Id, out var existing) && !string.IsNullOrEmpty(existing.Code) && existing.Code != module.Code)
+            throw new InvalidOperationException($"Kode modul '{existing.Code}' tidak bisa diubah karena dipakai DocType.");
 
         modules[module.Id] = module;
         Changed?.Invoke();

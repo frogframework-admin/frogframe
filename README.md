@@ -6,6 +6,30 @@ Teknologi: **.NET 10**, ASP.NET Core, Blazor Server (interactive), dan **[Blazor
 
 Penyimpanan bisa dipilih lewat konfigurasi: **in-memory** (default, untuk demo) atau **PostgreSQL** (permanen, siap pilot). Keduanya lulus rangkaian test yang sama.
 
+## Status terkini (v19)
+
+Bagian ini diperbarui setiap versi dan lebih akurat daripada daftar batasan di bawah, yang ditulis untuk versi awal.
+
+**Sudah dikerjakan dan diuji** (in-memory 119 test lulus, PostgreSQL 152 test lulus; startup dari database kosong bersih):
+- Impor Excel/CSV tahap 1, laporan Excel/Word dari template, API kunci API, method kustom, dan API dari query tersimpan.
+- Role master sebagai satu sumber: publish menolak role yang tidak ada di master; rename atau hapus role yang masih dipakai ditolak; akun pengguna divalidasi.
+- Master modul wajib untuk setiap DocType (bukan child table). Kode modul huruf besar, kekal setelah dibuat, dan unik per tenant. Sidebar menampilkan DocType per modul aktif.
+- Kode departemen huruf besar (`DIREKSI`, `MARKETING`, dst.). Nama role tidak diubah.
+- Pencarian global menampilkan nama modul.
+- Audit metadata saat startup: metadata yang tidak cocok dengan master tenant dilaporkan ke log (`Metadata:AuditTenants`). Tidak mengubah metadata.
+- Pembersihan file yang tidak pernah ditautkan ke dokumen (`Files:OrphanHours`, default 24 jam).
+
+**Belum dikerjakan** (prasyarat prototipe akuntansi):
+- Filter Link statis dari metadata (mis. akun daun saja untuk jurnal).
+- Single DocType untuk pengaturan per tenant.
+- Hook BeforeDelete dan BeforeCancel.
+- Pemisahan peran database owner dan app, untuk append-only.
+- Impor mode Perbarui dan Tambah-atau-perbarui.
+
+**Catatan build di sandbox pengembangan**: paket OpenTelemetry dan Blazor Blueprint diganti stub sementara karena NuGet tidak bisa diakses dari sandbox. Di mesin pengembang dengan akses NuGet, restore biasa seharusnya cukup, tetapi perlu dikonfirmasi sekali.
+
+---
+
 ## Menjalankan
 
 Butuh .NET 10 SDK (`global.json` meminta 10.0.100 atau lebih baru). Paket diambil dari nuget.org.
@@ -490,7 +514,9 @@ DocFrame mendukung pola Frappe yang aman untuk .NET 10:
 
 Panduan lengkap: [docs/hooks-formactions-scheduler.md](file:///d:/Side%20Projects/DocFrame/docs/hooks-formactions-scheduler.md).
 
-## Batasan prototipe (sengaja)
+## Batasan prototipe (sengaja) — catatan versi awal
+
+*Daftar ini ditulis untuk versi awal. Untuk kondisi terkini lihat "Status terkini" di atas.*
 
 - **Login**: akun lokal ASP.NET Core Identity. Belum ada SSO (OIDC/Entra ID), autentikasi dua faktor, maupun pemulihan password lewat email; reset dilakukan oleh System Manager.
 - **Mode in-memory** (default) kehilangan data saat restart; gunakan mode PostgreSQL untuk pilot.

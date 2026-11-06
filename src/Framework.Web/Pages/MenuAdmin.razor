@@ -3,6 +3,7 @@
 @using Framework.Security
 @using Framework.Web.Admin
 @inject INavigationMenuStore MenuStore
+@inject RoleCatalog RoleCatalogSvc
 @inject IRoleStore RoleStore
 @inject IMetadataProvider Metadata
 @inject CurrentUser Current
@@ -256,7 +257,7 @@ else
     private bool busy;
     private string? error;
 
-    private IEnumerable<string> AvailableRoles => MetadataRoles.Known(Metadata.Current)
+    private IEnumerable<string> AvailableRoles => MetadataRoles.Known(Metadata.Current, RoleCatalogSvc.Names(Current.Required.TenantId))
         .Append(UserContext.Administrator)
         .Concat(storedRoles.Select(r => r.Name))
         .Distinct().Order();

@@ -62,7 +62,7 @@ public sealed class GlobalSearchService(
                 results.Add(new AwesomebarItem(
                     Id: $"dt_{dt.Name}",
                     Title: dt.Title,
-                    Subtitle: $"DocType · {dt.Def.Module ?? "Umum"}",
+                    Subtitle: $"DocType · {ModuleLabel(dt, navModules)}",
                     Category: AwesomebarCategory.Navigation,
                     Href: $"/app/{dt.Name}",
                     Icon: IconFor(dt.Name),
@@ -133,7 +133,7 @@ public sealed class GlobalSearchService(
         {
             var titleMatch = dt.Title.Contains(q, StringComparison.OrdinalIgnoreCase);
             var nameMatch = dt.Name.Contains(q, StringComparison.OrdinalIgnoreCase);
-            var moduleMatch = (dt.Def.Module ?? "").Contains(q, StringComparison.OrdinalIgnoreCase);
+            var moduleMatch = ModuleLabel(dt, navModules).Contains(q, StringComparison.OrdinalIgnoreCase);
 
             if (titleMatch || nameMatch || moduleMatch)
             {
@@ -141,7 +141,7 @@ public sealed class GlobalSearchService(
                 results.Add(new AwesomebarItem(
                     Id: $"dt_{dt.Name}",
                     Title: dt.Title,
-                    Subtitle: $"{dt.Def.Module ?? "Umum"} · Document List",
+                    Subtitle: $"{ModuleLabel(dt, navModules)} · Document List",
                     Category: AwesomebarCategory.Navigation,
                     Href: $"/app/{dt.Name}",
                     Icon: IconFor(dt.Name),
@@ -302,9 +302,14 @@ public sealed class GlobalSearchService(
         // 7. Live Record Search di Database (bila panjang kata kunci >= 2 karakter)
         if (q.Length >= 2)
         {
+            // Batas jumlah DocType yang dicari per ketikan (tiap query kecil, PageSize 3, dan memakai indeks pencarian).
+            // Sebelumnya 5: menambah DocType baru bisa membuat DocType lain berhenti dicari.
+            const int MaxSearchDocTypes = 15;
             var searchTargets = readableDocTypes
+                .Where(d => !d.Def.IsSingle)
                 .OrderByDescending(d => d.Title.Contains(q, StringComparison.OrdinalIgnoreCase) || d.Name.Contains(q, StringComparison.OrdinalIgnoreCase))
-                .Take(5)
+                .ThenByDescending(d => d.Def.ListView.SearchFields.Count > 0)
+                .Take(MaxSearchDocTypes)
                 .ToList();
 
             var recordTasks = searchTargets.Select(async dt =>
@@ -364,4 +369,8 @@ public sealed class GlobalSearchService(
         "PurchaseRequest" => "shopping-cart",
         _ => "file-text"
     };
+
+    /// <summary>Nama modul untuk tampilan (bukan kodenya). Nilai yang tidak bisa di-resolve tampil apa adanya.</summary>
+    private static string ModuleLabel(CompiledDocType d, IReadOnlyList<NavigationModule> modules) =>
+        NavigationMenuDefaults.ResolveModule(modules, d.Def.Module)?.Name ?? "Tanpa modul";
 }

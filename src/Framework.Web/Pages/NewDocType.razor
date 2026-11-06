@@ -2,6 +2,7 @@
 @using System.Text.RegularExpressions
 @using System.Text.Json
 @inject MetadataRegistry Registry
+@inject RoleCatalog RoleCatalogSvc
 @inject CurrentUser Current
 @inject ToastService Toasts
 @inject NavigationManager Nav
@@ -48,8 +49,8 @@ else
                     @if (kind == "document")
                     {
                         <BbField>
-                            <BbFieldLabel For="nd-module">Module (menu group)</BbFieldLabel>
-                            <BbInput Id="nd-module" @bind-Value="module" Placeholder="e.g. HR" />
+                            <BbFieldLabel For="nd-module">Modul (wajib, dari Master Modules)</BbFieldLabel>
+                            <BbSelect TValue="string" Value="@(module ?? "")" ValueChanged="v => module = string.IsNullOrWhiteSpace(v) ? null : v" Options="ModuleOptions(module)" AriaLabel="Modul" />
                         </BbField>
                         <BbField>
                             <BbFieldLabel For="nd-naming">Document naming pattern</BbFieldLabel>
@@ -65,7 +66,7 @@ else
                     @if (error is not null) { <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@error</BbAlertDescription></BbAlert> }
                     <div class="row">
                         <BbButton Disabled="@(busy || NameError is not null || string.IsNullOrWhiteSpace(title))" OnClick="Create"><LucideIcon Name="plus" Size="16" /> Create DocType</BbButton>
-                        <BbButton Variant="ButtonVariant.Ghost" Href="/admin/metadata">Cancel</BbButton>
+                        <BbButton Variant="ButtonVariant.Ghost" Href="/admin/metadata" OnClick="@(() => Nav.NavigateTo("/admin/metadata"))">Cancel</BbButton>
                     </div>
                 </div>
             </BbCardContent>
@@ -84,6 +85,14 @@ else
 }
 
 @code {
+    /// <summary>Pilihan modul dari Master Modules. Nilai lama yang belum ada di master tetap tampil agar bisa diperbaiki.</summary>
+    private IEnumerable<SelectOption<string>> ModuleOptions(string? current)
+    {
+        var codes = RoleCatalogSvc.ModuleCodes(Current.Required.TenantId).OrderBy(c => c, StringComparer.Ordinal).ToList();
+        if (!string.IsNullOrWhiteSpace(current) && !codes.Contains(current)) codes.Insert(0, current);
+        return new[] { new SelectOption<string>("", "(pilih modul)") }.Concat(codes.Select(c => new SelectOption<string>(c, c)));
+    }
+
     private string title = "", name = "", kind = "document", template = "approval";
     private string? module, naming, error;
     private bool nameTouched, namingTouched, busy;
@@ -159,17 +168,17 @@ else
         try
         {
             var def = BuildDef();
-            var preview = Registry.Preview(def);
+            var preview = Registry.Preview(def, RoleCatalogSvc.Scope(Current.Required.TenantId));
             if (!preview.Valid) { error = string.Join(" ", preview.Errors.Select(e => e.Message)); return; }
-            Registry.Publish(def, Current.Required.Id, acknowledgeRisk: false);
+            Registry.Publish(def, Current.Required.Id, acknowledgeRisk: false, scope: RoleCatalogSvc.Scope(Current.Required.TenantId));
             if (kind == "document" && template == "approval")
             {
                 // Approval: permission Manager membaca semua (untuk menyetujui) + workflow dipasang sekaligus.
                 var withManager = MetadataJson.ParseDocType(MetadataJson.Serialize(Registry.Current.Get(name).Def));
                 withManager.Version = 2;
                 withManager.Permissions.Add(new PermissionDef { Role = "Manager", Actions = ["read", "report"], Scope = "all" });
-                Registry.Publish(withManager, Current.Required.Id, acknowledgeRisk: true);
-                Registry.PublishWorkflow(ApprovalWorkflow(), Current.Required.Id, acknowledgeRisk: true, attach: true);
+                Registry.Publish(withManager, Current.Required.Id, acknowledgeRisk: true, scope: RoleCatalogSvc.Scope(Current.Required.TenantId));
+                Registry.PublishWorkflow(ApprovalWorkflow(), Current.Required.Id, acknowledgeRisk: true, attach: true, scope: RoleCatalogSvc.Scope(Current.Required.TenantId));
             }
             Toasts.Success("Configure fields and permissions in the visual editor.", $"DocType {name} created");
             Nav.NavigateTo($"/admin/metadata/{name}/editor");

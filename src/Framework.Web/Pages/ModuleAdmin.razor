@@ -3,6 +3,7 @@
 @using Framework.Security
 @using Framework.Web.Admin
 @inject INavigationMenuStore MenuStore
+@inject RoleCatalog RoleCatalogSvc
 @inject IRoleStore RoleStore
 @inject IMetadataProvider Metadata
 @inject CurrentUser Current
@@ -147,6 +148,11 @@ else
                         <BbFieldLabel For="mod-name">Module Name</BbFieldLabel>
                         <FormTextInput Id="mod-name" Immediate="true" @bind-Value="edit.Name" Placeholder="e.g. Human Resources, Finance, Inventory" />
                     </BbField>
+                    <BbField>
+                        <BbFieldLabel For="mod-code">Kode modul (wajib, unik)</BbFieldLabel>
+                        <FormTextInput Id="mod-code" @bind-Value="edit.Code" Disabled="!isNew" Placeholder="e.g. HR, PROCUREMENT, KEUANGAN" />
+                        <BbFieldDescription>Dipakai DocType sebagai Modul. Huruf besar, angka, atau garis bawah. Tidak bisa diubah setelah dibuat.</BbFieldDescription>
+                    </BbField>
 
                     <BbField>
                         <BbFieldLabel For="mod-order">Order (Sort Order)</BbFieldLabel>
@@ -224,7 +230,7 @@ else
     private bool busy;
     private string? error;
 
-    private IEnumerable<string> AvailableRoles => MetadataRoles.Known(Metadata.Current)
+    private IEnumerable<string> AvailableRoles => MetadataRoles.Known(Metadata.Current, RoleCatalogSvc.Names(Current.Required.TenantId))
         .Append(UserContext.Administrator)
         .Concat(storedRoles.Select(r => r.Name))
         .Distinct()
@@ -253,6 +259,7 @@ else
             Id = Guid.NewGuid().ToString("N"),
             TenantId = Current.Required.TenantId,
             Name = "",
+            Code = "",
             Description = "",
             Icon = "layout-grid",
             SortOrder = modules.Count > 0 ? modules.Max(m => m.SortOrder) + 10 : 10,
@@ -272,6 +279,7 @@ else
             Id = item.Id,
             TenantId = item.TenantId,
             Name = item.Name,
+            Code = item.Code,
             Description = item.Description,
             Icon = item.Icon,
             SortOrder = item.SortOrder,
@@ -323,6 +331,8 @@ else
         }
 
         edit.Name = edit.Name.Trim();
+        try { edit.Code = NavigationModule.NormalizeCode(edit.Code); }
+        catch (ArgumentException ex) { error = ex.Message; Toasts.Error(ex.Message, "Failed to Save"); return; }
         edit.Description = string.IsNullOrWhiteSpace(edit.Description) ? null : edit.Description.Trim();
         edit.Icon = string.IsNullOrWhiteSpace(edit.Icon) ? "layout-grid" : edit.Icon.Trim();
 
