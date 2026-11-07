@@ -1789,8 +1789,32 @@ table.data tbody tr.excluded td { opacity: .45; cursor: not-allowed; }
   display: inline-block;
   flex-shrink: 0;
 }
-.auth-alert { border: 1px solid color-mix(in oklch, var(--destructive) 40%, transparent); background: var(--alert-danger-bg);
-  color: var(--alert-danger-foreground); border-radius: calc(var(--radius) - 2px); padding: .6rem .75rem; font-size: .8125rem; margin-bottom: 1rem; }
+.auth-alert {
+  border: 1px solid #fca5a5;
+  background-color: #fef2f2;
+  color: #991b1b;
+  font-weight: 500;
+  border-radius: calc(var(--radius) - 2px);
+  padding: .65rem .85rem;
+  font-size: .8125rem;
+  line-height: 1.45;
+  margin-bottom: 1.25rem;
+}
+.dark .auth-alert {
+  border-color: #7f1d1d;
+  background-color: #450a0a;
+  color: #fecaca;
+}
+.auth-alert.auth-success {
+  border-color: #86efac;
+  background-color: #f0fdf4;
+  color: #166534;
+}
+.dark .auth-alert.auth-success {
+  border-color: #14532d;
+  background-color: #052e16;
+  color: #bbf7d0;
+}
 .auth-demo { margin-top: 1.25rem; font-size: .78rem; color: var(--muted-foreground); border-top: 1px solid var(--border); padding-top: .9rem; }
 .auth-demo summary { cursor: pointer; }
 .auth-demo p { margin: .5rem 0 0; line-height: 1.6; }
@@ -1801,7 +1825,6 @@ table.data tbody tr.excluded td { opacity: .45; cursor: not-allowed; }
 @media (max-width: 640px) { .who-chip { display: none; } }
 button.who-chip { border: 0; cursor: pointer; font: inherit; font-size: .8125rem; font-weight: 500; color: var(--foreground); }
 button.who-chip:hover { background: var(--accent); color: var(--accent-foreground); }
-.auth-alert.auth-success { border-color: color-mix(in oklch, var(--alert-success) 40%, transparent); background: var(--alert-success-bg); color: var(--alert-success-foreground); }
 .users-grid { display: grid; grid-template-columns: minmax(0, 1fr) 22rem; gap: 1rem; align-items: start; }
 .users-grid:has(> :only-child) { grid-template-columns: minmax(0, 1fr); }
 table.data tbody tr.selected td, .users-grid tr.selected td, tr.selected td { background: var(--accent); }

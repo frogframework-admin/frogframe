@@ -43,9 +43,9 @@
     --alert-warning: oklch(0.66 0.15 65);
     --alert-warning-foreground: oklch(0.38 0.09 60);
     --alert-warning-bg: oklch(0.99 0.015 75);
-    --alert-danger: oklch(0.55 0.2 27);
-    --alert-danger-foreground: oklch(0.36 0.12 27);
-    --alert-danger-bg: oklch(0.985 0.012 27);
+    --alert-danger: #dc2626;
+    --alert-danger-foreground: #991b1b;
+    --alert-danger-bg: #fef2f2;
     --font-sans: "Public Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     --radius: 0.5rem;
@@ -99,9 +99,9 @@
     --alert-warning: oklch(0.72 0.13 70);
     --alert-warning-foreground: oklch(0.92 0.06 75);
     --alert-warning-bg: oklch(0.22 0.025 70);
-    --alert-danger: oklch(0.66 0.17 25);
-    --alert-danger-foreground: oklch(0.9 0.05 25);
-    --alert-danger-bg: oklch(0.21 0.025 25);
+    --alert-danger: #ef4444;
+    --alert-danger-foreground: #fecaca;
+    --alert-danger-bg: #450a0a;
     --tone-pending: oklch(0.78 0.13 75);
     --tone-positive: oklch(0.74 0.13 155);
     --tone-negative: oklch(0.72 0.16 25);
