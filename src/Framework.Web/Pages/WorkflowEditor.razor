@@ -130,7 +130,7 @@ else
         </BbAlert>
     }
 
-    <BbCard>
+    <BbCard Class="props-block">
         <BbCardHeader>
             <BbCardTitle Class="card-title">Flow diagram</BbCardTitle>
             <BbCardDescription>Click an arrow to edit its transition. Thick line = initial state.</BbCardDescription>
@@ -138,78 +138,76 @@ else
         <BbCardContent><WorkflowDiagram Workflow="wf" SelectedTransition="selected" OnSelectTransition="i => selected = i" /></BbCardContent>
     </BbCard>
 
-    <div class="wf-grid">
-        <BbCard>
-            <BbCardHeader>
-                <BbCardTitle Class="card-title">States</BbCardTitle>
-                <BbCardDescription>"Editable" = draft; "locked" = submitted/approved; "cancelled" = can be amended.</BbCardDescription>
-            </BbCardHeader>
-            <BbCardContent>
-                <table class="wf-states">
-                    <thead><tr><th>Name</th><th>Document status</th><th>Color</th><th class="narrow">Initial</th><th></th></tr></thead>
-                    <tbody>
-                        @foreach (var state in wf.States)
-                        {
-                            var st = state;
-                            <tr>
-                                <td><BbInput Value="@st.Name" ValueChanged="v => RenameState(st, v)" AriaLabel="State name" /></td>
-                                <td><BbSelect TValue="string" Value="@st.DocStatus.ToString()" ValueChanged="v => Mutate(() => st.DocStatus = int.Parse(v!))" Options="DocStatusOptions" AriaLabel="Document status" /></td>
-                                <td><BbSelect TValue="string" Value="@st.Tone" ValueChanged="v => SetTone(st, v)" Options="ToneOptions" AriaLabel="Color" /></td>
-                                <td class="narrow"><input type="radio" name="initial" checked="@(wf.InitialState == st.Name)" aria-label="Initial state" @onchange="() => Mutate(() => wf.InitialState = st.Name)" /></td>
-                                <td class="narrow"><BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@($"Delete state {st.Name}")" OnClick="() => RemoveState(st)"><LucideIcon Name="trash-2" Size="15" /></BbButton></td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-                <div style="margin-top:.6rem"><BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick="AddState"><LucideIcon Name="plus" Size="15" /> Add state</BbButton></div>
-            </BbCardContent>
-        </BbCard>
-
-        <BbCard>
-            <BbCardHeader>
-                <BbCardTitle Class="card-title">Transitions (actions)</BbCardTitle>
-                <BbCardDescription>Actions appear as buttons on documents for permitted roles when conditions are met. Condition variables: @wf.DocType fields, <code>owner</code>, <code>user.id</code>, <code>user.department</code>.</BbCardDescription>
-            </BbCardHeader>
-            <BbCardContent>
-                <div class="stack">
-                    @for (var i = 0; i < wf.Transitions.Count; i++)
+    <BbCard Class="props-block">
+        <BbCardHeader>
+            <BbCardTitle Class="card-title">States</BbCardTitle>
+            <BbCardDescription>"Editable" = draft; "locked" = submitted/approved; "cancelled" = can be amended.</BbCardDescription>
+        </BbCardHeader>
+        <BbCardContent>
+            <table class="wf-states">
+                <thead><tr><th>Name</th><th>Document status</th><th>Color</th><th class="narrow">Initial</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var state in wf.States)
                     {
-                        var idx = i; var t = wf.Transitions[i];
-                        var condErr = errors.FirstOrDefault(e => e.Path.StartsWith($"transitions.{t.From}->{t.To}") && e.Path.EndsWith(".condition"));
-                        <div class="wf-transition @(selected == idx ? "selected" : "")" @onclick="() => selected = idx">
-                            <div class="wf-transition-head">
-                                <BbSelect TValue="string" Value="@t.From" ValueChanged="v => Mutate(() => t.From = v ?? string.Empty)" Options="StateOptions" AriaLabel="From state" />
-                                <LucideIcon Name="arrow-right" Size="16" />
-                                <BbSelect TValue="string" Value="@t.To" ValueChanged="v => Mutate(() => t.To = v ?? string.Empty)" Options="StateOptions" AriaLabel="To state" />
-                                <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Delete transition" OnClick="() => Mutate(() => { wf.Transitions.RemoveAt(idx); selected = null; })"><LucideIcon Name="trash-2" Size="15" /></BbButton>
-                            </div>
-                            <BbField>
-                                <BbFieldLabel>Action name (button label)</BbFieldLabel>
-                                <BbInput Value="@t.Action" ValueChanged="v => Mutate(() => t.Action = (v ?? string.Empty).Trim())" AriaLabel="Action name" Placeholder="e.g. Approve" />
-                            </BbField>
-                            <div>
-                                <div class="props-sub" style="margin-bottom:.35rem">Roles permitted to execute</div>
-                                <div class="wf-roles">
-                                    @foreach (var role in Roles)
-                                    {
-                                        var r = role;
-                                        <div class="label-row"><BbCheckbox Id="@($"t{idx}-{r}")" Checked="t.AllowedRoles.Contains(r)" CheckedChanged="v => Mutate(() => ToggleRole(t, r, v))" /><BbLabel For="@($"t{idx}-{r}")">@r</BbLabel></div>
-                                    }
-                                </div>
-                            </div>
-                            <BbField IsInvalid="@(condErr is not null)">
-                                <BbFieldLabel>Condition (optional)</BbFieldLabel>
-                                <BbInput Class="code-input" Value="@t.Condition" ValueChanged="v => Mutate(() => t.Condition = string.IsNullOrWhiteSpace(v) ? null : v.Trim())" AriaLabel="Condition" Placeholder="e.g. department == user.department &amp;&amp; owner != user.id" />
-                                @if (condErr is not null) { <BbFieldError Errors="@(new[] { condErr.Message })" /> }
-                            </BbField>
-                            <div class="label-row"><BbCheckbox Id="@($"t{idx}-comment")" Checked="t.RequireComment" CheckedChanged="v => Mutate(() => t.RequireComment = v)" /><BbLabel For="@($"t{idx}-comment")">Requires comment (e.g. for rejections)</BbLabel></div>
-                        </div>
+                        var st = state;
+                        <tr>
+                            <td><BbInput Value="@st.Name" ValueChanged="v => RenameState(st, v)" AriaLabel="State name" /></td>
+                            <td><BbSelect TValue="string" Value="@st.DocStatus.ToString()" ValueChanged="v => Mutate(() => st.DocStatus = int.Parse(v!))" Options="DocStatusOptions" AriaLabel="Document status" /></td>
+                            <td><BbSelect TValue="string" Value="@st.Tone" ValueChanged="v => SetTone(st, v)" Options="ToneOptions" AriaLabel="Color" /></td>
+                            <td class="narrow"><input type="radio" name="initial" checked="@(wf.InitialState == st.Name)" aria-label="Initial state" @onchange="() => Mutate(() => wf.InitialState = st.Name)" /></td>
+                            <td class="narrow"><BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@($"Delete state {st.Name}")" OnClick="() => RemoveState(st)"><LucideIcon Name="trash-2" Size="15" /></BbButton></td>
+                        </tr>
                     }
-                    <div><BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick="AddTransition"><LucideIcon Name="plus" Size="15" /> Add transition</BbButton></div>
-                </div>
-            </BbCardContent>
-        </BbCard>
-    </div>
+                </tbody>
+            </table>
+            <div style="margin-top:.6rem"><BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick="AddState"><LucideIcon Name="plus" Size="15" /> Add state</BbButton></div>
+        </BbCardContent>
+    </BbCard>
+
+    <BbCard Class="props-block">
+        <BbCardHeader>
+            <BbCardTitle Class="card-title">Transitions (actions)</BbCardTitle>
+            <BbCardDescription>Actions appear as buttons on documents for permitted roles when conditions are met. Condition variables: @wf.DocType fields, <code>owner</code>, <code>user.id</code>, <code>user.department</code>.</BbCardDescription>
+        </BbCardHeader>
+        <BbCardContent>
+            <div class="stack">
+                @for (var i = 0; i < wf.Transitions.Count; i++)
+                {
+                    var idx = i; var t = wf.Transitions[i];
+                    var condErr = errors.FirstOrDefault(e => e.Path.StartsWith($"transitions.{t.From}->{t.To}") && e.Path.EndsWith(".condition"));
+                    <div class="wf-transition @(selected == idx ? "selected" : "")" @onclick="() => selected = idx">
+                        <div class="wf-transition-head">
+                            <BbSelect TValue="string" Value="@t.From" ValueChanged="v => Mutate(() => t.From = v ?? string.Empty)" Options="StateOptions" AriaLabel="From state" />
+                            <LucideIcon Name="arrow-right" Size="16" />
+                            <BbSelect TValue="string" Value="@t.To" ValueChanged="v => Mutate(() => t.To = v ?? string.Empty)" Options="StateOptions" AriaLabel="To state" />
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Delete transition" OnClick="() => Mutate(() => { wf.Transitions.RemoveAt(idx); selected = null; })"><LucideIcon Name="trash-2" Size="15" /></BbButton>
+                        </div>
+                        <BbField>
+                            <BbFieldLabel>Action name (button label)</BbFieldLabel>
+                            <BbInput Value="@t.Action" ValueChanged="v => Mutate(() => t.Action = (v ?? string.Empty).Trim())" AriaLabel="Action name" Placeholder="e.g. Approve" />
+                        </BbField>
+                        <div>
+                            <div class="props-sub" style="margin-bottom:.35rem">Roles permitted to execute</div>
+                            <div class="wf-roles">
+                                @foreach (var role in Roles)
+                                {
+                                    var r = role;
+                                    <div class="label-row"><BbCheckbox Id="@($"t{idx}-{r}")" Checked="t.AllowedRoles.Contains(r)" CheckedChanged="v => Mutate(() => ToggleRole(t, r, v))" /><BbLabel For="@($"t{idx}-{r}")">@r</BbLabel></div>
+                                }
+                            </div>
+                        </div>
+                        <BbField IsInvalid="@(condErr is not null)">
+                            <BbFieldLabel>Condition (optional)</BbFieldLabel>
+                            <BbInput Class="code-input" Value="@t.Condition" ValueChanged="v => Mutate(() => t.Condition = string.IsNullOrWhiteSpace(v) ? null : v.Trim())" AriaLabel="Condition" Placeholder="e.g. department == user.department &amp;&amp; owner != user.id" />
+                            @if (condErr is not null) { <BbFieldError Errors="@(new[] { condErr.Message })" /> }
+                        </BbField>
+                        <div class="label-row"><BbCheckbox Id="@($"t{idx}-comment")" Checked="t.RequireComment" CheckedChanged="v => Mutate(() => t.RequireComment = v)" /><BbLabel For="@($"t{idx}-comment")">Requires comment (e.g. for rejections)</BbLabel></div>
+                    </div>
+                }
+                <div><BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick="AddTransition"><LucideIcon Name="plus" Size="15" /> Add transition</BbButton></div>
+            </div>
+        </BbCardContent>
+    </BbCard>
 
     <details class="props-block" style="margin-top:1rem">
         <summary class="muted small">View JSON</summary>
