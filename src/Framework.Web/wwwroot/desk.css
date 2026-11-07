@@ -2091,18 +2091,6 @@ table.data td.wrap { white-space: normal; }
   padding: .75rem .75rem 0 .75rem;
   border-top: 1px solid var(--border);
 }
-.btn-migration-tmpl {
-  background: color-mix(in oklch, var(--primary) 12%, var(--card));
-  color: var(--primary);
-  border: 1px solid color-mix(in oklch, var(--primary) 35%, var(--border));
-  font-weight: 500;
-  transition: all .15s ease-in-out;
-}
-.btn-migration-tmpl:hover {
-  background: color-mix(in oklch, var(--primary) 22%, var(--card));
-  border-color: var(--primary);
-  color: var(--primary);
-}
 .role-check-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
