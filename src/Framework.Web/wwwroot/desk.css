@@ -49,7 +49,8 @@ h1:focus { outline: none; } /* FocusOnNavigate memindahkan fokus ke h1 untuk pem
 }
 .app-header .tenant {
   font-size: 0.8125rem;
-  color: rgba(255, 255, 255, 0.78);
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.88);
   white-space: nowrap;
 }
 

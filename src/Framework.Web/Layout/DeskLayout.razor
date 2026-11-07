@@ -206,15 +206,7 @@
             <div class="header-right">
                 @if (Current.User is { } who)
                 {
-                    var headerAvatar = who.Attr("avatar");
-                    <button type="button" class="who-chip" title="@($"{who.FullName} · {string.Join(", ", who.Roles)} · Click for user info & profile photo")" @onclick="OpenUserProfile">
-                        @if (!string.IsNullOrWhiteSpace(headerAvatar))
-                        {
-                            <img class="who-chip-avatar" src="@($"/files/{headerAvatar}")" alt="@who.FullName" />
-                        }
-                        <span>Tenant @who.TenantId</span>
-                        <LucideIcon Name="chevron-down" Size="13" Class="who-chip-chevron" />
-                    </button>
+                    <span class="tenant">Tenant @who.TenantId</span>
                 }
                 else
                 {
