@@ -192,11 +192,6 @@
                             <LucideIcon Name="chevrons-up-down" Size="13" />
                         </button>
                     }
-                    <span class="tenant">Tenant @cu.TenantId</span>
-                }
-                else
-                {
-                    <span class="tenant">Prototype</span>
                 }
             </div>
             
@@ -212,14 +207,18 @@
                 @if (Current.User is { } who)
                 {
                     var headerAvatar = who.Attr("avatar");
-                    <button type="button" class="who-chip" title="@($"{string.Join(", ", who.Roles)} · Click for user info & profile photo")" @onclick="OpenUserProfile">
+                    <button type="button" class="who-chip" title="@($"{who.FullName} · {string.Join(", ", who.Roles)} · Click for user info & profile photo")" @onclick="OpenUserProfile">
                         @if (!string.IsNullOrWhiteSpace(headerAvatar))
                         {
                             <img class="who-chip-avatar" src="@($"/files/{headerAvatar}")" alt="@who.FullName" />
                         }
-                        <span>@who.FullName</span>
+                        <span>Tenant @who.TenantId</span>
                         <LucideIcon Name="chevron-down" Size="13" Class="who-chip-chevron" />
                     </button>
+                }
+                else
+                {
+                    <span class="tenant">Prototype</span>
                 }
                 <BbSeparator Orientation="SeparatorOrientation.Vertical" Style="height:1.25rem;opacity:0.4;" />
                 <span class="theme-toggle"><BbDarkModeToggle Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" /></span>
