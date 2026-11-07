@@ -174,7 +174,7 @@
     </BbField>
 </div>
 
-<BbButton Variant="ButtonVariant.Outline" Class="props-block" OnClick="OnRemove"><LucideIcon Name="trash-2" Size="16" /> Delete field</BbButton>
+<BbButton Variant="ButtonVariant.Destructive" Class="props-block" OnClick="OnRemove"><LucideIcon Name="trash-2" Size="16" /> Delete field</BbButton>
 
 @code {
     [Parameter, EditorRequired] public FieldDef Field { get; set; } = default!;

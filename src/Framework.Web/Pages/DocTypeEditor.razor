@@ -484,13 +484,13 @@ else
                                     Click a starter template button below to insert ready-to-use JSON into the editor:
                                 </p>
                                 <div class="row" style="margin-bottom:1rem;flex-wrap:wrap;gap:.5rem">
-                                    <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick='() => InsertMigrationSample("rename")'>
+                                    <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Class="btn-migration-tmpl" OnClick='() => InsertMigrationSample("rename")'>
                                         <LucideIcon Name="file-input" Size="14" /> Template: Rename Field
                                     </BbButton>
-                                    <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick='() => InsertMigrationSample("default")'>
+                                    <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Class="btn-migration-tmpl" OnClick='() => InsertMigrationSample("default")'>
                                         <LucideIcon Name="file-input" Size="14" /> Template: Set Default
                                     </BbButton>
-                                    <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick='() => InsertMigrationSample("combined")'>
+                                    <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Class="btn-migration-tmpl" OnClick='() => InsertMigrationSample("combined")'>
                                         <LucideIcon Name="file-input" Size="14" /> Template: Combined (All Operations)
                                     </BbButton>
                                 </div>
@@ -513,15 +513,15 @@ else
                                 }
 
                                 <div class="row" style="margin-top:.75rem;flex-wrap:wrap;gap:.5rem">
-                                    <BbButton Variant="ButtonVariant.Outline" OnClick="ApplyMigrationPlan">
+                                    <BbButton OnClick="ApplyMigrationPlan">
                                         <LucideIcon Name="check" Size="16" /> Apply Migration Plan to Draft
                                     </BbButton>
                                     @if (design.Def.DataMigration is not null)
                                     {
-                                        <BbButton Variant="ButtonVariant.Outline" OnClick="RunMigrationPreview">
+                                        <BbButton Variant="ButtonVariant.Secondary" OnClick="RunMigrationPreview">
                                             <LucideIcon Name="database" Size="16" /> Run Validation Dry-Run
                                         </BbButton>
-                                        <BbButton Variant="ButtonVariant.Ghost" OnClick="ClearMigrationPlan">
+                                        <BbButton Variant="ButtonVariant.Destructive" OnClick="ClearMigrationPlan">
                                             <LucideIcon Name="trash-2" Size="15" /> Clear Migration Plan
                                         </BbButton>
                                     }
