@@ -112,19 +112,19 @@ else
 
     <BbTabs Value="@view" ValueChanged="ChangeView">
         <BbTabsList>
-            <BbTabsTrigger Value="design"><LucideIcon Name="layout-grid" Size="15" /> Design</BbTabsTrigger>
-            <BbTabsTrigger Value="preview" Disabled="@(snapshot is null)"><LucideIcon Name="eye" Size="15" /> Preview</BbTabsTrigger>
+            <BbTabsTrigger Value="design" Style="gap:.5rem"><LucideIcon Name="layout-grid" Size="15" /> Design</BbTabsTrigger>
+            <BbTabsTrigger Value="preview" Disabled="@(snapshot is null)" Style="gap:.5rem"><LucideIcon Name="eye" Size="15" /> Preview</BbTabsTrigger>
             @if (!design.Def.IsChild)
             {
-                <BbTabsTrigger Value="access"><LucideIcon Name="shield-check" Size="15" /> Access &amp; Workflow</BbTabsTrigger>
+                <BbTabsTrigger Value="access" Style="gap:.5rem"><LucideIcon Name="shield-check" Size="15" /> Access &amp; Workflow</BbTabsTrigger>
             }
-            <BbTabsTrigger Value="hooks"><LucideIcon Name="zap" Size="15" /> Hooks</BbTabsTrigger>
-            <BbTabsTrigger Value="settings"><LucideIcon Name="sliders-horizontal" Size="15" /> DocType Settings</BbTabsTrigger>
+            <BbTabsTrigger Value="hooks" Style="gap:.5rem"><LucideIcon Name="zap" Size="15" /> Hooks</BbTabsTrigger>
+            <BbTabsTrigger Value="settings" Style="gap:.5rem"><LucideIcon Name="sliders-horizontal" Size="15" /> DocType Settings</BbTabsTrigger>
             @if (!design.Def.IsChild)
             {
-                <BbTabsTrigger Value="migration"><LucideIcon Name="database" Size="15" /> Data Migration</BbTabsTrigger>
+                <BbTabsTrigger Value="migration" Style="gap:.5rem"><LucideIcon Name="database" Size="15" /> Data Migration</BbTabsTrigger>
             }
-            <BbTabsTrigger Value="json"><LucideIcon Name="braces" Size="15" /> JSON</BbTabsTrigger>
+            <BbTabsTrigger Value="json" Style="gap:.5rem"><LucideIcon Name="braces" Size="15" /> JSON</BbTabsTrigger>
         </BbTabsList>
 
         <BbTabsContent Value="design">
@@ -370,7 +370,7 @@ else
                             <div class="props-group">
                                 <div class="props-group-title">List view</div>
                                 <p class="muted small" style="margin:0 0 .5rem">List columns are configured per field ("Show as column in list").</p>
-                                <div class="props-sub" style="margin-bottom:.5rem">Searchable fields (maksimal 10 baris ke bawah per kolom)</div>
+                                <div class="props-sub" style="margin-bottom:.5rem">Searchable fields (up to 10 rows per column)</div>
                                 @{
                                     var searchableCols = design.AllFields
                                         .Where(f => f.Type is "Data" or "Text" or "Email" or "Select" or "Link")
@@ -379,7 +379,7 @@ else
                                 }
                                 @if (searchableCols.Count == 0)
                                 {
-                                    <p class="muted small">Tidak ada field teks, email, select, atau link yang dapat dijadikan kolom pencarian.</p>
+                                    <p class="muted small">No text, email, select, or link fields available to be designated as search fields.</p>
                                 }
                                 else
                                 {
@@ -417,27 +417,27 @@ else
                         <BbCardHeader>
                             <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem">
                                 <div>
-                                    <BbCardTitle Class="card-title">Rencana Migrasi Data (Data Migration Plan)</BbCardTitle>
-                                    <BbCardDescription>Transformasi data dokumen eksisting saat rilis perubahan schema versi <code>v@(version - 1) &rarr; v@(version)</code></BbCardDescription>
+                                    <BbCardTitle Class="card-title">Data Migration Plan</BbCardTitle>
+                                    <BbCardDescription>Data transformation plan for existing documents during schema version transition <code>v@(version - 1) &rarr; v@(version)</code></BbCardDescription>
                                 </div>
                                 @if (design.Def.DataMigration is not null)
                                 {
                                     <BbBadge Variant="BadgeVariant.SoftSuccess">
-                                        <LucideIcon Name="circle-check" Size="14" style="margin-right:.3rem" /> Migrasi Aktif (v@(design.Def.DataMigration.FromVersion) &rarr; v@(version))
+                                        <LucideIcon Name="circle-check" Size="14" style="margin-right:.3rem" /> Migration Active (v@(design.Def.DataMigration.FromVersion) &rarr; v@(version))
                                     </BbBadge>
                                 }
                                 else
                                 {
-                                    <BbBadge Variant="BadgeVariant.Secondary">Belum Ada Rencana Migrasi (Opsional)</BbBadge>
+                                    <BbBadge Variant="BadgeVariant.Secondary">No Active Migration (Optional)</BbBadge>
                                 }
                             </div>
                         </BbCardHeader>
                         <BbCardContent>
                             <div class="props-group" style="border-top:none;padding-top:0">
-                                <div class="props-group-title">UNTUK APA DATA MIGRATION PLAN DIGUNAKAN?</div>
+                                <div class="props-group-title">WHAT IS A DATA MIGRATION PLAN USED FOR?</div>
                                 <p class="muted small" style="line-height:1.6;margin-bottom:.75rem">
-                                    Ketika Anda merilis versi baru sebuah DocType (misalnya menghapus/mengganti nama field, mengubah tipe data, atau menambahkan field wajib baru), dokumen-dokumen lama yang sudah tersimpan di database masih menggunakan format skema versi sebelumnya.
-                                    <strong>Data Migration Plan</strong> memastikan seluruh dokumen lama tersebut otomatis disesuaikan datanya dalam <strong>1 transaksi database aman</strong> saat Anda mengklik <strong>Publish v@(version)</strong>.
+                                    When modifying a DocType's schema (e.g. renaming fields, altering data types, or adding mandatory fields), existing documents in the database remain in their previous schema format.
+                                    A <strong>Data Migration Plan</strong> ensures all existing documents are automatically transformed in a <strong>single atomic database transaction</strong> when you click <strong>Publish v@(version)</strong>.
                                 </p>
 
                                 <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(260px, 1fr));gap:1rem;margin-bottom:1rem">
@@ -447,7 +447,7 @@ else
                                             <span>1. RenameField</span>
                                         </div>
                                         <p class="muted small" style="margin:0;line-height:1.45">
-                                            Memindahkan isi data dari field lama ke field baru. Nilai dokumen lama tetap utuh dan tidak hilang saat nama field diubah.
+                                            Transfers data from an old field name to a new field name. Prevents loss of user-entered data when renaming fields.
                                         </p>
                                     </div>
                                     <div style="border:1px solid var(--border);border-radius:var(--radius);padding:.85rem;background:var(--muted)/15%">
@@ -456,7 +456,7 @@ else
                                             <span>2. SetDefault</span>
                                         </div>
                                         <p class="muted small" style="margin:0;line-height:1.45">
-                                            Mengisi nilai bawaan (*default value*) untuk field baru pada semua dokumen eksisting yang belum memiliki field tersebut.
+                                            Populates a default value for new fields on all existing documents that do not yet have a value.
                                         </p>
                                     </div>
                                     <div style="border:1px solid var(--border);border-radius:var(--radius);padding:.85rem;background:var(--muted)/15%">
@@ -465,23 +465,23 @@ else
                                             <span>3. ConvertType</span>
                                         </div>
                                         <p class="muted small" style="margin:0;line-height:1.45">
-                                            Menormalisasi dan mengonversi format nilai data lama agar sesuai dengan tipe data field baru (misalnya dari teks ke angka/desimal).
+                                            Normalizes and converts existing data values to match the newly assigned field type (e.g. from text to integer/decimal/date).
                                         </p>
                                     </div>
                                 </div>
 
                                 <BbAlert Variant="AlertVariant.Info" Class="props-block">
-                                    <BbAlertTitle>Alur Eksekusi Transaksional & Aman</BbAlertTitle>
+                                    <BbAlertTitle>Transactional &amp; Safe Execution</BbAlertTitle>
                                     <BbAlertDescription>
-                                        Pekerjaan migrasi dijalankan bersamaan dengan rilis versi DocType saat tombol <strong>Publish v@(version)</strong> diklik. Anda dapat menguji validitas transformasi data terlebih dahulu dengan tombol <strong>Jalankan Dry-run Validasi</strong> tanpa mengubah database.
+                                        The migration is executed in the same database transaction as the schema release when <strong>Publish v@(version)</strong> is clicked. You can safely verify data transformations in advance using the <strong>Run Validation Dry-Run</strong> button without modifying any stored data.
                                     </BbAlertDescription>
                                 </BbAlert>
                             </div>
 
                             <div class="props-group">
-                                <div class="props-group-title">CONTOH FORMAT JSON & TEMPLATE CEPAT</div>
+                                <div class="props-group-title">JSON FORMAT &amp; STARTER TEMPLATES</div>
                                 <p class="muted small" style="margin-bottom:.5rem">
-                                    Klik tombol template di bawah untuk langsung menyalin contoh JSON ke editor:
+                                    Click a starter template button below to insert ready-to-use JSON into the editor:
                                 </p>
                                 <div class="row" style="margin-bottom:1rem;flex-wrap:wrap;gap:.5rem">
                                     <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick='() => InsertMigrationSample("rename")'>
@@ -491,13 +491,13 @@ else
                                         <LucideIcon Name="file-input" Size="14" /> Template: Set Default
                                     </BbButton>
                                     <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick='() => InsertMigrationSample("combined")'>
-                                        <LucideIcon Name="file-input" Size="14" /> Template: Gabungan Lengkap
+                                        <LucideIcon Name="file-input" Size="14" /> Template: Combined (All Operations)
                                     </BbButton>
                                 </div>
                             </div>
 
                             <div class="props-group">
-                                <div class="props-group-title">DEFINISI JSON RENCANA MIGRASI</div>
+                                <div class="props-group-title">DATA MIGRATION PLAN DEFINITION (JSON)</div>
                                 <div class="code">
                                     <BbTextarea Value="@migrationJson"
                                                 ValueChanged="v => migrationJson = v ?? string.Empty"
@@ -514,15 +514,15 @@ else
 
                                 <div class="row" style="margin-top:.75rem;flex-wrap:wrap;gap:.5rem">
                                     <BbButton Variant="ButtonVariant.Outline" OnClick="ApplyMigrationPlan">
-                                        <LucideIcon Name="check" Size="16" /> Terapkan Rencana Migrasi ke Draft
+                                        <LucideIcon Name="check" Size="16" /> Apply Migration Plan to Draft
                                     </BbButton>
                                     @if (design.Def.DataMigration is not null)
                                     {
                                         <BbButton Variant="ButtonVariant.Outline" OnClick="RunMigrationPreview">
-                                            <LucideIcon Name="database" Size="16" /> Jalankan Dry-run Validasi
+                                            <LucideIcon Name="database" Size="16" /> Run Validation Dry-Run
                                         </BbButton>
                                         <BbButton Variant="ButtonVariant.Ghost" OnClick="ClearMigrationPlan">
-                                            <LucideIcon Name="trash-2" Size="15" /> Hapus Rencana Migrasi
+                                            <LucideIcon Name="trash-2" Size="15" /> Clear Migration Plan
                                         </BbButton>
                                     }
                                 </div>
@@ -530,18 +530,18 @@ else
                                 @if (migrationPreview is { Valid: true })
                                 {
                                     <BbAlert Variant="AlertVariant.Success" Style="margin-top:.75rem">
-                                        <BbAlertTitle>Dry-run Berhasil</BbAlertTitle>
+                                        <BbAlertTitle>Dry-Run Succeeded</BbAlertTitle>
                                         <BbAlertDescription>
-                                            Sebanyak <strong>@migrationPreview.Documents</strong> dokumen siap dimigrasi saat versi <code>v@(version)</code> dipublikasikan.
+                                            <strong>@migrationPreview.Documents</strong> document(s) are ready to be migrated upon publishing <code>v@(version)</code>.
                                         </BbAlertDescription>
                                     </BbAlert>
                                 }
                                 else if (migrationPreview is { Valid: false, Error: not null } failedPreview)
                                 {
                                     <BbAlert Variant="AlertVariant.Danger" Style="margin-top:.75rem">
-                                        <BbAlertTitle>Dry-run Gagal</BbAlertTitle>
+                                        <BbAlertTitle>Dry-Run Failed</BbAlertTitle>
                                         <BbAlertDescription>
-                                            Gagal memvalidasi transformasi data: @failedPreview.Error
+                                            Data transformation validation failed: @failedPreview.Error
                                         </BbAlertDescription>
                                     </BbAlert>
                                 }
@@ -738,7 +738,7 @@ else
                 ?? throw new JsonException("Migration plan JSON must be an object.");
             Mutate(() => design!.Def.DataMigration = plan);
             migrationJsonError = null;
-            Toasts.Success("Rencana migrasi data berhasil diterapkan ke draft.", "Data Migration");
+            Toasts.Success("Data migration plan successfully applied to draft.", "Data Migration");
         }
         catch (JsonException ex) { migrationJsonError = $"Invalid migration plan JSON: {ex.Message}"; }
     }
@@ -749,7 +749,7 @@ else
         migrationJson = JsonSerializer.Serialize(new DataMigrationPlanDef { FromVersion = version - 1 }, MetadataJson.Options);
         migrationJsonError = null;
         migrationPreview = null;
-        Toasts.Success("Rencana migrasi data telah dihapus dari draft.", "Data Migration");
+        Toasts.Success("Data migration plan removed from draft.", "Data Migration");
     }
 
     private void InsertMigrationSample(string sampleType)
@@ -762,7 +762,7 @@ else
                 fromVersion = fromVer,
                 operations = new object[]
                 {
-                    new { type = "RenameField", fromField = "field_lama", toField = "field_baru" }
+                    new { type = "RenameField", fromField = "old_field_name", toField = "new_field_name" }
                 }
             }, new JsonSerializerOptions { WriteIndented = true }),
 
@@ -771,7 +771,7 @@ else
                 fromVersion = fromVer,
                 operations = new object[]
                 {
-                    new { type = "SetDefault", field = "status_dokumen", value = "Aktif" }
+                    new { type = "SetDefault", field = "document_status", value = "Active" }
                 }
             }, new JsonSerializerOptions { WriteIndented = true }),
 
@@ -780,9 +780,9 @@ else
                 fromVersion = fromVer,
                 operations = new object[]
                 {
-                    new { type = "RenameField", fromField = "kode_lama", toField = "kode" },
+                    new { type = "RenameField", fromField = "old_code", toField = "code" },
                     new { type = "SetDefault", field = "is_active", value = true },
-                    new { type = "ConvertType", field = "jumlah" }
+                    new { type = "ConvertType", field = "total_amount" }
                 }
             }, new JsonSerializerOptions { WriteIndented = true }),
 

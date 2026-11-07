@@ -1601,6 +1601,7 @@ table.data tbody tr.excluded td { opacity: .45; cursor: not-allowed; }
 .tab-chip { all: unset; cursor: pointer; padding: .35rem .7rem; border-radius: calc(var(--radius) - 2px); font-size: .875rem; display: inline-flex; gap: .4rem; align-items: center; }
 .tab-chip.active { background: var(--background); box-shadow: var(--shadow-sm); font-weight: 600; }
 .tab-chip:focus-visible { outline: 2px solid var(--ring); }
+button[role="tab"], [role="tab"] { gap: 0.5rem; }
 .tab-tools { display: flex; gap: .35rem; align-items: center; }
 .tab-tools > :first-child { flex: 1; min-width: 0; max-width: 22rem; }
 .d-section { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: .75rem; }
