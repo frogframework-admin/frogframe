@@ -207,17 +207,21 @@
                 @if (Current.User is { } who)
                 {
                     <span class="tenant">Tenant @who.TenantId</span>
+                    <BbSeparator Orientation="SeparatorOrientation.Vertical" Style="height:1.25rem;opacity:0.4;" />
+                    <span class="theme-toggle"><BbDarkModeToggle Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" /></span>
+                    <button type="button" class="header-logout-btn" @onclick="Logout">
+                        <LucideIcon Name="log-out" Size="16" />
+                        <span>Log out</span>
+                    </button>
                 }
                 else
                 {
-                    <span class="tenant">Prototype</span>
+                    <span class="theme-toggle"><BbDarkModeToggle Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" /></span>
+                    <a href="/account/login" class="header-logout-btn" style="text-decoration:none">
+                        <LucideIcon Name="login" Size="16" />
+                        <span>Sign In</span>
+                    </a>
                 }
-                <BbSeparator Orientation="SeparatorOrientation.Vertical" Style="height:1.25rem;opacity:0.4;" />
-                <span class="theme-toggle"><BbDarkModeToggle Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" /></span>
-                <button type="button" class="header-logout-btn" @onclick="Logout">
-                    <LucideIcon Name="log-out" Size="16" />
-                    <span>Log out</span>
-                </button>
             </div>
         </header>
         <div class="page-top-bar">

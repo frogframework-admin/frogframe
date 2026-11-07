@@ -109,6 +109,9 @@ else
     app.UseDeveloperExceptionPage();
 }
 
+// 404 & HTTP status code handling: re-execute to Blazor error pages
+app.UseStatusCodePagesWithReExecute("/error/{0}");
+
 // 3. Global security headers (nosniff, SAMEORIGIN, CSP, Referrer, Permissions)
 app.UseDocFrameSecurityHeaders();
 
