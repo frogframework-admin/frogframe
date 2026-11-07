@@ -69,12 +69,14 @@ else if (meta is not null)
     {
         var groupedFields = meta.Fields.Where(f => f.Def.Type != "Table" && f.Def.RowGrouping).ToList();
         var groupCollapsed = groupedFields.Any(f => f.Def.GroupCollapsedByDefault);
+        var visibleColSet = result.Columns.ToHashSet(StringComparer.OrdinalIgnoreCase);
         <BbDataGrid @key="gridRenderKey"
                     TData="Dictionary<string, object?>"
                     Items="@result.Items"
                     ItemKey="@(r => (string)r["name"]!)"
                     OnRowClick="@(row => Go((string)row["name"]!))"
                     RowClass="@(row => selectedItems.Contains((string)row["name"]!) ? "clickable selected" : "clickable")"
+                    State="@gridState"
                     Resizable="true"
                     OnColumnResize="HandleColumnResize"
                     StateChanged="OnGridStateChanged"
@@ -111,15 +113,18 @@ else if (meta is not null)
                 </div>
             </EmptyTemplate>
             <Columns>
-                @foreach (var gf in groupedFields)
+                @foreach (var gf in groupedFields.Where(f => !visibleColSet.Contains(f.Name)))
                 {
                     var gKey = gf.Name;
-                    var gCol = gf;
-                    <BbDataGridGroupColumn TData="Dictionary<string, object?>"
-                                           TProperty="string"
-                                           Property="@(r => Fmt.Value(gCol, r.GetValueOrDefault(gKey)))"
-                                           Title="@gCol.Label"
-                                           CollapsedByDefault="@gCol.Def.GroupCollapsedByDefault" />
+                    <BbDataGridTemplateColumn @key="@($"_grp_{gKey}")"
+                                              TData="Dictionary<string, object?>"
+                                              Id="@gKey"
+                                              Title="@gf.Label"
+                                              SortBy="@GetColAccessor(gKey)"
+                                              Groupable="true"
+                                              Visible="false"
+                                              Hideable="false"
+                                              Resizable="false" />
                 }
 
                 <BbDataGridTemplateColumn TData="Dictionary<string, object?>" Id="_select" Title="" Width="@GetColWidth("_select", "3rem")" Hideable="false" Resizable="false">
@@ -144,7 +149,7 @@ else if (meta is not null)
                     </ChildContent>
                 </BbDataGridTemplateColumn>
 
-                <BbDataGridTemplateColumn TData="Dictionary<string, object?>" Id="name" Title="Number" Hideable="false" Resizable="true" Sortable="true" SortBy="@(r => (string)r["name"]!)"
+                <BbDataGridTemplateColumn TData="Dictionary<string, object?>" Id="name" Title="Number" Hideable="false" Resizable="true" Sortable="true" SortBy="@nameAccessor"
                                           Width="@GetColWidth("name")">
                     <ChildContent Context="row">
                         <a class="doc-link" href="/app/@meta.Name/@((string)row["name"]!)">@((string)row["name"]!)</a>
@@ -157,8 +162,10 @@ else if (meta is not null)
                     var cf = meta.ByName.GetValueOrDefault(colKey);
                     var colFilterable = cf?.Def.Filterable ?? true;
                     var colPinned = MapPinning(cf?.Def.Pinned);
-                    <BbDataGridTemplateColumn TData="Dictionary<string, object?>" Id="@colKey" Title="@LabelOf(colKey)" Resizable="true" Sortable="true" SortBy="@(r => (object?)(r.GetValueOrDefault(colKey) ?? ""))"
-                                              Filterable="@colFilterable" FilterBy="@(r => (object?)(r.GetValueOrDefault(colKey) ?? ""))"
+                    var colAccessor = GetColAccessor(colKey);
+                    <BbDataGridTemplateColumn @key="colKey"
+                                              TData="Dictionary<string, object?>" Id="@colKey" Title="@LabelOf(colKey)" Resizable="true" Sortable="true" SortBy="@colAccessor"
+                                              Filterable="@colFilterable" FilterBy="@colAccessor"
                                               Pinned="@colPinned" Groupable="true"
                                               Width="@GetColWidth(colKey)"
                                               Visible="@IsColVisible(colKey)">
@@ -184,7 +191,7 @@ else if (meta is not null)
 
                 @if (HasStatus)
                 {
-                    <BbDataGridTemplateColumn TData="Dictionary<string, object?>" Id="status" Title="Status" Resizable="true" Sortable="true" SortBy="@(r => (object?)(r.GetValueOrDefault("workflow_state") ?? ""))"
+                    <BbDataGridTemplateColumn TData="Dictionary<string, object?>" Id="status" Title="Status" Resizable="true" Sortable="true" SortBy="@statusAccessor"
                                               Width="@GetColWidth("status")"
                                               Visible="@IsColVisible("status")">
                         <ChildContent Context="row">
@@ -197,7 +204,7 @@ else if (meta is not null)
                     </BbDataGridTemplateColumn>
                 }
 
-                <BbDataGridTemplateColumn TData="Dictionary<string, object?>" Id="modified" Title="Modified" Resizable="true" Sortable="true" SortBy="@(r => (object)r["modified"]!)"
+                <BbDataGridTemplateColumn TData="Dictionary<string, object?>" Id="modified" Title="Modified" Resizable="true" Sortable="true" SortBy="@modifiedAccessor"
                                           Width="@GetColWidth("modified")"
                                           Visible="@IsColVisible("modified")">
                     <ChildContent Context="row">
@@ -227,9 +234,59 @@ else if (meta is not null)
     private bool busy;
 
     private Framework.Preferences.DataGridPreference gridPref = new();
+    private BlazorBlueprint.Primitives.DataGrid.DataGridState<Dictionary<string, object?>> gridState = new();
+    private readonly Dictionary<string, System.Linq.Expressions.Expression<Func<Dictionary<string, object?>, object>>> colAccessors = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly System.Linq.Expressions.Expression<Func<Dictionary<string, object?>, object>> nameAccessor = r => (object)r["name"]!;
+    private static readonly System.Linq.Expressions.Expression<Func<Dictionary<string, object?>, object>> statusAccessor = r => r.GetValueOrDefault("workflow_state") ?? "";
+    private static readonly System.Linq.Expressions.Expression<Func<Dictionary<string, object?>, object>> modifiedAccessor = r => (object)r["modified"]!;
     private bool hasCustomLayout;
     private int gridRenderKey;
     private System.Threading.Timer? saveDebounceTimer;
+
+    private System.Linq.Expressions.Expression<Func<Dictionary<string, object?>, object>> GetColAccessor(string colKey)
+    {
+        if (!colAccessors.TryGetValue(colKey, out var expr))
+        {
+            var key = colKey;
+            var cf = meta?.ByName.GetValueOrDefault(key);
+            expr = r => GetColRawOrGroupValue(cf, r.GetValueOrDefault(key));
+            colAccessors[key] = expr;
+        }
+        return expr;
+    }
+
+    private static object GetColRawOrGroupValue(CompiledField? cf, object? val)
+    {
+        if (val is null || (val is string s && string.IsNullOrWhiteSpace(s)))
+            return "—";
+        if (cf is not null && cf.Def.RowGrouping)
+            return Fmt.Value(cf, val);
+        return val;
+    }
+
+    private void ApplyDefaultGrouping()
+    {
+        gridState = new();
+        if (meta is null) return;
+        bool first = true;
+        foreach (var gf in meta.Fields.Where(f => f.Def.Type != "Table" && f.Def.RowGrouping))
+        {
+            var def = new BlazorBlueprint.Primitives.DataGrid.GroupDefinition
+            {
+                ColumnId = gf.Name,
+                GroupSortDirection = BlazorBlueprint.Primitives.SortDirection.Ascending
+            };
+            if (first)
+            {
+                gridState.Grouping.SetGroup(def);
+                first = false;
+            }
+            else
+            {
+                gridState.Grouping.AddGroup(def);
+            }
+        }
+    }
 
     private bool IsAllSelected => result?.Items.Count > 0 && result.Items.All(r => selectedItems.Contains((string)r["name"]!));
     private bool IsSomeSelected => !IsAllSelected && result?.Items.Any(r => selectedItems.Contains((string)r["name"]!)) == true;
@@ -270,6 +327,8 @@ else if (meta is not null)
         selectedItems.Clear();
         if (!Metadata.Current.TryGet(DocType, out var m) || m.Def.IsChild) { fatal = $"DocType '{DocType}' not found."; return; }
         meta = m;
+        colAccessors.Clear();
+        ApplyDefaultGrouping();
         if (!Perms.Can(Current.Required, meta, DocActions.Read)) { fatal = $"You do not have permission to view {meta.Title}."; return; }
         // Single DocType: tidak ada daftar; langsung buka dokumen tunggalnya (atau form baru bila belum ada).
         if (meta.Def.IsSingle)
@@ -476,6 +535,7 @@ else if (meta is not null)
         }
         gridPref = new();
         hasCustomLayout = false;
+        ApplyDefaultGrouping();
         gridRenderKey++;
         Toasts.Success("Tata letak kolom telah dikembalikan ke bawaan.", "Reset Kolom");
         await Reload(result?.Page ?? 1);
