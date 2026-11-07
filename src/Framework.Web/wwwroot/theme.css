@@ -215,7 +215,7 @@
   --dk-accent-text: #fca5a5;
   --dk-focus: #ef4444;
   --dk-solid: #b91c1c;
-  --wave-image: url('/_content/Framework.Web/img/bottom-wave-blue.png');
+  --wave-image: url('/_content/Framework.Web/img/bottom-wave-maroon.png');
   --wave-image-dark: url('/_content/Framework.Web/img/bottom-wave-dark.png');
 }
 
@@ -273,7 +273,7 @@
   --dk-accent-text: #86efac;
   --dk-focus: #22c55e;
   --dk-solid: #15803d;
-  --wave-image: url('/_content/Framework.Web/img/bottom-wave-blue.png');
+  --wave-image: url('/_content/Framework.Web/img/bottom-wave-green.png');
   --wave-image-dark: url('/_content/Framework.Web/img/bottom-wave-dark.png');
 }
 
@@ -331,7 +331,7 @@
   --dk-accent-text: #c4b5fd;
   --dk-focus: #8b5cf6;
   --dk-solid: #7c3aed;
-  --wave-image: url('/_content/Framework.Web/img/bottom-wave-blue.png');
+  --wave-image: url('/_content/Framework.Web/img/bottom-wave-purple.png');
   --wave-image-dark: url('/_content/Framework.Web/img/bottom-wave-dark.png');
 }
 
