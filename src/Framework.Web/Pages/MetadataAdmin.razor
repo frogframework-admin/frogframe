@@ -120,7 +120,7 @@ else
                 </CellTemplate>
             </BbDataGridPropertyColumn>
 
-            <BbDataGridTemplateColumn TData="DocTypeRow" Id="actions" Title="Actions" Width="@gridMgr.GetWidth("actions", "8.5rem")" NoWrap="true" Hideable="false" Resizable="false">
+            <BbDataGridTemplateColumn TData="DocTypeRow" Id="actions" Title="Actions" Width="@gridMgr.GetWidth("actions", "9.5rem")" Hideable="false" Resizable="false">
                 <ChildContent Context="item">
                     <div style="display:inline-flex;align-items:center;gap:.35rem;flex-wrap:nowrap">
                         <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Href="@($"/admin/metadata/{item.Name}/editor")" OnClick="() => Edit(item.Name)" Title="Visual editor">
