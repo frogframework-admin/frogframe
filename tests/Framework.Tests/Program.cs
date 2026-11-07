@@ -29,11 +29,23 @@ using Npgsql;
 if (args.FirstOrDefault() == "--bench") return await Bench.RunAsync(args);
 if (args.FirstOrDefault() == "--inspect-grid-tree")
 {
-    var t = typeof(BlazorBlueprint.Components.BbDataGrid<string>);
-    foreach (var m in t.GetMethods(BindingFlags.NonPublic | BindingFlags.Instance))
+    var grid = new BlazorBlueprint.Components.BbDataGrid<string>();
+    grid.ShowSearch = true;
+    grid.SearchPlaceholder = "Cari...";
+    grid.Toolbar = b => b.AddContent(0, "MY_CUSTOM_TOOLBAR");
+    var m = typeof(BlazorBlueprint.Components.BbDataGrid<string>).GetMethod("BuildRenderTree", BindingFlags.NonPublic | BindingFlags.Instance);
+    var builder = new Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder();
+    m!.Invoke(grid, new object[] { builder });
+    var frames = builder.GetFrames();
+    for (int i = 0; i < frames.Count; i++)
     {
-        if (m.Name.Contains("Row") || m.Name.Contains("Click") || m.Name.Contains("Cell"))
-            Console.WriteLine($"Grid Method: {m.Name}");
+        var f = frames.Array[i];
+        if (f.FrameType == Microsoft.AspNetCore.Components.RenderTree.RenderTreeFrameType.Text && !string.IsNullOrWhiteSpace(f.TextContent))
+            Console.WriteLine($"Text: {f.TextContent.Trim()}");
+        if (f.FrameType == Microsoft.AspNetCore.Components.RenderTree.RenderTreeFrameType.Element)
+            Console.WriteLine($"Element: {f.ElementName}");
+        if (f.FrameType == Microsoft.AspNetCore.Components.RenderTree.RenderTreeFrameType.Attribute && (f.AttributeName == "placeholder" || f.AttributeName == "class"))
+            Console.WriteLine($"Attr: {f.AttributeName}={f.AttributeValue}");
     }
     return 0;
 }
