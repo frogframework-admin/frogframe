@@ -5,6 +5,8 @@
 @inject CurrentUser Current
 @inject ToastService Toasts
 @inject DialogService Dialogs
+@inject Framework.Preferences.IUserPreferenceStore UserPrefs
+@implements IDisposable
 
 <PageTitle>Master Menu Groups · DocFrame</PageTitle>
 
@@ -32,15 +34,32 @@ else
                 ShowPagination="true"
                 InitialPageSize="10"
                 TableContainerClass="table-wrap"
-                RowClass="@(g => edit?.Id == g.Id ? "selected" : "")">
+                RowClass="@(g => edit?.Id == g.Id ? "selected" : "")"
+                Resizable="true"
+                OnColumnResize="gridMgr.HandleResize"
+                StateChanged="gridMgr.HandleStateChanged">
+        <Toolbar>
+            <div style="display:flex;align-items:center;gap:.5rem;margin-left:auto">
+                @if (gridMgr.HasCustomLayout)
+                {
+                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ResetColumnsLayout" Title="Reset kolom ke bawaan">
+                        <LucideIcon Name="rotate-ccw" Size="14" />
+                        <span>Reset Kolom</span>
+                    </BbButton>
+                }
+                <BbDataGridColumnVisibility TData="NavigationMenuGroup" />
+            </div>
+        </Toolbar>
         <Columns>
-            <BbDataGridPropertyColumn TData="NavigationMenuGroup" TProp="int" Property="g => g.SortOrder" Title="Order" Width="5rem" Sortable="true">
+            <BbDataGridPropertyColumn TData="NavigationMenuGroup" TProp="int" Property="g => g.SortOrder" Id="order" Title="Order"
+                                      Width="@gridMgr.GetWidth("order", "5rem")" Visible="@gridMgr.IsVisible("order")" Resizable="true" Sortable="true">
                 <CellTemplate Context="item">
                     <code>@item.SortOrder</code>
                 </CellTemplate>
             </BbDataGridPropertyColumn>
 
-            <BbDataGridPropertyColumn TData="NavigationMenuGroup" TProp="string" Property="g => g.Name" Title="Menu Group" Width="15rem" Sortable="true" Filterable="true">
+            <BbDataGridPropertyColumn TData="NavigationMenuGroup" TProp="string" Property="g => g.Name" Id="group" Title="Menu Group"
+                                      Width="@gridMgr.GetWidth("group", "15rem")" Visible="@gridMgr.IsVisible("group")" Resizable="true" Sortable="true" Filterable="true">
                 <CellTemplate Context="item">
                     <div class="row" style="gap:.5rem;align-items:center;flex-wrap:nowrap">
                         <LucideIcon Name="@(string.IsNullOrWhiteSpace(item.Icon) ? "folder" : item.Icon)" Size="16" />
@@ -49,7 +68,8 @@ else
                 </CellTemplate>
             </BbDataGridPropertyColumn>
 
-            <BbDataGridTemplateColumn TData="NavigationMenuGroup" Title="Parent Module" Sortable="true" SortBy="g => ModuleName(g.ModuleId)">
+            <BbDataGridTemplateColumn TData="NavigationMenuGroup" Id="parent_module" Title="Parent Module"
+                                      Width="@gridMgr.GetWidth("parent_module")" Visible="@gridMgr.IsVisible("parent_module")" Resizable="true" Sortable="true" SortBy="g => ModuleName(g.ModuleId)">
                 <ChildContent Context="item">
                     @{
                         var mod = modules.FirstOrDefault(m => m.Id == item.ModuleId);
@@ -70,7 +90,8 @@ else
                 </ChildContent>
             </BbDataGridTemplateColumn>
 
-            <BbDataGridTemplateColumn TData="NavigationMenuGroup" Title="Menu Count" Width="9rem">
+            <BbDataGridTemplateColumn TData="NavigationMenuGroup" Id="menu_count" Title="Menu Count"
+                                      Width="@gridMgr.GetWidth("menu_count", "9rem")" Visible="@gridMgr.IsVisible("menu_count")" Resizable="true">
                 <ChildContent Context="item">
                     @{
                         var cnt = menus.Count(m => m.GroupId == item.Id || (string.IsNullOrWhiteSpace(m.GroupId) && string.Equals(m.GroupName, item.Name, StringComparison.OrdinalIgnoreCase)));
@@ -79,7 +100,8 @@ else
                 </ChildContent>
             </BbDataGridTemplateColumn>
 
-            <BbDataGridTemplateColumn TData="NavigationMenuGroup" Title="Status" Width="9rem" Sortable="true" SortBy="g => g.IsActive">
+            <BbDataGridTemplateColumn TData="NavigationMenuGroup" Id="status" Title="Status"
+                                      Width="@gridMgr.GetWidth("status", "9rem")" Visible="@gridMgr.IsVisible("status")" Resizable="true" Sortable="true" SortBy="g => g.IsActive">
                 <ChildContent Context="item">
                     <div class="row" style="gap:.25rem;flex-wrap:nowrap">
                         @if (item.IsSystem)
@@ -98,7 +120,7 @@ else
                 </ChildContent>
             </BbDataGridTemplateColumn>
 
-            <BbDataGridTemplateColumn TData="NavigationMenuGroup" Title="Actions" Width="6.5rem" NoWrap="true">
+            <BbDataGridTemplateColumn TData="NavigationMenuGroup" Id="actions" Title="Actions" Width="@gridMgr.GetWidth("actions", "6.5rem")" NoWrap="true" Hideable="false" Resizable="false">
                 <ChildContent Context="item">
                     <div style="display:inline-flex;align-items:center;gap:.25rem;flex-wrap:nowrap" @onclick:stopPropagation="true">
                         <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Edit menu group" OnClick="() => StartEdit(item)">
@@ -210,11 +232,25 @@ else
     private bool isNew;
     private bool busy;
     private string? error;
+    private Framework.Web.Services.DataGridPreferenceManager<NavigationMenuGroup> gridMgr = default!;
 
     protected override async Task OnInitializedAsync()
     {
+        gridMgr = new(UserPrefs, Current, "grid:admin:menu-groups", StateHasChanged);
         if (Current.User is null) return;
+        await gridMgr.InitializeAsync();
         await Reload();
+    }
+
+    private async Task ResetColumnsLayout()
+    {
+        await gridMgr.ResetAsync();
+        Toasts.Success("Tata letak kolom telah dikembalikan ke bawaan.", "Reset Kolom");
+    }
+
+    public void Dispose()
+    {
+        gridMgr?.Dispose();
     }
 
     private async Task Reload()

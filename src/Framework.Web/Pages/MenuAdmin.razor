@@ -9,6 +9,8 @@
 @inject CurrentUser Current
 @inject ToastService Toasts
 @inject DialogService Dialogs
+@inject Framework.Preferences.IUserPreferenceStore UserPrefs
+@implements IDisposable
 
 <PageTitle>Navigation Menus · DocFrame</PageTitle>
 
@@ -36,15 +38,32 @@ else
                 ShowPagination="true"
                 InitialPageSize="10"
                 TableContainerClass="table-wrap"
-                RowClass="@(m => edit?.Id == m.Id ? "selected" : "")">
+                RowClass="@(m => edit?.Id == m.Id ? "selected" : "")"
+                Resizable="true"
+                OnColumnResize="gridMgr.HandleResize"
+                StateChanged="gridMgr.HandleStateChanged">
+        <Toolbar>
+            <div style="display:flex;align-items:center;gap:.5rem;margin-left:auto">
+                @if (gridMgr.HasCustomLayout)
+                {
+                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ResetColumnsLayout" Title="Reset kolom ke bawaan">
+                        <LucideIcon Name="rotate-ccw" Size="14" />
+                        <span>Reset Kolom</span>
+                    </BbButton>
+                }
+                <BbDataGridColumnVisibility TData="NavigationMenuItem" />
+            </div>
+        </Toolbar>
         <Columns>
-            <BbDataGridPropertyColumn TData="NavigationMenuItem" TProp="int" Property="m => m.SortOrder" Title="Order" Width="5rem" Sortable="true">
+            <BbDataGridPropertyColumn TData="NavigationMenuItem" TProp="int" Property="m => m.SortOrder" Id="order" Title="Order"
+                                      Width="@gridMgr.GetWidth("order", "5rem")" Visible="@gridMgr.IsVisible("order")" Resizable="true" Sortable="true">
                 <CellTemplate Context="item">
                     <code>@item.SortOrder</code>
                 </CellTemplate>
             </BbDataGridPropertyColumn>
 
-            <BbDataGridPropertyColumn TData="NavigationMenuItem" TProp="string" Property="m => m.Title" Title="Menu" Width="15rem" Sortable="true" Filterable="true">
+            <BbDataGridPropertyColumn TData="NavigationMenuItem" TProp="string" Property="m => m.Title" Id="title" Title="Menu"
+                                      Width="@gridMgr.GetWidth("title", "15rem")" Visible="@gridMgr.IsVisible("title")" Resizable="true" Sortable="true" Filterable="true">
                 <CellTemplate Context="item">
                     <div class="row" style="gap:.5rem;align-items:center;flex-wrap:nowrap">
                         <LucideIcon Name="@item.Icon" Size="16" />
@@ -57,13 +76,15 @@ else
                 </CellTemplate>
             </BbDataGridPropertyColumn>
 
-            <BbDataGridPropertyColumn TData="NavigationMenuItem" TProp="string" Property="m => m.Href" Title="URL" Width="12rem" Sortable="true" Filterable="true">
+            <BbDataGridPropertyColumn TData="NavigationMenuItem" TProp="string" Property="m => m.Href" Id="href" Title="URL"
+                                      Width="@gridMgr.GetWidth("href", "12rem")" Visible="@gridMgr.IsVisible("href")" Resizable="true" Sortable="true" Filterable="true">
                 <CellTemplate Context="item">
                     <code>@item.Href</code>
                 </CellTemplate>
             </BbDataGridPropertyColumn>
 
-            <BbDataGridTemplateColumn TData="NavigationMenuItem" Title="Module &amp; Menu Group" Width="14rem" Sortable="true" SortBy="m => m.GroupName">
+            <BbDataGridTemplateColumn TData="NavigationMenuItem" Id="group" Title="Module &amp; Menu Group"
+                                      Width="@gridMgr.GetWidth("group", "14rem")" Visible="@gridMgr.IsVisible("group")" Resizable="true" Sortable="true" SortBy="m => m.GroupName">
                 <ChildContent Context="item">
                     @{
                         var grp = ResolveGroup(item);
@@ -79,7 +100,8 @@ else
                 </ChildContent>
             </BbDataGridTemplateColumn>
 
-            <BbDataGridTemplateColumn TData="NavigationMenuItem" Title="Permissions">
+            <BbDataGridTemplateColumn TData="NavigationMenuItem" Id="roles" Title="Permissions"
+                                      Width="@gridMgr.GetWidth("roles")" Visible="@gridMgr.IsVisible("roles")" Resizable="true">
                 <ChildContent Context="item">
                     @if (item.AllowedRoles.Count == 0)
                     {
@@ -97,7 +119,8 @@ else
                 </ChildContent>
             </BbDataGridTemplateColumn>
 
-            <BbDataGridTemplateColumn TData="NavigationMenuItem" Title="Status" Width="9rem" Sortable="true" SortBy="m => m.IsActive">
+            <BbDataGridTemplateColumn TData="NavigationMenuItem" Id="status" Title="Status"
+                                      Width="@gridMgr.GetWidth("status", "9rem")" Visible="@gridMgr.IsVisible("status")" Resizable="true" Sortable="true" SortBy="m => m.IsActive">
                 <ChildContent Context="item">
                     <div class="row" style="gap:.25rem;flex-wrap:nowrap">
                         @if (item.IsSystem)
@@ -116,7 +139,7 @@ else
                 </ChildContent>
             </BbDataGridTemplateColumn>
 
-            <BbDataGridTemplateColumn TData="NavigationMenuItem" Title="Actions" Width="6.5rem" NoWrap="true">
+            <BbDataGridTemplateColumn TData="NavigationMenuItem" Id="actions" Title="Actions" Width="@gridMgr.GetWidth("actions", "6.5rem")" NoWrap="true" Hideable="false" Resizable="false">
                 <ChildContent Context="item">
                     <div style="display:inline-flex;align-items:center;gap:.25rem;flex-wrap:nowrap" @onclick:stopPropagation="true">
                         <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Edit menu" OnClick="() => StartEdit(item)">
@@ -256,6 +279,7 @@ else
     private bool isNew;
     private bool busy;
     private string? error;
+    private Framework.Web.Services.DataGridPreferenceManager<NavigationMenuItem> gridMgr = default!;
 
     private IEnumerable<string> AvailableRoles => MetadataRoles.Known(Metadata.Current, RoleCatalogSvc.Names(Current.Required.TenantId))
         .Append(UserContext.Administrator)
@@ -264,9 +288,22 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        gridMgr = new(UserPrefs, Current, "grid:admin:menus", StateHasChanged);
         if (Current.User is null) return;
+        await gridMgr.InitializeAsync();
         storedRoles = await RoleStore.ListAsync(Current.Required.TenantId);
         await Reload();
+    }
+
+    private async Task ResetColumnsLayout()
+    {
+        await gridMgr.ResetAsync();
+        Toasts.Success("Tata letak kolom telah dikembalikan ke bawaan.", "Reset Kolom");
+    }
+
+    public void Dispose()
+    {
+        gridMgr?.Dispose();
     }
 
     private async Task Reload()

@@ -7,6 +7,7 @@
 @inject CurrentUser Current
 @inject ToastService Toasts
 @inject NavigationManager Nav
+@inject Framework.Preferences.IUserPreferenceStore UserPrefs
 
 <PageTitle>Metadata · DocFrame</PageTitle>
 
@@ -30,9 +31,25 @@ else
                 SearchPlaceholder="Search DocTypes..."
                 ShowPagination="true"
                 InitialPageSize="15"
-                TableContainerClass="table-wrap">
+                TableContainerClass="table-wrap"
+                Resizable="true"
+                OnColumnResize="gridMgr.HandleResize"
+                StateChanged="gridMgr.HandleStateChanged">
+        <Toolbar>
+            <div style="display:flex;align-items:center;gap:.5rem;margin-left:auto">
+                @if (gridMgr.HasCustomLayout)
+                {
+                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ResetColumnsLayout" Title="Reset kolom ke bawaan">
+                        <LucideIcon Name="rotate-ccw" Size="14" />
+                        <span>Reset Kolom</span>
+                    </BbButton>
+                }
+                <BbDataGridColumnVisibility TData="DocTypeRow" />
+            </div>
+        </Toolbar>
         <Columns>
-            <BbDataGridPropertyColumn TData="DocTypeRow" TProp="string" Property="d => d.Title" Title="DocType Name" Sortable="true" Filterable="true">
+            <BbDataGridPropertyColumn TData="DocTypeRow" TProp="string" Property="d => d.Title" Id="name" Title="DocType Name"
+                                      Width="@gridMgr.GetWidth("name")" Visible="@gridMgr.IsVisible("name")" Resizable="true" Sortable="true" Filterable="true">
                 <CellTemplate Context="item">
                     <div>
                         <div style="display:flex;align-items:center;gap:.4rem">
@@ -49,13 +66,15 @@ else
                 </CellTemplate>
             </BbDataGridPropertyColumn>
 
-            <BbDataGridPropertyColumn TData="DocTypeRow" TProp="int" Property="d => d.Version" Title="Version" Width="6rem" Sortable="true">
+            <BbDataGridPropertyColumn TData="DocTypeRow" TProp="int" Property="d => d.Version" Id="version" Title="Version"
+                                      Width="@gridMgr.GetWidth("version", "6rem")" Visible="@gridMgr.IsVisible("version")" Resizable="true" Sortable="true">
                 <CellTemplate Context="item">
                     <BbBadge Variant="BadgeVariant.Outline">v@(item.Version)</BbBadge>
                 </CellTemplate>
             </BbDataGridPropertyColumn>
 
-            <BbDataGridTemplateColumn TData="DocTypeRow" Title="Status" Width="7.5rem" Sortable="true" SortBy="d => (int)d.Status">
+            <BbDataGridTemplateColumn TData="DocTypeRow" Id="status" Title="Status"
+                                      Width="@gridMgr.GetWidth("status", "7.5rem")" Visible="@gridMgr.IsVisible("status")" Resizable="true" Sortable="true" SortBy="d => (int)d.Status">
                 <ChildContent Context="item">
                     @if (item.Status == MetadataStatus.Published)
                     {
@@ -68,7 +87,8 @@ else
                 </ChildContent>
             </BbDataGridTemplateColumn>
 
-            <BbDataGridTemplateColumn TData="DocTypeRow" Title="Published" Width="12rem" Sortable="true" SortBy="d => d.PublishedAt">
+            <BbDataGridTemplateColumn TData="DocTypeRow" Id="published" Title="Published"
+                                      Width="@gridMgr.GetWidth("published", "12rem")" Visible="@gridMgr.IsVisible("published")" Resizable="true" Sortable="true" SortBy="d => d.PublishedAt">
                 <ChildContent Context="item">
                     <span class="nowrap @(item.PublishedAt is null ? "muted" : "")" title="@(item.PublishedAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? "")">
                         @(item.PublishedAt is { } t ? Fmt.When(t) : "—")
@@ -76,7 +96,8 @@ else
                 </ChildContent>
             </BbDataGridTemplateColumn>
 
-            <BbDataGridPropertyColumn TData="DocTypeRow" TProp="string" Property="d => d.CreatedBy" Title="Created By" Width="10rem" Sortable="true" Filterable="true">
+            <BbDataGridPropertyColumn TData="DocTypeRow" TProp="string" Property="d => d.CreatedBy" Id="created_by" Title="Created By"
+                                      Width="@gridMgr.GetWidth("created_by", "10rem")" Visible="@gridMgr.IsVisible("created_by")" Resizable="true" Sortable="true" Filterable="true">
                 <CellTemplate Context="item">
                     <span class="@(string.IsNullOrWhiteSpace(item.CreatedBy) ? "muted" : "")">
                         @(string.IsNullOrWhiteSpace(item.CreatedBy) ? "—" : item.CreatedBy)
@@ -84,7 +105,8 @@ else
                 </CellTemplate>
             </BbDataGridPropertyColumn>
 
-            <BbDataGridPropertyColumn TData="DocTypeRow" TProp="string" Property="d => d.Workflow" Title="Workflow" Width="12rem" Sortable="true" Filterable="true">
+            <BbDataGridPropertyColumn TData="DocTypeRow" TProp="string" Property="d => d.Workflow" Id="workflow" Title="Workflow"
+                                      Width="@gridMgr.GetWidth("workflow", "12rem")" Visible="@gridMgr.IsVisible("workflow")" Resizable="true" Sortable="true" Filterable="true">
                 <CellTemplate Context="item">
                     @if (!string.IsNullOrWhiteSpace(item.Workflow))
                     {
@@ -97,7 +119,7 @@ else
                 </CellTemplate>
             </BbDataGridPropertyColumn>
 
-            <BbDataGridTemplateColumn TData="DocTypeRow" Title="Actions" Width="8.5rem" NoWrap="true">
+            <BbDataGridTemplateColumn TData="DocTypeRow" Id="actions" Title="Actions" Width="@gridMgr.GetWidth("actions", "8.5rem")" NoWrap="true" Hideable="false" Resizable="false">
                 <ChildContent Context="item">
                     <div style="display:inline-flex;align-items:center;gap:.35rem;flex-wrap:nowrap">
                         <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Href="@($"/admin/metadata/{item.Name}/editor")" OnClick="() => Edit(item.Name)" Title="Visual editor">
@@ -249,11 +271,24 @@ else
     private PublishPreview? preview;
     private bool ack;
     private string? message;
+    private Framework.Web.Services.DataGridPreferenceManager<DocTypeRow> gridMgr = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        gridMgr = new(UserPrefs, Current, "grid:admin:metadata", StateHasChanged);
+        await gridMgr.InitializeAsync();
+    }
 
     protected override void OnInitialized()
     {
         Registry.Published += OnRegistryPublished;
         LoadRows();
+    }
+
+    private async Task ResetColumnsLayout()
+    {
+        await gridMgr.ResetAsync();
+        Toasts.Success("Tata letak kolom telah dikembalikan ke bawaan.", "Reset Kolom");
     }
 
     private void OnRegistryPublished(MetadataSnapshot _)
@@ -389,5 +424,6 @@ else
     public void Dispose()
     {
         Registry.Published -= OnRegistryPublished;
+        gridMgr?.Dispose();
     }
 }

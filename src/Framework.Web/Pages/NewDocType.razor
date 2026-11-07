@@ -158,7 +158,7 @@ else
                 new PermissionDef { Role = "Employee", Actions = ["read", "create", "write", "delete"], Scope = "owner" },
             ];
         }
-        def.ListView = new ListViewDef { TitleField = "title", SearchFields = ["name", "title"], Filters = template == "empty" ? [] : ["date"] };
+        def.ListView = new ListViewDef { TitleField = "title", SearchFields = ["name", "title"] };
         return def;
     }
 

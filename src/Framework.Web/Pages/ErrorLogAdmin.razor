@@ -5,6 +5,8 @@
 @inject CurrentUser Current
 @inject ToastService Toasts
 @inject DialogService Dialogs
+@inject Framework.Preferences.IUserPreferenceStore UserPrefs
+@implements IDisposable
 
 <PageTitle>Error Log · DocFrame</PageTitle>
 
@@ -98,33 +100,53 @@ else
                 ShowPagination="true"
                 InitialPageSize="15"
                 TableContainerClass="table-wrap"
-                RowClass="@(r => selectedEntry?.Id == r.Id ? "selected" : "")">
+                RowClass="@(r => selectedEntry?.Id == r.Id ? "selected" : "")"
+                Resizable="true"
+                OnColumnResize="gridMgr.HandleResize"
+                StateChanged="gridMgr.HandleStateChanged">
+        <Toolbar>
+            <div style="display:flex;align-items:center;gap:.5rem;margin-left:auto">
+                @if (gridMgr.HasCustomLayout)
+                {
+                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ResetColumnsLayout" Title="Reset kolom ke bawaan">
+                        <LucideIcon Name="rotate-ccw" Size="14" />
+                        <span>Reset Kolom</span>
+                    </BbButton>
+                }
+                <BbDataGridColumnVisibility TData="ErrorLogEntry" />
+            </div>
+        </Toolbar>
         <Columns>
-            <BbDataGridPropertyColumn TData="ErrorLogEntry" TProp="DateTimeOffset" Property="r => r.Timestamp" Title="Timestamp" Width="13rem" Sortable="true">
+            <BbDataGridPropertyColumn TData="ErrorLogEntry" TProp="DateTimeOffset" Property="r => r.Timestamp" Id="timestamp" Title="Timestamp"
+                                      Width="@gridMgr.GetWidth("timestamp", "13rem")" Visible="@gridMgr.IsVisible("timestamp")" Resizable="true" Sortable="true">
                 <CellTemplate Context="item">
                     @item.Timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")
                 </CellTemplate>
             </BbDataGridPropertyColumn>
 
-            <BbDataGridPropertyColumn TData="ErrorLogEntry" TProp="string" Property="r => r.Method" Title="Method" Width="6rem" Sortable="true">
+            <BbDataGridPropertyColumn TData="ErrorLogEntry" TProp="string" Property="r => r.Method" Id="method" Title="Method"
+                                      Width="@gridMgr.GetWidth("method", "6rem")" Visible="@gridMgr.IsVisible("method")" Resizable="true" Sortable="true">
                 <CellTemplate Context="item">
                     <BbBadge Variant="BadgeVariant.Outline">@item.Method</BbBadge>
                 </CellTemplate>
             </BbDataGridPropertyColumn>
 
-            <BbDataGridPropertyColumn TData="ErrorLogEntry" TProp="string" Property="r => r.Path" Title="Path" Width="14rem" Sortable="true" Filterable="true">
+            <BbDataGridPropertyColumn TData="ErrorLogEntry" TProp="string" Property="r => r.Path" Id="path" Title="Path"
+                                      Width="@gridMgr.GetWidth("path", "14rem")" Visible="@gridMgr.IsVisible("path")" Resizable="true" Sortable="true" Filterable="true">
                 <CellTemplate Context="item">
                     <code>@item.Path</code>
                 </CellTemplate>
             </BbDataGridPropertyColumn>
 
-            <BbDataGridPropertyColumn TData="ErrorLogEntry" TProp="string" Property="r => r.ErrorType" Title="Error Type" Width="16rem" Sortable="true" Filterable="true">
+            <BbDataGridPropertyColumn TData="ErrorLogEntry" TProp="string" Property="r => r.ErrorType" Id="error_type" Title="Error Type"
+                                      Width="@gridMgr.GetWidth("error_type", "16rem")" Visible="@gridMgr.IsVisible("error_type")" Resizable="true" Sortable="true" Filterable="true">
                 <CellTemplate Context="item">
                     <span style="font-weight:600;font-size:0.825rem">@item.ErrorType.Split('.').Last()</span>
                 </CellTemplate>
             </BbDataGridPropertyColumn>
 
-            <BbDataGridPropertyColumn TData="ErrorLogEntry" TProp="string" Property="r => r.Message" Title="Message">
+            <BbDataGridPropertyColumn TData="ErrorLogEntry" TProp="string" Property="r => r.Message" Id="message" Title="Message"
+                                      Width="@gridMgr.GetWidth("message")" Visible="@gridMgr.IsVisible("message")" Resizable="true">
                 <CellTemplate Context="item">
                     <span style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-overflow:ellipsis">
                         @item.Message
@@ -132,7 +154,8 @@ else
                 </CellTemplate>
             </BbDataGridPropertyColumn>
 
-            <BbDataGridTemplateColumn TData="ErrorLogEntry" Title="Status" Width="7rem" Sortable="true" SortBy="r => r.Seen">
+            <BbDataGridTemplateColumn TData="ErrorLogEntry" Id="status" Title="Status"
+                                      Width="@gridMgr.GetWidth("status", "7rem")" Visible="@gridMgr.IsVisible("status")" Resizable="true" Sortable="true" SortBy="r => r.Seen">
                 <ChildContent Context="item">
                     @if (item.Seen)
                     {
@@ -145,7 +168,7 @@ else
                 </ChildContent>
             </BbDataGridTemplateColumn>
 
-            <BbDataGridTemplateColumn TData="ErrorLogEntry" Title="Action" Width="8rem">
+            <BbDataGridTemplateColumn TData="ErrorLogEntry" Id="action" Title="Action" Width="@gridMgr.GetWidth("action", "8rem")" Hideable="false" Resizable="false">
                 <ChildContent Context="item">
                     <BbButton Size="ButtonSize.Small" Variant="ButtonVariant.Ghost" OnClick="() => SelectEntry(item)">
                         <LucideIcon Name="eye" Size="14" /> View
@@ -160,10 +183,24 @@ else
     private List<ErrorLogEntry> errors = [];
     private ErrorLogEntry? selectedEntry;
     private bool busy;
+    private Framework.Web.Services.DataGridPreferenceManager<ErrorLogEntry> gridMgr = default!;
 
     protected override async Task OnInitializedAsync()
     {
+        gridMgr = new(UserPrefs, Current, "grid:admin:errors", StateHasChanged);
+        await gridMgr.InitializeAsync();
         await ReloadAsync();
+    }
+
+    private async Task ResetColumnsLayout()
+    {
+        await gridMgr.ResetAsync();
+        Toasts.Success("Tata letak kolom telah dikembalikan ke bawaan.", "Reset Kolom");
+    }
+
+    public void Dispose()
+    {
+        gridMgr?.Dispose();
     }
 
     private async Task ReloadAsync()

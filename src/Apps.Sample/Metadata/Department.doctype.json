@@ -18,7 +18,6 @@
   "listView": {
     "titleField": "department_name",
     "searchFields": ["name", "department_name"],
-    "filters": ["parent_department"],
     "defaultSort": [{ "field": "name", "direction": "asc" }]
   },
   "permissions": [

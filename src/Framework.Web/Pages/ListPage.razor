@@ -86,27 +86,6 @@ else if (meta is not null)
                         <BbInput Value="@search" ValueChanged="OnSearch" UpdateTiming="UpdateTiming.Debounced" DebounceInterval="300"
                                  Placeholder="@($"{string.Join(" / ", meta.Def.ListView.SearchFields.Select(LabelOf))}…")" AriaLabel="Search" />
                     </div>
-                    @foreach (var fName in meta.Def.ListView.Filters)
-                    {
-                        var f = fName;
-                        <div class="filter">
-                            <span>@LabelOf(f)</span>
-                            @if (FilterOptions(f) is { } opts)
-                            {
-                                <BbSelect TValue="string" Value="@(filters.TryGetValue(f, out var cur) ? cur.Value as string : "")" ValueChanged="v => SetFilter(f, v)"
-                                          Options="opts" AriaLabel="@LabelOf(f)" />
-                            }
-                            else if (meta.ByName.TryGetValue(f, out var cf) && cf.Def.Type == "Date")
-                            {
-                                <BbDatePicker Value="@(filters.TryGetValue(f, out var dc) ? DateTime.Parse((string)dc.Value!) : null)"
-                                              ValueChanged="d => SetFilter(f, d?.ToString(DateFmt))" Placeholder="Since date" DateFormat="d MMM yyyy" AriaLabel="@LabelOf(f)" />
-                            }
-                            else
-                            {
-                                <BbInput ValueChanged="v => SetFilter(f, v)" UpdateTiming="UpdateTiming.OnChange" AriaLabel="@LabelOf(f)" />
-                            }
-                        </div>
-                    }
                     <div style="margin-left:auto;align-self:flex-end;display:flex;align-items:center;gap:.5rem">
                         @if (hasCustomLayout)
                         {
@@ -122,7 +101,7 @@ else if (meta is not null)
             <EmptyTemplate>
                 <div style="padding:2.5rem 1rem">
                     <BbEmpty Title="@($"No matching {meta.Title.ToLower()} found")"
-                             Description="@(filters.Count > 0 || !string.IsNullOrEmpty(search) ? "Modify or clear filters to view other documents." : "Documents you create or that are shared with your role will appear here.")">
+                             Description="@(!string.IsNullOrEmpty(search) ? "Modify or clear search to view other documents." : "Documents you create or that are shared with your role will appear here.")">
                         <Icon><LucideIcon Name="search" Size="28" /></Icon>
                     </BbEmpty>
                 </div>
@@ -221,12 +200,10 @@ else if (meta is not null)
 
 @code {
     [Parameter] public string DocType { get; set; } = "";
-    private const string DateFmt = "yyyy-MM-dd";
 
     private CompiledDocType? meta;
     private ListResponse? result;
     private string? search, sortField, error, fatal;
-    private readonly Dictionary<string, FilterClause> filters = new();
     private readonly HashSet<string> selectedItems = [];
     private bool busy;
 
@@ -269,7 +246,7 @@ else if (meta is not null)
     {
         if (DocType == loadedKey) return;
         loadedKey = DocType;
-        fatal = null; error = null; filters.Clear(); search = null; sortField = null; result = null;
+        fatal = null; error = null; search = null; sortField = null; result = null;
         selectedItems.Clear();
         if (!Metadata.Current.TryGet(DocType, out var m) || m.Def.IsChild) { fatal = $"DocType '{DocType}' not found."; return; }
         meta = m;
@@ -312,30 +289,7 @@ else if (meta is not null)
         _ => meta!.ByName.TryGetValue(field, out var f) ? f.Label : field
     };
 
-    private IEnumerable<SelectOption<string>>? FilterOptions(string field)
-    {
-        IEnumerable<SelectOption<string>>? opts = null;
-        if (field == StandardFields.WorkflowState && meta!.Workflow is not null)
-            opts = meta.Workflow.Def.States.Select(s => new SelectOption<string>(s.Name, s.Name));
-        else if (meta!.ByName.TryGetValue(field, out var f) && f.Type.Editor == "select")
-            opts = (f.Def.Options ?? []).Select(o => new SelectOption<string>(o, o));
-        else if (f is not null && f.Type.Editor == "check")
-            opts = [new("true", "Yes"), new("false", "No")];
-        return opts?.Prepend(new SelectOption<string>("", "All")).ToList();
-    }
-
     private Task OnSearch(string? v) { search = v; return Reload(1); }
-
-    private Task SetFilter(string field, string? value)
-    {
-        if (string.IsNullOrEmpty(value)) filters.Remove(field);
-        else
-        {
-            var op = meta!.ByName.TryGetValue(field, out var f) && f.Def.Type == "Date" ? ">=" : "=";
-            filters[field] = new FilterClause(field, op, value);
-        }
-        return Reload(1);
-    }
 
     private async Task DeleteSelected()
     {
@@ -394,7 +348,7 @@ else if (meta is not null)
         {
             error = null;
             selectedItems.Clear();
-            result = await Docs.ListAsync(Current.Required, DocType, new ListRequest(filters.Values.ToList(), search, sortField, null, page));
+            result = await Docs.ListAsync(Current.Required, DocType, new ListRequest(null, search, sortField, null, page));
         }
         catch (Exception ex) when (ex is InvalidPayloadException or PermissionDeniedException)
         {

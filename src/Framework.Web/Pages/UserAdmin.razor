@@ -10,6 +10,8 @@
 @inject ToastService Toasts
 @inject DialogService Dialogs
 @inject TimeProvider Clock
+@inject Framework.Preferences.IUserPreferenceStore UserPrefs
+@implements IDisposable
 
 <PageTitle>Users · DocFrame</PageTitle>
 
@@ -44,9 +46,25 @@ else
                 ShowPagination="true"
                 InitialPageSize="10"
                 TableContainerClass="table-wrap"
-                RowClass="@(a => edit?.Id == a.Id ? "selected" : "")">
+                RowClass="@(a => edit?.Id == a.Id ? "selected" : "")"
+                Resizable="true"
+                OnColumnResize="gridMgr.HandleResize"
+                StateChanged="gridMgr.HandleStateChanged">
+        <Toolbar>
+            <div style="display:flex;align-items:center;gap:.5rem;margin-left:auto">
+                @if (gridMgr.HasCustomLayout)
+                {
+                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ResetColumnsLayout" Title="Reset kolom ke bawaan">
+                        <LucideIcon Name="rotate-ccw" Size="14" />
+                        <span>Reset Kolom</span>
+                    </BbButton>
+                }
+                <BbDataGridColumnVisibility TData="UserAccount" />
+            </div>
+        </Toolbar>
         <Columns>
-            <BbDataGridPropertyColumn TData="UserAccount" TProp="string" Property="a => a.FullName" Title="Name" Sortable="true" Filterable="true">
+            <BbDataGridPropertyColumn TData="UserAccount" TProp="string" Property="a => a.FullName" Id="name" Title="Name" Sortable="true" Filterable="true"
+                                      Width="@gridMgr.GetWidth("name")" Visible="@gridMgr.IsVisible("name")" Resizable="true">
                 <CellTemplate Context="item">
                     <div>
                         <strong>@item.FullName</strong>
@@ -58,19 +76,22 @@ else
                 </CellTemplate>
             </BbDataGridPropertyColumn>
 
-            <BbDataGridPropertyColumn TData="UserAccount" TProp="string" Property="a => a.UserName" Title="Username" Width="10rem" Sortable="true" Filterable="true">
+            <BbDataGridPropertyColumn TData="UserAccount" TProp="string" Property="a => a.UserName" Id="username" Title="Username" Sortable="true" Filterable="true"
+                                      Width="@gridMgr.GetWidth("username", "10rem")" Visible="@gridMgr.IsVisible("username")" Resizable="true">
                 <CellTemplate Context="item">
                     <code>@item.UserName</code>
                 </CellTemplate>
             </BbDataGridPropertyColumn>
 
-            <BbDataGridPropertyColumn TData="UserAccount" TProp="string" Property="a => a.Department" Title="Department" Width="10rem" Sortable="true" Filterable="true">
+            <BbDataGridPropertyColumn TData="UserAccount" TProp="string" Property="a => a.Department" Id="department" Title="Department" Sortable="true" Filterable="true"
+                                      Width="@gridMgr.GetWidth("department", "10rem")" Visible="@gridMgr.IsVisible("department")" Resizable="true">
                 <CellTemplate Context="item">
                     @(item.Department ?? "—")
                 </CellTemplate>
             </BbDataGridPropertyColumn>
 
-            <BbDataGridTemplateColumn TData="UserAccount" Title="Roles">
+            <BbDataGridTemplateColumn TData="UserAccount" Id="roles" Title="Roles"
+                                      Width="@gridMgr.GetWidth("roles")" Visible="@gridMgr.IsVisible("roles")" Resizable="true">
                 <ChildContent Context="item">
                     <div class="row" style="gap:.25rem;flex-wrap:wrap">
                         @foreach (var r in item.Roles)
@@ -81,7 +102,8 @@ else
                 </ChildContent>
             </BbDataGridTemplateColumn>
 
-            <BbDataGridTemplateColumn TData="UserAccount" Title="Status" Width="8rem" Sortable="true" SortBy="a => a.IsActive">
+            <BbDataGridTemplateColumn TData="UserAccount" Id="status" Title="Status" Sortable="true" SortBy="a => a.IsActive"
+                                      Width="@gridMgr.GetWidth("status", "8rem")" Visible="@gridMgr.IsVisible("status")" Resizable="true">
                 <ChildContent Context="item">
                     @if (!item.IsActive)
                     {
@@ -98,13 +120,14 @@ else
                 </ChildContent>
             </BbDataGridTemplateColumn>
 
-            <BbDataGridTemplateColumn TData="UserAccount" Title="Last Login" Width="10rem" Sortable="true" SortBy="a => a.LastLoginAt">
+            <BbDataGridTemplateColumn TData="UserAccount" Id="last_login" Title="Last Login" Sortable="true" SortBy="a => a.LastLoginAt"
+                                      Width="@gridMgr.GetWidth("last_login", "10rem")" Visible="@gridMgr.IsVisible("last_login")" Resizable="true">
                 <ChildContent Context="item">
                     <span class="muted nowrap">@(item.LastLoginAt is { } t ? Fmt.When(t) : "never")</span>
                 </ChildContent>
             </BbDataGridTemplateColumn>
 
-            <BbDataGridTemplateColumn TData="UserAccount" Title="Actions" Width="6.5rem" NoWrap="true">
+            <BbDataGridTemplateColumn TData="UserAccount" Id="actions" Title="Actions" Width="6.5rem" NoWrap="true" Hideable="false" Resizable="false">
                 <ChildContent Context="item">
                     <div style="display:inline-flex;align-items:center;gap:.25rem;flex-wrap:nowrap" @onclick:stopPropagation="true">
                         <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Edit user" Title="Edit user" OnClick="() => StartEdit(item)">
@@ -231,6 +254,7 @@ else
     private bool isDrawerOpen;
     private bool isNew, busy;
     private string? error, tempPassword, tempFor;
+    private Framework.Web.Services.DataGridPreferenceManager<UserAccount> gridMgr = default!;
 
     /// <summary>Role yang dikenal: dari master role, permission semua DocType, role workflow, dan System Manager/Administrator.</summary>
     private IEnumerable<string> KnownRoles => RoleCatalogSvc.Names(Current.Required.TenantId)
@@ -238,9 +262,22 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        gridMgr = new(UserPrefs, Current, "grid:admin:users", StateHasChanged);
         if (Current.User is null) return;
+        await gridMgr.InitializeAsync();
         storedRoles = await RoleStore.ListAsync(Current.Required.TenantId);
         await Reload();
+    }
+
+    private async Task ResetColumnsLayout()
+    {
+        await gridMgr.ResetAsync();
+        Toasts.Success("Tata letak kolom telah dikembalikan ke bawaan.", "Reset Kolom");
+    }
+
+    public void Dispose()
+    {
+        gridMgr?.Dispose();
     }
 
     private async Task Reload() => accounts = await Accounts.ListAsync(Current.Required.TenantId);

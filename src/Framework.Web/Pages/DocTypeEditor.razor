@@ -372,12 +372,6 @@ else
                                     var fld = f;
                                     <div class="label-row"><BbCheckbox Id="@($"s-{fld.Name}")" Checked="design.Def.ListView.SearchFields.Contains(fld.Name)" CheckedChanged="v => Mutate(() => Toggle(design.Def.ListView.SearchFields, fld.Name, v))" /><BbLabel For="@($"s-{fld.Name}")">@fld.Label</BbLabel></div>
                                 }
-                                <div class="props-sub">Filter</div>
-                                @foreach (var f in design.AllFields.Where(f => f.Type is not ("Table" or "Text")))
-                                {
-                                    var fld = f;
-                                    <div class="label-row"><BbCheckbox Id="@($"f-{fld.Name}")" Checked="design.Def.ListView.Filters.Contains(fld.Name)" CheckedChanged="v => Mutate(() => Toggle(design.Def.ListView.Filters, fld.Name, v))" /><BbLabel For="@($"f-{fld.Name}")">@fld.Label</BbLabel></div>
-                                }
                             </div>
                         }
                         <div class="props-group">

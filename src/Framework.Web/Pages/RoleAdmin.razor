@@ -6,6 +6,8 @@
 @inject CurrentUser Current
 @inject ToastService Toasts
 @inject DialogService Dialogs
+@inject Framework.Preferences.IUserPreferenceStore UserPrefs
+@implements IDisposable
 
 <PageTitle>Master Roles · DocFrame</PageTitle>
 
@@ -33,9 +35,25 @@ else
                 ShowPagination="true"
                 InitialPageSize="10"
                 TableContainerClass="table-wrap"
-                RowClass="@(r => edit?.Id == r.Id ? "selected" : "")">
+                RowClass="@(r => edit?.Id == r.Id ? "selected" : "")"
+                Resizable="true"
+                OnColumnResize="gridMgr.HandleResize"
+                StateChanged="gridMgr.HandleStateChanged">
+        <Toolbar>
+            <div style="display:flex;align-items:center;gap:.5rem;margin-left:auto">
+                @if (gridMgr.HasCustomLayout)
+                {
+                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ResetColumnsLayout" Title="Reset kolom ke bawaan">
+                        <LucideIcon Name="rotate-ccw" Size="14" />
+                        <span>Reset Kolom</span>
+                    </BbButton>
+                }
+                <BbDataGridColumnVisibility TData="RoleDef" />
+            </div>
+        </Toolbar>
         <Columns>
-            <BbDataGridPropertyColumn TData="RoleDef" TProp="string" Property="r => r.Name" Title="Role" Width="16rem" Sortable="true" Filterable="true">
+            <BbDataGridPropertyColumn TData="RoleDef" TProp="string" Property="r => r.Name" Id="name" Title="Role" Sortable="true" Filterable="true"
+                                      Width="@gridMgr.GetWidth("name", "16rem")" Visible="@gridMgr.IsVisible("name")" Resizable="true">
                 <CellTemplate Context="item">
                     <div class="row" style="gap:.5rem;align-items:center;flex-wrap:nowrap">
                         <LucideIcon Name="@(item.IsSystem ? "shield" : "shield-alert")" Size="16" />
@@ -44,13 +62,14 @@ else
                 </CellTemplate>
             </BbDataGridPropertyColumn>
 
-            <BbDataGridPropertyColumn TData="RoleDef" TProp="string" Property="r => r.Description" Title="Description" Sortable="true" Filterable="true">
+            <BbDataGridPropertyColumn TData="RoleDef" TProp="string" Property="r => r.Description" Id="description" Title="Description" Sortable="true" Filterable="true"
+                                      Width="@gridMgr.GetWidth("description")" Visible="@gridMgr.IsVisible("description")" Resizable="true">
                 <CellTemplate Context="item">
                     @(string.IsNullOrWhiteSpace(item.Description) ? "—" : item.Description)
                 </CellTemplate>
             </BbDataGridPropertyColumn>
 
-            <BbDataGridTemplateColumn TData="RoleDef" Title="Type" Width="7rem" Sortable="true" SortBy="r => r.IsSystem">
+            <BbDataGridTemplateColumn TData="RoleDef" Id="type" Title="Type" Width="@gridMgr.GetWidth("type", "7rem")" Visible="@gridMgr.IsVisible("type")" Resizable="true" Sortable="true" SortBy="r => r.IsSystem">
                 <ChildContent Context="item">
                     @if (item.IsSystem)
                     {
@@ -63,7 +82,7 @@ else
                 </ChildContent>
             </BbDataGridTemplateColumn>
 
-            <BbDataGridTemplateColumn TData="RoleDef" Title="Actions" Width="6.5rem" NoWrap="true">
+            <BbDataGridTemplateColumn TData="RoleDef" Id="actions" Title="Actions" Width="@gridMgr.GetWidth("actions", "6.5rem")" NoWrap="true" Hideable="false" Resizable="false">
                 <ChildContent Context="item">
                     <div style="display:inline-flex;align-items:center;gap:.25rem;flex-wrap:nowrap" @onclick:stopPropagation="true">
                         <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Edit role" OnClick="() => StartEdit(item)">
@@ -152,11 +171,25 @@ else
     private bool isNew;
     private bool busy;
     private string? error;
+    private Framework.Web.Services.DataGridPreferenceManager<RoleDef> gridMgr = default!;
 
     protected override async Task OnInitializedAsync()
     {
+        gridMgr = new(UserPrefs, Current, "grid:admin:roles", StateHasChanged);
         if (Current.User is null) return;
+        await gridMgr.InitializeAsync();
         await Reload();
+    }
+
+    private async Task ResetColumnsLayout()
+    {
+        await gridMgr.ResetAsync();
+        Toasts.Success("Tata letak kolom telah dikembalikan ke bawaan.", "Reset Kolom");
+    }
+
+    public void Dispose()
+    {
+        gridMgr?.Dispose();
     }
 
     private async Task Reload()
