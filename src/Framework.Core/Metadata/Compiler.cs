@@ -682,7 +682,7 @@ public static class MetadataDiff
             if (JsonSerializer.Serialize(of.Default) != JsonSerializer.Serialize(nf.Default))
                 changes.Add(new(ChangeRisk.NeedsTransform, $"fields.{name}.default", "Nilai default berubah"));
             if (of.PermLevel != nf.PermLevel) changes.Add(new(ChangeRisk.Risky, $"fields.{name}.permLevel", "Level permission field berubah"));
-            if (of.Label != nf.Label || of.Description != nf.Description || of.Tab != nf.Tab || of.Section != nf.Section || of.Column != nf.Column || of.InListView != nf.InListView || of.VisibleWhen != nf.VisibleWhen)
+            if (of.Label != nf.Label || of.Description != nf.Description || of.Tab != nf.Tab || of.Section != nf.Section || of.Column != nf.Column || of.InListView != nf.InListView || of.VisibleWhen != nf.VisibleWhen || of.Filterable != nf.Filterable || of.Visible != nf.Visible || of.Pinned != nf.Pinned || of.RowGrouping != nf.RowGrouping || of.GroupCollapsedByDefault != nf.GroupCollapsedByDefault)
                 changes.Add(new(ChangeRisk.Safe, $"fields.{name}", "Tampilan/label berubah"));
         }
         foreach (var (name, nf) in newFields.Where(kv => !oldFields.ContainsKey(kv.Key)))

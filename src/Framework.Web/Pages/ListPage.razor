@@ -67,6 +67,8 @@ else if (meta is not null)
     }
     else
     {
+        var groupedFields = meta.Fields.Where(f => f.Def.Type != "Table" && f.Def.RowGrouping).ToList();
+        var groupCollapsed = groupedFields.Any(f => f.Def.GroupCollapsedByDefault);
         <BbDataGrid TData="Dictionary<string, object?>"
                     Items="@result.Items"
                     ItemKey="@(r => (string)r["name"]!)"
@@ -75,6 +77,7 @@ else if (meta is not null)
                     Resizable="true"
                     OnColumnResize="HandleColumnResize"
                     StateChanged="OnGridStateChanged"
+                    GroupsCollapsedByDefault="@groupCollapsed"
                     ShowPagination="true"
                     InitialPageSize="10"
                     PageSizes="@([10, 20, 50, 100])"
@@ -107,6 +110,17 @@ else if (meta is not null)
                 </div>
             </EmptyTemplate>
             <Columns>
+                @foreach (var gf in groupedFields)
+                {
+                    var gKey = gf.Name;
+                    var gCol = gf;
+                    <BbDataGridGroupColumn TData="Dictionary<string, object?>"
+                                           TProperty="string"
+                                           Property="@(r => Fmt.Value(gCol, r.GetValueOrDefault(gKey)))"
+                                           Title="@gCol.Label"
+                                           CollapsedByDefault="@gCol.Def.GroupCollapsedByDefault" />
+                }
+
                 <BbDataGridTemplateColumn TData="Dictionary<string, object?>" Id="_select" Title="" Width="3rem" Hideable="false" Resizable="false">
                     <HeaderTemplate>
                         <div @onclick:stopPropagation="true">
@@ -140,7 +154,11 @@ else if (meta is not null)
                 {
                     var colKey = c;
                     var cf = meta.ByName.GetValueOrDefault(colKey);
+                    var colFilterable = cf?.Def.Filterable ?? true;
+                    var colPinned = MapPinning(cf?.Def.Pinned);
                     <BbDataGridTemplateColumn TData="Dictionary<string, object?>" Id="@colKey" Title="@LabelOf(colKey)" Resizable="true" Sortable="true" SortBy="@(r => (object?)(r.GetValueOrDefault(colKey) ?? ""))"
+                                              Filterable="@colFilterable" FilterBy="@(r => (object?)(r.GetValueOrDefault(colKey) ?? ""))"
+                                              Pinned="@colPinned" Groupable="true"
                                               Width="@GetColWidth(colKey)"
                                               Visible="@IsColVisible(colKey)">
                         <ChildContent Context="row">
@@ -356,20 +374,30 @@ else if (meta is not null)
         }
     }
 
+    private static BlazorBlueprint.Primitives.DataGrid.ColumnPinning MapPinning(string? pinned) => pinned switch
+    {
+        "Left" => BlazorBlueprint.Primitives.DataGrid.ColumnPinning.Left,
+        "Right" => BlazorBlueprint.Primitives.DataGrid.ColumnPinning.Right,
+        _ => BlazorBlueprint.Primitives.DataGrid.ColumnPinning.None
+    };
+
+    private bool GetDefaultColVisible(string colId) =>
+        meta?.ByName.TryGetValue(colId, out var cf) == true ? cf.Def.Visible : true;
+
     private string? GetColWidth(string colId) =>
         gridPref.Columns.TryGetValue(colId, out var pref) && !string.IsNullOrWhiteSpace(pref.Width)
             ? pref.Width
             : null;
 
     private bool IsColVisible(string colId) =>
-        !gridPref.Columns.TryGetValue(colId, out var pref) || pref.Visible;
+        gridPref.Columns.TryGetValue(colId, out var pref) ? pref.Visible : GetDefaultColVisible(colId);
 
     private void HandleColumnResize((string ColumnId, string Width) args)
     {
         if (string.IsNullOrWhiteSpace(args.ColumnId)) return;
         if (!gridPref.Columns.TryGetValue(args.ColumnId, out var pref))
         {
-            pref = new Framework.Preferences.GridColumnPreference { Visible = true };
+            pref = new Framework.Preferences.GridColumnPreference { Visible = GetDefaultColVisible(args.ColumnId) };
         }
         gridPref.Columns[args.ColumnId] = pref with { Width = args.Width };
         hasCustomLayout = true;
@@ -383,9 +411,10 @@ else if (meta is not null)
         foreach (var entry in state.Columns.Entries)
         {
             if (entry.ColumnId == "_select") continue;
+            var defaultVisible = GetDefaultColVisible(entry.ColumnId);
             if (!gridPref.Columns.TryGetValue(entry.ColumnId, out var pref))
             {
-                if (!entry.Visible || !string.IsNullOrWhiteSpace(entry.Width))
+                if (entry.Visible != defaultVisible || !string.IsNullOrWhiteSpace(entry.Width))
                 {
                     gridPref.Columns[entry.ColumnId] = new Framework.Preferences.GridColumnPreference
                     {

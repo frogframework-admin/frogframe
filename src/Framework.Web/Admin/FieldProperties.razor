@@ -134,6 +134,38 @@
     @if (Field.Type != "Table")
     {
         <div class="label-row"><BbCheckbox Id="p-list" Checked="Field.InListView" CheckedChanged="v => Set(() => Field.InListView = v)" /><BbLabel For="p-list">Show as column in list view</BbLabel></div>
+        <div class="props-row">
+            <BbField>
+                <BbFieldLabel>Filterable</BbFieldLabel>
+                <BbSelect TValue="bool" Value="@Field.Filterable" ValueChanged="v => Set(() => Field.Filterable = v)" AriaLabel="Filterable"
+                          Options="@BoolOptions" />
+            </BbField>
+            <BbField>
+                <BbFieldLabel>Visibility</BbFieldLabel>
+                <BbSelect TValue="bool" Value="@Field.Visible" ValueChanged="v => Set(() => Field.Visible = v)" AriaLabel="Visibility"
+                          Options="@BoolOptions" />
+            </BbField>
+        </div>
+        <div class="props-row">
+            <BbField>
+                <BbFieldLabel>Pinned</BbFieldLabel>
+                <BbSelect TValue="string" Value="@(string.IsNullOrWhiteSpace(Field.Pinned) ? "None" : Field.Pinned)" ValueChanged="@(v => Set(() => Field.Pinned = v ?? "None"))" AriaLabel="Pinned"
+                          Options="@PinOptions" />
+            </BbField>
+            <BbField>
+                <BbFieldLabel>Row Grouping</BbFieldLabel>
+                <BbSelect TValue="bool" Value="@Field.RowGrouping" ValueChanged="SetRowGrouping" AriaLabel="Row Grouping"
+                          Options="@BoolOptions" />
+            </BbField>
+        </div>
+        @if (Field.RowGrouping)
+        {
+            <BbField>
+                <BbFieldLabel>Collapsed by Default</BbFieldLabel>
+                <BbSelect TValue="bool" Value="@Field.GroupCollapsedByDefault" ValueChanged="v => Set(() => Field.GroupCollapsedByDefault = v)" AriaLabel="Collapsed by Default"
+                          Options="@BoolOptions" />
+            </BbField>
+        }
     }
     <BbField>
         <BbFieldLabel>Permission level</BbFieldLabel>
@@ -188,6 +220,25 @@
     private static string Num(decimal? d) => d?.ToString(CultureInfo.InvariantCulture) ?? "";
     private static decimal? ParseNum(string? v) =>
         decimal.TryParse(v?.Replace(',', '.'), NumberStyles.Number, CultureInfo.InvariantCulture, out var d) ? d : null;
+
+    private static readonly SelectOption<bool>[] BoolOptions =
+    [
+        new(true, "true"),
+        new(false, "false")
+    ];
+
+    private static readonly SelectOption<string>[] PinOptions =
+    [
+        new("None", "None"),
+        new("Left", "Left"),
+        new("Right", "Right")
+    ];
+
+    private Task SetRowGrouping(bool v) => Set(() =>
+    {
+        Field.RowGrouping = v;
+        if (!v) Field.GroupCollapsedByDefault = false;
+    });
 
     private bool AlwaysRequired => Field.RequiredWhen == "true";
     private Task SetAlwaysRequired(bool v) => Set(() => Field.RequiredWhen = v ? "true" : null);

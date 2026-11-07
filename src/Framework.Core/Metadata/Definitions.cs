@@ -175,6 +175,16 @@ public sealed class FieldDef
     public string? PatternMessage { get; set; }
     public List<string>? Validators { get; set; }
     public bool InListView { get; set; }
+    /// <summary>Kolom di list view dapat difilter per kolom (Filterable di BbDataGrid). Default: true.</summary>
+    public bool Filterable { get; set; } = true;
+    /// <summary>Visibilitas bawaan kolom di list view (BbDataGridColumnVisibility). Default: true.</summary>
+    public bool Visible { get; set; } = true;
+    /// <summary>Pinning kolom di list view: "None", "Left", atau "Right". Default: "None".</summary>
+    public string Pinned { get; set; } = "None";
+    /// <summary>Kelompokkan baris berdasarkan field ini saat render DataGrid (BbDataGridGroupColumn). Default: false.</summary>
+    public bool RowGrouping { get; set; } = false;
+    /// <summary>Bila RowGrouping aktif, kelompok ditutup (collapsed) secara bawaan saat pertama kali dimuat. Default: false.</summary>
+    public bool GroupCollapsedByDefault { get; set; } = false;
     public int PermLevel { get; set; }
     /// <summary>Field Link: tampilkan tombol untuk memilih dari tabel dalam dialog.</summary>
     public bool LookupDialog { get; set; }

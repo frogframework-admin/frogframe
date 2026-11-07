@@ -215,6 +215,7 @@ public sealed class DocumentService(
                 [StandardFields.Owner] = d.Owner, ["version"] = d.Version,
             };
             foreach (var c in columns) row[c] = d.Get(c);
+            foreach (var gf in meta.Fields.Where(f => f.Def.RowGrouping && Readable(f.Name))) row[gf.Name] = d.Get(gf.Name);
             if (lv.TitleField is { } tf && Readable(tf)) row["_title"] = d.Get(tf);
             return row;
         }).ToList();
