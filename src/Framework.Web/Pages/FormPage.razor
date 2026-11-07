@@ -20,8 +20,11 @@
 
 @if (fatal is not null)
 {
-    <BbBreadcrumb Class="crumbs"><BbBreadcrumbList><BbBreadcrumbItem><BbBreadcrumbLink Href="@($"/app/{DocType}")">@(meta?.Title ?? DocType)</BbBreadcrumbLink></BbBreadcrumbItem></BbBreadcrumbList></BbBreadcrumb>
-    <BbAlert Variant="AlertVariant.Danger"><BbAlertTitle>Unable to open</BbAlertTitle><BbAlertDescription>@fatal</BbAlertDescription></BbAlert>
+    <ErrorState StatusCode="@fatalStatus"
+                Title="@(fatalStatus == 403 ? "Access Denied" : "Document Not Found")"
+                Description="@fatal"
+                BackHref="@(meta is not null ? $"/app/{meta.Name}" : "/")"
+                BackLabel="@(meta is not null ? $"Back to {meta.Title}" : "Back to Home")" />
 }
 else if (meta is not null && doc is not null)
 {
@@ -296,6 +299,7 @@ else if (meta is not null && doc is not null)
     private bool uploadingAttachment;
     private string activeTab = "";
     private string? fatal, banner, conflict;
+    private int fatalStatus = 404;
     private bool busy, savingNow, dirty;
 
     private readonly string sessionId = Guid.NewGuid().ToString("N");
@@ -411,7 +415,7 @@ else if (meta is not null && doc is not null)
         fatal = null; banner = null; conflict = null; errors.Clear();
         await CleanupPresenceAsync();
 
-        if (!Metadata.Current.TryGet(DocType, out var m) || m.Def.IsChild) { fatal = $"DocType '{DocType}' not found."; return; }
+        if (!Metadata.Current.TryGet(DocType, out var m) || m.Def.IsChild) { fatalStatus = 404; fatal = $"DocType '{DocType}' was not found."; return; }
         meta = m;
         try
         {
@@ -437,8 +441,14 @@ else if (meta is not null && doc is not null)
                 StartHeartbeatLoop();
             }
         }
-        catch (Exception ex) when (ex is PermissionDeniedException or DocumentNotFoundException)
+        catch (PermissionDeniedException ex)
         {
+            fatalStatus = 403;
+            fatal = ex.Message;
+        }
+        catch (DocumentNotFoundException ex)
+        {
+            fatalStatus = 404;
             fatal = ex.Message;
         }
     }

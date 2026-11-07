@@ -11,7 +11,7 @@
 
 @if (!Current.Required.Roles.Contains(UserContext.SystemManager))
 {
-    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>This page is only accessible to System Managers.</BbAlertDescription></BbAlert>
+    <ErrorState StatusCode="403" Description="This administration page is restricted to System Managers / Administrators." />
 }
 else
 {

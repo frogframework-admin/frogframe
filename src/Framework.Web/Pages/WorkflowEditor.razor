@@ -12,11 +12,11 @@
 
 @if (!Current.Required.Roles.Contains(UserContext.SystemManager))
 {
-    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>Workflow editor is restricted to System Manager.</BbAlertDescription></BbAlert>
+    <ErrorState StatusCode="403" Description="Workflow Editor is only accessible to System Managers." />
 }
 else if (wf is null)
 {
-    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@(loadError ?? "Workflow not found.")</BbAlertDescription></BbAlert>
+    <ErrorState StatusCode="404" Title="Workflow Not Found" Description="@(loadError ?? $"Workflow '{WorkflowName}' was not found.")" BackHref="/admin/workflows" BackLabel="Back to Workflows" />
 }
 else
 {

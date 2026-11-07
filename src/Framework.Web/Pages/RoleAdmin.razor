@@ -13,7 +13,7 @@
 
 @if (!Current.Required.IsAdmin)
 {
-    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>This page is only accessible to Administrators / System Managers.</BbAlertDescription></BbAlert>
+    <ErrorState StatusCode="403" Description="This administration page is restricted to System Managers / Administrators." />
 }
 else
 {

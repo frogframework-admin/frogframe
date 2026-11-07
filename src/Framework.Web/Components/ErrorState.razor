@@ -1,0 +1,296 @@
+@* Reusable HTTP status / error state display component (404, 401, 403, 500, etc.) *@
+@using BlazorBlueprint.Icons.Lucide.Components
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<div class="error-state-wrapper" role="alert" aria-live="polite">
+    <div class="error-state-card">
+        <div class="error-state-visual @ToneClass">
+            <div class="error-state-icon-ring">
+                <LucideIcon Name="@ResolvedIcon" Size="38" />
+            </div>
+            <span class="error-state-code-badge">HTTP @StatusCode</span>
+        </div>
+
+        <h1 class="error-state-title">@ResolvedTitle</h1>
+        <p class="error-state-desc">@ResolvedDescription</p>
+
+        @if (!string.IsNullOrWhiteSpace(DisplayPath))
+        {
+            <div class="error-state-path" title="Requested path">
+                <LucideIcon Name="link" Size="13" />
+                <code>@DisplayPath</code>
+            </div>
+        }
+
+        <div class="error-state-actions">
+            @if (StatusCode == 401)
+            {
+                <BbButton Href="@LoginUrl">
+                    <LucideIcon Name="login" Size="16" /> Sign In
+                </BbButton>
+                <BbButton Variant="ButtonVariant.Outline" Href="/">
+                    <LucideIcon Name="house" Size="16" /> Back to Home
+                </BbButton>
+            }
+            else
+            {
+                <BbButton Href="/">
+                    <LucideIcon Name="house" Size="16" /> Back to Home
+                </BbButton>
+                @if (!string.IsNullOrWhiteSpace(BackHref))
+                {
+                    <BbButton Variant="ButtonVariant.Outline" Href="@BackHref">
+                        <LucideIcon Name="arrow-left" Size="16" /> @(BackLabel ?? "Go Back")
+                    </BbButton>
+                }
+                else
+                {
+                    <BbButton Variant="ButtonVariant.Outline" OnClick="GoBackAsync">
+                        <LucideIcon Name="arrow-left" Size="16" /> Go Back
+                    </BbButton>
+                }
+            }
+        </div>
+
+        <div class="error-state-footer">
+            <span>Tip: Press <kbd>Ctrl</kbd> + <kbd>K</kbd> to quickly search and jump to any module or document.</span>
+        </div>
+    </div>
+</div>
+
+<style>
+    .error-state-wrapper {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: min(68vh, 560px);
+        padding: 2rem 1rem;
+        width: 100%;
+    }
+    .error-state-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        max-width: 30rem;
+        width: 100%;
+        padding: 2.5rem 2rem 2rem;
+        border-radius: calc(var(--radius, 8px) * 1.5);
+        border: 1px solid var(--border);
+        background: var(--card, var(--background));
+        color: var(--card-foreground, var(--foreground));
+        box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.08);
+    }
+    .error-state-visual {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-bottom: 1.25rem;
+    }
+    .error-state-icon-ring {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 5rem;
+        height: 5rem;
+        border-radius: 9999px;
+        background: var(--muted);
+        color: var(--foreground);
+        border: 1px solid var(--border);
+        box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.04);
+    }
+    .error-state-visual.tone-warning .error-state-icon-ring {
+        background: rgba(245, 158, 11, 0.12);
+        color: #d97706;
+        border-color: rgba(245, 158, 11, 0.3);
+    }
+    .error-state-visual.tone-danger .error-state-icon-ring {
+        background: rgba(239, 68, 68, 0.12);
+        color: #dc2626;
+        border-color: rgba(239, 68, 68, 0.3);
+    }
+    .error-state-visual.tone-info .error-state-icon-ring {
+        background: rgba(59, 130, 246, 0.12);
+        color: #2563eb;
+        border-color: rgba(59, 130, 246, 0.3);
+    }
+    .error-state-code-badge {
+        margin-top: -0.6rem;
+        padding: 0.15rem 0.65rem;
+        border-radius: 9999px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        background: var(--foreground);
+        color: var(--background);
+        border: 2px solid var(--card, var(--background));
+    }
+    .error-state-title {
+        font-size: 1.4rem;
+        font-weight: 700;
+        line-height: 1.3;
+        margin: 0 0 0.5rem;
+        color: var(--foreground);
+    }
+    .error-state-desc {
+        font-size: 0.925rem;
+        line-height: 1.6;
+        color: var(--muted-foreground);
+        margin: 0 0 1.25rem;
+        max-width: 25rem;
+    }
+    .error-state-path {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.3rem 0.7rem;
+        margin-bottom: 1.5rem;
+        border-radius: var(--radius, 6px);
+        background: var(--muted);
+        border: 1px solid var(--border);
+        color: var(--muted-foreground);
+        font-size: 0.8rem;
+        max-width: 100%;
+        overflow: hidden;
+    }
+    .error-state-path code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .error-state-actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: center;
+        gap: 0.65rem;
+        width: 100%;
+    }
+    .error-state-footer {
+        margin-top: 1.75rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--border);
+        width: 100%;
+        font-size: 0.78rem;
+        color: var(--muted-foreground);
+    }
+    .error-state-footer kbd {
+        display: inline-block;
+        padding: 0.1rem 0.35rem;
+        font-size: 0.72rem;
+        font-family: inherit;
+        background: var(--muted);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        color: var(--foreground);
+    }
+</style>
+
+@code {
+    [Parameter] public int StatusCode { get; set; } = 404;
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public string? Description { get; set; }
+    [Parameter] public string? Icon { get; set; }
+    [Parameter] public string? RequestedPath { get; set; }
+    [Parameter] public bool ShowPath { get; set; } = true;
+    [Parameter] public string? BackHref { get; set; }
+    [Parameter] public string? BackLabel { get; set; }
+
+    private string ResolvedIcon => !string.IsNullOrWhiteSpace(Icon) ? Icon : StatusCode switch
+    {
+        400 => "alert-circle",
+        401 => "lock",
+        403 => "shield-alert",
+        404 => "file-question",
+        408 => "clock",
+        429 => "clock",
+        500 => "alert-triangle",
+        502 or 503 or 504 => "server",
+        _ => "alert-circle"
+    };
+
+    private string ResolvedTitle => !string.IsNullOrWhiteSpace(Title) ? Title : StatusCode switch
+    {
+        400 => "Bad Request",
+        401 => "Authentication Required",
+        403 => "Access Denied",
+        404 => "Page Not Found",
+        408 => "Request Timeout",
+        429 => "Too Many Requests",
+        500 => "Internal Server Error",
+        502 => "Bad Gateway",
+        503 => "Service Unavailable",
+        504 => "Gateway Timeout",
+        _ => $"Error {StatusCode}"
+    };
+
+    private string ResolvedDescription => !string.IsNullOrWhiteSpace(Description) ? Description : StatusCode switch
+    {
+        400 => "The request could not be processed due to invalid parameters or malformed syntax.",
+        401 => "Your session has expired or you need to sign in with an authorized account to view this page.",
+        403 => "You do not have the required role or permission to view or perform actions on this page.",
+        404 => "The page or resource you are looking for does not exist, was removed, or has been moved to another URL.",
+        408 => "The server timed out waiting for the request. Please check your connection and try again.",
+        429 => "You have made too many requests in a short period. Please wait a moment before trying again.",
+        500 => "An unexpected server error occurred while processing your request. Please try again or contact your system administrator.",
+        502 or 503 or 504 => "The service is temporarily unavailable or undergoing maintenance. Please try again shortly.",
+        _ => "An unexpected error occurred while trying to load this page."
+    };
+
+    private string ToneClass => StatusCode switch
+    {
+        401 or 408 or 429 => "tone-warning",
+        403 or >= 500 => "tone-danger",
+        404 => "tone-info",
+        _ => "tone-warning"
+    };
+
+    private string? DisplayPath
+    {
+        get
+        {
+            if (!ShowPath) return null;
+            if (!string.IsNullOrWhiteSpace(RequestedPath)) return RequestedPath;
+            var rel = "/" + Nav.ToBaseRelativePath(Nav.Uri).Split('?')[0].TrimStart('/');
+            if (rel.StartsWith("/error", StringComparison.OrdinalIgnoreCase)
+                || rel.Equals("/404", StringComparison.OrdinalIgnoreCase)
+                || rel.Equals("/401", StringComparison.OrdinalIgnoreCase)
+                || rel.Equals("/403", StringComparison.OrdinalIgnoreCase)
+                || rel.Equals("/500", StringComparison.OrdinalIgnoreCase)
+                || rel.Equals("/not-found", StringComparison.OrdinalIgnoreCase)
+                || rel.Equals("/unauthorized", StringComparison.OrdinalIgnoreCase)
+                || rel.Equals("/forbidden", StringComparison.OrdinalIgnoreCase)
+                || rel.Equals("/access-denied", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+            return rel;
+        }
+    }
+
+    private string LoginUrl
+    {
+        get
+        {
+            var path = DisplayPath ?? "/";
+            return $"/account/login?returnUrl={Uri.EscapeDataString(path)}";
+        }
+    }
+
+    private async Task GoBackAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("history.back");
+        }
+        catch
+        {
+            Nav.NavigateTo("/");
+        }
+    }
+}
+

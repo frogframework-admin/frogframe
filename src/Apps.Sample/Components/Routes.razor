@@ -1,5 +1,6 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @using Framework.Web.Identity
+@using Framework.Web.Components
 @inject CurrentUser Current
 @inject AuthenticationStateProvider Auth
 @implements IDisposable
@@ -13,7 +14,8 @@
         </Found>
         <NotFound>
             <LayoutView Layout="typeof(DeskLayout)">
-                <div class="empty-state"><h1>Page not found</h1><p><a href="/">Return to home</a></p></div>
+                <PageTitle>404 Page Not Found · DocFrame</PageTitle>
+                <ErrorState StatusCode="404" />
             </LayoutView>
         </NotFound>
     </Router>

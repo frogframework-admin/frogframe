@@ -238,7 +238,7 @@ public static class IdentityServiceCollectionExtensions
             {
                 o.LoginPath = "/account/login";
                 o.LogoutPath = "/account/logout";
-                o.AccessDeniedPath = "/account/login";
+                o.AccessDeniedPath = "/error/403";
                 o.Cookie.Name = "docframe.auth";
                 o.Cookie.HttpOnly = true;
                 o.Cookie.SameSite = Microsoft.AspNetCore.Http.SameSiteMode.Lax;

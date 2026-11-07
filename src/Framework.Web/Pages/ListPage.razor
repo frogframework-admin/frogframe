@@ -14,7 +14,7 @@
 
 @if (fatal is not null)
 {
-    <BbAlert Variant="AlertVariant.Danger"><BbAlertTitle>Unable to open</BbAlertTitle><BbAlertDescription>@fatal</BbAlertDescription></BbAlert>
+    <ErrorState StatusCode="@fatalStatus" Title="@(fatalStatus == 403 ? "Access Denied" : "DocType Not Found")" Description="@fatal" />
 }
 else if (meta is not null)
 {
@@ -238,7 +238,7 @@ else if (meta is not null)
 
     private CompiledDocType? meta;
     private ListResponse? result;
-    private string? search, sortField, error, fatal;
+    private string? search, sortField, error, fatal; private int fatalStatus = 404;
     private readonly HashSet<string> selectedItems = [];
     private bool busy;
 
@@ -343,11 +343,11 @@ else if (meta is not null)
         loadedKey = DocType;
         fatal = null; error = null; search = null; sortField = null; result = null;
         selectedItems.Clear();
-        if (!Metadata.Current.TryGet(DocType, out var m) || m.Def.IsChild) { fatal = $"DocType '{DocType}' not found."; return; }
+        if (!Metadata.Current.TryGet(DocType, out var m) || m.Def.IsChild) { fatalStatus = 404; fatal = $"DocType '{DocType}' was not found."; return; }
         meta = m;
         colAccessors.Clear();
         ApplyDefaultGrouping();
-        if (!Perms.Can(Current.Required, meta, DocActions.Read)) { fatal = $"You do not have permission to view {meta.Title}."; return; }
+        if (!Perms.Can(Current.Required, meta, DocActions.Read)) { fatalStatus = 403; fatal = $"You do not have permission to view {meta.Title}."; return; }
         // Single DocType: tidak ada daftar; langsung buka dokumen tunggalnya (atau form baru bila belum ada).
         if (meta.Def.IsSingle)
         {

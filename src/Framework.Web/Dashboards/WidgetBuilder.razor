@@ -22,7 +22,7 @@
 
 @if (!DashboardService.CanDesign(Current.Required))
 {
-    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>Designing widgets is only available to System Managers.</BbAlertDescription></BbAlert>
+    <ErrorState StatusCode="403" Description="Designing widgets is only available to System Managers." BackHref="/dashboard" BackLabel="Back to Dashboard" />
 }
 else if (!Dashboards.IsAvailable)
 {
@@ -30,7 +30,7 @@ else if (!Dashboards.IsAvailable)
 }
 else if (notFound)
 {
-    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>Widget not found.</BbAlertDescription></BbAlert>
+    <ErrorState StatusCode="404" Title="Widget Not Found" Description="The requested dashboard widget was not found." BackHref="/dashboard/widgets" BackLabel="Back to Widgets" />
 }
 else
 {

@@ -11,11 +11,11 @@
 
 @if (!Current.Required.Roles.Contains(UserContext.SystemManager))
 {
-    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>DocType Editor is only accessible by System Managers.</BbAlertDescription></BbAlert>
+    <ErrorState StatusCode="403" Description="DocType Editor is only accessible to System Managers." />
 }
 else if (design is null)
 {
-    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>DocType '@DocTypeName' was not found.</BbAlertDescription></BbAlert>
+    <ErrorState StatusCode="404" Title="DocType Not Found" Description="@($"DocType '{DocTypeName}' was not found.")" BackHref="/admin/metadata" BackLabel="Back to DocTypes" />
 }
 else
 {

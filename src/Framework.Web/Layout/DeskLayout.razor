@@ -241,7 +241,7 @@
             </div>
         </div>
         <main class="app-main" id="content">
-            @if (Current.User is null)
+            @if (Current.User is null && !IsPublicErrorRoute())
             {
                 <div class="stack"><BbSkeleton Height="2rem" /><BbSkeleton Height="12rem" /></div>
             }
@@ -424,8 +424,17 @@
         else _ = LoadMenusAsync();
     }
 
+    private bool IsPublicErrorRoute()
+    {
+        var rel = Nav.ToBaseRelativePath(Nav.Uri).Split('?')[0].Trim('/').ToLowerInvariant();
+        return rel == "error"
+            || rel.StartsWith("error/", StringComparison.Ordinal)
+            || rel is "401" or "403" or "404" or "500" or "not-found" or "unauthorized" or "forbidden" or "access-denied";
+    }
+
     private void RedirectToLogin()
     {
+        if (IsPublicErrorRoute()) return;
         var back = "/" + Nav.ToBaseRelativePath(Nav.Uri);
         Nav.NavigateTo($"/account/login?returnUrl={Uri.EscapeDataString(back)}", forceLoad: true);
     }

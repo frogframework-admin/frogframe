@@ -21,7 +21,7 @@
 }
 else if (notFound)
 {
-    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>Report not found or you do not have access.</BbAlertDescription></BbAlert>
+    <ErrorState StatusCode="404" Title="Report Not Found" Description="Report not found or you do not have access." BackHref="/report-templates" BackLabel="Back to Reports" />
 }
 else if (def is not null)
 {
