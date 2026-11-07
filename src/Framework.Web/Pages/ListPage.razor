@@ -69,7 +69,8 @@ else if (meta is not null)
     {
         var groupedFields = meta.Fields.Where(f => f.Def.Type != "Table" && f.Def.RowGrouping).ToList();
         var groupCollapsed = groupedFields.Any(f => f.Def.GroupCollapsedByDefault);
-        <BbDataGrid TData="Dictionary<string, object?>"
+        <BbDataGrid @key="gridRenderKey"
+                    TData="Dictionary<string, object?>"
                     Items="@result.Items"
                     ItemKey="@(r => (string)r["name"]!)"
                     OnRowClick="@(row => Go((string)row["name"]!))"
@@ -121,7 +122,7 @@ else if (meta is not null)
                                            CollapsedByDefault="@gCol.Def.GroupCollapsedByDefault" />
                 }
 
-                <BbDataGridTemplateColumn TData="Dictionary<string, object?>" Id="_select" Title="" Width="3rem" Hideable="false" Resizable="false">
+                <BbDataGridTemplateColumn TData="Dictionary<string, object?>" Id="_select" Title="" Width="@GetColWidth("_select", "3rem")" Hideable="false" Resizable="false">
                     <HeaderTemplate>
                         <div @onclick:stopPropagation="true">
                             <BbCheckbox Checked="@IsAllSelected"
@@ -227,6 +228,7 @@ else if (meta is not null)
 
     private Framework.Preferences.DataGridPreference gridPref = new();
     private bool hasCustomLayout;
+    private int gridRenderKey;
     private System.Threading.Timer? saveDebounceTimer;
 
     private bool IsAllSelected => result?.Items.Count > 0 && result.Items.All(r => selectedItems.Contains((string)r["name"]!));
@@ -384,10 +386,10 @@ else if (meta is not null)
     private bool GetDefaultColVisible(string colId) =>
         meta?.ByName.TryGetValue(colId, out var cf) == true ? cf.Def.Visible : true;
 
-    private string? GetColWidth(string colId) =>
+    private string? GetColWidth(string colId, string? defaultWidth = null) =>
         gridPref.Columns.TryGetValue(colId, out var pref) && !string.IsNullOrWhiteSpace(pref.Width)
             ? pref.Width
-            : null;
+            : defaultWidth;
 
     private bool IsColVisible(string colId) =>
         gridPref.Columns.TryGetValue(colId, out var pref) ? pref.Visible : GetDefaultColVisible(colId);
@@ -410,7 +412,7 @@ else if (meta is not null)
         bool changed = false;
         foreach (var entry in state.Columns.Entries)
         {
-            if (entry.ColumnId == "_select") continue;
+            if (string.IsNullOrEmpty(entry.ColumnId)) continue;
             var defaultVisible = GetDefaultColVisible(entry.ColumnId);
             if (!gridPref.Columns.TryGetValue(entry.ColumnId, out var pref))
             {
@@ -474,6 +476,7 @@ else if (meta is not null)
         }
         gridPref = new();
         hasCustomLayout = false;
+        gridRenderKey++;
         Toasts.Success("Tata letak kolom telah dikembalikan ke bawaan.", "Reset Kolom");
         await Reload(result?.Page ?? 1);
     }

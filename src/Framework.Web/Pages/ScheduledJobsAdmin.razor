@@ -85,7 +85,8 @@ else
                 <BbCardTitle Class="card-title">Recent Execution Runs</BbCardTitle>
             </BbCardHeader>
             <BbCardContent>
-                <BbDataGrid TData="ScheduledJobRunEntry"
+                <BbDataGrid @key="gridMgr.RenderKey"
+                            TData="ScheduledJobRunEntry"
                             Items="@recentRuns"
                             ShowSearch="true"
                             SearchPlaceholder="Filter job history..."

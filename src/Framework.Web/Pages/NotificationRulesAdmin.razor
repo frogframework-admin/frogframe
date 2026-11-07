@@ -42,7 +42,8 @@ else
     </div>
 
     <!-- Data Grid of Notification Rules -->
-    <BbDataGrid TData="NotificationRule"
+    <BbDataGrid @key="gridMgr.RenderKey"
+                TData="NotificationRule"
                 Items="@filteredRules"
                 ShowSearch="true"
                 SearchPlaceholder="Search rule name or doctype..."

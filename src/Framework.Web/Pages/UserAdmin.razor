@@ -39,7 +39,8 @@ else
         </BbAlert>
     }
 
-    <BbDataGrid TData="UserAccount"
+    <BbDataGrid @key="gridMgr.RenderKey"
+                TData="UserAccount"
                 Items="@accounts"
                 ShowSearch="true"
                 SearchPlaceholder="Search users..."
@@ -127,7 +128,7 @@ else
                 </ChildContent>
             </BbDataGridTemplateColumn>
 
-            <BbDataGridTemplateColumn TData="UserAccount" Id="actions" Title="Actions" Width="6.5rem" NoWrap="true" Hideable="false" Resizable="false">
+            <BbDataGridTemplateColumn TData="UserAccount" Id="actions" Title="Actions" Width="@gridMgr.GetWidth("actions", "6.5rem")" NoWrap="true" Hideable="false" Resizable="false">
                 <ChildContent Context="item">
                     <div style="display:inline-flex;align-items:center;gap:.25rem;flex-wrap:nowrap" @onclick:stopPropagation="true">
                         <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Edit user" Title="Edit user" OnClick="() => StartEdit(item)">

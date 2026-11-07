@@ -25,7 +25,8 @@ else
         <BbButton Href="/admin/metadata/new" OnClick="@(() => Nav.NavigateTo("/admin/metadata/new"))"><LucideIcon Name="plus" Size="16" /> New DocType</BbButton>
     </header>
 
-    <BbDataGrid TData="DocTypeRow"
+    <BbDataGrid @key="gridMgr.RenderKey"
+                TData="DocTypeRow"
                 Items="@docTypes"
                 ShowSearch="true"
                 SearchPlaceholder="Search DocTypes..."

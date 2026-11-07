@@ -27,7 +27,8 @@ else
         </div>
     </header>
 
-    <BbDataGrid TData="NavigationMenuGroup"
+    <BbDataGrid @key="gridMgr.RenderKey"
+                TData="NavigationMenuGroup"
                 Items="@groups"
                 ShowSearch="true"
                 SearchPlaceholder="Search menu groups..."

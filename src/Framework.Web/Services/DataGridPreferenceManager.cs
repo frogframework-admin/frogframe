@@ -18,6 +18,7 @@ public sealed class DataGridPreferenceManager<TData> : IDisposable where TData :
 
     public DataGridPreference Preference { get; private set; } = new();
     public bool HasCustomLayout { get; private set; }
+    public int RenderKey { get; private set; }
 
     public DataGridPreferenceManager(IUserPreferenceStore userPrefs, CurrentUser current, string storageKey, Action stateHasChanged)
     {
@@ -59,7 +60,6 @@ public sealed class DataGridPreferenceManager<TData> : IDisposable where TData :
         Preference.Columns[args.ColumnId] = pref with { Width = args.Width };
         HasCustomLayout = true;
         ScheduleSave();
-        _stateHasChanged();
     }
 
     public void HandleStateChanged(DataGridState<TData> state)
@@ -68,7 +68,7 @@ public sealed class DataGridPreferenceManager<TData> : IDisposable where TData :
         bool changed = false;
         foreach (var entry in state.Columns.Entries)
         {
-            if (string.IsNullOrEmpty(entry.ColumnId) || entry.ColumnId == "_select" || entry.ColumnId == "actions") continue;
+            if (string.IsNullOrEmpty(entry.ColumnId)) continue;
             if (!Preference.Columns.TryGetValue(entry.ColumnId, out var pref))
             {
                 if (!entry.Visible || !string.IsNullOrWhiteSpace(entry.Width))
@@ -108,6 +108,7 @@ public sealed class DataGridPreferenceManager<TData> : IDisposable where TData :
         }
         Preference = new();
         HasCustomLayout = false;
+        RenderKey++;
         _stateHasChanged();
     }
 

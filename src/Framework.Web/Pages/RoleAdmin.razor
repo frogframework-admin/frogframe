@@ -28,7 +28,8 @@ else
         </div>
     </header>
 
-    <BbDataGrid TData="RoleDef"
+    <BbDataGrid @key="gridMgr.RenderKey"
+                TData="RoleDef"
                 Items="@roles"
                 ShowSearch="true"
                 SearchPlaceholder="Search roles..."

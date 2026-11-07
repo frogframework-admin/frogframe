@@ -31,7 +31,8 @@ else
         </div>
     </header>
 
-    <BbDataGrid TData="NavigationMenuItem"
+    <BbDataGrid @key="gridMgr.RenderKey"
+                TData="NavigationMenuItem"
                 Items="@menus"
                 ShowSearch="true"
                 SearchPlaceholder="Search menus..."

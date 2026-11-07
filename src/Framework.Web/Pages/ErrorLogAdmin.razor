@@ -93,7 +93,8 @@ else
         </BbCard>
     }
 
-    <BbDataGrid TData="ErrorLogEntry"
+    <BbDataGrid @key="gridMgr.RenderKey"
+                TData="ErrorLogEntry"
                 Items="@errors"
                 ShowSearch="true"
                 SearchPlaceholder="Search error logs..."
