@@ -47,9 +47,9 @@ else
             <div style="display:flex;align-items:center;gap:.5rem;margin-left:auto">
                 @if (gridMgr.HasCustomLayout)
                 {
-                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ResetColumnsLayout" Title="Reset kolom ke bawaan">
+                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ResetColumnsLayout" Title="Reset column layout to default">
                         <LucideIcon Name="rotate-ccw" Size="14" />
-                        <span>Reset Kolom</span>
+                        <span>Reset Columns</span>
                     </BbButton>
                 }
                 <BbDataGridColumnVisibility TData="NavigationModule" />
@@ -130,7 +130,7 @@ else
                 </ChildContent>
             </BbDataGridTemplateColumn>
 
-            <BbDataGridTemplateColumn TData="NavigationModule" Id="actions" Title="Actions" Width="@gridMgr.GetWidth("actions", "6.5rem")" NoWrap="true" Hideable="false" Resizable="false">
+            <BbDataGridTemplateColumn TData="NavigationModule" Id="actions" Title="Actions" Width="@gridMgr.GetWidth("actions", "7.5rem")" Hideable="false" Resizable="false">
                 <ChildContent Context="item">
                     <div style="display:inline-flex;align-items:center;gap:.25rem;flex-wrap:nowrap" @onclick:stopPropagation="true">
                         <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Edit module" OnClick="() => StartEdit(item)">
@@ -172,9 +172,9 @@ else
                         <FormTextInput Id="mod-name" Immediate="true" @bind-Value="edit.Name" Placeholder="e.g. Human Resources, Finance, Inventory" />
                     </BbField>
                     <BbField>
-                        <BbFieldLabel For="mod-code">Kode modul (wajib, unik)</BbFieldLabel>
-                        <FormTextInput Id="mod-code" @bind-Value="edit.Code" Disabled="!isNew" Placeholder="e.g. HR, PROCUREMENT, KEUANGAN" />
-                        <BbFieldDescription>Dipakai DocType sebagai Modul. Huruf besar, angka, atau garis bawah. Tidak bisa diubah setelah dibuat.</BbFieldDescription>
+                        <BbFieldLabel For="mod-code">Module Code (required, unique)</BbFieldLabel>
+                        <FormTextInput Id="mod-code" @bind-Value="edit.Code" Disabled="!isNew" Placeholder="e.g. HR, PROCUREMENT, FINANCE" />
+                        <BbFieldDescription>Used by DocTypes as the Module identifier. Uppercase letters, numbers, or underscores. Cannot be changed once created.</BbFieldDescription>
                     </BbField>
 
                     <BbField>
@@ -191,14 +191,9 @@ else
                 </BbField>
 
                 <BbField>
-                    <BbFieldLabel For="mod-icon">Lucide Icon</BbFieldLabel>
-                    <div class="row" style="gap:.5rem;align-items:center;flex-wrap:nowrap">
-                        <FormTextInput Id="mod-icon" Immediate="true" @bind-Value="edit.Icon" Placeholder="e.g. users, shopping-cart, wallet, package, chart-column, settings" />
-                        <div style="display:flex;align-items:center;justify-content:center;width:2.5rem;height:2.5rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--muted);flex-shrink:0">
-                            <LucideIcon Name="@(string.IsNullOrWhiteSpace(edit.Icon) ? "layout-grid" : edit.Icon)" Size="18" />
-                        </div>
-                    </div>
-                    <BbFieldDescription>Lucide icon name (e.g. users, shopping-cart, wallet, package, chart-column, settings).</BbFieldDescription>
+                    <BbFieldLabel For="mod-icon">Icon</BbFieldLabel>
+                    <IconPicker Id="mod-icon" @bind-Value="edit.Icon" Placeholder="Select an icon..." />
+                    <BbFieldDescription>Select an icon from the list or type in the search box to use any Lucide icon.</BbFieldDescription>
                 </BbField>
 
                 <div class="props-sub">Module Permissions (User Roles)</div>
@@ -272,7 +267,7 @@ else
     private async Task ResetColumnsLayout()
     {
         await gridMgr.ResetAsync();
-        Toasts.Success("Tata letak kolom telah dikembalikan ke bawaan.", "Reset Kolom");
+        Toasts.Success("Column layout has been reset to default.", "Reset Columns");
     }
 
     public void Dispose()

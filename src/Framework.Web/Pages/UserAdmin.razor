@@ -55,9 +55,9 @@ else
             <div style="display:flex;align-items:center;gap:.5rem;margin-left:auto">
                 @if (gridMgr.HasCustomLayout)
                 {
-                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ResetColumnsLayout" Title="Reset kolom ke bawaan">
+                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ResetColumnsLayout" Title="Reset column layout to default">
                         <LucideIcon Name="rotate-ccw" Size="14" />
-                        <span>Reset Kolom</span>
+                        <span>Reset Columns</span>
                     </BbButton>
                 }
                 <BbDataGridColumnVisibility TData="UserAccount" />
@@ -128,7 +128,7 @@ else
                 </ChildContent>
             </BbDataGridTemplateColumn>
 
-            <BbDataGridTemplateColumn TData="UserAccount" Id="actions" Title="Actions" Width="@gridMgr.GetWidth("actions", "6.5rem")" NoWrap="true" Hideable="false" Resizable="false">
+            <BbDataGridTemplateColumn TData="UserAccount" Id="actions" Title="Actions" Width="@gridMgr.GetWidth("actions", "7.5rem")" Hideable="false" Resizable="false">
                 <ChildContent Context="item">
                     <div style="display:inline-flex;align-items:center;gap:.25rem;flex-wrap:nowrap" @onclick:stopPropagation="true">
                         <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Edit user" Title="Edit user" OnClick="() => StartEdit(item)">
@@ -273,7 +273,7 @@ else
     private async Task ResetColumnsLayout()
     {
         await gridMgr.ResetAsync();
-        Toasts.Success("Tata letak kolom telah dikembalikan ke bawaan.", "Reset Kolom");
+        Toasts.Success("Column layout has been reset to default.", "Reset Columns");
     }
 
     public void Dispose()

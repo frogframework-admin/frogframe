@@ -47,9 +47,9 @@ else
             <div style="display:flex;align-items:center;gap:.5rem;margin-left:auto">
                 @if (gridMgr.HasCustomLayout)
                 {
-                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ResetColumnsLayout" Title="Reset kolom ke bawaan">
+                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ResetColumnsLayout" Title="Reset column layout to default">
                         <LucideIcon Name="rotate-ccw" Size="14" />
-                        <span>Reset Kolom</span>
+                        <span>Reset Columns</span>
                     </BbButton>
                 }
                 <BbDataGridColumnVisibility TData="NavigationMenuItem" />
@@ -140,7 +140,7 @@ else
                 </ChildContent>
             </BbDataGridTemplateColumn>
 
-            <BbDataGridTemplateColumn TData="NavigationMenuItem" Id="actions" Title="Actions" Width="@gridMgr.GetWidth("actions", "6.5rem")" NoWrap="true" Hideable="false" Resizable="false">
+            <BbDataGridTemplateColumn TData="NavigationMenuItem" Id="actions" Title="Actions" Width="@gridMgr.GetWidth("actions", "7.5rem")" Hideable="false" Resizable="false">
                 <ChildContent Context="item">
                     <div style="display:inline-flex;align-items:center;gap:.25rem;flex-wrap:nowrap" @onclick:stopPropagation="true">
                         <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Edit menu" OnClick="() => StartEdit(item)">
@@ -211,14 +211,9 @@ else
 
                 <div class="form-cols cols-2">
                     <BbField>
-                        <BbFieldLabel For="m-icon">Lucide Icon</BbFieldLabel>
-                        <div class="row" style="gap:.5rem;align-items:center;flex-wrap:nowrap">
-                            <FormTextInput Id="m-icon" Immediate="true" @bind-Value="edit.Icon" Placeholder="e.g. house, users, file-text" />
-                            <div style="display:flex;align-items:center;justify-content:center;width:2.5rem;height:2.5rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--muted);flex-shrink:0">
-                                <LucideIcon Name="@(string.IsNullOrWhiteSpace(edit.Icon) ? "file-text" : edit.Icon)" Size="18" />
-                            </div>
-                        </div>
-                        <BbFieldDescription>Lucide icon name (e.g. house, users, key-round, settings-2).</BbFieldDescription>
+                        <BbFieldLabel For="m-icon">Icon</BbFieldLabel>
+                        <IconPicker Id="m-icon" @bind-Value="edit.Icon" Placeholder="Select an icon..." />
+                        <BbFieldDescription>Select an icon from the list or type in the search box to use any Lucide icon.</BbFieldDescription>
                     </BbField>
 
                     <BbField>
@@ -299,7 +294,7 @@ else
     private async Task ResetColumnsLayout()
     {
         await gridMgr.ResetAsync();
-        Toasts.Success("Tata letak kolom telah dikembalikan ke bawaan.", "Reset Kolom");
+        Toasts.Success("Column layout has been reset to default.", "Reset Columns");
     }
 
     public void Dispose()

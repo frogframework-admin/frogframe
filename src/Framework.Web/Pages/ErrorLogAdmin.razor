@@ -109,9 +109,9 @@ else
             <div style="display:flex;align-items:center;gap:.5rem;margin-left:auto">
                 @if (gridMgr.HasCustomLayout)
                 {
-                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ResetColumnsLayout" Title="Reset kolom ke bawaan">
+                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ResetColumnsLayout" Title="Reset column layout to default">
                         <LucideIcon Name="rotate-ccw" Size="14" />
-                        <span>Reset Kolom</span>
+                        <span>Reset Columns</span>
                     </BbButton>
                 }
                 <BbDataGridColumnVisibility TData="ErrorLogEntry" />
@@ -196,7 +196,7 @@ else
     private async Task ResetColumnsLayout()
     {
         await gridMgr.ResetAsync();
-        Toasts.Success("Tata letak kolom telah dikembalikan ke bawaan.", "Reset Kolom");
+        Toasts.Success("Column layout has been reset to default.", "Reset Columns");
     }
 
     public void Dispose()
