@@ -119,7 +119,11 @@ else
                 <BbTabsTrigger Value="access"><LucideIcon Name="shield-check" Size="15" /> Access &amp; Workflow</BbTabsTrigger>
             }
             <BbTabsTrigger Value="hooks"><LucideIcon Name="zap" Size="15" /> Hooks</BbTabsTrigger>
-            <BbTabsTrigger Value="settings"><LucideIcon Name="sliders" Size="15" /> DocType Settings</BbTabsTrigger>
+            <BbTabsTrigger Value="settings"><LucideIcon Name="sliders-horizontal" Size="15" /> DocType Settings</BbTabsTrigger>
+            @if (!design.Def.IsChild)
+            {
+                <BbTabsTrigger Value="migration"><LucideIcon Name="database" Size="15" /> Data Migration</BbTabsTrigger>
+            }
             <BbTabsTrigger Value="json"><LucideIcon Name="braces" Size="15" /> JSON</BbTabsTrigger>
         </BbTabsList>
 
@@ -365,34 +369,188 @@ else
                         {
                             <div class="props-group">
                                 <div class="props-group-title">List view</div>
-                                <p class="muted small" style="margin:0">List columns are configured per field ("Show as column in list").</p>
-                                <div class="props-sub">Searchable</div>
-                                @foreach (var f in design.AllFields.Where(f => f.Type is "Data" or "Text" or "Email" or "Select" or "Link"))
+                                <p class="muted small" style="margin:0 0 .5rem">List columns are configured per field ("Show as column in list").</p>
+                                <div class="props-sub" style="margin-bottom:.5rem">Searchable fields (maksimal 10 baris ke bawah per kolom)</div>
+                                @{
+                                    var searchableCols = design.AllFields
+                                        .Where(f => f.Type is "Data" or "Text" or "Email" or "Select" or "Link")
+                                        .Chunk(10)
+                                        .ToList();
+                                }
+                                @if (searchableCols.Count == 0)
                                 {
-                                    var fld = f;
-                                    <div class="label-row"><BbCheckbox Id="@($"s-{fld.Name}")" Checked="design.Def.ListView.SearchFields.Contains(fld.Name)" CheckedChanged="v => Mutate(() => Toggle(design.Def.ListView.SearchFields, fld.Name, v))" /><BbLabel For="@($"s-{fld.Name}")">@fld.Label</BbLabel></div>
+                                    <p class="muted small">Tidak ada field teks, email, select, atau link yang dapat dijadikan kolom pencarian.</p>
+                                }
+                                else
+                                {
+                                    <div class="searchable-cols-container" style="display:flex;flex-wrap:wrap;gap:1.25rem 2.5rem;align-items:flex-start;padding:.25rem 0">
+                                        @foreach (var col in searchableCols)
+                                        {
+                                            <div class="searchable-col" style="display:flex;flex-direction:column;gap:.45rem;min-width:200px">
+                                                @foreach (var fld in col)
+                                                {
+                                                    var curField = fld;
+                                                    <div class="label-row" style="margin:0">
+                                                        <BbCheckbox Id="@($"s-{curField.Name}")"
+                                                                    Checked="design.Def.ListView.SearchFields.Contains(curField.Name)"
+                                                                    CheckedChanged="v => Mutate(() => Toggle(design.Def.ListView.SearchFields, curField.Name, v))" />
+                                                        <BbLabel For="@($"s-{curField.Name}")">@curField.Label</BbLabel>
+                                                    </div>
+                                                }
+                                            </div>
+                                        }
+                                    </div>
                                 }
                             </div>
                         }
-                        <div class="props-group">
-                            <div class="props-group-title">Data migration plan</div>
-                            <p class="muted small">Optional one-time migration for existing documents. Define <code>fromVersion</code> and operations as JSON, apply it, review the draft, then run the dry-run before publishing.</p>
-                            <div class="code"><BbTextarea Value="@migrationJson" ValueChanged="v => migrationJson = v ?? string.Empty" UpdateTiming="UpdateTiming.OnChange" AriaLabel="Data migration plan JSON"
-                                                          AdditionalAttributes="@(new Dictionary<string, object> { ["rows"] = 8, ["spellcheck"] = "false" })" /></div>
-                            @if (migrationJsonError is not null) { <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@migrationJsonError</BbAlertDescription></BbAlert> }
-                            <div class="row" style="margin-top:.5rem">
-                                <BbButton Variant="ButtonVariant.Outline" OnClick="ApplyMigrationPlan"><LucideIcon Name="check" Size="16" /> Apply migration plan</BbButton>
-                                @if (design.Def.DataMigration is not null)
-                                {
-                                    <BbButton Variant="ButtonVariant.Ghost" OnClick="ClearMigrationPlan">Clear migration plan</BbButton>
-                                }
-                            </div>
-                        </div>
                         <p class="muted small">Access and workflow are configured in the <strong>Access &amp; Workflow</strong> tab; cross-field rules and print formats in the <strong>JSON</strong> tab.</p>
                     </BbCardContent>
                 </BbCard>
             </div>
         </BbTabsContent>
+
+        @if (!design.Def.IsChild)
+        {
+            <BbTabsContent Value="migration">
+                <div class="stack" style="margin-top:.75rem">
+                    <BbCard>
+                        <BbCardHeader>
+                            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem">
+                                <div>
+                                    <BbCardTitle Class="card-title">Rencana Migrasi Data (Data Migration Plan)</BbCardTitle>
+                                    <BbCardDescription>Transformasi data dokumen eksisting saat rilis perubahan schema versi <code>v@(version - 1) &rarr; v@(version)</code></BbCardDescription>
+                                </div>
+                                @if (design.Def.DataMigration is not null)
+                                {
+                                    <BbBadge Variant="BadgeVariant.SoftSuccess">
+                                        <LucideIcon Name="circle-check" Size="14" style="margin-right:.3rem" /> Migrasi Aktif (v@(design.Def.DataMigration.FromVersion) &rarr; v@(version))
+                                    </BbBadge>
+                                }
+                                else
+                                {
+                                    <BbBadge Variant="BadgeVariant.Secondary">Belum Ada Rencana Migrasi (Opsional)</BbBadge>
+                                }
+                            </div>
+                        </BbCardHeader>
+                        <BbCardContent>
+                            <div class="props-group" style="border-top:none;padding-top:0">
+                                <div class="props-group-title">UNTUK APA DATA MIGRATION PLAN DIGUNAKAN?</div>
+                                <p class="muted small" style="line-height:1.6;margin-bottom:.75rem">
+                                    Ketika Anda merilis versi baru sebuah DocType (misalnya menghapus/mengganti nama field, mengubah tipe data, atau menambahkan field wajib baru), dokumen-dokumen lama yang sudah tersimpan di database masih menggunakan format skema versi sebelumnya.
+                                    <strong>Data Migration Plan</strong> memastikan seluruh dokumen lama tersebut otomatis disesuaikan datanya dalam <strong>1 transaksi database aman</strong> saat Anda mengklik <strong>Publish v@(version)</strong>.
+                                </p>
+
+                                <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(260px, 1fr));gap:1rem;margin-bottom:1rem">
+                                    <div style="border:1px solid var(--border);border-radius:var(--radius);padding:.85rem;background:var(--muted)/15%">
+                                        <div style="display:flex;align-items:center;gap:.5rem;font-weight:600;font-size:.875rem;margin-bottom:.35rem">
+                                            <LucideIcon Name="pencil" Size="15" />
+                                            <span>1. RenameField</span>
+                                        </div>
+                                        <p class="muted small" style="margin:0;line-height:1.45">
+                                            Memindahkan isi data dari field lama ke field baru. Nilai dokumen lama tetap utuh dan tidak hilang saat nama field diubah.
+                                        </p>
+                                    </div>
+                                    <div style="border:1px solid var(--border);border-radius:var(--radius);padding:.85rem;background:var(--muted)/15%">
+                                        <div style="display:flex;align-items:center;gap:.5rem;font-weight:600;font-size:.875rem;margin-bottom:.35rem">
+                                            <LucideIcon Name="circle-plus" Size="15" />
+                                            <span>2. SetDefault</span>
+                                        </div>
+                                        <p class="muted small" style="margin:0;line-height:1.45">
+                                            Mengisi nilai bawaan (*default value*) untuk field baru pada semua dokumen eksisting yang belum memiliki field tersebut.
+                                        </p>
+                                    </div>
+                                    <div style="border:1px solid var(--border);border-radius:var(--radius);padding:.85rem;background:var(--muted)/15%">
+                                        <div style="display:flex;align-items:center;gap:.5rem;font-weight:600;font-size:.875rem;margin-bottom:.35rem">
+                                            <LucideIcon Name="refresh-cw" Size="15" />
+                                            <span>3. ConvertType</span>
+                                        </div>
+                                        <p class="muted small" style="margin:0;line-height:1.45">
+                                            Menormalisasi dan mengonversi format nilai data lama agar sesuai dengan tipe data field baru (misalnya dari teks ke angka/desimal).
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <BbAlert Variant="AlertVariant.Info" Class="props-block">
+                                    <BbAlertTitle>Alur Eksekusi Transaksional & Aman</BbAlertTitle>
+                                    <BbAlertDescription>
+                                        Pekerjaan migrasi dijalankan bersamaan dengan rilis versi DocType saat tombol <strong>Publish v@(version)</strong> diklik. Anda dapat menguji validitas transformasi data terlebih dahulu dengan tombol <strong>Jalankan Dry-run Validasi</strong> tanpa mengubah database.
+                                    </BbAlertDescription>
+                                </BbAlert>
+                            </div>
+
+                            <div class="props-group">
+                                <div class="props-group-title">CONTOH FORMAT JSON & TEMPLATE CEPAT</div>
+                                <p class="muted small" style="margin-bottom:.5rem">
+                                    Klik tombol template di bawah untuk langsung menyalin contoh JSON ke editor:
+                                </p>
+                                <div class="row" style="margin-bottom:1rem;flex-wrap:wrap;gap:.5rem">
+                                    <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick='() => InsertMigrationSample("rename")'>
+                                        <LucideIcon Name="file-input" Size="14" /> Template: Rename Field
+                                    </BbButton>
+                                    <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick='() => InsertMigrationSample("default")'>
+                                        <LucideIcon Name="file-input" Size="14" /> Template: Set Default
+                                    </BbButton>
+                                    <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick='() => InsertMigrationSample("combined")'>
+                                        <LucideIcon Name="file-input" Size="14" /> Template: Gabungan Lengkap
+                                    </BbButton>
+                                </div>
+                            </div>
+
+                            <div class="props-group">
+                                <div class="props-group-title">DEFINISI JSON RENCANA MIGRASI</div>
+                                <div class="code">
+                                    <BbTextarea Value="@migrationJson"
+                                                ValueChanged="v => migrationJson = v ?? string.Empty"
+                                                UpdateTiming="UpdateTiming.OnChange"
+                                                AriaLabel="Data migration plan JSON"
+                                                AdditionalAttributes="@(new Dictionary<string, object> { ["rows"] = 10, ["spellcheck"] = "false" })" />
+                                </div>
+                                @if (migrationJsonError is not null)
+                                {
+                                    <BbAlert Variant="AlertVariant.Danger" Style="margin-top:.5rem">
+                                        <BbAlertDescription>@migrationJsonError</BbAlertDescription>
+                                    </BbAlert>
+                                }
+
+                                <div class="row" style="margin-top:.75rem;flex-wrap:wrap;gap:.5rem">
+                                    <BbButton Variant="ButtonVariant.Outline" OnClick="ApplyMigrationPlan">
+                                        <LucideIcon Name="check" Size="16" /> Terapkan Rencana Migrasi ke Draft
+                                    </BbButton>
+                                    @if (design.Def.DataMigration is not null)
+                                    {
+                                        <BbButton Variant="ButtonVariant.Outline" OnClick="RunMigrationPreview">
+                                            <LucideIcon Name="database" Size="16" /> Jalankan Dry-run Validasi
+                                        </BbButton>
+                                        <BbButton Variant="ButtonVariant.Ghost" OnClick="ClearMigrationPlan">
+                                            <LucideIcon Name="trash-2" Size="15" /> Hapus Rencana Migrasi
+                                        </BbButton>
+                                    }
+                                </div>
+
+                                @if (migrationPreview is { Valid: true })
+                                {
+                                    <BbAlert Variant="AlertVariant.Success" Style="margin-top:.75rem">
+                                        <BbAlertTitle>Dry-run Berhasil</BbAlertTitle>
+                                        <BbAlertDescription>
+                                            Sebanyak <strong>@migrationPreview.Documents</strong> dokumen siap dimigrasi saat versi <code>v@(version)</code> dipublikasikan.
+                                        </BbAlertDescription>
+                                    </BbAlert>
+                                }
+                                else if (migrationPreview is { Valid: false, Error: not null } failedPreview)
+                                {
+                                    <BbAlert Variant="AlertVariant.Danger" Style="margin-top:.75rem">
+                                        <BbAlertTitle>Dry-run Gagal</BbAlertTitle>
+                                        <BbAlertDescription>
+                                            Gagal memvalidasi transformasi data: @failedPreview.Error
+                                        </BbAlertDescription>
+                                    </BbAlert>
+                                }
+                            </div>
+                        </BbCardContent>
+                    </BbCard>
+                </div>
+            </BbTabsContent>
+        }
 
         <BbTabsContent Value="json">
             <div class="stack" style="margin-top:.75rem">
@@ -580,6 +738,7 @@ else
                 ?? throw new JsonException("Migration plan JSON must be an object.");
             Mutate(() => design!.Def.DataMigration = plan);
             migrationJsonError = null;
+            Toasts.Success("Rencana migrasi data berhasil diterapkan ke draft.", "Data Migration");
         }
         catch (JsonException ex) { migrationJsonError = $"Invalid migration plan JSON: {ex.Message}"; }
     }
@@ -588,6 +747,47 @@ else
     {
         Mutate(() => design!.Def.DataMigration = null);
         migrationJson = JsonSerializer.Serialize(new DataMigrationPlanDef { FromVersion = version - 1 }, MetadataJson.Options);
+        migrationJsonError = null;
+        migrationPreview = null;
+        Toasts.Success("Rencana migrasi data telah dihapus dari draft.", "Data Migration");
+    }
+
+    private void InsertMigrationSample(string sampleType)
+    {
+        var fromVer = version > 1 ? version - 1 : 1;
+        migrationJson = sampleType switch
+        {
+            "rename" => JsonSerializer.Serialize(new
+            {
+                fromVersion = fromVer,
+                operations = new object[]
+                {
+                    new { type = "RenameField", fromField = "field_lama", toField = "field_baru" }
+                }
+            }, new JsonSerializerOptions { WriteIndented = true }),
+
+            "default" => JsonSerializer.Serialize(new
+            {
+                fromVersion = fromVer,
+                operations = new object[]
+                {
+                    new { type = "SetDefault", field = "status_dokumen", value = "Aktif" }
+                }
+            }, new JsonSerializerOptions { WriteIndented = true }),
+
+            "combined" => JsonSerializer.Serialize(new
+            {
+                fromVersion = fromVer,
+                operations = new object[]
+                {
+                    new { type = "RenameField", fromField = "kode_lama", toField = "kode" },
+                    new { type = "SetDefault", field = "is_active", value = true },
+                    new { type = "ConvertType", field = "jumlah" }
+                }
+            }, new JsonSerializerOptions { WriteIndented = true }),
+
+            _ => migrationJson
+        };
         migrationJsonError = null;
     }
 
