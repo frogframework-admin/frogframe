@@ -1711,6 +1711,15 @@ table.data tbody tr.excluded td { opacity: .45; cursor: not-allowed; }
 .login-split-cover {
   position: relative;
   background-color: var(--muted);
+  background-image: url('/_content/Framework.Web/img/login-cover.png');
+  background-image: image-set(
+    url('/_content/Framework.Web/img/login-cover.webp') type('image/webp'),
+    url('/_content/Framework.Web/img/login-cover.jpg') type('image/jpeg'),
+    url('/_content/Framework.Web/img/login-cover.png') type('image/png')
+  );
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
   overflow: hidden;
   display: none;
   border-left: 1px solid var(--border);
@@ -1718,48 +1727,8 @@ table.data tbody tr.excluded td { opacity: .45; cursor: not-allowed; }
 
 @media (min-width: 1024px) {
   .login-split-cover {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 3rem;
+    display: block;
   }
-}
-
-.login-cover-card {
-  position: relative;
-  z-index: 10;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  max-width: 28rem;
-  text-align: center;
-  padding: 2rem 1.5rem;
-}
-
-.login-cover-icon {
-  margin-bottom: 1.5rem;
-  display: grid;
-  place-items: center;
-}
-
-.login-cover-badges {
-  display: flex;
-  gap: 0.6rem;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
-.login-feature-pill {
-  font-size: .8rem;
-  font-weight: 600;
-  padding: .35rem .85rem;
-  border-radius: 999px;
-  background: color-mix(in oklch, var(--card) 85%, transparent);
-  border: 1px solid var(--border);
-  color: var(--foreground);
-  box-shadow: var(--shadow-sm);
-  backdrop-filter: blur(8px);
 }
 
 /* Utilities for Tailwind classes used in Login */
