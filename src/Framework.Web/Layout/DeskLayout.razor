@@ -312,7 +312,7 @@
                                 AsChild="button"
                                 Class="@($"module-horizontal-item {(isCurrent ? "active" : "")}")"
                                 @onclick="() => SelectModuleFromModal(mod)">
-                            <BbItemMedia Variant="ItemMediaVariant.Icon" Class="@($"module-media-box {GetModuleBadgeColor(mod.Id)}")">
+                            <BbItemMedia Variant="ItemMediaVariant.Icon" Class="module-media-box">
                                 <LucideIcon Name="@(string.IsNullOrWhiteSpace(mod.Icon) ? "layout-grid" : mod.Icon)" Size="20" />
                             </BbItemMedia>
                             <BbItemContent Class="module-horizontal-content">
@@ -460,16 +460,6 @@
             moduleSearchQuery = string.Empty;
         }
     }
-
-    private static string GetModuleBadgeColor(string? moduleId) => (moduleId?.ToLowerInvariant() ?? "") switch
-    {
-        var id when id.Contains("hr") || id.Contains("human") => "module-badge-purple",
-        var id when id.Contains("procure") || id.Contains("purchas") || id.Contains("buy") => "module-badge-amber",
-        var id when id.Contains("account") || id.Contains("finance") => "module-badge-blue",
-        var id when id.Contains("analytic") || id.Contains("report") || id.Contains("bi") => "module-badge-indigo",
-        var id when id.Contains("admin") || id.Contains("setup") || id.Contains("config") => "module-badge-teal",
-        _ => "module-badge-primary"
-    };
 
     private void SelectModuleFromModal(NavigationModule mod)
     {

@@ -1219,27 +1219,32 @@ table.grid td.wide { min-width: 14rem; }
   margin-top: .5rem;
 }
 .module-horizontal-item {
+  all: unset;
+  box-sizing: border-box;
   width: 100%;
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: .85rem;
-  padding: .75rem .95rem !important;
+  padding: .75rem 1rem !important;
   border-radius: .85rem !important;
   border: 1px solid var(--border) !important;
   background: var(--card) !important;
   text-align: left;
-  transition: all .16s ease;
+  transition: background-color .15s ease, border-color .15s ease, box-shadow .15s ease;
 }
 .module-horizontal-item:hover {
   background: var(--accent) !important;
-  border-color: color-mix(in oklch, var(--brand) 40%, var(--border)) !important;
-  transform: translateX(3px);
+  border-color: color-mix(in oklch, var(--brand) 38%, var(--border)) !important;
+}
+.module-horizontal-item:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
 .module-horizontal-item.active {
-  background: color-mix(in oklch, var(--brand) 8%, var(--card)) !important;
+  background: color-mix(in oklch, var(--brand) 10%, var(--card)) !important;
   border-color: var(--brand) !important;
-  box-shadow: 0 4px 14px -3px color-mix(in oklch, var(--brand) 28%, transparent);
+  box-shadow: 0 2px 8px -2px color-mix(in oklch, var(--brand) 28%, transparent);
 }
 .module-media-box {
   display: grid;
@@ -1248,8 +1253,21 @@ table.grid td.wide { min-width: 14rem; }
   height: 2.5rem;
   min-width: 2.5rem;
   border-radius: .7rem;
-  border: 1px solid transparent;
+  background: var(--brand-soft);
+  border: 1px solid color-mix(in oklch, var(--brand) 15%, transparent);
+  color: var(--brand-ink);
   flex-shrink: 0;
+  transition: background-color .15s ease, color .15s ease, border-color .15s ease;
+}
+.module-horizontal-item:hover .module-media-box {
+  background: color-mix(in oklch, var(--brand) 18%, transparent);
+  border-color: color-mix(in oklch, var(--brand) 28%, transparent);
+  color: var(--brand);
+}
+.module-horizontal-item.active .module-media-box {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #ffffff;
 }
 .module-horizontal-content {
   flex: 1;
@@ -1273,20 +1291,6 @@ table.grid td.wide { min-width: 14rem; }
   color: #ffffff;
   box-shadow: 0 2px 6px -1px color-mix(in oklch, var(--brand) 40%, transparent);
 }
-
-/* Badge colors for module icons */
-.module-badge-purple { background: rgba(147, 51, 234, 0.12); color: rgb(147, 51, 234); border-color: rgba(147, 51, 234, 0.22); }
-.module-badge-amber  { background: rgba(245, 158, 11, 0.12); color: rgb(217, 119, 6);   border-color: rgba(245, 158, 11, 0.22); }
-.module-badge-blue   { background: rgba(59, 130, 246, 0.12); color: rgb(37, 99, 235);   border-color: rgba(59, 130, 246, 0.22); }
-.module-badge-indigo { background: rgba(99, 102, 241, 0.12); color: rgb(79, 70, 229);   border-color: rgba(99, 102, 241, 0.22); }
-.module-badge-teal   { background: rgba(20, 184, 166, 0.12); color: rgb(13, 148, 136);  border-color: rgba(20, 184, 166, 0.22); }
-.module-badge-primary{ background: var(--brand-soft); color: var(--brand); border-color: color-mix(in oklch, var(--brand) 18%, transparent); }
-
-.dark .module-badge-purple { background: rgba(168, 85, 247, 0.18); color: rgb(216, 180, 254); border-color: rgba(168, 85, 247, 0.3); }
-.dark .module-badge-amber  { background: rgba(245, 158, 11, 0.18); color: rgb(253, 230, 138); border-color: rgba(245, 158, 11, 0.3); }
-.dark .module-badge-blue   { background: rgba(59, 130, 246, 0.18); color: rgb(147, 197, 253); border-color: rgba(59, 130, 246, 0.3); }
-.dark .module-badge-indigo { background: rgba(99, 102, 241, 0.18); color: rgb(199, 210, 254); border-color: rgba(99, 102, 241, 0.3); }
-.dark .module-badge-teal   { background: rgba(20, 184, 166, 0.18); color: rgb(153, 246, 228); border-color: rgba(20, 184, 166, 0.3); }
 .module-tile:hover {
   transform: translateY(-3px);
   border-color: color-mix(in oklch, var(--brand) 35%, var(--border));
