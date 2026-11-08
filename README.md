@@ -4,6 +4,7 @@
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL_3.0-blue.svg)](LICENSE)
 [![Build & Test](https://img.shields.io/badge/Tests-152%20Passing-brightgreen.svg)]()
 [![Documentation](https://img.shields.io/badge/Docs-DocFX-informational.svg)](docs/index.md)
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/frogframework-admin/frogframe)
 
 **FrogFrame** is an extensible, metadata-driven business application framework built on **.NET 10**, **ASP.NET Core**, **Blazor Server (Interactive)**, and **[Blazor Blueprint UI](https://blazorblueprintui.com)** (shadcn/ui-styled components for Blazor).
 
@@ -34,7 +35,18 @@ Storage can be seamlessly toggled via configuration: **in-memory** (for developm
 
 ## Quick Start
 
-### Prerequisites
+### Instant Cloud Demo (GitHub Codespaces)
+Run and explore FrogFrame directly in your browser without local setup:
+
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/frogframework-admin/frogframe)
+
+Once the Codespace opens, start the application via terminal:
+```bash
+dotnet run --project src/Apps.Sample
+```
+Codespaces will automatically forward port `5080` and launch the web portal.
+
+### Prerequisites (For Local Setup)
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) (v10.0.100 or later).
 - [Docker & Docker Compose](https://www.docker.com/) (optional, for PostgreSQL mode).
 
