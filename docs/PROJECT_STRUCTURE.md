@@ -86,22 +86,22 @@ DocFrame explicitly separates operational processing from analytical reporting i
 flowchart TB
     subgraph W1["World 1 — Operational (OLTP / Single Source of Truth)"]
         UI["Blazor UI / REST API / Excel Import"] --> DS["DocumentService Pipeline"]
-        DS -->|Single ACID Transaction| DOC[("docframe_documents\n(JSONB + Metadata Indexes)")]
-        DS -->|Single ACID Transaction| AUD[("docframe_audit")]
-        DS -->|Single ACID Transaction| OUT[("docframe_outbox\n(payloadVersion = 2 + Snapshot)")]
+        DS -->|"Single ACID Transaction"| DOC[("docframe_documents (JSONB + Metadata Indexes)")]
+        DS -->|"Single ACID Transaction"| AUD[("docframe_audit")]
+        DS -->|"Single ACID Transaction"| OUT[("docframe_outbox (payloadVersion = 2 + Snapshot)")]
     end
 
-    subgraph Bridge["The Bridge — Outbox & Projection Engine"]
-        OUT -->|Near-Real-Time Stream\n(Seconds Latency)| PROJ["Projection Engine\n(Idempotent by doctype, name, version)"]
-        DOC -.->|Scheduled Batch Jobs\n(Backfill / Rebuild / Reconcile / Snapshot)| PROJ
+    subgraph Bridge["The Bridge — Outbox and Projection Engine"]
+        OUT -->|"Near-Real-Time Stream"| PROJ["Projection Engine (Idempotent by doctype, name, version)"]
+        DOC -.->|"Scheduled Batch Jobs"| PROJ
     end
 
     subgraph W2["World 2 — Analytical (OLAP / Read-Only Reporting)"]
-        PROJ --> VIEWS[("Current Foundation:\nreporting.<doctype> Views\n+ Native Casts")]
-        PROJ --> STAR[("Target Scale Architecture:\nfact_<process> & dim_<entity>\n(Native Columns + Time/Tenant Partitions)")]
-        VIEWS --> EXEC["DashboardSqlExecutor\n(docframe_ro User + READ ONLY + Timeout)"]
+        PROJ --> VIEWS[("Current Foundation: reporting views + Native Casts")]
+        PROJ --> STAR[("Target Scale Architecture: fact and dim tables")]
+        VIEWS --> EXEC["DashboardSqlExecutor (docframe_ro User + READ ONLY + Timeout)"]
         STAR --> EXEC
-        EXEC --> CONSUMERS["SQL Dashboards · Excel/Word Reports · /api/query/{slug}"]
+        EXEC --> CONSUMERS["SQL Dashboards / Excel/Word Reports / Saved Query APIs"]
     end
 ```
 
@@ -139,11 +139,11 @@ The solution (`DocFrame.sln`) is organized into **4 source projects** under `src
 
 ```mermaid
 graph TD
-    Sample["Apps.Sample\n(Executable Host, Seed Data, Pilot Domain & Metadata)"]
-    Web["Framework.Web\n(Blazor Blueprint UI, REST APIs, Identity, Dashboards, OpenXML)"]
-    Pg["Framework.Persistence.PostgreSql\n(Npgsql Stores, Migrations, Auto-Indexes, Read-Only SQL Executor)"]
-    Core["Framework.Core\n(Pure .NET Domain, Metadata Compiler, AST Expressions, DocumentService)"]
-    Tests["Framework.Tests\n(In-Memory & PostgreSQL Test Suite + 1M-Row Benchmark)"]
+    Sample["Apps.Sample (Executable Host, Seed Data, Pilot Domain and Metadata)"]
+    Web["Framework.Web (Blazor Blueprint UI, REST APIs, Identity, Dashboards, OpenXML)"]
+    Pg["Framework.Persistence.PostgreSql (Npgsql Stores, Migrations, Auto-Indexes, Read-Only SQL Executor)"]
+    Core["Framework.Core (Pure .NET Domain, Metadata Compiler, AST Expressions, DocumentService)"]
+    Tests["Framework.Tests (In-Memory and PostgreSQL Test Suite + 1M-Row Benchmark)"]
 
     Sample --> Web
     Sample --> Pg
@@ -291,7 +291,7 @@ src/Framework.Web/
 │   ├── AccountPassword.razor    # /account/password — self-service password change
 │   ├── ApiKeysAdmin.razor       # /admin/api-keys — API key & integration account management
 │   ├── Dashboard.razor          # /dashboard — Interactive SQL dashboard with global filters
-│   ├── DashboardWidgetWizard.razor # /dashboard/widgets/new & /{id}/edit — 4-step SQL widget builder
+│   ├── DashboardWidgetWizard.razor # /admin/widgets/new & /{id}/edit — 4-step SQL widget builder
 │   ├── Desk.razor               # / — Home workspace with module cards and inbox
 │   ├── DocDetail.razor          # /app/{DocType}/{Name} — View/edit existing document
 │   ├── DocImport.razor          # /app/{DocType}/import — 4-step Excel/CSV import wizard
@@ -565,7 +565,8 @@ All migrations live in `src/Framework.Persistence.PostgreSql/Migrations/` and ar
 | `/print/{DocType}/{Name}` | `DocPrint.razor` | DocType `Read` | Clean A4 HTML print preview |
 | `/hr/struktur-organisasi` | `OrgStructure.razor` | `Employee` `Read` | Interactive Department & Supervisor organization charts |
 | `/dashboard` | `Dashboard.razor` | Authenticated | Interactive SQL dashboard with global date/department filters |
-| `/dashboard/widgets/new` | `DashboardWidgetWizard.razor` | `Administrator` / `System Manager` | 4-step SQL dashboard widget wizard |
+| `/admin/widgets` | `WidgetList.razor` | `Administrator` / `System Manager` | Manage SQL widgets list |
+| `/admin/widgets/new` | `WidgetBuilder.razor` | `Administrator` / `System Manager` | 4-step SQL dashboard widget wizard |
 | `/report-templates` | `ReportTemplates.razor` | Authenticated | OpenXML Excel/Word report catalog |
 | `/report-templates/new` | `ReportTemplateWizard.razor` | `Administrator` / `System Manager` | 4-step OpenXML Excel/Word report template wizard |
 | `/report-templates/{Id}` | `ReportTemplateRun.razor` | Template Role | Fill report parameters and download `.xlsx` / `.docx` |

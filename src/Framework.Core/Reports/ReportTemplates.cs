@@ -87,11 +87,11 @@ public sealed class ReportTemplateService(IReportTemplateStore store, IReporting
 {
     public bool IsAvailable => executor.IsAvailable;
     public ReportLimits Limits => limits;
-    public static bool CanDesign(UserContext u) => u.Roles.Contains(UserContext.SystemManager);
+    public static bool CanDesign(UserContext u) => u.IsAdmin;
     public static bool CanRun(UserContext u, ReportTemplateDef d) => CanDesign(u) || d.Config.Roles.Count == 0 || d.Config.Roles.Any(u.Roles.Contains);
     private static void DemandDesigner(UserContext u)
     {
-        if (!CanDesign(u)) throw new PermissionDeniedException("Designing report templates is restricted to System Manager.");
+        if (!CanDesign(u)) throw new PermissionDeniedException("Designing report templates is restricted to System Manager / Administrator.");
     }
 
     /// <summary>Parameter dari query detail dan header digabung (nama sama = parameter yang sama).</summary>

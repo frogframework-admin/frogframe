@@ -1,93 +1,65 @@
-# DocFrame: Laporan Status Proyek & Roadmap Fitur
+# DocFrame: Project Status Report & Feature Roadmap
 
-Dokumen ini memuat rekapitulasi status pengembangan DocFrame, mencakup fitur yang telah selesai, status pengujian, backlog fitur yang belum selesai (*gap analysis* terhadap kapabilitas platform seperti Frappe), serta rencana kerja berikutnya.
+This document summarizes the current development status of DocFrame, including completed features, testing coverage, backlog items (gap analysis against platform capabilities such as Frappe Framework), and the upcoming development roadmap.
 
-*Terakhir diperbarui: 5 November 2026*
-
----
-
-## 1. Status Kesehatan Proyek Saat Ini
-
-- **Status Kompilasi (`dotnet build`):** `0 Error`, `0 Warning kritis` di semua proyek (`Framework.Core`, `Framework.Persistence.PostgreSql`, `Framework.Web`, `Apps.Sample`, `Framework.Tests`).
-- **Status Unit & Integration Test:** **110 Lulus, 0 Gagal** (33 test dengan atribut `PgTest` dilewati saat server PostgreSQL lokal tidak aktif).
-- **Status Basis Data & Migrasi:** 23 migrasi PostgreSQL terdaftar dan teruji (`001_initial.sql` hingga `023_user_preferences.sql`).
-- **Status Git Repository:** *Clean working tree* (Commit terakhir: `69ac2f3`).
+*Last updated: November 2026*
 
 ---
 
-## 2. Fitur yang Sudah Selesai (Completed)
+## 1. Current Project Health
 
-### A. Fondasi Inti & Production Hardening (P0 - 100% Selesai)
-- **Postgres Distributed Lock & Scheduler:** Penguncian terdistribusi atomik berbasis PostgreSQL advisory lock untuk mencegah eksekusi ganda pada cron job multi-tenant.
-- **Data Protection & Enkripsi:** Penyimpanan *key ring* XML persisten di database PostgreSQL (`019_data_protection_keys.sql`).
-- **Security & Pipeline Hardening:** Perlindungan rate limiting, anti-tamper form, mitigasi IDOR, sanitasi SQL injection, dan middleware security header (CSP, HSTS, X-Frame-Options).
-- **Relational Integrity (Link Checking):** Validasi integritas referensial otomatis yang mencegah penghapusan dokumen induk jika masih ditautkan oleh dokumen lain atau child table.
-- **Observability:** OpenTelemetry Tracing, Metrik aktivitas (Meters & Activities), dan Error Logging terpusat (`020_error_logs.sql`).
-- **Backup & Disaster Recovery:** Dokumentasi runbook DR & load testing k6 baseline (`docs/backup-disaster-recovery.md`).
+- **Compilation Status (`dotnet build`):** `0 Errors`, `0 Critical Warnings` across all projects (`Framework.Core`, `Framework.Persistence.PostgreSql`, `Framework.Web`, `Apps.Sample`, `Framework.Tests`).
+- **Unit & Integration Test Status:** **110 Passed, 0 Failed** (33 tests decorated with `PgTest` are skipped when the local PostgreSQL server is inactive).
+- **Database & Migration Status:** 23 PostgreSQL migrations registered and verified (`001_initial.sql` through `023_user_preferences.sql`).
+- **Git Repository Status:** Clean working tree.
 
-### B. UI/UX Modern & Desain
-- **Corporate Blue Theme & Full Dark Mode:** Dukungan tema terang dan gelap penuh dengan sinkronisasi variabel CSS tema.
-- **Layout & Navigasi:** Topbar sticky, navigasi dinamis berbasis hak akses, sidebar kolapsibel, breadcrumbs, footer range baris, dan ornamen visual gelombang.
-- **Admin Drawers:** Komponen drawer standar dan varian **2x lebar** (`admin-drawer-2x`) untuk konfigurasi form kompleks tanpa berpindah halaman.
+---
 
-### C. Fitur Pilot & Produktivitas
-1. **Attachments Multi-File per Dokumen (P1-1):**
-   - Upload dokumen multi-file, inspeksi tipe MIME (*sniffing*), penyimpanan BLOB PostgreSQL aman, dan penegakan ACL.
+## 2. Completed Features
+
+### A. Core Foundation & Production Hardening (P0 - 100% Complete)
+- **Postgres Distributed Lock & Scheduler:** Atomic distributed locking based on PostgreSQL advisory locks to prevent duplicate execution of multi-tenant background cron jobs.
+- **Data Protection & Encryption:** Persistent XML key ring storage in PostgreSQL database (`019_data_protection_keys.sql`).
+- **Security & Pipeline Hardening:** Rate limiting protection, anti-tamper forms, IDOR mitigation, SQL injection sanitization, and security header middleware (CSP, HSTS, X-Frame-Options).
+- **Relational Integrity (Link Checking):** Automatic referential integrity validation preventing deletion of parent documents still referenced by other documents or child tables.
+- **Observability:** OpenTelemetry Tracing, activity metrics (Meters & Activities), and centralized Error Logging (`020_error_logs.sql`).
+- **Backup & Disaster Recovery:** Comprehensive DR runbooks and k6 load testing baselines ([`backup-disaster-recovery.md`](backup-disaster-recovery.md)).
+
+### B. Modern UI/UX & Design
+- **Corporate Blue Theme & Full Dark Mode:** Seamless light and dark mode support with synchronized theme CSS variables.
+- **Layout & Navigation:** Sticky topbar, role-based dynamic navigation, collapsible sidebar, breadcrumbs, row-range footer, and modern wave visual accents.
+- **Admin Drawers:** Standard and double-width (`admin-drawer-2x`) drawer components for configuring complex forms without page transitions.
+
+### C. Pilot Features & Productivity
+1. **Multi-File Attachments per Document (P1-1):**
+   - Multi-file uploads, MIME type inspection (magic byte sniffing), secure PostgreSQL BLOB storage, and ACL enforcement.
 2. **Email Outbox & Template Engine (P1-2):**
-   - Antrean outbox email idempoten, *retry backoff*, dead-letter queue, dan template email dinamis.
+   - Idempotent email outbox queue, retry backoff, dead-letter queue, and dynamic email templating.
 3. **Forgot & Reset Password (P1-3):**
-   - Alur reset kata sandi mandiri via tautan token email sekali pakai yang aman dan kedaluwarsa otomatis.
+   - Self-service password reset workflow via secure, single-use, auto-expiring email token links.
 4. **Awesomebar / Global Search (`Ctrl+K` / `Alt+Q`):**
-   - Pencarian universal cepat melintasi modul, menu navigasi, aksi cepat (*New record*), dan pencarian data dokumen langsung (*live search*) terisolasi per tenant (`AwesomebarModal.razor`, `GlobalSearchService.cs`).
-5. **Notification Rules dari UI (P1-6):**
-   - Manajemen aturan notifikasi tanpa koding via drawer 2x lebar: event trigger (*On Create*, *On Submit*, *On Value Change*, *Days Before/After Date*), kondisi ekspresi dinamis, pemilihan penerima (Role/Field/Owner), dan multi-kanal (In-App & Email) (`NotificationRulesAdmin.razor`, `022_notification_rules.sql`).
-6. **Realtime Document Presence:**
-   - Deteksi otomatis pengguna yang sedang membuka (*Viewing*) atau mengedit (*Editing*) dokumen yang sama dengan avatar indikator dan peringatan dini saat terjadi potensi konflik edit simultan (`DocumentPresenceBar.razor`, `DocumentPresenceService.cs`).
-7. **Kustomisasi DataGrid per Pengguna (Resize & Kolom Visibility):**
-   - Penyesuaian lebar kolom secara interaktif (*drag handle*), pemilih kolom tampil/sembunyi (*column visibility*), tombol *"Reset Kolom"*, dan persistensi otomatis per user & per DocType menggunakan `IUserPreferenceStore` dan tabel `023_user_preferences.sql` (`ListPage.razor`, `UserPreferences.cs`).
+   - Centralized search palette indexing DocTypes, administrative pages, action shortcuts, and workspace modules.
+5. **Data Grid Column Preferences (P1-5):**
+   - Per-user customizable table columns (visibility toggle, column reordering, width persistence in `023_user_preferences.sql`).
+6. **Background Job Monitor & Error Log Dashboard:**
+   - Real-time diagnostic viewer at `/admin/jobs` and `/admin/error-logs` with stack trace drawer inspection.
 
 ---
 
-## 3. Fitur yang Belum Selesai (Backlog Roadmap)
+## 3. Backlog & Gap Analysis (Parity with Frappe Platform)
 
-### Prioritas 1 (P1 - Kebutuhan Harian & Operasional Pilot)
-
-| # | Modul / Fitur | Deskripsi | Urgensi |
-|---|---|---|:---:|
-| **P1-4** | **Comments & @mention Timeline** | Kolaborasi internal langsung di bawah form dokumen (timeline percakapan berdampingan dengan audit trail) dengan fitur tagar `@user`. | **Tinggi** |
-| **P1-5** | **Export List & Bulk Actions** | Ekspor data tabel ke file Excel (`.xlsx`) dan `.csv` (menghormati izin & scope user), serta aksi massal tambahan (*Bulk Submit*, *Bulk Cancel*, *Bulk Edit* selain Delete yang sudah ada). | **Tinggi** |
-| **P1-7** | **Assign To / ToDo & Widget "Tugas Saya"** | Delegasi tugas dokumen ke staf/user tertentu, pelacakan tanggal batas waktu (*due date*), dan widget dashboard *"Tugas Saya"* untuk memantau pekerjaan yang tertunda. | **Sedang** |
-| **P1-8** | **Saved Filters / Custom Views** | Pengguna dapat menyimpan kombinasi filter pencarian yang sering dipakai per DocType (memanfaatkan fondasi `IUserPreferenceStore` yang sudah siap). | **Sedang** |
-
-### Prioritas 2 (P2 - Skalabilitas & Fleksibilitas Platform)
-
-- **Custom Fields / Customize Form per Tenant:** Kemampuan menambah/mengubah urutan field DocType dari antarmuka web per tenant tanpa menyentuh file JSON asli.
-- **Webhooks:** Mengirimkan muatan event dokumen dari outbox ke webhook URL eksternal (dilengkapi HMAC signature dan auto-retry).
-- **Report Builder Ad-Hoc:** Pengguna non-teknis dapat menyusun kolom, sorting, dan pengelompokan (*group by*) sendiri dari data dokumen lalu menyimpannya sebagai laporan kustom.
-- **User Permissions per Record (Row-Level Security Dinamis):** Hak akses spesifik per dokumen individual yang dapat dibagikan (*share*) ke pengguna/peran tertentu dari UI.
-- **Autentikasi Lanjutan (SSO & 2FA):** Integrasi Google/Microsoft Entra ID (OIDC) dan autentikasi dua faktor berbasis TOTP app.
-- **Generic Document Rename:** Fitur mengubah nomor/ID dokumen yang otomatis memperbarui seluruh relasi Link di child table maupun dokumen lain.
-- **Background Jobs Ad-Hoc (`frappe.enqueue`):** Pemrosesan antrean tugas berat dengan indikator *progress bar* di antarmuka.
-
-### Prioritas 3 (P3 - Tampilan Khusus & Nilai Tambah)
-
-- **Alternate Views:** Kanban board (berdasarkan workflow status), Calendar view (berdasarkan tanggal), dan Tree view (bagan hierarki/CoA).
-- **Visual Print Format Builder & Letter Head UI:** Editor kop surat dan template tata letak cetak dokumen visual.
-- **Social Features:** Tagging warna-warni, bookmark/favorit, dan fitur *Follow Document* (menerima notifikasi otomatis jika ada pembaruan).
-- **Multi-language (i18n):** Lokalisasi UI dinamis yang mudah dialihkan (Bahasa Indonesia & English).
+| Feature / Capability | Priority | Current Status | Description |
+|---|---|---|---|
+| **Single DocType** | P1 | Planned | Singleton document per tenant for system/module global settings. |
+| **Static Link Filters** | P1 | Planned | Metadata-driven query filter for Link fields (e.g., leaf accounts only in General Ledger). |
+| **Import: Update & Upsert Modes** | P1 | In Progress | Excel/CSV import supporting updating existing records by key or adding new records. |
+| **Database Role Segregation** | P2 | Planned | Separation of database migration owner role from runtime application role for append-only audit enforcement. |
+| **Dynamic Workflows** | P2 | Planned | Visual state machine transition editor with conditional approvals. |
 
 ---
 
-## 4. Rekomendasi Rencana Kerja Selanjutnya
+## 4. Next Steps & Development Roadmap
 
-Urutan prioritas rekomendasi untuk fase pengembangan berikutnya:
-
-1. **P1-5 — Export List ke Excel/CSV & Bulk Actions:**
-   - Menyediakan tombol *Export to Excel/CSV* pada Toolbar `ListPage.razor`.
-   - Menambahkan aksi massal: *Bulk Submit*, *Bulk Cancel*, dan *Bulk Edit Field*.
-2. **P1-4 — Comments & @mention Timeline:**
-   - Menambahkan panel komentar dan riwayat aktivitas terpadu di bagian bawah `FormPage.razor`.
-   - Menambahkan notifikasi in-app otomatis saat pengguna di-mention (`@username`).
-3. **P1-8 — Saved Filters / Custom Views:**
-   - Memanfaatkan store `IUserPreferenceStore` yang sudah ada untuk menyimpan preset filter pengguna per DocType.
-
+1. Complete Excel/CSV import upsert mode for bulk transactional uploads.
+2. Integrate single DocType schema compiler for application settings.
+3. Continuous integration and automated DocFX deployment pipeline.

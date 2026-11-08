@@ -1,0 +1,42 @@
+- name: Overview
+  items:
+    - name: Introduction
+      href: index.md
+    - name: Project Structure
+      href: PROJECT_STRUCTURE.md
+    - name: Roadmap & Status
+      href: project-status-roadmap.md
+- name: Core Guides & Features
+  items:
+    - name: DocTypes & Visual Workflows
+      href: guides/doctype-and-workflows.md
+    - name: SQL Dashboards & Widgets
+      href: guides/sql-dashboards.md
+    - name: Saved Query REST APIs
+      href: guides/saved-query-apis.md
+    - name: API Keys & Custom Methods
+      href: guides/api-integrations.md
+    - name: Excel & CSV Data Import
+      href: guides/excel-import.md
+    - name: Template Reporting (Excel & Word)
+      href: guides/template-reporting.md
+    - name: PDF Printing & Rendering
+      href: guides/pdf-printing.md
+    - name: Generic Lookups & Hierarchies
+      href: guides/generic-lookup-and-hierarchy.md
+    - name: File & Image Storage
+      href: guides/file-and-image-storage.md
+    - name: Analytics Engine (World 2 OLAP)
+      href: guides/analytics-engine.md
+- name: Architecture & Reliability
+  items:
+    - name: Security Baseline (OWASP Top 10)
+      href: security-baseline.md
+    - name: Observability & Telemetry
+      href: observability.md
+    - name: Backup & Disaster Recovery
+      href: backup-disaster-recovery.md
+- name: Extensibility & Runtime
+  items:
+    - name: Hooks, Form Actions & Scheduler
+      href: hooks-formactions-scheduler.md

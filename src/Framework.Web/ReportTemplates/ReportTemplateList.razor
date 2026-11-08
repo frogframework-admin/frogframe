@@ -1,68 +1,190 @@
+@page "/admin/report-templates"
 @page "/report-templates"
 @using Framework.Dashboards
+@using Framework.Preferences
 @using Framework.Reports
+@using Framework.Security
 @inject ReportTemplateService Reports
 @inject CurrentUser Current
 @inject ToastService Toasts
 @inject DialogService Dialogs
+@inject IUserPreferenceStore UserPrefs
+@implements IDisposable
 
 <PageTitle>Excel/Word Reports · DocFrame</PageTitle>
 
-<header class="page-head">
-    <div><h1>Excel/Word Reports</h1><p>Reports generated from queries populated into your Excel or Word templates.</p></div>
-    @if (designer) { <BbButton Href="/report-templates/new"><LucideIcon Name="plus" Size="16" /> New template</BbButton> }
-</header>
-
-@if (!Reports.IsAvailable)
+@if (!Current.Required.IsAdmin)
 {
-    <UnavailableNotice />
-}
-else if (items is null)
-{
-    <BbSkeleton Height="10rem" />
-}
-else if (items.Count == 0)
-{
-    <BbEmpty Title="No report templates yet" Description="@(designer ? "Create a template: write a query, upload a tagged Excel/Word file, and save." : "Contact an administrator to add reports.")" />
+    <ErrorState StatusCode="403" Description="This administration page is restricted to System Managers / Administrators." />
 }
 else
 {
-    <div class="table-wrap">
-        <table class="data">
-            <thead><tr><th>Report</th><th>Format</th><th>Parameters</th><th>Created by</th><th>Modified</th><th></th></tr></thead>
-            <tbody>
-                @foreach (var d in items)
-                {
-                    var item = d;
-                    <tr>
-                        <td><a href="@($"/report-templates/{item.Id}")"><strong>@item.Name</strong></a>@if (item.Description is not null) { <div class="muted small">@item.Description</div> }</td>
-                        <td class="nowrap"><LucideIcon Name="@(item.Config.Format == ReportFormats.Xlsx ? "file-spreadsheet" : "file-text")" Size="16" /> @(item.Config.Format == ReportFormats.Xlsx ? "Excel" : "Word")</td>
-                        <td>@(item.Config.Parameters.Count == 0 ? "—" : string.Join(", ", item.Config.Parameters.Select(p => p.Label)))</td>
-                        <td>@(item.Config.Roles.Count == 0 ? "All" : string.Join(", ", item.Config.Roles))</td>
-                        <td class="muted nowrap">v@(item.Version) · @Fmt.When(item.UpdatedAt)</td>
-                        <td class="nowrap">
-                            <BbButton Size="ButtonSize.Small" Href="@($"/report-templates/{item.Id}")"><LucideIcon Name="file-down" Size="15" /> Generate</BbButton>
+    <header class="page-head">
+        <div>
+            <h1>Excel/Word Reports</h1>
+            <p>Reports generated from queries populated into your Excel or Word templates.</p>
+        </div>
+        @if (designer)
+        {
+            <BbButton Href="/admin/report-templates/new"><LucideIcon Name="plus" Size="16" /> New template</BbButton>
+        }
+    </header>
+
+    @if (!Reports.IsAvailable)
+    {
+        <UnavailableNotice />
+    }
+    else
+    {
+        <BbDataGrid @key="gridMgr.RenderKey"
+                    TData="ReportTemplateDef"
+                    Items="@items"
+                    ShowSearch="true"
+                    SearchPlaceholder="Search report templates..."
+                    ShowPagination="true"
+                    InitialPageSize="10"
+                    TableContainerClass="table-wrap"
+                    Resizable="true"
+                    OnColumnResize="gridMgr.HandleResize"
+                    StateChanged="gridMgr.HandleStateChanged">
+            <Toolbar>
+                <div style="display:flex;align-items:center;gap:.5rem;margin-left:auto">
+                    @if (gridMgr.HasCustomLayout)
+                    {
+                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ResetColumnsLayout" Title="Reset column layout to default">
+                            <LucideIcon Name="rotate-ccw" Size="14" />
+                            <span>Reset Columns</span>
+                        </BbButton>
+                    }
+                    <BbDataGridColumnVisibility TData="ReportTemplateDef" />
+                </div>
+            </Toolbar>
+            <Columns>
+                <BbDataGridPropertyColumn TData="ReportTemplateDef" TProp="string" Property="r => r.Name" Id="name" Title="Report" Sortable="true" Filterable="true"
+                                          Width="@gridMgr.GetWidth("name", "16rem")" Visible="@gridMgr.IsVisible("name")" Resizable="true">
+                    <CellTemplate Context="item">
+                        <div>
+                            <a href="@($"/admin/report-templates/{item.Id}")" style="font-weight:600;color:var(--primary);text-decoration:none">
+                                @item.Name
+                            </a>
+                            @if (!string.IsNullOrWhiteSpace(item.Description))
+                            {
+                                <div class="muted small">@item.Description</div>
+                            }
+                        </div>
+                    </CellTemplate>
+                </BbDataGridPropertyColumn>
+
+                <BbDataGridPropertyColumn TData="ReportTemplateDef" TProp="string" Property="r => r.Config.Format" Id="format" Title="Format" Sortable="true" Filterable="true"
+                                          Width="@gridMgr.GetWidth("format", "8.5rem")" Visible="@gridMgr.IsVisible("format")" Resizable="true">
+                    <CellTemplate Context="item">
+                        <div class="row" style="gap:.4rem;align-items:center;flex-wrap:nowrap">
+                            <LucideIcon Name="@(item.Config.Format == ReportFormats.Xlsx ? "file-spreadsheet" : "file-text")" Size="16" />
+                            <span>@(item.Config.Format == ReportFormats.Xlsx ? "Excel" : "Word")</span>
+                        </div>
+                    </CellTemplate>
+                </BbDataGridPropertyColumn>
+
+                <BbDataGridTemplateColumn TData="ReportTemplateDef" Id="parameters" Title="Parameters"
+                                          Width="@gridMgr.GetWidth("parameters", "14rem")" Visible="@gridMgr.IsVisible("parameters")" Resizable="true">
+                    <ChildContent Context="item">
+                        @if (item.Config.Parameters.Count == 0)
+                        {
+                            <span class="muted">—</span>
+                        }
+                        else
+                        {
+                            <div class="row" style="gap:.25rem;flex-wrap:wrap">
+                                @foreach (var p in item.Config.Parameters)
+                                {
+                                    <BbBadge Variant="BadgeVariant.Outline">@p.Label</BbBadge>
+                                }
+                            </div>
+                        }
+                    </ChildContent>
+                </BbDataGridTemplateColumn>
+
+                <BbDataGridTemplateColumn TData="ReportTemplateDef" Id="roles" Title="Access Roles"
+                                          Width="@gridMgr.GetWidth("roles", "12rem")" Visible="@gridMgr.IsVisible("roles")" Resizable="true">
+                    <ChildContent Context="item">
+                        @if (item.Config.Roles.Count == 0)
+                        {
+                            <BbBadge Variant="BadgeVariant.SoftSuccess">All Roles</BbBadge>
+                        }
+                        else
+                        {
+                            <div class="row" style="gap:.25rem;flex-wrap:wrap">
+                                @foreach (var r in item.Config.Roles)
+                                {
+                                    <BbBadge Variant="BadgeVariant.Soft">@r</BbBadge>
+                                }
+                            </div>
+                        }
+                    </ChildContent>
+                </BbDataGridTemplateColumn>
+
+                <BbDataGridTemplateColumn TData="ReportTemplateDef" Id="modified" Title="Modified" Sortable="true" SortBy="r => r.UpdatedAt"
+                                          Width="@gridMgr.GetWidth("modified", "12rem")" Visible="@gridMgr.IsVisible("modified")" Resizable="true">
+                    <ChildContent Context="item">
+                        <span class="muted nowrap">v@(item.Version) · @Fmt.When(item.UpdatedAt)</span>
+                    </ChildContent>
+                </BbDataGridTemplateColumn>
+
+                <BbDataGridTemplateColumn TData="ReportTemplateDef" Id="actions" Title="Actions" Width="@gridMgr.GetWidth("actions", "8rem")" Hideable="false" Resizable="false">
+                    <ChildContent Context="item">
+                        <div style="display:inline-flex;align-items:center;gap:.35rem;flex-wrap:nowrap" @onclick:stopPropagation="true">
+                            <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Href="@($"/admin/report-templates/{item.Id}")" Title="Generate report">
+                                <LucideIcon Name="file-down" Size="14" />
+                                <span>Generate</span>
+                            </BbButton>
                             @if (designer)
                             {
-                                <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" Href="@($"/report-templates/{item.Id}/edit")"><LucideIcon Name="pencil" Size="15" /> Edit</BbButton>
-                                <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@($"Delete {item.Name}")" OnClick="() => Delete(item)"><LucideIcon Name="trash-2" Size="15" /></BbButton>
+                                <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" Href="@($"/admin/report-templates/{item.Id}/edit")" AriaLabel="@($"Edit {item.Name}")" Title="Edit template">
+                                    <LucideIcon Name="pencil" Size="14" />
+                                </BbButton>
+                                <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@($"Delete {item.Name}")" Title="Delete template" OnClick="() => Delete(item)">
+                                    <LucideIcon Name="trash-2" Size="14" />
+                                </BbButton>
                             }
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    </div>
+                        </div>
+                    </ChildContent>
+                </BbDataGridTemplateColumn>
+            </Columns>
+            <EmptyTemplate>
+                <div style="padding:2rem;text-align:center;color:var(--muted-foreground)">
+                    No report templates found.
+                </div>
+            </EmptyTemplate>
+        </BbDataGrid>
+    }
 }
 
 @code {
-    private IReadOnlyList<ReportTemplateDef>? items;
+    private IReadOnlyList<ReportTemplateDef> items = [];
     private bool designer;
+    private Framework.Web.Services.DataGridPreferenceManager<ReportTemplateDef> gridMgr = default!;
 
     protected override async Task OnInitializedAsync()
     {
+        gridMgr = new(UserPrefs, Current, "grid:admin:report-templates", StateHasChanged);
+        if (Current.User is null) return;
+        await gridMgr.InitializeAsync();
         designer = ReportTemplateService.CanDesign(Current.Required);
-        if (Reports.IsAvailable) items = await Reports.ListAsync(Current.Required);
+        if (Reports.IsAvailable)
+        {
+            await Reload();
+        }
+    }
+
+    private async Task Reload()
+    {
+        items = await Reports.ListAsync(Current.Required);
+    }
+
+    private async Task ResetColumnsLayout()
+    {
+        await gridMgr.ResetAsync();
+        Toasts.Success("Column layout has been reset to default.", "Reset Columns");
     }
 
     private async Task Delete(ReportTemplateDef d)
@@ -72,6 +194,11 @@ else
         if (!ok.Confirmed) return;
         await Reports.DeleteAsync(Current.Required, d.Id);
         Toasts.Success("Report template deleted.", d.Name);
-        items = await Reports.ListAsync(Current.Required);
+        await Reload();
+    }
+
+    public void Dispose()
+    {
+        gridMgr?.Dispose();
     }
 }

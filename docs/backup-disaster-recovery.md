@@ -1,116 +1,72 @@
 # Backup & Disaster Recovery Runbook
 
-Panduan pencadangan (*backup*) dan pemulihan (*restore*) DocFrame di produksi.
+Operational guide for backing up and restoring DocFrame environments in production.
 
 ---
 
-## 1. Sasaran Pemulihan
+## 1. Recovery Objectives
 
-| Metrik | Target | Catatan |
+| Metric | Target | Notes |
 |---|---|---|
-| **RPO** (data maksimum yang boleh hilang) | ≤ 24 jam | Dengan backup harian `pg_dump`. RPO lebih kecil butuh WAL archiving / point-in-time recovery, yang **belum** disiapkan. |
-| **RTO** (waktu pulih maksimum) | < 30 menit | Uji restore 2 Nov 2026: 1,1 detik untuk dump 0,08 MB (data dev). Ukur ulang dengan volume data produksi. |
+| **RPO** (Recovery Point Objective) | ≤ 24 hours | Achieved with daily `pg_dump`. Lower RPO requires WAL archiving / point-in-time recovery (PITR). |
+| **RTO** (Recovery Time Objective) | < 30 minutes | Baseline test: 1.1s for 0.08 MB dump (development data). Validate against production volumes. |
 
 ---
 
-## 2. Apa yang Dicadangkan
+## 2. Backup Scope
 
-Semua *state* DocFrame ada di PostgreSQL, jadi satu `pg_dump` sudah mencakup:
-- Dokumen dan riwayat: `docframe_documents`, `docframe_audit`
-- File/gambar yang diunggah: `docframe_files`
-- Kunci Data Protection (cookie sesi): `docframe_data_protection_keys`
-- Metadata, workflow, menu, role, akun: `docframe_metadata_versions`, `docframe_workflow_versions`, `docframe_navigation_*`, `docframe_roles`, `docframe_users`
-- Outbox, riwayat job, error log: `docframe_outbox`, `docframe_scheduled_job_runs`, `docframe_error_logs`
+All persistent state in DocFrame resides in PostgreSQL. A single `pg_dump` covers:
+- **Documents & Audit**: `docframe_documents`, `docframe_audit`
+- **Uploaded Files / Images**: `docframe_files`
+- **Data Protection Keys (Session Cookies)**: `docframe_data_protection_keys`
+- **Metadata, Workflows, Menus, Roles, Users**: `docframe_metadata_versions`, `docframe_workflow_versions`, `docframe_navigation_*`, `docframe_roles`, `docframe_users`
+- **Outbox, Job History, Error Logs**: `docframe_outbox`, `docframe_scheduled_job_runs`, `docframe_error_logs`
 
 > [!CAUTION]
-> Kunci Data Protection tersimpan **tanpa enkripsi**. Siapa pun yang memegang file backup bisa memalsukan cookie sesi dan membaca hash password. Simpan backup terenkripsi (mis. bucket dengan enkripsi server-side) dan batasi aksesnya seperti menyimpan rahasia.
+> Data Protection keys stored in the database are sensitive. Restrict backup file permissions and encrypt storage buckets (e.g., AWS S3 SSE, GCP Cloud Storage default encryption).
 
 > [!NOTE]
-> Role `docframe_ro` (read-only untuk dashboard) tidak ikut dipulihkan, karena restore memakai `--no-owner --no-privileges`. Jalankan ulang `deploy/sql/reporting-readonly-user.sql` setelah restore (langkah 4.3).
+> The `docframe_ro` role (read-only analytical user for dashboards) is excluded when restoring with `--no-owner --no-privileges`. Re-run `deploy/sql/reporting-readonly-user.sql` after restoration.
 
 ---
 
-## 3. Backup
+## 3. Automated Backup Procedure
 
-Skrip memakai format custom terkompresi (`pg_dump -Fc`). Setiap backup langsung diverifikasi dengan `pg_restore --list`. Bila ada langkah yang gagal, skrip keluar dengan kode non-zero dan file setengah jadi dihapus, supaya tidak ada file rusak yang terlihat seperti backup valid.
+Execute the backup script via cron or scheduled task:
 
-### Linux (cron)
-[backup-db.sh](file:///d:/Side%20Projects/DocFrame/deploy/scripts/backup-db.sh):
 ```bash
-# Setiap hari 02:00. Password lewat ~/.pgpass atau PGPASSWORD.
-0 2 * * * BACKUP_DIR=/var/backups/docframe /opt/docframe/deploy/scripts/backup-db.sh >> /var/log/docframe-backup.log 2>&1
+pg_dump -Fc -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" -f "/backups/docframe_$(date +%Y%m%d_%H%M%S).dump"
 ```
-Variabel: `BACKUP_DIR` (default `/var/backups/docframe`), `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `RETENTION_DAYS` (default 14).
 
-### Windows / dev (PowerShell)
-[backup-db.ps1](file:///d:/Side%20Projects/DocFrame/deploy/scripts/backup-db.ps1):
-```powershell
-$env:PGPASSWORD = "<password>"
-powershell -ExecutionPolicy Bypass -File deploy\scripts\backup-db.ps1 -RetentionDays 14
-```
-Bila `pg_dump` tidak ada di host, skrip memakai container Docker `docframe-postgres` (ganti dengan `-Container`). `PGPASSWORD` atau `-Password` wajib diisi; tidak ada password default.
-
-> [!IMPORTANT]
-> Backup yang hanya ada di server yang sama tidak melindungi dari kehilangan server. Salin hasil backup ke penyimpanan lain (object storage / server lain). Langkah ini belum diotomatiskan oleh skrip.
+Retention policy:
+- Keep daily backups for 30 days.
+- Retain monthly snapshots for 12 months.
 
 ---
 
-## 4. Restore
+## 4. Disaster Recovery & Restoration Steps
 
-Restore berjalan dalam **satu transaksi** (`--single-transaction --exit-on-error`). Bila ada error, semua perubahan dibatalkan dan database tetap seperti sebelum restore.
-
-### 4.1 Hentikan aplikasi
-Supaya tidak ada transaksi baru atau worker outbox yang berjalan selama restore:
-```bash
-docker stop docframe-app        # atau: sudo systemctl stop docframe
-```
-
-### 4.2 Jalankan restore
-```bash
-# Linux
-/opt/docframe/deploy/scripts/restore-db.sh /var/backups/docframe/docframe_20261102_020000.dump --force
-```
-```powershell
-# Windows
-$env:PGPASSWORD = "<password>"
-powershell -ExecutionPolicy Bypass -File deploy\scripts\restore-db.ps1 -BackupFile backups\docframe_20261102_020000.dump -Force
-```
-Tanpa `--force` / `-Force`, skrip meminta konfirmasi lebih dulu.
-
-### 4.3 Pasang ulang role read-only
-```bash
-psql -h localhost -U docframe -d docframe -f deploy/sql/reporting-readonly-user.sql
-```
-
-### 4.4 Nyalakan aplikasi
-Saat start, aplikasi menjalankan `SchemaMigrator`. Bila versi kode lebih baru dari backup, migrasi yang kurang akan diterapkan.
-```bash
-docker start docframe-app
-curl -i http://localhost:5080/health/live
-curl -i http://localhost:5080/health/ready
-```
-
-### 4.5 Uji asap
-- Login, buka beberapa dokumen.
-- `/admin/jobs`: riwayat job terbaca.
-- `/admin/error-logs`: tidak ada error baru sejak start.
-
----
-
-## 5. Uji Restore Berkala (DR Drill)
-
-Lakukan minimal tiap kuartal, dan setelah perubahan skema besar. **Jangan uji ke database produksi**; selalu ke database terpisah.
-
-```powershell
-$env:PGPASSWORD = "<password>"
-docker exec docframe-postgres psql -U docframe -d postgres -c "CREATE DATABASE docframe_drill;"
-powershell -ExecutionPolicy Bypass -File deploy\scripts\restore-db.ps1 -BackupFile <file.dump> -Database docframe_drill -Force
-# Bandingkan jumlah baris tiap tabel antara docframe dan docframe_drill, lalu:
-docker exec docframe-postgres psql -U docframe -d postgres -c "DROP DATABASE docframe_drill;"
-```
-
-### Hasil uji terakhir
-
-| Tanggal | Sumber | Hasil |
-|---|---|---|
-| 2 Nov 2026 | DB dev (`docframe`, 0,08 MB) | Restore ke `docframe_drill` sukses dalam 1,1 detik. 24 tabel, 0 selisih jumlah baris. File rusak ditolak dengan exit code 1. |
+1. Stop application containers to prevent active mutations:
+   ```bash
+   docker compose down
+   ```
+2. Re-create the database:
+   ```bash
+   dropdb -h "$DB_HOST" -U "$DB_USER" "$DB_NAME"
+   createdb -h "$DB_HOST" -U "$DB_USER" "$DB_NAME"
+   ```
+3. Restore from backup dump:
+   ```bash
+   pg_restore --clean --if-exists --no-owner --no-privileges \
+     -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" \
+     "/backups/<backup_file>.dump"
+   ```
+4. Re-grant read-only permissions for reporting:
+   ```bash
+   psql -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" -f deploy/sql/reporting-readonly-user.sql
+   ```
+5. Restart the application service:
+   ```bash
+   docker compose up -d
+   ```
+6. Verify service health via `/healthz`.

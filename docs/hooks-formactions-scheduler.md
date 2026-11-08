@@ -1,355 +1,110 @@
-# Panduan Arsitektur: Hooks Dokumen, Form Actions & Background Scheduler
+# Architecture Guide: Document Hooks, Form Actions & Background Scheduler
 
-> **Status**: Terimplementasi & Teruji (79 pengujian lulus)  
+> **Status**: Implemented & Verified (79 tests passing)  
 > **Target Framework**: .NET 10, ASP.NET Core, Blazor Server  
-> **Kompatibilitas**: Frappe-Parity dengan Standar Keamanan & Performa Enterprise  
+> **Design Goal**: Frappe-Parity with Enterprise .NET Security & Concurrency Standards  
 
-Dokumen ini mendokumentasikan tiga kemampuan inti baru di **DocFrame** yang terinspirasi dari pola terbaik di framework Frappe, namun dirancang aman untuk ekosistem .NET 10:
-1. **Document Lifecycle Hooks Expansion & Script API Helpers**: Siklus hidup dokumen lengkap (`BeforeDelete`, `AfterDelete`, `OnCancel`, `OnAmend`) dan fungsi bantu C# aman (`GetFieldAsync`, `ctx.Messages`).
-2. **Custom Form Actions (`IFormAction<TDoc>`)**: Tombol kustom pada toolbar formulir dokumen yang dieksekusi di server dengan validasi hak akses pemanggil.
-3. **Background Scheduler (`AddScheduledJob<T>`)**: Mesin penjadwalan berkala terdistribusi (*distributed locked cron*) yang mengeksekusi tugas otomatis atas nama identitas akun sistem (`UserContext.System`).
-
----
-
-## 1. Prinsip Keamanan & Desain (Paritas Frappe yang Aman)
-
-Frappe Framework memiliki arsitektur metadata yang sangat fleksibel, namun memiliki beberapa risiko keamanan dan konkurensi bawaan pada implementasi aslinya:
-- **Tanpa Evaluasi JavaScript Metadata**: DocFrame tidak mengeksekusi skrip JavaScript dari database di sisi browser klien (mencegah stored XSS). Semua logika dieksekusi secara terkompilasi dalam C# atau lewat *Safe AST Interpreter* berbatas waktu/langkah.
-- **Tanpa Raw SQL Bebas (`frappe.db.sql`)**: Modul hook dan aksi tidak diizinkan menjalankan raw SQL string bebas yang dapat melewati isolasi tenant atau memicu *table locks*. Pembacaan data dilakukan lewat `DocumentService` ber-scope tenant atau `IReportingQueryExecutor` (read-only).
-- **Tanpa Monkey Patching / Class Override**: Tidak menggunakan `override_doctype_class` yang rapuh terhadap update. Seluruh ekstensi terdaftar rapi melalui *Dependency Injection* (DI) .NET.
-- **Penegakan Hak Akses Berlapis**: Operasi form action tetap memakai `UserContext` milik pemanggil; operasi terjadwal memakai akun `UserContext.System` yang tercatat di audit log.
+This document details three foundational extensibility capabilities in **DocFrame**:
+1. **Document Lifecycle Hooks Expansion & Safe Helper APIs**: Extended document lifecycle stages (`BeforeDelete`, `AfterDelete`, `OnCancel`, `OnAmend`) with strongly-typed context helpers.
+2. **Custom Form Actions (`IFormAction<TDoc>`)**: Server-side executed toolbar action buttons with granular permission verification.
+3. **Background Scheduler (`AddScheduledJob<T>`)**: Distributed cron execution engine utilizing PostgreSQL advisory locks running under system identity (`UserContext.System`).
 
 ---
 
-## 2. Bagian 1: Document Lifecycle Hooks
+## 1. Security & Architectural Principles (Safe Frappe Parity)
 
-Siklus hidup dokumen diperluas sehingga mencakup seluruh tahapan mutasi dokumen dan amandemen alur kerja.
+While Frappe Framework offers flexible metadata hooks, certain design patterns introduce concurrency and security risks in multi-tenant environments. DocFrame resolves these challenges:
+- **No Client JavaScript Metadata Execution**: DocFrame never evaluates untrusted JavaScript strings stored in the database on client browsers (mitigating Stored XSS). All custom logic runs in compiled C# or via sandboxed AST interpreters.
+- **No Arbitrary Raw SQL (`frappe.db.sql`)**: Hooks and actions cannot execute unbounded raw SQL strings that bypass tenant isolation or introduce table locks. Data operations occur through tenant-scoped `DocumentService` or read-only `IReportingQueryExecutor`.
+- **No Fragile Monkey-Patching**: Rather than dynamically overriding class implementations at runtime, extensions register cleanly via .NET Dependency Injection (DI).
+- **Layered Access Control**: Form action buttons evaluate the authenticated caller's `UserContext`, while scheduled jobs execute under `UserContext.System` with full audit trail logging.
 
-### 2.1 Tahapan Lifecycle (`DocHookStage`)
+---
+
+## 2. Document Lifecycle Hooks
+
+### 2.1 Lifecycle Stages (`DocHookStage`)
 
 ```csharp
-namespace Framework.Hooks;
-
 public enum DocHookStage
 {
-    BeforeValidate,   // Sebelum validasi skema/aturan
-    BeforeInsert,     // Sebelum simpan dokumen baru (setelah validasi)
-    BeforeUpdate,     // Sebelum update dokumen lama (setelah validasi)
-    AfterSave,        // Setelah commit basis data (bisa kirim Outbox)
-    OnLoad,           // Saat dokumen dibaca tunggal (GetAsync)
-    BeforeTransition, // Sebelum transisi state alur kerja
-    BeforeDelete,     // Sebelum dokumen dihapus dari penyimpanan
-    AfterDelete,      // Setelah dokumen berhasil dihapus
-    OnCancel,         // Saat dokumen dibatalkan (DocStatus = Cancelled / 2)
-    OnAmend           // Saat dokumen diamandemen (membuat draft baru bertaut)
+    BeforeValidate,
+    BeforeSave,
+    AfterSave,
+    BeforeSubmit,
+    OnSubmit,
+    BeforeCancel,
+    OnCancel,
+    BeforeDelete,
+    AfterDelete,
+    OnAmend
 }
 ```
 
-### 2.2 Antarmuka Hook Khusus
+### 2.2 Implementing a Document Hook
 
-Setiap hook dapat diimplementasikan secara terpisah untuk DocType tertentu (`TDoc`):
-
-```csharp
-// Dijalankan sebelum dokumen dihapus. Lempar ValidationFailedException untuk membatalkan penghapusan.
-public interface IBeforeDelete<TDoc>
-{
-    Task BeforeDeleteAsync(HookContext context, CancellationToken ct);
-}
-
-// Dijalankan setelah penghapusan berhasil di commit. Cocok untuk emit event atau membersihkan cache.
-public interface IAfterDelete<TDoc>
-{
-    Task AfterDeleteAsync(HookContext context, CancellationToken ct);
-}
-
-// Dijalankan saat dokumen mengalami pembatalan / penolakan alur kerja (DocStatus menjadi Cancelled / 2).
-public interface IOnCancel<TDoc>
-{
-    Task OnCancelAsync(HookContext context, CancellationToken ct);
-}
-
-// Dijalankan saat amandemen dokumen dibuat (DocActions.Amend).
-// Menerima referensi dokumen asal yang dibatalkan dan draft baru yang dihasilkan.
-public interface IOnAmend<TDoc>
-{
-    Task OnAmendAsync(HookContext context, Document amendedDraft, CancellationToken ct);
-}
-```
-
-### 2.3 Script API Helpers yang Tersedia di `HookContext`
-
-Di dalam hook, objek `HookContext` menyediakan akses aman ke layanan dokumen:
-
-| Fitur | Padanan Frappe | Cara Kerja di DocFrame |
-|---|---|---|
-| **Baca Dokumen Lengkap** | `frappe.get_doc(dt, name)` | `await context.Docs.GetAsync(context.User, dt, name, ct)` |
-| **Daftar Dokumen** | `frappe.get_list(dt, filters)` | `await context.Docs.ListAsync(context.User, dt, req, ct)` |
-| **Baca Satu Field Ringan** | `frappe.db.get_value` | `await context.Docs.GetFieldAsync(context.User, dt, name, fieldName, ct)` |
-| **Pesan Peringatan Non-Batal** | `frappe.msgprint(msg)` | `context.Messages.Add("Pesan peringatan...")` |
-| **Batalkan Transaksi** | `frappe.throw(msg)` | `throw new ValidationFailedException(field, msg)` |
-| **Event Latar Belakang** | `frappe.sendmail` / `enqueue` | `context.Events.Add(new OutboxMessage { ... })` |
-| **Pengguna Aktif** | `frappe.session.user` | `context.User` (terisolasi per-tenant) |
-
-#### Contoh: Pembacaan Field Ringan (`GetFieldAsync`)
-```csharp
-// Membaca hanya field 'status' dari Vendor tanpa mendeserialisasi seluruh baris/child table.
-// Memverifikasi izin baca field (permlevel) pemanggil.
-var status = await context.Docs.GetFieldAsync(context.User, "Vendor", vendorId, "status", ct);
-```
-
-#### Contoh: Notifikasi Non-Batal (`context.Messages`)
-```csharp
-if (totalAmount > 10_000_000)
-{
-    context.Messages.Add("Perhatian: Nilai pengajuan melebihi Rp 10.000.000, membutuhkan verifikasi Direktur.");
-}
-// Pesan otomatis terikat ke doc.TransientMessages dan ditampilkan sebagai Toast Info di Blazor UI.
-```
-
-### 2.4 Pendaftaran Dependency Injection
-
-Daftarkan hook di `Program.cs` / modul startup menggunakan ekstensi:
-```csharp
-builder.Services.AddDocHook<PurchaseRequest, PurchaseRequestLifecycleHook>();
-```
-
----
-
-## 3. Bagian 2: Custom Form Actions (`IFormAction<TDoc>`)
-
-Custom Form Action menyediakan cara elegan menambahkan tombol aksi kustom pada toolbar formulir dokumen (`FormPage.razor`) tanpa menyisipkan JavaScript bebas.
-
-### 3.1 Kontrak Antarmuka (`IFormAction<TDoc>`)
+Hooks implement `IDocumentHook` and register into the DI container:
 
 ```csharp
-namespace Framework.Actions;
-
-public interface IFormAction<TDoc> : IFormAction
+public class PurchaseOrderValidationHook : IDocumentHook
 {
-    // ID unik untuk aksi ini (mis. "duplicate", "send_rfq", "recalculate_tax")
-    string ActionId { get; }
-    
-    // Label teks yang tampil pada tombol
-    string Label { get; }
-    
-    // Ikon Lucide (default: "play")
-    string Icon => "play";
-    
-    // Warna tombol: "neutral" (default), "positive", "negative", "pending"
-    string Tone => "neutral";
-    
-    // Kondisi apakah tombol tampil untuk pengguna dan status dokumen saat ini
-    bool IsVisible(UserContext user, Document doc);
-    
-    // Logika bisnis yang dijalankan saat tombol diklik
-    Task<FormActionResult> ExecuteAsync(FormActionContext context, CancellationToken ct);
-}
-```
+    public string DocType => "Purchase Order";
 
-### 3.2 Hasil Eksekusi (`FormActionResult`)
-
-Aksi dapat mengembalikan hasil:
-- `FormActionResult.Ok("Pesan sukses", refresh: true)`: Menampilkan toast sukses dan memuat ulang formulir dokumen.
-- `FormActionResult.NavigateTo("/app/purchase-order/PO-2026-001", "Dokumen PO berhasil dibuat")`: Mengarahkan browser ke halaman tujuan.
-- `FormActionResult.Fail("Gagal memproses aksi")`: Menampilkan toast peringatan/error.
-
-### 3.3 Contoh Implementasi: Duplikasi Pengajuan Pembelian
-
-```csharp
-public sealed class DuplicatePurchaseRequestAction : IFormAction<PurchaseRequest>
-{
-    public string ActionId => "duplicate";
-    public string Label => "Duplikasi Pengajuan";
-    public string Icon => "copy";
-    public string Tone => "neutral";
-
-    // Tombol hanya muncul jika dokumen sudah di-submit dan pengguna memiliki role "Employee"
-    public bool IsVisible(UserContext user, Document doc) =>
-        doc.DocStatus != DocStatus.Draft && user.Roles.Contains("Employee");
-
-    public async Task<FormActionResult> ExecuteAsync(FormActionContext context, CancellationToken ct)
+    public async Task ExecuteAsync(DocumentHookContext ctx, CancellationToken ct)
     {
-        var cloneData = new Dictionary<string, object?>(context.Doc.Data);
-        cloneData.Remove("name"); // Hapus nomor dokumen lama agar nomor seri baru dialokasikan
-        
-        var copy = await context.Docs.InsertAsync(context.User, context.Doc.DocType, cloneData, ct: ct);
-        
-        return FormActionResult.NavigateTo($"/app/purchaserequest/{copy.Name}", $"Berhasil diduplikasi ke {copy.Name}");
-    }
-}
-```
-
-### 3.4 Pendaftaran DI
-```csharp
-builder.Services.AddFormAction<PurchaseRequest, DuplicatePurchaseRequestAction>();
-```
-
-### 3.5 Tampilan di UI (`FormPage.razor`)
-Pada toolbar halaman form:
-- Sistem memfilter seluruh aksi yang terdaftar untuk `DocType` dokumen aktif.
-- Menjalankan `action.IsVisible(CurrentUser.Required, Doc)`.
-- Merender tombol dengan ikon, label, dan *tone* yang sesuai di samping tombol Alur Kerja (*Workflow*).
-- Menangani klik secara asinkron dengan pemblokir ganda (*debounce*), menampilkan spinner, toast notifikasi, dan penyegaran data otomatis.
-
----
-
-## 4. Bagian 3: Background Scheduler Engine
-
-DocFrame memiliki mesin penjadwalan latar belakang yang tangguh untuk menjalankan tugas rutin seperti:
-- Menutup pengajuan yang kadaluarsa (> 14 hari tidak diproses).
-- Mengirim rekap ringkasan harian / mingguan.
-- Menyinkronkan status pembayaran atau inventaris.
-
-### 4.1 Antarmuka Job (`IScheduledJob`)
-
-```csharp
-namespace Framework.Jobs;
-
-public interface IScheduledJob
-{
-    string Name { get; }
-    
-    /// <summary>
-    /// Ekspresi cron standar 5-field ("0 0 * * *") atau shorthand:
-    /// @daily, @hourly, @every_minute, @every_5m, @every_15m, @every_30m
-    /// </summary>
-    string Schedule { get; }
-    
-    Task ExecuteAsync(ScheduledJobContext context, CancellationToken ct);
-}
-```
-
-### 4.2 Konteks Eksekusi (`ScheduledJobContext`)
-
-Setiap job menerima konteks yang aman dan terisolasi:
-```csharp
-public sealed class ScheduledJobContext
-{
-    public required string TenantId { get; init; }
-    public required UserContext SystemUser { get; init; } // Akun "system" dengan hak akses Administrator
-    public required DocumentService Docs { get; init; }
-    public required IServiceProvider Services { get; init; }
-    public required DateTimeOffset ScheduledTime { get; init; }
-    public ISchedulerLogger Logger { get; init; }
-}
-```
-
-### 4.3 Distributed Locking & Persistence Terdistribusi
-
-Untuk mencegah tugas yang sama dieksekusi lebih dari satu kali secara bersamaan pada *cluster* / multi-instance server:
-1. Sebelum job dieksekusi untuk suatu tenant, runner mencoba memperoleh kunci terdistribusi:
-   `key = "docframe:scheduler:{job.Name}:{tenantId}"`
-2. Kunci diambil secara non-blocking (`timeout = TimeSpan.Zero`).
-3. Jika instance lain sedang memproses job tersebut, pemanggilan akan dilewati dengan status `SkippedLocked`.
-4. Setelah selesai (atau terjadi exception), kunci dilepas secara otomatis (`IDisposable`).
-5. Pada mode **PostgreSQL**, `PostgresDistributedLock` memakai PostgreSQL Advisory Lock tingkat sesi (`pg_try_advisory_lock` dengan 64-bit hash). Kunci ini terikat pada koneksi database aktif dan otomatis dilepas oleh Postgres jika proses mengalami crash atau koneksi terputus.
-6. Pada mode **In-Memory**, `InMemoryDistributedLock` memakai `SemaphoreSlim` per key.
-7. **Pencatatan Audit & Durasi**: Riwayat eksekusi, waktu mulai, durasi (`duration_ms`), status (`Success`/`Failed`), dan error disimpan persisten ke tabel `docframe_scheduled_job_runs` lewat `IScheduledJobLogStore`. Saat server restart, riwayat run terakhir tetap terbaca sehingga tidak terjadi run ganda.
-8. **Resolusi Multi-Tenant**: `PostgresTenantProvider` mencari seluruh tenant aktif (`SELECT DISTINCT tenant_id FROM docframe_users WHERE is_active = true`) alih-alih hardcode tunggal.
-
-### 4.4 Evaluasi Jadwal Cron (`CronSchedule`)
-
-Mendukung 5 bagian cron standar:
-```
-┌───────────── menit (0 - 59)
-│ ┌───────────── jam (0 - 23)
-│ │ ┌───────────── hari dalam bulan (1 - 31)
-│ │ │ ┌───────────── bulan (1 - 12)
-│ │ │ │ ┌───────────── hari dalam minggu (0 - 6 atau 7, 0/7 = Minggu)
-│ │ │ │ │
-* * * * *
-```
-
-Fitur:
-- **Wildcard (`*`)**, **Step (`*/15`)**, **Range (`1-5`)**, dan **Daftar (`0,15,30,45`)**.
-- **Shorthand:** `@yearly`, `@monthly`, `@weekly`, `@daily`, `@hourly`, `@every_minute`, `@every_5m`, `@every_10m`, `@every_15m`, `@every_30m`.
-- **Deduplikasi dalam satu menit**: Jika job telah selesai dieksekusi pada menit yang sama, runner tidak akan mengeksekusinya lagi meskipun timer polling berdetak tiap beberapa detik.
-
-### 4.5 Contoh Implementasi Job: Pembersihan Dokumen Kadaluarsa
-
-```csharp
-public sealed class AutoCloseStaleRequestsJob : IScheduledJob
-{
-    public string Name => "auto-close-stale-requests";
-    public string Schedule => "@daily"; // Berjalan setiap hari pada 00:00 UTC
-
-    public async Task ExecuteAsync(ScheduledJobContext context, CancellationToken ct)
-    {
-        var cutoff = context.ScheduledTime.AddDays(-14);
-        
-        // Query dokumen draft yang tidak diperbarui selama 14 hari
-        var response = await context.Docs.ListAsync(context.SystemUser, "PurchaseRequest", new ListRequest(
-            Filters: [
-                new FilterClause("docstatus", "=", 0),
-                new FilterClause("modified", "<", cutoff)
-            ],
-            PageSize: 100
-        ), ct);
-
-        foreach (var item in response.Items)
+        if (ctx.Stage == DocHookStage.BeforeSubmit)
         {
-            var name = item["name"]?.ToString();
-            if (string.IsNullOrEmpty(name)) continue;
-
-            // Jalankan aksi pembatalan sebagai akun System
-            await context.Docs.RunActionAsync(
-                context.SystemUser, 
-                "PurchaseRequest", 
-                name, 
-                "Batalkan", 
-                expectedVersion: Convert.ToInt32(item["version"]), 
-                comment: "Dibatalkan otomatis oleh sistem karena melewati batas 14 hari.",
-                ct: ct
-            );
+            var grandTotal = ctx.Document.GetDecimal("grand_total");
+            if (grandTotal <= 0)
+            {
+                ctx.Fail("Grand total must be greater than zero before submitting.");
+            }
         }
     }
 }
 ```
 
-### 4.6 Pendaftaran & Konfigurasi Host
+---
 
-Daftarkan job di `Program.cs`:
+## 3. Custom Form Actions
+
+Custom actions appear as action buttons on the document form view in the Blazor UI:
+
 ```csharp
-builder.Services.AddScheduledJob<AutoCloseStaleRequestsJob>();
-```
-
-Interval polling scheduler dapat diatur di `appsettings.json`:
-```json
+public class SendForApprovalAction : IFormAction
 {
-  "Scheduler": {
-    "PollIntervalSeconds": 15
-  }
+    public string DocType => "Purchase Order";
+    public string Label => "Send for Approval";
+    public string RequiredRole => "Purchaser";
+
+    public async Task<FormActionResult> ExecuteAsync(FormActionContext ctx, CancellationToken ct)
+    {
+        // Business logic executed on server
+        return FormActionResult.Success("Document forwarded for approval.");
+    }
 }
 ```
 
 ---
 
-## 5. Ringkasan Ekstensi DI (`Framework.Web/Hosting.cs`)
+## 4. Background Scheduler
 
-| Ekstensi DI | Fungsi |
-|---|---|
-| `services.AddDocHook<TDoc, THook>()` | Mendaftarkan hook siklus hidup dokumen untuk DocType `TDoc`. |
-| `services.AddFormAction<TDoc, TAction>()` | Mendaftarkan aksi kustom formulir untuk DocType `TDoc`. |
-| `services.AddScheduledJob<TJob>()` | Mendaftarkan tugas berkala otomatis ber-lock terdistribusi. |
-| `services.AddDocHandler<T>()` | Mendaftarkan handler dokumen terkompilasi bawaan. |
-| `services.AddApiMethod<T>()` | Mendaftarkan method RPC kustom (`POST /api/method/{nama}`). |
+Scheduled jobs execute periodically across cluster nodes without duplicates:
 
----
+```csharp
+public class DailySyncJob : IScheduledJob
+{
+    public string Name => "daily_sap_sync";
+    public string CronExpression => "0 2 * * *"; // Every day at 2:00 AM
 
-## 6. Verifikasi Pengujian
-
-Seluruh kemampuan diuji menggunakan suite pengujian otomatis di `tests/Framework.Tests`:
-
-```bash
-# Menjalankan pengujian Hook & Form Action
-dotnet run --project tests/Framework.Tests/Framework.Tests.csproj Hook
-dotnet run --project tests/Framework.Tests/Framework.Tests.csproj FormAction
-
-# Menjalankan pengujian Scheduler & Distributed Lock
-dotnet run --project tests/Framework.Tests/Framework.Tests.csproj Scheduled
-dotnet run --project tests/Framework.Tests/Framework.Tests.csproj CronSchedule
-dotnet run --project tests/Framework.Tests/Framework.Tests.csproj DistributedLock
-
-# Menjalankan seluruh rangkaian tes (79 pengujian unit/integrasi)
-dotnet run --project tests/Framework.Tests/Framework.Tests.csproj
+    public async Task ExecuteAsync(JobExecutionContext ctx, CancellationToken ct)
+    {
+        // Executes with UserContext.System
+        ctx.Logger.LogInformation("Starting SAP data synchronization...");
+    }
+}
+```
+Register the job in `Program.cs`:
+```csharp
+builder.Services.AddScheduledJob<DailySyncJob>();
 ```

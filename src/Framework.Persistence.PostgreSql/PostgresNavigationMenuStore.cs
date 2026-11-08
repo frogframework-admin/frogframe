@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Framework.Navigation;
+using Framework.Security;
 using Npgsql;
 
 namespace Framework.Persistence.PostgreSql;
@@ -403,6 +404,43 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
             backfillCmd.Parameters.AddWithValue(tenantId);
             var updated = await backfillCmd.ExecuteNonQueryAsync(ct);
             if (updated > 0) added = true;
+        }
+
+        // 5. Move report_templates to System group if it is still in the old Reports group, and update href/roles
+        await using (var updateReportCmd = db.CreateCommand(
+            "UPDATE docframe_navigation_menus " +
+            "SET group_id = $2, group_name = 'System', href = 'admin/report-templates', allowed_roles = $3, sort_order = 115 " +
+            "WHERE tenant_id = $1 AND (id = $4 OR href = 'report-templates' OR href = 'admin/report-templates') AND (group_name <> 'System' OR href <> 'admin/report-templates')"))
+        {
+            updateReportCmd.Parameters.AddWithValue(tenantId);
+            updateReportCmd.Parameters.AddWithValue(NavigationMenuDefaults.GroupSistemId(tenantId));
+            updateReportCmd.Parameters.AddWithValue(new string[] { UserContext.SystemManager, UserContext.Administrator });
+            updateReportCmd.Parameters.AddWithValue($"menu_{tenantId}_report_templates");
+            var moved = await updateReportCmd.ExecuteNonQueryAsync(ct);
+            if (moved > 0) added = true;
+        }
+
+        // 6. Move/update any legacy widgets menu item to System group with href admin/widgets, and purge old analytic widgets menus
+        await using (var updateWidgetCmd = db.CreateCommand(
+            "UPDATE docframe_navigation_menus " +
+            "SET group_id = $2, group_name = 'System', href = 'admin/widgets', icon = 'layout-grid', allowed_roles = $3, sort_order = 118 " +
+            "WHERE tenant_id = $1 AND (id = $4 OR href = 'dashboard/widgets' OR href = 'widgets') AND (group_name <> 'System' OR href <> 'admin/widgets')"))
+        {
+            updateWidgetCmd.Parameters.AddWithValue(tenantId);
+            updateWidgetCmd.Parameters.AddWithValue(NavigationMenuDefaults.GroupSistemId(tenantId));
+            updateWidgetCmd.Parameters.AddWithValue(new string[] { UserContext.SystemManager, UserContext.Administrator });
+            updateWidgetCmd.Parameters.AddWithValue($"menu_{tenantId}_widgets");
+            var movedWidget = await updateWidgetCmd.ExecuteNonQueryAsync(ct);
+            if (movedWidget > 0) added = true;
+        }
+
+        await using (var delOldWidgetCmd = db.CreateCommand(
+            "DELETE FROM docframe_navigation_menus WHERE tenant_id = $1 AND (href = 'dashboard/widgets' OR href = 'widgets') AND id <> $2"))
+        {
+            delOldWidgetCmd.Parameters.AddWithValue(tenantId);
+            delOldWidgetCmd.Parameters.AddWithValue($"menu_{tenantId}_widgets");
+            var delCount = await delOldWidgetCmd.ExecuteNonQueryAsync(ct);
+            if (delCount > 0) added = true;
         }
 
         seededTenants[tenantId] = true;

@@ -1,3 +1,5 @@
+@page "/admin/widgets/new"
+@page "/admin/widgets/{WidgetId}"
 @page "/dashboard/widgets/new"
 @page "/dashboard/widgets/{WidgetId}"
 @using Framework.Dashboards
@@ -12,9 +14,7 @@
 
 <BbBreadcrumb Class="crumbs">
     <BbBreadcrumbList>
-        <BbBreadcrumbItem><BbBreadcrumbLink Href="/dashboard">Dashboard</BbBreadcrumbLink></BbBreadcrumbItem>
-        <BbBreadcrumbSeparator />
-        <BbBreadcrumbItem><BbBreadcrumbLink Href="/dashboard/widgets">Widgets</BbBreadcrumbLink></BbBreadcrumbItem>
+        <BbBreadcrumbItem><BbBreadcrumbLink Href="/admin/widgets">Widgets</BbBreadcrumbLink></BbBreadcrumbItem>
         <BbBreadcrumbSeparator />
         <BbBreadcrumbItem><BbBreadcrumbPage>@(isEdit ? widget.Name : "New")</BbBreadcrumbPage></BbBreadcrumbItem>
     </BbBreadcrumbList>
@@ -22,7 +22,7 @@
 
 @if (!DashboardService.CanDesign(Current.Required))
 {
-    <ErrorState StatusCode="403" Description="Designing widgets is only available to System Managers." BackHref="/dashboard" BackLabel="Back to Dashboard" />
+    <ErrorState StatusCode="403" Description="Designing widgets is only available to System Managers." BackHref="/admin/widgets" BackLabel="Back to Widgets" />
 }
 else if (!Dashboards.IsAvailable)
 {
@@ -30,7 +30,7 @@ else if (!Dashboards.IsAvailable)
 }
 else if (notFound)
 {
-    <ErrorState StatusCode="404" Title="Widget Not Found" Description="The requested dashboard widget was not found." BackHref="/dashboard/widgets" BackLabel="Back to Widgets" />
+    <ErrorState StatusCode="404" Title="Widget Not Found" Description="The requested dashboard widget was not found." BackHref="/admin/widgets" BackLabel="Back to Widgets" />
 }
 else
 {
@@ -61,31 +61,53 @@ else
     @switch (step)
     {
         case 1:
-            <div class="builder-grid">
-                <BbCard>
+            <div class="builder-grid builder-grid-equal">
+                <BbCard Class="builder-card-left">
                     <BbCardHeader>
                         <BbCardTitle Class="card-title">1. Data source &amp; query</BbCardTitle>
                         <BbCardDescription>Single SELECT statement (or WITH … SELECT). Write parameters as <code>@@ParamName</code>. Optional filter: <code>(@@Dept IS NULL OR department = @@Dept)</code>.</BbCardDescription>
                     </BbCardHeader>
-                    <BbCardContent>
-                        <FormTextArea Id="sql" Value="@widget.Config.Sql" ValueChanged="v => widget.Config.Sql = v ?? string.Empty" Rows="14" AriaLabel="SQL Query" />
-                        <div class="row" style="margin-top:.75rem">
-                            <BbButton OnClick="Detect"><LucideIcon Name="scan-search" Size="16" /> Next: detect parameters</BbButton>
-                            <span class="muted small">@widget.Config.Sql.Length / @SqlGuard.MaxLength characters</span>
+                    <BbCardContent Class="builder-card-content">
+                        <div class="stack" style="flex:1;display:flex;flex-direction:column;min-height:0;height:100%">
+                            <FormTextArea Id="sql" Value="@widget.Config.Sql" ValueChanged="v => widget.Config.Sql = v ?? string.Empty" Rows="12" AriaLabel="SQL Query" />
                         </div>
                     </BbCardContent>
+                    <BbCardFooter Class="builder-card-footer">
+                        <BbButton OnClick="Detect"><LucideIcon Name="scan-search" Size="16" /> Next: detect parameters</BbButton>
+                        <span class="muted small">@widget.Config.Sql.Length / @SqlGuard.MaxLength characters</span>
+                    </BbCardFooter>
                 </BbCard>
-                <BbCard>
+                <BbCard Class="builder-card-right">
                     <BbCardHeader>
                         <BbCardTitle Class="card-title">Available views</BbCardTitle>
                         <BbCardDescription>Click a view or column name to append it to the query.</BbCardDescription>
                     </BbCardHeader>
-                    <BbCardContent>
+                    <BbCardContent Class="builder-card-content">
+                        <div class="catalog-search" style="margin-bottom:.65rem;flex-shrink:0">
+                            <BbInputGroup>
+                                <BbInputGroupAddon Align="InputGroupAlign.InlineStart">
+                                    <LucideIcon Name="search" Size="15" />
+                                </BbInputGroupAddon>
+                                <BbInputGroupInput Value="@viewSearch" ValueChanged="v => viewSearch = v"
+                                                   UpdateTiming="UpdateTiming.Debounced" DebounceInterval="150"
+                                                   Placeholder="Search views or columns…" AriaLabel="Search views" />
+                                @if (!string.IsNullOrWhiteSpace(viewSearch))
+                                {
+                                    <BbInputGroupAddon Align="InputGroupAlign.InlineEnd">
+                                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" Class="search-clear-btn"
+                                                  OnClick="() => viewSearch = null" AriaLabel="Clear search">
+                                            <LucideIcon Name="x" Size="13" />
+                                        </BbButton>
+                                    </BbInputGroupAddon>
+                                }
+                            </BbInputGroup>
+                        </div>
                         <div class="catalog">
-                            @foreach (var v in ReportingCatalog.Describe(Metadata.Current))
+                            @foreach (var v in FilteredViews)
                             {
                                 var view = v;
-                                <details>
+                                var isOpen = !string.IsNullOrWhiteSpace(viewSearch);
+                                <details open="@(isOpen ? true : null)">
                                     <summary><button type="button" class="catalog-insert" @onclick="() => Insert(view.Name)" @onclick:stopPropagation="true"><code>@view.Name</code></button><span class="muted small">@view.Title</span></summary>
                                     <ul>
                                         @foreach (var (col, type) in view.Columns)
@@ -95,6 +117,10 @@ else
                                         }
                                     </ul>
                                 </details>
+                            }
+                            @if (!FilteredViews.Any())
+                            {
+                                <p class="muted small" style="padding:1rem 0;text-align:center">No views or columns match "@viewSearch".</p>
                             }
                         </div>
                     </BbCardContent>
@@ -153,13 +179,13 @@ else
             break;
 
         case 3:
-            <div class="builder-grid">
-                <BbCard>
+            <div class="builder-grid builder-grid-equal">
+                <BbCard Class="builder-card-left">
                     <BbCardHeader>
                         <BbCardTitle Class="card-title">3. Chart type &amp; column mapping</BbCardTitle>
                         <BbCardDescription>X Axis = category/label (text or date). Y Axis = value, must be a numeric column.</BbCardDescription>
                     </BbCardHeader>
-                    <BbCardContent>
+                    <BbCardContent Class="builder-card-content" Style="overflow-y:auto;scrollbar-width:thin">
                         <div class="chart-types" role="radiogroup" aria-label="Chart type">
                             @foreach (var t in ChartTypes.All)
                             {
@@ -197,29 +223,37 @@ else
                         {
                             <BbAlert Variant="AlertVariant.Warning" Style="margin-top:1rem"><BbAlertDescription><ul class="error-list">@foreach (var e in VisualErrors) { <li>@e</li> }</ul></BbAlertDescription></BbAlert>
                         }
-                        <div class="row" style="margin-top:1rem">
-                            <BbButton Variant="ButtonVariant.Ghost" OnClick="() => GoTo(2)">Back</BbButton>
-                            <span class="spacer"></span>
-                            <BbButton Disabled="@(VisualErrors.Count > 0)" OnClick="() => GoTo(4)">Next: save <LucideIcon Name="arrow-right" Size="16" /></BbButton>
-                        </div>
                     </BbCardContent>
+                    <BbCardFooter Class="builder-card-footer">
+                        <BbButton Variant="ButtonVariant.Ghost" OnClick="() => GoTo(2)">Back</BbButton>
+                        <span class="spacer"></span>
+                        <BbButton Disabled="@(VisualErrors.Count > 0)" OnClick="() => GoTo(4)">Next: save <LucideIcon Name="arrow-right" Size="16" /></BbButton>
+                    </BbCardFooter>
                 </BbCard>
-                <BbCard>
+                <BbCard Class="builder-card-right">
                     <BbCardHeader><BbCardTitle Class="card-title">Preview</BbCardTitle><BbCardDescription>Using data from step 2.</BbCardDescription></BbCardHeader>
-                    <BbCardContent>
-                        @if (VisualErrors.Count == 0) { <ChartView Result="preview" Visual="Visual" Width="440" /> }
-                        else { <div class="chart-empty"><span>Complete column mapping to view preview</span></div> }
+                    <BbCardContent Class="builder-card-content" Style="overflow-y:auto;scrollbar-width:thin">
+                        @if (VisualErrors.Count == 0)
+                        {
+                            <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100%;padding:1rem 0">
+                                <ChartView Result="preview" Visual="Visual" Width="440" />
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="chart-empty" style="flex:1"><span>Complete column mapping to view preview</span></div>
+                        }
                     </BbCardContent>
                 </BbCard>
             </div>
             break;
 
         case 4:
-            <div class="builder-grid">
-                <BbCard>
+            <div class="builder-grid builder-grid-equal">
+                <BbCard Class="builder-card-left">
                     <BbCardHeader><BbCardTitle Class="card-title">4. Save &amp; publish</BbCardTitle></BbCardHeader>
-                    <BbCardContent>
-                        <div class="stack">
+                    <BbCardContent Class="builder-card-content" Style="overflow-y:auto;scrollbar-width:thin">
+                        <div class="stack" style="padding-bottom:.5rem">
                             <BbField><BbFieldLabel For="w-name">Widget name</BbFieldLabel><FormTextInput Id="w-name" Value="@widget.Name" ValueChanged="v => widget.Name = v ?? string.Empty" /></BbField>
                             <BbField><BbFieldLabel For="w-desc">Description</BbFieldLabel><FormTextArea Id="w-desc" Value="@widget.Description" ValueChanged="v => widget.Description = string.IsNullOrWhiteSpace(v) ? null : v" Rows="2" /></BbField>
                             <div>
@@ -238,17 +272,21 @@ else
                                 <div class="label-row"><BbCheckbox Id="w-pin" @bind-Checked="pin" /><BbLabel For="w-pin">Pin to main dashboard</BbLabel></div>
                             }
                             <Framework.Web.QueryApis.PublishAsApiOption Option="apiOption" DefaultName="@widget.Name" />
-                            <div class="row">
-                                <BbButton Variant="ButtonVariant.Ghost" OnClick="() => GoTo(3)">Back</BbButton>
-                                <span class="spacer"></span>
-                                <BbButton Disabled="@(busy || string.IsNullOrWhiteSpace(widget.Name))" OnClick="Save"><LucideIcon Name="save" Size="16" /> @(busy ? "Saving…" : "Save widget")</BbButton>
-                            </div>
                         </div>
                     </BbCardContent>
+                    <BbCardFooter Class="builder-card-footer">
+                        <BbButton Variant="ButtonVariant.Ghost" OnClick="() => GoTo(3)">Back</BbButton>
+                        <span class="spacer"></span>
+                        <BbButton Disabled="@(busy || string.IsNullOrWhiteSpace(widget.Name))" OnClick="Save"><LucideIcon Name="save" Size="16" /> @(busy ? "Saving…" : "Save widget")</BbButton>
+                    </BbCardFooter>
                 </BbCard>
-                <BbCard>
+                <BbCard Class="builder-card-right">
                     <BbCardHeader><BbCardTitle Class="card-title">@(string.IsNullOrWhiteSpace(widget.Name) ? "Preview" : widget.Name)</BbCardTitle>@if (widget.Description is not null) { <BbCardDescription>@widget.Description</BbCardDescription> }</BbCardHeader>
-                    <BbCardContent><ChartView Result="preview" Visual="Visual" Width="440" /></BbCardContent>
+                    <BbCardContent Class="builder-card-content" Style="overflow-y:auto;scrollbar-width:thin">
+                        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100%;padding:1rem 0">
+                            <ChartView Result="preview" Visual="Visual" Width="440" />
+                        </div>
+                    </BbCardContent>
                 </BbCard>
             </div>
             break;
@@ -265,9 +303,25 @@ else
     private VisualConfig Visual => widget.Config.Visual;
     private int step = 1, maxStep = 1;
     private bool isEdit, notFound, busy, pin = true;
-    private string? error, errorTitle;
+    private string? error, errorTitle, viewSearch;
     private QueryResultSet? preview;
     private string? loadedKey;
+
+    private IEnumerable<ReportingView> FilteredViews
+    {
+        get
+        {
+            var all = ReportingCatalog.Describe(Metadata.Current);
+            if (string.IsNullOrWhiteSpace(viewSearch))
+                return all;
+
+            var q = viewSearch.Trim();
+            return all.Where(v =>
+                v.Name.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                v.Title.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                v.Columns.Any(c => c.Column.Contains(q, StringComparison.OrdinalIgnoreCase) || c.Type.Contains(q, StringComparison.OrdinalIgnoreCase)));
+        }
+    }
 
     private static readonly IEnumerable<SelectOption<string>> TypeOptions =
         [new(ParamTypes.Text, "Text"), new(ParamTypes.Number, "Number"), new(ParamTypes.Date, "Date"), new(ParamTypes.Boolean, "Boolean")];
@@ -383,7 +437,7 @@ else
             var apiNote = await apiOption.ApplyAsync(QueryApis, Current.Required, $"widget:{saved.Id}", saved.Name, saved.Description,
                 saved.Config.Sql, saved.Config.Parameters, saved.Config.Roles);
             Toasts.Success((pin && !isEdit ? "Widget pinned to dashboard." : "Widget saved.") + (apiNote is null ? "" : " " + apiNote), $"{saved.Name} v{saved.Version}");
-            Nav.NavigateTo(pin || isEdit ? "/dashboard" : "/dashboard/widgets");
+            Nav.NavigateTo(pin || isEdit ? "/dashboard" : "/admin/widgets");
         }
         catch (Exception ex) when (ex is QueryRejectedException or ReportingUnavailableException or PermissionDeniedException or Framework.Api.ApiMethodException)
         {

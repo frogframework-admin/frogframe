@@ -62,30 +62,56 @@ else
     @switch (step)
     {
         case 1:
-            <div class="builder-grid">
-                <BbCard>
+            <div class="builder-grid builder-grid-equal">
+                <BbCard Class="builder-card-left">
                     <BbCardHeader>
                         <BbCardTitle Class="card-title">1. Query</BbCardTitle>
                         <BbCardDescription>Single SELECT. Parameter <code>@@Name</code> maps to query string: <code>/api/query/slug?Name=value</code>.</BbCardDescription>
                     </BbCardHeader>
-                    <BbCardContent>
-                        <div class="stack">
+                    <BbCardContent Class="builder-card-content">
+                        <div class="stack" style="flex:1;display:flex;flex-direction:column;min-height:0;height:100%">
                             <FormTextArea Id="sql" Value="@def.Config.Sql" ValueChanged="v => def.Config.Sql = v ?? string.Empty" Rows="12" AriaLabel="SQL Query" />
-                            <div class="row"><BbButton OnClick="Detect"><LucideIcon Name="scan-search" Size="16" /> Next: detect parameters</BbButton></div>
                         </div>
                     </BbCardContent>
+                    <BbCardFooter Class="builder-card-footer">
+                        <BbButton OnClick="Detect"><LucideIcon Name="scan-search" Size="16" /> Next: detect parameters</BbButton>
+                    </BbCardFooter>
                 </BbCard>
-                <BbCard>
+                <BbCard Class="builder-card-right">
                     <BbCardHeader><BbCardTitle Class="card-title">Available views</BbCardTitle><BbCardDescription>Click to insert.</BbCardDescription></BbCardHeader>
-                    <BbCardContent>
+                    <BbCardContent Class="builder-card-content">
+                        <div class="catalog-search" style="margin-bottom:.65rem;flex-shrink:0">
+                            <BbInputGroup>
+                                <BbInputGroupAddon Align="InputGroupAlign.InlineStart">
+                                    <LucideIcon Name="search" Size="15" />
+                                </BbInputGroupAddon>
+                                <BbInputGroupInput Value="@viewSearch" ValueChanged="v => viewSearch = v"
+                                                   UpdateTiming="UpdateTiming.Debounced" DebounceInterval="150"
+                                                   Placeholder="Search views or columns…" AriaLabel="Search views" />
+                                @if (!string.IsNullOrWhiteSpace(viewSearch))
+                                {
+                                    <BbInputGroupAddon Align="InputGroupAlign.InlineEnd">
+                                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" Class="search-clear-btn"
+                                                  OnClick="() => viewSearch = null" AriaLabel="Clear search">
+                                            <LucideIcon Name="x" Size="13" />
+                                        </BbButton>
+                                    </BbInputGroupAddon>
+                                }
+                            </BbInputGroup>
+                        </div>
                         <div class="catalog">
-                            @foreach (var v in ReportingCatalog.Describe(Metadata.Current))
+                            @foreach (var v in FilteredViews)
                             {
                                 var view = v;
-                                <details>
+                                var isOpen = !string.IsNullOrWhiteSpace(viewSearch);
+                                <details open="@(isOpen ? true : null)">
                                     <summary><button type="button" class="catalog-insert" @onclick="() => Insert(view.Name)" @onclick:stopPropagation="true"><code>@view.Name</code></button><span class="muted small">@view.Title</span></summary>
                                     <ul>@foreach (var (col, type) in view.Columns) { var c = col; <li><button type="button" class="catalog-insert" @onclick="() => Insert(c)"><code>@c</code></button><span class="muted small">@type</span></li> }</ul>
                                 </details>
+                            }
+                            @if (!FilteredViews.Any())
+                            {
+                                <p class="muted small" style="padding:1rem 0;text-align:center">No views or columns match "@viewSearch".</p>
                             }
                         </div>
                     </BbCardContent>
@@ -136,11 +162,11 @@ else
             break;
 
         case 3:
-            <div class="builder-grid">
-                <BbCard>
+            <div class="builder-grid builder-grid-equal">
+                <BbCard Class="builder-card-left">
                     <BbCardHeader><BbCardTitle Class="card-title">3. Publish</BbCardTitle></BbCardHeader>
-                    <BbCardContent>
-                        <div class="stack">
+                    <BbCardContent Class="builder-card-content" Style="overflow-y:auto;scrollbar-width:thin">
+                        <div class="stack" style="padding-bottom:.5rem">
                             <BbField><BbFieldLabel For="q-name">Name</BbFieldLabel><FormTextInput Id="q-name" Value="@def.Name" ValueChanged="SetName" /></BbField>
                             <BbField>
                                 <BbFieldLabel For="q-slug">Endpoint slug</BbFieldLabel>
@@ -170,21 +196,27 @@ else
                                 </div>
                             </div>
                             <div class="label-row"><BbCheckbox Id="q-enabled" Checked="def.Config.Enabled" CheckedChanged="v => def.Config.Enabled = v" /><BbLabel For="q-enabled">Active (inactive → callers receive 404)</BbLabel></div>
-                            <div class="row">
-                                <BbButton Variant="ButtonVariant.Ghost" OnClick="() => GoTo(2)">Back</BbButton>
-                                <span class="spacer"></span>
-                                <BbButton Disabled="@(busy || string.IsNullOrWhiteSpace(def.Name))" OnClick="Save"><LucideIcon Name="send" Size="16" /> @(busy ? "Publishing…" : "Publish API")</BbButton>
-                            </div>
                         </div>
                     </BbCardContent>
+                    <BbCardFooter Class="builder-card-footer">
+                        <BbButton Variant="ButtonVariant.Ghost" OnClick="() => GoTo(2)">Back</BbButton>
+                        <span class="spacer"></span>
+                        <BbButton Disabled="@(busy || string.IsNullOrWhiteSpace(def.Name))" OnClick="Save"><LucideIcon Name="send" Size="16" /> @(busy ? "Publishing…" : "Publish API")</BbButton>
+                    </BbCardFooter>
                 </BbCard>
-                <BbCard>
+                <BbCard Class="builder-card-right">
                     <BbCardHeader><BbCardTitle Class="card-title">Example request</BbCardTitle><BbCardDescription>Using API key (API Keys menu, scope <code>query:@(def.Slug)</code>).</BbCardDescription></BbCardHeader>
-                    <BbCardContent>
-                        <pre class="api-example">curl -H "Authorization: ApiKey dfk_…" \
+                    <BbCardContent Class="builder-card-content">
+                        <div class="stack" style="flex:1;display:flex;flex-direction:column;min-height:0;height:100%">
+                            <div style="flex-shrink:0">
+                                <pre class="api-example">curl -H "Authorization: ApiKey dfk_…" \
   "@(Nav.BaseUri)api/query/@(def.Slug)@ExampleQuery"</pre>
-                        <div class="props-sub" style="margin:.75rem 0 .35rem">Example response (preview data)</div>
-                        <pre class="api-example">@ExampleResponse</pre>
+                            </div>
+                            <div style="flex:1;display:flex;flex-direction:column;min-height:0;margin-top:.75rem">
+                                <div class="props-sub" style="margin-bottom:.35rem;flex-shrink:0">Example response (preview data)</div>
+                                <pre class="api-example" style="flex:1;overflow-y:auto;margin:0;min-height:0;scrollbar-width:thin">@ExampleResponse</pre>
+                            </div>
+                        </div>
                     </BbCardContent>
                 </BbCard>
             </div>
@@ -208,8 +240,24 @@ else
     private QueryApiDef def = new();
     private int step = 1, maxStep = 1;
     private bool isEdit, busy, slugTouched;
-    private string? error, errorTitle, loadedKey;
+    private string? error, errorTitle, loadedKey, viewSearch;
     private QueryResultSet? preview;
+
+    private IEnumerable<ReportingView> FilteredViews
+    {
+        get
+        {
+            var all = ReportingCatalog.Describe(Metadata.Current);
+            if (string.IsNullOrWhiteSpace(viewSearch))
+                return all;
+
+            var q = viewSearch.Trim();
+            return all.Where(v =>
+                v.Name.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                v.Title.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                v.Columns.Any(c => c.Column.Contains(q, StringComparison.OrdinalIgnoreCase) || c.Type.Contains(q, StringComparison.OrdinalIgnoreCase)));
+        }
+    }
 
     private static IEnumerable<SelectOption<string>> BindingOptions(WidgetParameter p)
     {

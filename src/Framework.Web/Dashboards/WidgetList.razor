@@ -1,3 +1,4 @@
+@page "/admin/widgets"
 @page "/dashboard/widgets"
 @using Framework.Dashboards
 @inject DashboardService Dashboards
@@ -5,26 +6,23 @@
 @inject ToastService Toasts
 @inject DialogService Dialogs
 
-<PageTitle>Manage Widgets · DocFrame</PageTitle>
+<PageTitle>Widgets · DocFrame</PageTitle>
 
-<BbBreadcrumb Class="crumbs">
-    <BbBreadcrumbList>
-        <BbBreadcrumbItem><BbBreadcrumbLink Href="/dashboard">Dashboard</BbBreadcrumbLink></BbBreadcrumbItem>
-        <BbBreadcrumbSeparator />
-        <BbBreadcrumbItem><BbBreadcrumbPage>Widgets</BbBreadcrumbPage></BbBreadcrumbItem>
-    </BbBreadcrumbList>
-</BbBreadcrumb>
-<header class="page-head">
-    <div><h1>Widgets</h1><p>All widgets in this tenant. Pin to dashboard or unpin without deleting.</p></div>
-    @if (designer) { <BbButton Href="/dashboard/widgets/new"><LucideIcon Name="plus" Size="16" /> New widget</BbButton> }
-</header>
-
-@if (!Dashboards.IsAvailable)
+@if (!Current.Required.IsAdmin && !DashboardService.CanDesign(Current.Required))
+{
+    <ErrorState StatusCode="403" Description="This administration page is restricted to System Managers / Administrators." />
+}
+else if (!Dashboards.IsAvailable)
 {
     <UnavailableNotice />
 }
 else
 {
+    <header class="page-head">
+        <div><h1>Widgets</h1><p>All widgets in this tenant. Pin to dashboard or unpin without deleting.</p></div>
+        @if (designer) { <BbButton Href="/admin/widgets/new"><LucideIcon Name="plus" Size="16" /> New widget</BbButton> }
+    </header>
+
     <div class="table-wrap">
         <table class="data">
             <thead><tr><th>Widget</th><th>Type</th><th>Parameters</th><th>Viewable by</th><th>Modified</th><th></th></tr></thead>
@@ -43,7 +41,7 @@ else
                             @if (designer)
                             {
                                 <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="() => TogglePin(widget, pinned)"><LucideIcon Name="@(pinned ? "pin-off" : "pin")" Size="15" /> @(pinned ? "Unpin" : "Pin")</BbButton>
-                                <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" Href="@($"/dashboard/widgets/{widget.Id}")"><LucideIcon Name="pencil" Size="15" /> Edit</BbButton>
+                                <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" Href="@($"/admin/widgets/{widget.Id}")"><LucideIcon Name="pencil" Size="15" /> Edit</BbButton>
                                 <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@($"Delete {widget.Name}")" OnClick="() => Delete(widget)"><LucideIcon Name="trash-2" Size="15" /></BbButton>
                             }
                         </td>

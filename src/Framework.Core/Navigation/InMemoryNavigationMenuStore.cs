@@ -39,13 +39,23 @@ public sealed class InMemoryNavigationMenuStore(TimeProvider clock) : INavigatio
 
         foreach (var defItem in NavigationMenuDefaults.CreateDefaultItems(tenantId, now))
         {
-            if (!items.Values.Any(x => x.TenantId == tenantId && string.Equals(x.Href, defItem.Href, StringComparison.OrdinalIgnoreCase)))
+            var existing = items.Values.FirstOrDefault(x => x.TenantId == tenantId && (x.Id == defItem.Id || string.Equals(x.Href, defItem.Href, StringComparison.OrdinalIgnoreCase) || (defItem.Id.EndsWith("_report_templates") && string.Equals(x.Href, "report-templates", StringComparison.OrdinalIgnoreCase)) || (defItem.Id.EndsWith("_widgets") && string.Equals(x.Href, "dashboard/widgets", StringComparison.OrdinalIgnoreCase))));
+            if (existing is null)
             {
                 if (string.IsNullOrWhiteSpace(defItem.GroupId) && groupByName.TryGetValue(defItem.GroupName, out var grp))
                 {
                     defItem.GroupId = grp.Id;
                 }
                 items[defItem.Id] = defItem;
+                modified = true;
+            }
+            else if (existing.IsSystem && (existing.GroupId != defItem.GroupId || existing.GroupName != defItem.GroupName || existing.Href != defItem.Href || !existing.AllowedRoles.SequenceEqual(defItem.AllowedRoles)))
+            {
+                existing.GroupId = defItem.GroupId;
+                existing.GroupName = defItem.GroupName;
+                existing.Href = defItem.Href;
+                existing.AllowedRoles = defItem.AllowedRoles;
+                existing.SortOrder = defItem.SortOrder;
                 modified = true;
             }
         }

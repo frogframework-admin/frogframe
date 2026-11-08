@@ -64,3 +64,8 @@ Dockerfile.multistage
 ## Database Backups
 backups/
 *.dump
+
+## DocFX generated files
+_site/
+api/
+

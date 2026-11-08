@@ -1,0 +1,64 @@
+{
+  "$schema": "https://raw.githubusercontent.com/dotnet/docfx/main/schemas/docfx.schema.json",
+  "metadata": [
+    {
+      "src": [
+        {
+          "src": "src",
+          "files": [
+            "Framework.Core/Framework.Core.csproj",
+            "Framework.Web/Framework.Web.csproj"
+          ]
+        }
+      ],
+      "dest": "api",
+      "includePrivateMembers": false
+    }
+  ],
+  "build": {
+    "content": [
+      {
+        "files": [
+          "*.md",
+          "toc.yml"
+        ]
+      },
+      {
+        "files": [
+          "**/*.md",
+          "**/toc.yml"
+        ],
+        "src": "docs",
+        "dest": "docs"
+      },
+      {
+        "files": [
+          "api/**.yml",
+          "api/index.md",
+          "api/toc.yml"
+        ]
+      }
+    ],
+    "resource": [
+      {
+        "files": [
+          "images/**"
+        ],
+        "src": "docs"
+      }
+    ],
+    "output": "_site",
+    "globalMetadata": {
+      "_appName": "DocFrame",
+      "_appTitle": "DocFrame — .NET Business Framework",
+      "_enableSearch": true,
+      "_appLogoPath": null,
+      "_appFaviconPath": null
+    },
+    "template": [
+      "default",
+      "modern"
+    ]
+  }
+}
+

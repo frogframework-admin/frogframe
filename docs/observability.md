@@ -1,70 +1,49 @@
 # DocFrame Observability & Telemetry Guide
 
-Panduan observabilitas terpadu pada DocFrame: OpenTelemetry traces, metrics, structured logging, dan antarmuka administrasi.
+Unified observability guide for DocFrame: OpenTelemetry traces, metrics, structured logging, and administrative diagnostics.
 
 ---
 
-## 1. Arsitektur Telemetri
+## 1. Telemetry Architecture
 
-DocFrame mengimplementasikan instrumentasi telemetri standar .NET BCL (`System.Diagnostics.DiagnosticSource` & `System.Diagnostics.Metrics`) di `Framework.Core` dengan **zero runtime dependencies**:
+DocFrame implements standard .NET BCL telemetry instrumentation (`System.Diagnostics.DiagnosticSource` & `System.Diagnostics.Metrics`) within `Framework.Core` with **zero runtime external dependencies**:
 - **Source / Meter Name**: `DocFrame`
 - **Version**: `1.0.0`
 
-### 1.1 Metrik yang Tersedia (`Meter`)
+### 1.1 Available Metrics (`Meter`)
 
-| Nama Metrik | Tipe | Deskripsi | Tags / Dimensi |
+| Metric Name | Type | Description | Dimensions / Tags |
 |---|---|---|---|
-| `docframe.http.requests` | Counter | Total permintaan HTTP masuk | `method`, `scope` |
-| `docframe.http.errors` | Counter | Total unhandled exception pada pipeline HTTP/API | - |
-| `docframe.documents.operations` | Counter | Total operasi dokumen (insert, update, delete) | `doctype`, `operation` |
-| `docframe.scheduled_jobs.runs` | Counter | Total eksekusi scheduled job | `job`, `status` |
-| `docframe.outbox.processed` | Counter | Total event transactional outbox berhasil | `type` |
-| `docframe.outbox.failed` | Counter | Total event transactional outbox gagal/retry | `type` |
+| `docframe.http.requests` | Counter | Total incoming HTTP requests | `method`, `scope` |
+| `docframe.http.errors` | Counter | Total unhandled exceptions on HTTP/API pipeline | - |
+| `docframe.documents.operations` | Counter | Total document operations (insert, update, delete) | `doctype`, `operation` |
+| `docframe.scheduled_jobs.runs` | Counter | Total executions of background scheduled jobs | `job`, `status` |
+| `docframe.outbox.processed` | Counter | Total transactional outbox events processed | `type` |
+| `docframe.outbox.failed` | Counter | Total transactional outbox events failed/retried | `type` |
 
 ### 1.2 Distributed Tracing (`ActivitySource` Spans)
 
-| Nama Span | Komponen | Atribut Utama |
+| Span Name | Component | Core Attributes |
 |---|---|---|
 | `docframe.document.insert` | DocumentService | `docframe.doctype`, `docframe.tenant`, `docframe.user`, `docframe.name` |
 | `docframe.document.update` | DocumentService | `docframe.doctype`, `docframe.name`, `docframe.tenant`, `docframe.user` |
 | `docframe.document.delete` | DocumentService | `docframe.doctype`, `docframe.name`, `docframe.tenant`, `docframe.user` |
-| `docframe.document.action` | DocumentService | `docframe.doctype`, `docframe.name`, `docframe.action`, `docframe.tenant`, `docframe.user` |
-| `docframe.scheduler.job` | Scheduler | `docframe.job_name`, `docframe.tenant`, `docframe.trigger` (`manual` / `scheduled`) |
-| `docframe.outbox.process` | OutboxProcessor | `docframe.event_type`, `docframe.event_id`, `docframe.tenant` |
+| `docframe.outbox.dispatch` | OutboxWorker | `docframe.event_type`, `docframe.tenant` |
+| `docframe.job.execute` | JobScheduler | `docframe.job_name`, `docframe.tenant` |
 
 ---
 
-## 2. Mengaktifkan OpenTelemetry OTLP Exporter
+## 2. Structured Logging & Error Handling
 
-DocFrame mendukung ekspor data trace dan metrik langsung ke kolektor OTLP (OpenTelemetry Collector, Jaeger, Prometheus, Grafana Tempo/Mimir, Datadog) melalui konfigurasi:
-
-### appsettings.json
-```json
-{
-  "OpenTelemetry": {
-    "OtlpEndpoint": "http://localhost:4317"
-  }
-}
-```
-
-### Environment Variable
-```bash
-OTEL_EXPORTER_OTLP_ENDPOINT="http://otel-collector:4317"
-```
-
-Bila konfigurasi ini diisi, `AddDocFrameOpenTelemetry` secara otomatis mendaftarkan OTLP trace & metric exporters. Bila tidak diisi, telemetri tetap terekam secara lokal tanpa overhead jaringan.
+DocFrame uses structured Serilog/Microsoft.Extensions.Logging with persistent database sinks for critical issues:
+- **Error Log Table**: `docframe_error_logs` (`020_error_logs.sql`).
+- **Log Viewer**: Available to administrators at `/admin/error-logs`.
+- **Log Scrubbing**: Passwords, authentication tokens, and sensitive headers are redacted before persistence.
 
 ---
 
-## 3. Antarmuka Administrasi
+## 3. Production Exporters
 
-DocFrame menyediakan 2 halaman admin terpadu untuk tim operasional:
-1. **/admin/jobs** (`ScheduledJobsAdmin.razor`):
-   - Daftar job yang terdaftar dan jadwal cron.
-   - Waktu run terakhir dan status (Success / Failed / SkippedLocked).
-   - Tombol manual **"Run Now"** per tenant.
-2. **/admin/error-logs** (`ErrorLogAdmin.razor`):
-   - Riwayat unhandled exception per tenant.
-   - Detail stack trace, HTTP method, URL, dan user ID.
-   - Aksi **"Mark as Seen"** (terisolasi per tenant) dan **"Clear All"**.
-
+OpenTelemetry exporters can be configured in `appsettings.json` or environment variables:
+- **Prometheus**: Scraped via standard `/metrics` endpoint.
+- **OTLP (gRPC / HTTP)**: Direct telemetry streaming to collectors (Jaeger, Grafana Tempo, Datadog, New Relic).

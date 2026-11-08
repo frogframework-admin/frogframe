@@ -1,4 +1,5 @@
 @page "/report-templates/{TemplateId}"
+@page "/admin/report-templates/{TemplateId}"
 @using Framework.Dashboards
 @using Framework.Reports
 @inject ReportTemplateService Reports
@@ -9,7 +10,7 @@
 
 <BbBreadcrumb Class="crumbs">
     <BbBreadcrumbList>
-        <BbBreadcrumbItem><BbBreadcrumbLink Href="/report-templates">Excel/Word Reports</BbBreadcrumbLink></BbBreadcrumbItem>
+        <BbBreadcrumbItem><BbBreadcrumbLink Href="/admin/report-templates">Excel/Word Reports</BbBreadcrumbLink></BbBreadcrumbItem>
         <BbBreadcrumbSeparator />
         <BbBreadcrumbItem><BbBreadcrumbPage>@(def?.Name ?? "…")</BbBreadcrumbPage></BbBreadcrumbItem>
     </BbBreadcrumbList>
@@ -21,7 +22,7 @@
 }
 else if (notFound)
 {
-    <ErrorState StatusCode="404" Title="Report Not Found" Description="Report not found or you do not have access." BackHref="/report-templates" BackLabel="Back to Reports" />
+    <ErrorState StatusCode="404" Title="Report Not Found" Description="Report not found or you do not have access." BackHref="/admin/report-templates" BackLabel="Back to Reports" />
 }
 else if (def is not null)
 {

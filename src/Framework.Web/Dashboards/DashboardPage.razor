@@ -11,13 +11,6 @@
 
 <header class="page-head">
     <div><h1>Dashboard</h1><p>Widgets from reporting queries. The filters below apply to widgets bound to dashboard filters.</p></div>
-    @if (designer)
-    {
-        <div class="row">
-            <BbButton Variant="ButtonVariant.Outline" Href="/dashboard/widgets"><LucideIcon Name="layout-list" Size="16" /> Manage widgets</BbButton>
-            <BbButton Href="/dashboard/widgets/new"><LucideIcon Name="plus" Size="16" /> New widget</BbButton>
-        </div>
-    }
 </header>
 
 @if (!Dashboards.IsAvailable)
@@ -42,7 +35,7 @@ else
 
     @if (cards.Count == 0 && !loading)
     {
-        <BbEmpty Title="No widgets on dashboard yet" Description="@(designer ? "Create a new widget and pin it to the dashboard." : "Contact an administrator to add widgets.")" />
+        <BbEmpty Title="No widgets on dashboard yet" Description="@(designer ? "Configure widgets in Administration > Widgets and pin them to the dashboard." : "Contact an administrator to add widgets.")" />
     }
     <div class="dash-grid">
         @foreach (var card in cards)
@@ -60,7 +53,7 @@ else
                             <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Move left" OnClick="() => Move(c, -1)"><LucideIcon Name="arrow-left" Size="15" /></BbButton>
                             <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Move right" OnClick="() => Move(c, 1)"><LucideIcon Name="arrow-right" Size="15" /></BbButton>
                             <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@(c.Item.Span < 3 ? "Expand" : "Narrow")" OnClick="() => Resize(c)"><LucideIcon Name="@(c.Item.Span < 3 ? "maximize-2" : "minimize-2")" Size="15" /></BbButton>
-                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Edit widget" OnClick="@(() => Nav.NavigateTo($"/dashboard/widgets/{c.Widget.Id}"))"><LucideIcon Name="pencil" Size="15" /></BbButton>
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Edit widget" OnClick="@(() => Nav.NavigateTo($"/admin/widgets/{c.Widget.Id}"))"><LucideIcon Name="pencil" Size="15" /></BbButton>
                             <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Unpin from dashboard" OnClick="() => Unpin(c)"><LucideIcon Name="pin-off" Size="15" /></BbButton>
                         </div>
                     }
