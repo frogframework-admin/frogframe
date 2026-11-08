@@ -45,6 +45,11 @@
           "images/**"
         ],
         "src": "docs"
+      },
+      {
+        "files": [
+          "public/**"
+        ]
       }
     ],
     "output": "_site",
@@ -52,8 +57,8 @@
       "_appName": "FrogFramework",
       "_appTitle": "FrogFramework — .NET Business Framework",
       "_enableSearch": true,
-      "_appLogoPath": "images/logo.png",
-      "_appFaviconPath": "images/logo.png"
+      "_appLogoPath": "images/logo-navbar.png",
+      "_appFaviconPath": "images/logo-navbar.png"
     },
     "template": [
       "default",

@@ -1,0 +1,12 @@
+﻿#logo {
+  height: 2rem;
+  max-height: 32px;
+  width: auto;
+  margin-right: 0.5rem;
+  vertical-align: middle;
+}
+
+.navbar-brand {
+  display: flex;
+  align-items: center;
+}
