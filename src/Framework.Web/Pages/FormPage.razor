@@ -16,7 +16,7 @@
 @inject AttachmentService Attachments
 @inject IDocumentPresenceService Presence
 
-<PageTitle>@(IsNew ? $"New {meta?.Title}" : Name) · FrogFrame</PageTitle>
+<PageTitle>@(meta?.Def.IsSingle == true ? meta.Title : IsNew ? $"New {meta?.Title}" : Name) · FrogFrame</PageTitle>
 
 @if (fatal is not null)
 {
@@ -30,17 +30,28 @@ else if (meta is not null && doc is not null)
 {
     <BbBreadcrumb Class="crumbs">
         <BbBreadcrumbList>
-            <BbBreadcrumbItem><BbBreadcrumbLink Href="@($"/app/{meta.Name}")">@meta.Title</BbBreadcrumbLink></BbBreadcrumbItem>
-            <BbBreadcrumbSeparator />
-            <BbBreadcrumbItem><BbBreadcrumbPage>@(IsNew ? "New" : doc.Name)</BbBreadcrumbPage></BbBreadcrumbItem>
+            @if (meta.Def.IsSingle)
+            {
+                <BbBreadcrumbItem><BbBreadcrumbPage>@meta.Title</BbBreadcrumbPage></BbBreadcrumbItem>
+            }
+            else
+            {
+                <BbBreadcrumbItem><BbBreadcrumbLink Href="@($"/app/{meta.Name}")">@meta.Title</BbBreadcrumbLink></BbBreadcrumbItem>
+                <BbBreadcrumbSeparator />
+                <BbBreadcrumbItem><BbBreadcrumbPage>@(IsNew ? "New" : doc.Name)</BbBreadcrumbPage></BbBreadcrumbItem>
+            }
         </BbBreadcrumbList>
     </BbBreadcrumb>
 
     <header class="doc-head">
         <div>
-            <h1>@(IsNew ? $"New {meta.Title}" : doc.Name)</h1>
+            <h1>@(meta.Def.IsSingle ? meta.Title : IsNew ? $"New {meta.Title}" : doc.Name)</h1>
             <p>
-                @if (!IsNew)
+                @if (meta.Def.IsSingle && IsNew)
+                {
+                    <span>Default configuration (not saved yet)</span>
+                }
+                else if (!IsNew)
                 {
                     <span>Created by @doc.Owner · modified @Fmt.When(doc.Modified) · version @doc.Version</span>
                     @if (doc.AmendedFrom is not null) { <span> · amended from <a href="/app/@meta.Name/@doc.AmendedFrom">@doc.AmendedFrom</a></span> }
@@ -93,7 +104,7 @@ else if (meta is not null && doc is not null)
                 <LucideIcon Name="file-down" Size="16" /> PDF
             </BbButton>
         }
-        @if (!IsNew && doc.DocStatus == DocStatus.Draft && meta.Def.Document.AllowDelete && Perms.Can(User, meta, DocActions.Delete))
+        @if (!IsNew && !meta.Def.IsSingle && doc.DocStatus == DocStatus.Draft && meta.Def.Document.AllowDelete && Perms.Can(User, meta, DocActions.Delete))
         {
             <BbButton Variant="ButtonVariant.Ghost" Disabled="@busy" OnClick="Delete">
                 <LucideIcon Name="trash-2" Size="16" /> Delete draft
@@ -311,7 +322,7 @@ else if (meta is not null && doc is not null)
     private IReadOnlyList<DocumentPresenceUser> OtherEditingUsers =>
         presenceUsers.Where(u => u.SessionId != sessionId && u.Status == PresenceStatus.Editing).ToList();
 
-    private bool IsNew => Name == "new";
+    private bool IsNew => Name == "new" || (meta?.Def.IsSingle == true && (doc == null || doc.Version == 0));
     private UserContext User => Current.Required;
 
     private bool Editable => doc is not null && doc.DocStatus == DocStatus.Draft &&

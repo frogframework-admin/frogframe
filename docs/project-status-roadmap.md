@@ -9,7 +9,7 @@ This document summarizes the current development status of FrogFrame, including 
 ## 1. Current Project Health
 
 - **Compilation Status (`dotnet build`):** `0 Errors`, `0 Critical Warnings` across all projects (`Framework.Core`, `Framework.Persistence.PostgreSql`, `Framework.Web`, `Apps.Sample`, `Framework.Tests`).
-- **Unit & Integration Test Status:** **110 Passed, 0 Failed** (33 tests decorated with `PgTest` are skipped when the local PostgreSQL server is inactive).
+- **Unit & Integration Test Status:** **142 Passed, 0 Failed** (34 tests decorated with `PgTest` are skipped when the local PostgreSQL server is inactive).
 - **Database & Migration Status:** 23 PostgreSQL migrations registered and verified (`001_initial.sql` through `023_user_preferences.sql`).
 - **Git Repository Status:** Clean working tree.
 
@@ -43,6 +43,9 @@ This document summarizes the current development status of FrogFrame, including 
    - Per-user customizable table columns (visibility toggle, column reordering, width persistence in `023_user_preferences.sql`).
 6. **Background Job Monitor & Error Log Dashboard:**
    - Real-time diagnostic viewer at `/admin/jobs` and `/admin/error-logs` with stack trace drawer inspection.
+7. **Single DocType (Platform Feature):**
+   - Singleton document schema per tenant for system and module configuration (e.g. `AccountingSettings`).
+   - Dedicated APIs (`GetSingleAsync`, `SetSingleAsync`), compiler validation (workflow rejection), and UI adaptations (direct form routing, breadcrumbs, search quick action suppression).
 
 ---
 
@@ -50,9 +53,9 @@ This document summarizes the current development status of FrogFrame, including 
 
 | Feature / Capability | Priority | Current Status | Description |
 |---|---|---|---|
-| **Single DocType** | P1 | Planned | Singleton document per tenant for system/module global settings. |
-| **Static Link Filters** | P1 | Planned | Metadata-driven query filter for Link fields (e.g., leaf accounts only in General Ledger). |
-| **Import: Update & Upsert Modes** | P1 | In Progress | Excel/CSV import supporting updating existing records by key or adding new records. |
+| **Single DocType** | P1 | Completed | Singleton document per tenant for system/module global settings (`GetSingleAsync`/`SetSingleAsync`). |
+| **Static Link Filters** | P1 | Completed | Metadata-driven query filter for Link fields (e.g., leaf accounts only in General Ledger). |
+| **Import: Update & Upsert Modes** | P1 | Completed | Excel/CSV import supporting updating existing records by key or adding new records. |
 | **Database Role Segregation** | P2 | Planned | Separation of database migration owner role from runtime application role for append-only audit enforcement. |
 | **Dynamic Workflows** | P2 | Planned | Visual state machine transition editor with conditional approvals. |
 
@@ -60,6 +63,6 @@ This document summarizes the current development status of FrogFrame, including 
 
 ## 4. Next Steps & Development Roadmap
 
-1. Complete Excel/CSV import upsert mode for bulk transactional uploads.
-2. Integrate single DocType schema compiler for application settings.
+1. Database role segregation (migration owner vs runtime app user).
+2. Dynamic visual workflow state machine transition editor.
 3. Continuous integration and automated DocFX deployment pipeline.

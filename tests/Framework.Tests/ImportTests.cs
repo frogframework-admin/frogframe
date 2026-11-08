@@ -26,16 +26,17 @@ sealed partial class Tests
         }
         var meta = sp.GetRequiredService<IMetadataProvider>().Current.Get(PR);
         string L(string f) => meta.ByName[f].Label;
+        var baseDate = DateOnly.FromDateTime(DateTime.Today).AddDays(-10);
         var rows = new List<object?[]>
         {
-            Main(("Kunci impor", 1m), (L("requester"), "andi pratama"), (L("request_date"), new DateTime(2026, 10, 1)), (L("priority"), "tinggi"), (L("justification"), "Impor 1")),
-            Main(("Kunci impor", 2m), (L("requester"), "Andi Pratama"), (L("request_date"), "15/10/2026"), (L("priority"), "Normal"), (L("justification"), "Impor 2")),
+            Main(("Kunci impor", 1m), (L("requester"), "andi pratama"), (L("request_date"), baseDate.ToDateTime(TimeOnly.MinValue)), (L("priority"), "tinggi"), (L("justification"), "Impor 1")),
+            Main(("Kunci impor", 2m), (L("requester"), "Andi Pratama"), (L("request_date"), baseDate.AddDays(5).ToString("dd/MM/yyyy")), (L("priority"), "Normal"), (L("justification"), "Impor 2")),
         };
         if (includeBadRows)
         {
-            rows.Add(Main(("Kunci impor", 3m), (L("requester"), "Orang Tidak Ada"), (L("request_date"), "2026-10-20"), (L("priority"), "Sangat tinggi")));
+            rows.Add(Main(("Kunci impor", 3m), (L("requester"), "Orang Tidak Ada"), (L("request_date"), baseDate.AddDays(7).ToString("yyyy-MM-dd")), (L("priority"), "Sangat tinggi")));
             rows.Add(Main(("Kunci impor", 4m), (L("requester"), "Andi Pratama"), (L("request_date"), "kemarin"), (L("priority"), "Rendah")));
-            rows.Add(Main(("Kunci impor", 5m), (L("requester"), "Andi Pratama"), (L("request_date"), "2026-10-21"), (L("priority"), "Rendah"))); // tanpa barang: wajib dari pipeline
+            rows.Add(Main(("Kunci impor", 5m), (L("requester"), "Andi Pratama"), (L("request_date"), baseDate.AddDays(8).ToString("yyyy-MM-dd")), (L("priority"), "Rendah"))); // tanpa barang: wajib dari pipeline
         }
         var child = new XlsxSheet
         {
@@ -96,7 +97,7 @@ sealed partial class Tests
         Assert.True(run.Log.Succeeded == 2 && run.Log.Failed == 3 && await CountPR() == before + 2, "2 tersimpan, 3 dilewati");
         var doc = await Docs.GetAsync(andi, PR, run.Rows.First(r => r.Ok).CreatedName!);
         var items = (IList<Dictionary<string, object?>>)doc.Data["items"]!;
-        Assert.True(items.Count == 2 && (decimal)doc.Data["total"]! == 750_000m && (string)doc.Data["priority"]! == "Tinggi" && (string)doc.Data["request_date"]! == "2026-10-01",
+        Assert.True(items.Count == 2 && (decimal)doc.Data["total"]! == 750_000m && (string)doc.Data["priority"]! == "Tinggi" && (string)doc.Data["request_date"]! == DateOnly.FromDateTime(DateTime.Today).AddDays(-10).ToString("yyyy-MM-dd"),
             $"nilai dikonversi & dihitung: items={items.Count}, total={doc.Data["total"]}, prioritas={doc.Data["priority"]}, tanggal={doc.Data["request_date"]}");
         Assert.True((string)items[1]["uom"]! == "pcs", "Select di tabel tidak peka huruf besar");
         var second = await Docs.GetAsync(andi, PR, run.Rows.Where(r => r.Ok).ElementAt(1).CreatedName!);

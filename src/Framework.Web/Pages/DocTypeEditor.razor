@@ -358,11 +358,20 @@ else
                             @if (!design.Def.IsChild)
                             {
                                 <BbField><BbFieldLabel For="d-module">Modul (wajib, dari Master Modules)</BbFieldLabel><BbSelect TValue="string" Value="@(design.Def.Module ?? "")" ValueChanged="v => Mutate(() => design.Def.Module = string.IsNullOrWhiteSpace(v) ? null : v)" Options="ModuleOptions(design.Def.Module)" AriaLabel="Modul" /></BbField>
-                                <BbField IsInvalid="@errors.Any(e => e.Path == "naming.pattern")">
-                                    <BbFieldLabel For="d-naming">Naming series pattern</BbFieldLabel>
-                                    <BbInput Id="d-naming" Class="code-input" Value="@design.Def.Naming.Pattern" ValueChanged="v => Mutate(() => design.Def.Naming.Pattern = v ?? string.Empty)" />
-                                    <BbFieldDescription>Tokens: {YYYY}, {MM}, {#####} (series number).</BbFieldDescription>
+                                <BbField>
+                                    <BbCheckbox Value="@design.Def.IsSingle" ValueChanged="v => Mutate(() => design.Def.IsSingle = v)">
+                                        Single DocType (Singleton settings per tenant)
+                                    </BbCheckbox>
+                                    <BbFieldDescription>Single DocType has exactly one record per tenant (no list page, identifier matches DocType name).</BbFieldDescription>
                                 </BbField>
+                                @if (!design.Def.IsSingle)
+                                {
+                                    <BbField IsInvalid="@errors.Any(e => e.Path == "naming.pattern")">
+                                        <BbFieldLabel For="d-naming">Naming series pattern</BbFieldLabel>
+                                        <BbInput Id="d-naming" Class="code-input" Value="@design.Def.Naming.Pattern" ValueChanged="v => Mutate(() => design.Def.Naming.Pattern = v ?? string.Empty)" />
+                                        <BbFieldDescription>Tokens: {YYYY}, {MM}, {#####} (series number).</BbFieldDescription>
+                                    </BbField>
+                                }
                             }
                         </div>
                         @if (!design.Def.IsChild)

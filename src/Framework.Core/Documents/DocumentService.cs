@@ -141,11 +141,46 @@ public sealed class DocumentService(
         return doc.Get(fieldName);
     }
 
+    /// <summary>
+    /// Mengambil dokumen Single (singleton per tenant). Bila belum pernah disimpan,
+    /// mengembalikan instans terinisialisasi dengan nilai default dari metadata.
+    /// </summary>
+    public Task<Document> GetSingleAsync(UserContext user, string docType, CancellationToken ct = default)
+    {
+        var meta = TopLevel(docType);
+        if (!meta.Def.IsSingle)
+            throw new InvalidOperationException($"DocType '{docType}' is not a Single DocType.");
+        return GetAsync(user, docType, meta.Name, ct);
+    }
+
+    /// <summary>
+    /// Menyimpan atau memperbarui dokumen Single (upsert singleton per tenant).
+    /// </summary>
+    public async Task<Document> SetSingleAsync(UserContext user, string docType, IDictionary<string, object?> data, CancellationToken ct = default)
+    {
+        var meta = TopLevel(docType);
+        if (!meta.Def.IsSingle)
+            throw new InvalidOperationException($"DocType '{docType}' is not a Single DocType.");
+        var existing = await store.GetAsync(user.TenantId, meta.Name, meta.Name, ct);
+        if (existing is null)
+            return await InsertAsync(user, docType, data, ct: ct);
+        return await UpdateAsync(user, docType, meta.Name, existing.Version, data, ct: ct);
+    }
+
     /// <summary>Memuat dokumen dalam tenant user. Dokumen di luar scope dilaporkan "tidak ditemukan" agar tidak membocorkan keberadaannya (anti-IDOR).</summary>
     private async Task<Document> LoadInScopeAsync(UserContext user, CompiledDocType meta, string name, CancellationToken ct)
     {
         var doc = await store.GetAsync(user.TenantId, meta.Name, name, ct);
-        if (doc is null || !permissions.InScope(user, meta, DocActions.Read, doc.Owner, doc.Data))
+        if (doc is null)
+        {
+            if (meta.Def.IsSingle && (string.Equals(name, meta.Name, StringComparison.OrdinalIgnoreCase) || name is "(single)" or "new"))
+            {
+                var initial = New(user, meta.Name);
+                return CloneWithName(initial, meta.Name);
+            }
+            throw new DocumentNotFoundException(meta.Title, name);
+        }
+        if (!permissions.InScope(user, meta, DocActions.Read, doc.Owner, doc.Data))
             throw new DocumentNotFoundException(meta.Title, name);
         return doc;
     }

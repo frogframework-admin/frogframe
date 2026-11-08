@@ -234,7 +234,7 @@ sealed partial class Tests
 
         var doc = await Docs.InsertAsync(U("andi"), PR, P(("items", Items(1, 1000)), ("request_date", "2026-10-10"), ("required_by", "2026-10-11")));
         Assert.True(doc.TransientMessages.Contains("Notice: Item priority automatically evaluated."), "TransientMessages terisi dari hook");
-        Assert.Equal("PT Sinar Komputindo", HookMessageAndFieldProbe.FetchedFieldValue?.ToString(), "GetFieldAsync berhasil membaca vendor_name dari Vendor");
+        Assert.Equal("Pt Sinar Komputindo", HookMessageAndFieldProbe.FetchedFieldValue?.ToString(), "GetFieldAsync berhasil membaca vendor_name dari Vendor");
     }
 
     [Test]

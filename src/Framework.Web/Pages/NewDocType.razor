@@ -44,14 +44,17 @@ else
                     <BbField>
                         <BbFieldLabel>Type</BbFieldLabel>
                         <BbSelect TValue="string" Value="@kind" ValueChanged="v => kind = v ?? kind" AriaLabel="DocType type"
-                                  Options="@(new[] { new SelectOption<string>("document", "Document (has list, form, and auto-naming)"), new SelectOption<string>("child", "Child table row (used inside another document)") })" />
+                                  Options="@(new[] { new SelectOption<string>("document", "Document (has list, form, and auto-naming)"), new SelectOption<string>("single", "Single DocType (singleton settings per tenant)"), new SelectOption<string>("child", "Child table row (used inside another document)") })" />
                     </BbField>
-                    @if (kind == "document")
+                    @if (kind == "document" || kind == "single")
                     {
                         <BbField>
                             <BbFieldLabel For="nd-module">Modul (wajib, dari Master Modules)</BbFieldLabel>
                             <BbSelect TValue="string" Value="@(module ?? "")" ValueChanged="v => module = string.IsNullOrWhiteSpace(v) ? null : v" Options="ModuleOptions(module)" AriaLabel="Modul" />
                         </BbField>
+                    }
+                    @if (kind == "document")
+                    {
                         <BbField>
                             <BbFieldLabel For="nd-naming">Document naming pattern</BbFieldLabel>
                             <BbInput Id="nd-naming" Class="code-input" Value="@Naming" ValueChanged="v => { naming = v; namingTouched = true; }" />
@@ -112,6 +115,14 @@ else
         get
         {
             if (kind == "child") { yield return "Row DocType (isChild) with description field"; yield return "Used via Child table field in other DocTypes"; yield break; }
+            if (kind == "single")
+            {
+                yield return "Single DocType (singleton settings per tenant)";
+                yield return "No list page needed; opens directly into settings form";
+                yield return "Fixed document identifier matching DocType name";
+                yield return $"Menu: {(string.IsNullOrWhiteSpace(module) ? "General" : module)} → {(string.IsNullOrWhiteSpace(title) ? "…" : title)}";
+                yield break;
+            }
             yield return template == "empty" ? "Fields: Title" : "Fields: Title, Date, Description";
             yield return $"Document number: {SampleName}";
             if (template != "empty") yield return "Permissions: Employees create & manage their own documents; System Manager manages all";
@@ -139,13 +150,24 @@ else
 
     private DocTypeDef BuildDef()
     {
-        var def = new DocTypeDef { Name = name, Version = 1, Title = title.Trim(), IsChild = kind == "child" };
+        var def = new DocTypeDef { Name = name, Version = 1, Title = title.Trim(), IsChild = kind == "child", IsSingle = kind == "single" };
         if (def.IsChild)
         {
             def.Fields = [new FieldDef { Name = "description", Type = "Data", Label = "Description", RequiredWhen = "true" }];
             return def;
         }
         def.Module = string.IsNullOrWhiteSpace(module) ? null : module.Trim();
+        if (def.IsSingle)
+        {
+            def.Naming = new NamingDef { Pattern = "field:name" };
+            def.Document = new DocumentDef { AllowAmend = false, AllowDelete = false };
+            def.Fields = [new FieldDef { Name = "settings_name", Type = "Data", Label = "Configuration Name", Default = JsonSerializer.SerializeToElement(title) }];
+            def.Permissions =
+            [
+                new PermissionDef { Role = "System Manager", Actions = ["read", "create", "write"], Scope = "all" },
+            ];
+            return def;
+        }
         def.Naming = new NamingDef { Pattern = Naming };
         def.Document = new DocumentDef { AllowAmend = template == "approval", AllowDelete = true };
         def.Fields = [new FieldDef { Name = "title", Type = "Data", Label = "Title", RequiredWhen = "true", InListView = true }];

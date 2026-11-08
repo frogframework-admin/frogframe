@@ -137,29 +137,44 @@ public sealed class GlobalSearchService(
 
             if (titleMatch || nameMatch || moduleMatch)
             {
-                // Navigasi ke daftar dokumen
-                results.Add(new AwesomebarItem(
-                    Id: $"dt_{dt.Name}",
-                    Title: dt.Title,
-                    Subtitle: $"{ModuleLabel(dt, navModules)} · Document List",
-                    Category: AwesomebarCategory.Navigation,
-                    Href: $"/app/{dt.Name}",
-                    Icon: IconFor(dt.Name),
-                    Badge: "List"
-                ));
-
-                // Aksi buat baru jika memiliki izin Create
-                if (permissions.Can(user, dt, DocActions.Create))
+                if (dt.Def.IsSingle)
                 {
                     results.Add(new AwesomebarItem(
-                        Id: $"new_{dt.Name}",
-                        Title: $"+ New {dt.Title}",
-                        Subtitle: $"Create new draft {dt.Title.ToLower()}",
-                        Category: AwesomebarCategory.Action,
-                        Href: $"/app/{dt.Name}/new",
-                        Icon: "plus-circle",
-                        Badge: "Create"
+                        Id: $"dt_{dt.Name}",
+                        Title: dt.Title,
+                        Subtitle: $"{ModuleLabel(dt, navModules)} · Settings",
+                        Category: AwesomebarCategory.Navigation,
+                        Href: $"/app/{dt.Name}/{dt.Name}",
+                        Icon: IconFor(dt.Name),
+                        Badge: "Settings"
                     ));
+                }
+                else
+                {
+                    // Navigasi ke daftar dokumen
+                    results.Add(new AwesomebarItem(
+                        Id: $"dt_{dt.Name}",
+                        Title: dt.Title,
+                        Subtitle: $"{ModuleLabel(dt, navModules)} · Document List",
+                        Category: AwesomebarCategory.Navigation,
+                        Href: $"/app/{dt.Name}",
+                        Icon: IconFor(dt.Name),
+                        Badge: "List"
+                    ));
+
+                    // Aksi buat baru jika memiliki izin Create
+                    if (permissions.Can(user, dt, DocActions.Create))
+                    {
+                        results.Add(new AwesomebarItem(
+                            Id: $"new_{dt.Name}",
+                            Title: $"+ New {dt.Title}",
+                            Subtitle: $"Create new draft {dt.Title.ToLower()}",
+                            Category: AwesomebarCategory.Action,
+                            Href: $"/app/{dt.Name}/new",
+                            Icon: "plus-circle",
+                            Badge: "Create"
+                        ));
+                    }
                 }
             }
             else if (q.StartsWith("new ", StringComparison.OrdinalIgnoreCase))

@@ -469,6 +469,7 @@ public sealed partial class MetadataCompiler(IFieldTypeRegistry fieldTypes, Func
         }
 
         if (d.IsSingle && d.IsChild) errors.Add(new(src, "isSingle", "Child table tidak bisa sekaligus Single DocType"));
+        if (d.IsSingle && !string.IsNullOrWhiteSpace(d.Workflow)) errors.Add(new(src, "workflow", "Single DocType tidak mendukung workflow"));
 
         // Setiap DocType (bukan child table) wajib punya modul dari master modul tenant.
         if (_scope is not null && !d.IsChild)

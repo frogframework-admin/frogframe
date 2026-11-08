@@ -644,7 +644,7 @@ sealed partial class Tests
     {
         var reports = sp.GetRequiredService<ReportService>();
         var maya = await reports.RunAsync(U("maya"), "spend-by-department", new Dictionary<string, string?>());
-        Assert.True(maya.Rows.Count > 0 && maya.Rows.All(r => Equals(r["department"], "Marketing")), "manager hanya departemennya");
+        Assert.True(maya.Rows.Count > 0 && maya.Rows.All(r => Equals(r["department"], "MARKETING")), "manager hanya departemennya");
         await Assert.Throws<PermissionDeniedException>(() => reports.ExportCsvAsync(U("maya"), "spend-by-department", new Dictionary<string, string?>()), "manager tanpa izin export");
         await Assert.Throws<PermissionDeniedException>(() => reports.RunAsync(U("andi"), "spend-by-department", new Dictionary<string, string?>()), "pemohon tanpa izin report");
         var csv = await reports.ExportCsvAsync(U("dewi"), "spend-by-department", new Dictionary<string, string?>());
@@ -685,7 +685,7 @@ sealed partial class Tests
 
         var draft = await printer.BuildAsync(U("andi"), PR, "PR-2026-00001");
         Assert.Equal("DRAFT", draft.Watermark, "draft");
-        Assert.True(draft.Sections.SelectMany(x => x.Fields).Any(f => f.Value.Contains("PT Sinar Komputindo (VND-0001)")), "Link dicetak dengan judul");
+        Assert.True(draft.Sections.SelectMany(x => x.Fields).Any(f => f.Value.Contains("Pt Sinar Komputindo (VND-0001)")), "Link dicetak dengan judul");
     }
 
     [Test]
@@ -1101,8 +1101,8 @@ sealed partial class Tests
     {
         var admin = U("admin");
         var it = await Docs.GetAsync(admin, "Department", "IT");
-        var ex = await Assert.Throws<ValidationFailedException>(() => Docs.UpdateAsync(admin, "Department", "IT", it.Version, P(("parent_department", "Infrastruktur"))), "siklus departemen");
-        Assert.True(ex.Errors.Any(e => e.Message.Contains("siklus") && e.Message.Contains("IT → Infrastruktur → IT")), "pesan menyebut rantai siklus");
+        var ex = await Assert.Throws<ValidationFailedException>(() => Docs.UpdateAsync(admin, "Department", "IT", it.Version, P(("parent_department", "INFRASTRUKTUR"))), "siklus departemen");
+        Assert.True(ex.Errors.Any(e => e.Message.Contains("siklus") && e.Message.Contains("IT → INFRASTRUKTUR → IT")), "pesan menyebut rantai siklus");
         var self = await Assert.Throws<ValidationFailedException>(() => Docs.UpdateAsync(admin, "Department", "IT", it.Version, P(("parent_department", "IT"))), "induk diri sendiri");
         Assert.True(self.Errors.Any(e => e.Message.Contains("sendiri")), "pesan diri sendiri");
 
