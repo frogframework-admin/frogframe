@@ -304,18 +304,29 @@
             }
             else
             {
-                <div class="module-launcher-grid compact">
+                <BbItemGroup Class="module-list-stack">
                     @foreach (var mod in filteredModules)
                     {
                         var isCurrent = currentMod?.Id == mod.Id;
-                        <button type="button" class="module-tile @(isCurrent ? "active" : "")" @onclick="() => SelectModuleFromModal(mod)">
-                            <div class="module-tile-icon">
-                                <LucideIcon Name="@(string.IsNullOrWhiteSpace(mod.Icon) ? "layout-grid" : mod.Icon)" Size="28" />
-                            </div>
-                            <div class="module-tile-title">@mod.Name</div>
-                        </button>
+                        <BbItem Variant="ItemVariant.Outline"
+                                AsChild="button"
+                                Class="@($"module-horizontal-item {(isCurrent ? "active" : "")}")"
+                                @onclick="() => SelectModuleFromModal(mod)">
+                            <BbItemMedia Variant="ItemMediaVariant.Icon" Class="@($"module-media-box {GetModuleBadgeColor(mod.Id)}")">
+                                <LucideIcon Name="@(string.IsNullOrWhiteSpace(mod.Icon) ? "layout-grid" : mod.Icon)" Size="20" />
+                            </BbItemMedia>
+                            <BbItemContent Class="module-horizontal-content">
+                                <BbItemTitle Class="module-horizontal-title">@mod.Name</BbItemTitle>
+                            </BbItemContent>
+                            @if (isCurrent)
+                            {
+                                <div class="module-active-check" title="Active module">
+                                    <LucideIcon Name="check" Size="16" />
+                                </div>
+                            }
+                        </BbItem>
                     }
-                </div>
+                </BbItemGroup>
             }
         </BbDialogContent>
     </BbDialog>
@@ -449,6 +460,16 @@
             moduleSearchQuery = string.Empty;
         }
     }
+
+    private static string GetModuleBadgeColor(string? moduleId) => (moduleId?.ToLowerInvariant() ?? "") switch
+    {
+        var id when id.Contains("hr") || id.Contains("human") => "module-badge-purple",
+        var id when id.Contains("procure") || id.Contains("purchas") || id.Contains("buy") => "module-badge-amber",
+        var id when id.Contains("account") || id.Contains("finance") => "module-badge-blue",
+        var id when id.Contains("analytic") || id.Contains("report") || id.Contains("bi") => "module-badge-indigo",
+        var id when id.Contains("admin") || id.Contains("setup") || id.Contains("config") => "module-badge-teal",
+        _ => "module-badge-primary"
+    };
 
     private void SelectModuleFromModal(NavigationModule mod)
     {
