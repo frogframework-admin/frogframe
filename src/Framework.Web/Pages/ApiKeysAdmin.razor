@@ -13,6 +13,8 @@
 @inject DialogService Dialogs
 @inject NavigationManager Nav
 @inject TimeProvider Clock
+@inject Framework.Preferences.IUserPreferenceStore UserPrefs
+@implements IDisposable
 
 <PageTitle>API Keys · FrogFrame</PageTitle>
 
@@ -136,30 +138,106 @@ else
         </BbCard>
     }
 
-    <div class="table-wrap">
-        <table class="data">
-            <thead><tr><th>Key</th><th>Account</th><th>Scope</th><th>Expires At</th><th>Last Used</th><th>Status</th><th></th></tr></thead>
-            <tbody>
-                @foreach (var k in keys)
+    <BbDataGrid @key="gridMgr.RenderKey"
+                TData="ApiKey"
+                Items="@keys"
+                ShowSearch="true"
+                SearchPlaceholder="Search API keys..."
+                ShowPagination="true"
+                InitialPageSize="15"
+                TableContainerClass="table-wrap"
+                Resizable="true"
+                OnColumnResize="gridMgr.HandleResize"
+                StateChanged="gridMgr.HandleStateChanged">
+        <Toolbar>
+            <div style="display:flex;align-items:center;gap:.5rem;margin-left:auto">
+                @if (gridMgr.HasCustomLayout)
                 {
-                    var key = k;
-                    var status = DisplayStatus(key);
-                    var isKeyActive = key.RevokedAt is null && (key.ExpiresAt is null || key.ExpiresAt > Clock.GetUtcNow());
-                    <tr>
-                        <td><strong>@key.Name</strong><div class="muted small"><code>dfk_@(key.Id).…</code></div></td>
-                        <td>@(names.GetValueOrDefault(key.UserId) ?? key.UserId)</td>
-                        <td class="small scope-cell">@(key.Scopes.Count == 0 ? "All per role" : string.Join(", ", key.Scopes.Take(4)) + (key.Scopes.Count > 4 ? $" +{key.Scopes.Count - 4}" : ""))
-                            @if (key.AllowedIps.Count > 0) { <div class="muted">IP: @string.Join(", ", key.AllowedIps)</div> }</td>
-                        <td class="nowrap">@(key.ExpiresAt is { } e ? Fmt.When(e) : "—")</td>
-                        <td class="nowrap muted">@(key.LastUsedAt is { } u ? $"{Fmt.When(u)} · {key.LastUsedIp}" : "never")</td>
-                        <td><BbBadge Variant="@(isKeyActive ? BadgeVariant.SoftSuccess : BadgeVariant.Soft)">@status</BbBadge></td>
-                        <td>@if (isKeyActive) { <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="() => Revoke(key)"><LucideIcon Name="ban" Size="15" /> Revoke</BbButton> }</td>
-                    </tr>
+                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ResetColumnsLayout" Title="Reset column layout to default">
+                        <LucideIcon Name="rotate-ccw" Size="14" />
+                        <span>Reset Columns</span>
+                    </BbButton>
                 }
-                @if (keys.Count == 0) { <tr><td colspan="7" class="grid-empty">No API keys found.</td></tr> }
-            </tbody>
-        </table>
-    </div>
+                <BbDataGridColumnVisibility TData="ApiKey" />
+            </div>
+        </Toolbar>
+        <Columns>
+            <BbDataGridPropertyColumn TData="ApiKey" TProp="string" Property="k => k.Name" Id="name" Title="Key Name"
+                                      Width="@gridMgr.GetWidth("name")" Visible="@gridMgr.IsVisible("name")" Resizable="true" Sortable="true" Filterable="true">
+                <CellTemplate Context="key">
+                    <div>
+                        <strong>@key.Name</strong>
+                        <div class="muted small"><code>dfk_@(key.Id).…</code></div>
+                    </div>
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridTemplateColumn TData="ApiKey" Id="account" Title="Account"
+                                      Width="@gridMgr.GetWidth("account", "12rem")" Visible="@gridMgr.IsVisible("account")" Resizable="true" Sortable="true" SortBy="k => names.GetValueOrDefault(k.UserId) ?? k.UserId">
+                <ChildContent Context="key">
+                    @(names.GetValueOrDefault(key.UserId) ?? key.UserId)
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+
+            <BbDataGridTemplateColumn TData="ApiKey" Id="scope" Title="Scope"
+                                      Width="@gridMgr.GetWidth("scope", "16rem")" Visible="@gridMgr.IsVisible("scope")" Resizable="true">
+                <ChildContent Context="key">
+                    <div class="small scope-cell">
+                        @(key.Scopes.Count == 0 ? "All per role" : string.Join(", ", key.Scopes.Take(4)) + (key.Scopes.Count > 4 ? $" +{key.Scopes.Count - 4}" : ""))
+                        @if (key.AllowedIps.Count > 0)
+                        {
+                            <div class="muted">IP: @string.Join(", ", key.AllowedIps)</div>
+                        }
+                    </div>
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+
+            <BbDataGridTemplateColumn TData="ApiKey" Id="expires" Title="Expires At"
+                                      Width="@gridMgr.GetWidth("expires", "11rem")" Visible="@gridMgr.IsVisible("expires")" Resizable="true" Sortable="true" SortBy="k => k.ExpiresAt">
+                <ChildContent Context="key">
+                    <span class="nowrap">@(key.ExpiresAt is { } e ? Fmt.When(e) : "—")</span>
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+
+            <BbDataGridTemplateColumn TData="ApiKey" Id="last_used" Title="Last Used"
+                                      Width="@gridMgr.GetWidth("last_used", "12rem")" Visible="@gridMgr.IsVisible("last_used")" Resizable="true" Sortable="true" SortBy="k => k.LastUsedAt">
+                <ChildContent Context="key">
+                    <span class="nowrap muted">@(key.LastUsedAt is { } u ? $"{Fmt.When(u)} · {key.LastUsedIp}" : "never")</span>
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+
+            <BbDataGridTemplateColumn TData="ApiKey" Id="status" Title="Status"
+                                      Width="@gridMgr.GetWidth("status", "7.5rem")" Visible="@gridMgr.IsVisible("status")" Resizable="true" Sortable="true" SortBy="k => DisplayStatus(k)">
+                <ChildContent Context="key">
+                    @{
+                        var status = DisplayStatus(key);
+                        var isKeyActive = key.RevokedAt is null && (key.ExpiresAt is null || key.ExpiresAt > Clock.GetUtcNow());
+                    }
+                    <BbBadge Variant="@(isKeyActive ? BadgeVariant.SoftSuccess : BadgeVariant.Soft)">@status</BbBadge>
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+
+            <BbDataGridTemplateColumn TData="ApiKey" Id="actions" Title="Actions"
+                                      Width="@gridMgr.GetWidth("actions", "7.5rem")" Hideable="false" Resizable="false">
+                <ChildContent Context="key">
+                    @{
+                        var isKeyActive = key.RevokedAt is null && (key.ExpiresAt is null || key.ExpiresAt > Clock.GetUtcNow());
+                    }
+                    @if (isKeyActive)
+                    {
+                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="() => Revoke(key)">
+                            <LucideIcon Name="ban" Size="15" /> Revoke
+                        </BbButton>
+                    }
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+        </Columns>
+        <EmptyTemplate>
+            <div style="padding:2.5rem 1rem;text-align:center">
+                <BbEmpty Title="No API keys found" Description="For external system integrations, create an API key to allow external access." />
+            </div>
+        </EmptyTemplate>
+    </BbDataGrid>
 }
 
 @code {
@@ -168,6 +246,7 @@ else
     private Dictionary<string, string> names = new();
     private List<UserAccount> accounts = [];
     private IReadOnlyList<QueryApiDef> queryApis = [];
+    private Framework.Web.Services.DataGridPreferenceManager<ApiKey> gridMgr = default!;
     private bool creating, limited, busy;
     private string name = "", accountId = NewAccount, newName = "", newUser = "";
     private string? newDept, expires, ips, error, token;
@@ -179,7 +258,26 @@ else
         new[] { new SelectOption<string>(NewAccount, "＋ New integration account") }
         .Concat(accounts.Where(a => a.IsActive).Select(a => new SelectOption<string>(a.Id, $"{a.FullName} ({a.UserName}){(a.PasswordHash is null ? " · integration" : "")}")));
 
-    protected override async Task OnInitializedAsync() => await Reload();
+    protected override async Task OnInitializedAsync()
+    {
+        gridMgr = new(UserPrefs, Current, "grid:admin:api-keys", StateHasChanged);
+        if (Current.User is not null)
+        {
+            await gridMgr.InitializeAsync();
+        }
+        await Reload();
+    }
+
+    private async Task ResetColumnsLayout()
+    {
+        await gridMgr.ResetAsync();
+        Toasts.Success("Column layout has been reset to default.", "Reset Columns");
+    }
+
+    public void Dispose()
+    {
+        gridMgr?.Dispose();
+    }
 
     private async Task Reload()
     {

@@ -1,6 +1,9 @@
 @page "/admin/workflows"
 @inject MetadataRegistry Registry
 @inject CurrentUser Current
+@inject ToastService Toasts
+@inject Framework.Preferences.IUserPreferenceStore UserPrefs
+@implements IDisposable
 
 <PageTitle>Workflows · FrogFrame</PageTitle>
 
@@ -18,51 +21,113 @@ else
         <BbButton Href="/admin/workflows/new"><LucideIcon Name="plus" Size="16" /> New workflow</BbButton>
     </header>
 
-    @if (Workflows.Count == 0)
-    {
-        <BbEmpty Title="No workflows yet" Description="Create a workflow independently, then link it to a DocType when you are ready." />
-    }
-    else
-    {
-        <div class="table-wrap">
-            <table class="data">
-                <thead><tr><th>Workflow</th><th>Version</th><th>DocType</th><th>Relationship</th><th>Actions</th></tr></thead>
-                <tbody>
-                    @foreach (var workflow in Workflows)
+    <BbDataGrid @key="gridMgr.RenderKey"
+                TData="WorkflowDef"
+                Items="@Workflows"
+                ShowSearch="true"
+                SearchPlaceholder="Search workflows..."
+                ShowPagination="true"
+                InitialPageSize="15"
+                TableContainerClass="table-wrap"
+                Resizable="true"
+                OnColumnResize="gridMgr.HandleResize"
+                StateChanged="gridMgr.HandleStateChanged">
+        <Toolbar>
+            <div style="display:flex;align-items:center;gap:.5rem;margin-left:auto">
+                @if (gridMgr.HasCustomLayout)
+                {
+                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ResetColumnsLayout" Title="Reset column layout to default">
+                        <LucideIcon Name="rotate-ccw" Size="14" />
+                        <span>Reset Columns</span>
+                    </BbButton>
+                }
+                <BbDataGridColumnVisibility TData="WorkflowDef" />
+            </div>
+        </Toolbar>
+        <Columns>
+            <BbDataGridPropertyColumn TData="WorkflowDef" TProp="string" Property="w => w.Name" Id="name" Title="Workflow Name"
+                                      Width="@gridMgr.GetWidth("name")" Visible="@gridMgr.IsVisible("name")" Resizable="true" Sortable="true" Filterable="true">
+                <CellTemplate Context="workflow">
+                    <a href="@($"/admin/workflows/{workflow.Name}/editor")" style="font-weight:600;color:inherit;text-decoration:none" class="hover:underline">
+                        @workflow.Name
+                    </a>
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridPropertyColumn TData="WorkflowDef" TProp="int" Property="w => w.Version" Id="version" Title="Version"
+                                      Width="@gridMgr.GetWidth("version", "7rem")" Visible="@gridMgr.IsVisible("version")" Resizable="true" Sortable="true">
+                <CellTemplate Context="workflow">
+                    <BbBadge Variant="BadgeVariant.Outline">v@workflow.Version</BbBadge>
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridPropertyColumn TData="WorkflowDef" TProp="string?" Property="w => w.DocType" Id="doctype" Title="DocType"
+                                      Width="@gridMgr.GetWidth("doctype", "14rem")" Visible="@gridMgr.IsVisible("doctype")" Resizable="true" Sortable="true" Filterable="true">
+                <CellTemplate Context="workflow">
+                    <span class="@(string.IsNullOrEmpty(workflow.DocType) ? "muted" : "")">
+                        @(workflow.DocType ?? "—")
+                    </span>
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridTemplateColumn TData="WorkflowDef" Id="relationship" Title="Relationship"
+                                      Width="@gridMgr.GetWidth("relationship", "10rem")" Visible="@gridMgr.IsVisible("relationship")" Resizable="true">
+                <ChildContent Context="workflow">
+                    @if (IsLinked(workflow))
                     {
-                        <tr>
-                            <td><a href="@($"/admin/workflows/{workflow.Name}/editor")" style="font-weight:600;color:inherit">@workflow.Name</a></td>
-                            <td><BbBadge Variant="BadgeVariant.Outline">v@workflow.Version</BbBadge></td>
-                            <td>@(workflow.DocType ?? "—")</td>
-                            <td>
-                                @if (IsLinked(workflow))
-                                {
-                                    <BbBadge Variant="BadgeVariant.SoftSuccess">Linked</BbBadge>
-                                }
-                                else if (string.IsNullOrWhiteSpace(workflow.DocType))
-                                {
-                                    <BbBadge Variant="BadgeVariant.Outline">Standalone</BbBadge>
-                                }
-                                else
-                                {
-                                    <BbBadge Variant="BadgeVariant.Secondary">Not attached</BbBadge>
-                                }
-                            </td>
-                            <td>
-                                <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Href="@($"/admin/workflows/{workflow.Name}/editor")">
-                                    <LucideIcon Name="pencil" Size="14" /> Edit / link
-                                </BbButton>
-                            </td>
-                        </tr>
+                        <BbBadge Variant="BadgeVariant.SoftSuccess">Linked</BbBadge>
                     }
-                </tbody>
-            </table>
-        </div>
-    }
+                    else if (string.IsNullOrWhiteSpace(workflow.DocType))
+                    {
+                        <BbBadge Variant="BadgeVariant.Outline">Standalone</BbBadge>
+                    }
+                    else
+                    {
+                        <BbBadge Variant="BadgeVariant.Secondary">Not attached</BbBadge>
+                    }
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+
+            <BbDataGridTemplateColumn TData="WorkflowDef" Id="actions" Title="Actions"
+                                      Width="@gridMgr.GetWidth("actions", "8rem")" Hideable="false" Resizable="false">
+                <ChildContent Context="workflow">
+                    <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Href="@($"/admin/workflows/{workflow.Name}/editor")">
+                        <LucideIcon Name="pencil" Size="14" /> Edit / link
+                    </BbButton>
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+        </Columns>
+        <EmptyTemplate>
+            <div style="padding:2.5rem 1rem;text-align:center">
+                <BbEmpty Title="No workflows found" Description="Create a workflow independently, then link it to a DocType when you are ready." />
+            </div>
+        </EmptyTemplate>
+    </BbDataGrid>
 }
 
 @code {
+    private Framework.Web.Services.DataGridPreferenceManager<WorkflowDef> gridMgr = default!;
     private IReadOnlyList<WorkflowDef> Workflows => Registry.Workflows.OrderBy(w => w.Name, StringComparer.OrdinalIgnoreCase).ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        gridMgr = new(UserPrefs, Current, "grid:admin:workflows", StateHasChanged);
+        if (Current.User is not null)
+        {
+            await gridMgr.InitializeAsync();
+        }
+    }
+
+    private async Task ResetColumnsLayout()
+    {
+        await gridMgr.ResetAsync();
+        Toasts.Success("Column layout has been reset to default.", "Reset Columns");
+    }
+
+    public void Dispose()
+    {
+        gridMgr?.Dispose();
+    }
 
     private bool IsLinked(WorkflowDef workflow) =>
         !string.IsNullOrWhiteSpace(workflow.DocType)

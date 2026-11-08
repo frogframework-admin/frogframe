@@ -5,6 +5,8 @@
 @inject CurrentUser Current
 @inject ToastService Toasts
 @inject DialogService Dialogs
+@inject Framework.Preferences.IUserPreferenceStore UserPrefs
+@implements IDisposable
 
 <PageTitle>Widgets · FrogFrame</PageTitle>
 
@@ -23,45 +25,130 @@ else
         @if (designer) { <BbButton Href="/admin/widgets/new"><LucideIcon Name="plus" Size="16" /> New widget</BbButton> }
     </header>
 
-    <div class="table-wrap">
-        <table class="data">
-            <thead><tr><th>Widget</th><th>Type</th><th>Parameters</th><th>Viewable by</th><th>Modified</th><th></th></tr></thead>
-            <tbody>
-                @foreach (var w in widgets)
+    <BbDataGrid @key="gridMgr.RenderKey"
+                TData="WidgetDef"
+                Items="@widgets"
+                ShowSearch="true"
+                SearchPlaceholder="Search widgets..."
+                ShowPagination="true"
+                InitialPageSize="15"
+                TableContainerClass="table-wrap"
+                Resizable="true"
+                OnColumnResize="gridMgr.HandleResize"
+                StateChanged="gridMgr.HandleStateChanged">
+        <Toolbar>
+            <div style="display:flex;align-items:center;gap:.5rem;margin-left:auto">
+                @if (gridMgr.HasCustomLayout)
                 {
-                    var widget = w;
-                    var pinned = layout.Items.Any(i => i.WidgetId == widget.Id);
-                    <tr>
-                        <td><strong>@widget.Name</strong>@if (widget.Description is not null) { <div class="muted small">@widget.Description</div> }</td>
-                        <td><div class="row" style="gap:.4rem;flex-wrap:nowrap"><ChartThumb Type="@widget.Config.Visual.Type" />@WidgetBuilder.ChartLabel(widget.Config.Visual.Type)</div></td>
-                        <td>@(widget.Config.Parameters.Count == 0 ? "—" : string.Join(", ", widget.Config.Parameters.Select(p => "@" + p.Name)))</td>
-                        <td>@(widget.Config.Roles.Count == 0 ? "All" : string.Join(", ", widget.Config.Roles))</td>
-                        <td class="muted nowrap">v@(widget.Version) · @Fmt.When(widget.UpdatedAt)</td>
-                        <td class="nowrap">
-                            @if (designer)
-                            {
-                                <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="() => TogglePin(widget, pinned)"><LucideIcon Name="@(pinned ? "pin-off" : "pin")" Size="15" /> @(pinned ? "Unpin" : "Pin")</BbButton>
-                                <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" Href="@($"/admin/widgets/{widget.Id}")"><LucideIcon Name="pencil" Size="15" /> Edit</BbButton>
-                                <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@($"Delete {widget.Name}")" OnClick="() => Delete(widget)"><LucideIcon Name="trash-2" Size="15" /></BbButton>
-                            }
-                        </td>
-                    </tr>
+                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ResetColumnsLayout" Title="Reset column layout to default">
+                        <LucideIcon Name="rotate-ccw" Size="14" />
+                        <span>Reset Columns</span>
+                    </BbButton>
                 }
-                @if (widgets.Count == 0) { <tr><td colspan="6" class="grid-empty">No widgets yet.</td></tr> }
-            </tbody>
-        </table>
-    </div>
+                <BbDataGridColumnVisibility TData="WidgetDef" />
+            </div>
+        </Toolbar>
+        <Columns>
+            <BbDataGridPropertyColumn TData="WidgetDef" TProp="string" Property="w => w.Name" Id="widget" Title="Widget"
+                                      Width="@gridMgr.GetWidth("widget")" Visible="@gridMgr.IsVisible("widget")" Resizable="true" Sortable="true" Filterable="true">
+                <CellTemplate Context="widget">
+                    <div>
+                        <strong>@widget.Name</strong>
+                        @if (widget.Description is not null)
+                        {
+                            <div class="muted small">@widget.Description</div>
+                        }
+                    </div>
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridTemplateColumn TData="WidgetDef" Id="type" Title="Type"
+                                      Width="@gridMgr.GetWidth("type", "12rem")" Visible="@gridMgr.IsVisible("type")" Resizable="true" Sortable="true" SortBy="w => w.Config.Visual.Type">
+                <ChildContent Context="widget">
+                    <div class="row" style="gap:.4rem;flex-wrap:nowrap">
+                        <ChartThumb Type="@widget.Config.Visual.Type" />
+                        <span>@WidgetBuilder.ChartLabel(widget.Config.Visual.Type)</span>
+                    </div>
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+
+            <BbDataGridTemplateColumn TData="WidgetDef" Id="params" Title="Parameters"
+                                      Width="@gridMgr.GetWidth("params", "13rem")" Visible="@gridMgr.IsVisible("params")" Resizable="true">
+                <ChildContent Context="widget">
+                    @(widget.Config.Parameters.Count == 0 ? "—" : string.Join(", ", widget.Config.Parameters.Select(p => "@" + p.Name)))
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+
+            <BbDataGridTemplateColumn TData="WidgetDef" Id="roles" Title="Viewable by"
+                                      Width="@gridMgr.GetWidth("roles", "10rem")" Visible="@gridMgr.IsVisible("roles")" Resizable="true">
+                <ChildContent Context="widget">
+                    @(widget.Config.Roles.Count == 0 ? "All" : string.Join(", ", widget.Config.Roles))
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+
+            <BbDataGridTemplateColumn TData="WidgetDef" Id="modified" Title="Modified"
+                                      Width="@gridMgr.GetWidth("modified", "12rem")" Visible="@gridMgr.IsVisible("modified")" Resizable="true" Sortable="true" SortBy="w => w.UpdatedAt">
+                <ChildContent Context="widget">
+                    <span class="muted nowrap">v@(widget.Version) · @Fmt.When(widget.UpdatedAt)</span>
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+
+            <BbDataGridTemplateColumn TData="WidgetDef" Id="actions" Title="Actions"
+                                      Width="@gridMgr.GetWidth("actions", "11rem")" Hideable="false" Resizable="false">
+                <ChildContent Context="widget">
+                    @if (designer)
+                    {
+                        var pinned = layout.Items.Any(i => i.WidgetId == widget.Id);
+                        <div style="display:flex;align-items:center;gap:.35rem">
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="() => TogglePin(widget, pinned)">
+                                <LucideIcon Name="@(pinned ? "pin-off" : "pin")" Size="15" /> @(pinned ? "Unpin" : "Pin")
+                            </BbButton>
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" Href="@($"/admin/widgets/{widget.Id}")">
+                                <LucideIcon Name="pencil" Size="15" /> Edit
+                            </BbButton>
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@($"Delete {widget.Name}")" OnClick="() => Delete(widget)">
+                                <LucideIcon Name="trash-2" Size="15" />
+                            </BbButton>
+                        </div>
+                    }
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+        </Columns>
+        <EmptyTemplate>
+            <div style="padding:2.5rem 1rem;text-align:center">
+                <BbEmpty Title="No widgets found" Description="All widgets in this tenant will appear here. Pin to dashboard or create a new widget." />
+            </div>
+        </EmptyTemplate>
+    </BbDataGrid>
 }
 
 @code {
     private IReadOnlyList<WidgetDef> widgets = [];
     private DashboardLayout layout = new();
     private bool designer;
+    private Framework.Web.Services.DataGridPreferenceManager<WidgetDef> gridMgr = default!;
 
     protected override async Task OnInitializedAsync()
     {
+        gridMgr = new(UserPrefs, Current, "grid:admin:widgets", StateHasChanged);
+        if (Current.User is not null)
+        {
+            await gridMgr.InitializeAsync();
+        }
+
         designer = DashboardService.CanDesign(Current.Required);
         await Reload();
+    }
+
+    private async Task ResetColumnsLayout()
+    {
+        await gridMgr.ResetAsync();
+        Toasts.Success("Column layout has been reset to default.", "Reset Columns");
+    }
+
+    public void Dispose()
+    {
+        gridMgr?.Dispose();
     }
 
     private async Task Reload()

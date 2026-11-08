@@ -1,9 +1,12 @@
 @page "/query-apis"
+@page "/admin/query-apis"
 @using Framework.Api
 @inject QueryApiService Apis
 @inject CurrentUser Current
 @inject ToastService Toasts
 @inject DialogService Dialogs
+@inject Framework.Preferences.IUserPreferenceStore UserPrefs
+@implements IDisposable
 
 <PageTitle>Query APIs · FrogFrame</PageTitle>
 
@@ -24,46 +27,131 @@ else if (items is null)
 {
     <BbSkeleton Height="10rem" />
 }
-else if (items.Count == 0)
-{
-    <BbEmpty Title="No query APIs yet" Description="Create one directly, or check &quot;Also publish as API&quot; when saving a dashboard widget or report template." />
-}
 else
 {
-    <div class="table-wrap">
-        <table class="data">
-            <thead><tr><th>API</th><th>Endpoint</th><th>Output</th><th>Parameters</th><th>Callable by</th><th>Source</th><th>Status</th><th></th></tr></thead>
-            <tbody>
-                @foreach (var d in items)
+    <BbDataGrid @key="gridMgr.RenderKey"
+                TData="QueryApiDef"
+                Items="@items"
+                ShowSearch="true"
+                SearchPlaceholder="Search query APIs..."
+                ShowPagination="true"
+                InitialPageSize="15"
+                TableContainerClass="table-wrap"
+                Resizable="true"
+                OnColumnResize="gridMgr.HandleResize"
+                StateChanged="gridMgr.HandleStateChanged">
+        <Toolbar>
+            <div style="display:flex;align-items:center;gap:.5rem;margin-left:auto">
+                @if (gridMgr.HasCustomLayout)
                 {
-                    var item = d;
-                    <tr>
-                        <td><strong>@item.Name</strong>@if (item.Description is not null) { <div class="muted small">@item.Description</div> }</td>
-                        <td class="nowrap"><code>/api/query/@item.Slug</code></td>
-                        <td>@OutputLabel(item.Config.Output)@(item.Config.CacheSeconds > 0 ? $" · cache {item.Config.CacheSeconds}s" : "")</td>
-                        <td>@(item.Config.Parameters.Count == 0 ? "—" : string.Join(", ", item.Config.Parameters.Select(p => QueryApiService.IsUserBound(p) ? $"{p.Name} (account)" : p.Name)))</td>
-                        <td>@(item.Config.Roles.Count == 0 ? "All" : string.Join(", ", item.Config.Roles))</td>
-                        <td class="small">@SourceLabel(item.SourceRef)</td>
-                        <td><BbBadge Variant="@(item.Config.Enabled ? BadgeVariant.SoftSuccess : BadgeVariant.Soft)">@(item.Config.Enabled ? "Active" : "Inactive")</BbBadge></td>
-                        <td class="nowrap">
-                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" Href="@($"/query-apis/{item.Id}/edit")"><LucideIcon Name="pencil" Size="15" /> Edit</BbButton>
-                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@($"Delete {item.Name}")" OnClick="() => Delete(item)"><LucideIcon Name="trash-2" Size="15" /></BbButton>
-                        </td>
-                    </tr>
+                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ResetColumnsLayout" Title="Reset column layout to default">
+                        <LucideIcon Name="rotate-ccw" Size="14" />
+                        <span>Reset Columns</span>
+                    </BbButton>
                 }
-            </tbody>
-        </table>
-    </div>
+                <BbDataGridColumnVisibility TData="QueryApiDef" />
+            </div>
+        </Toolbar>
+        <Columns>
+            <BbDataGridPropertyColumn TData="QueryApiDef" TProp="string" Property="d => d.Name" Id="api" Title="API"
+                                      Width="@gridMgr.GetWidth("api")" Visible="@gridMgr.IsVisible("api")" Resizable="true" Sortable="true" Filterable="true">
+                <CellTemplate Context="item">
+                    <div>
+                        <strong>@item.Name</strong>
+                        @if (item.Description is not null)
+                        {
+                            <div class="muted small">@item.Description</div>
+                        }
+                    </div>
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridPropertyColumn TData="QueryApiDef" TProp="string" Property="d => d.Slug" Id="endpoint" Title="Endpoint"
+                                      Width="@gridMgr.GetWidth("endpoint", "14rem")" Visible="@gridMgr.IsVisible("endpoint")" Resizable="true" Sortable="true" Filterable="true">
+                <CellTemplate Context="item">
+                    <span class="nowrap"><code>/api/query/@item.Slug</code></span>
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridTemplateColumn TData="QueryApiDef" Id="output" Title="Output"
+                                      Width="@gridMgr.GetWidth("output", "11rem")" Visible="@gridMgr.IsVisible("output")" Resizable="true">
+                <ChildContent Context="item">
+                    <span>@OutputLabel(item.Config.Output)@(item.Config.CacheSeconds > 0 ? $" · cache {item.Config.CacheSeconds}s" : "")</span>
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+
+            <BbDataGridTemplateColumn TData="QueryApiDef" Id="params" Title="Parameters"
+                                      Width="@gridMgr.GetWidth("params", "13rem")" Visible="@gridMgr.IsVisible("params")" Resizable="true">
+                <ChildContent Context="item">
+                    @(item.Config.Parameters.Count == 0 ? "—" : string.Join(", ", item.Config.Parameters.Select(p => QueryApiService.IsUserBound(p) ? $"{p.Name} (account)" : p.Name)))
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+
+            <BbDataGridTemplateColumn TData="QueryApiDef" Id="roles" Title="Callable by"
+                                      Width="@gridMgr.GetWidth("roles", "10rem")" Visible="@gridMgr.IsVisible("roles")" Resizable="true">
+                <ChildContent Context="item">
+                    @(item.Config.Roles.Count == 0 ? "All" : string.Join(", ", item.Config.Roles))
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+
+            <BbDataGridTemplateColumn TData="QueryApiDef" Id="source" Title="Source"
+                                      Width="@gridMgr.GetWidth("source", "10rem")" Visible="@gridMgr.IsVisible("source")" Resizable="true">
+                <ChildContent Context="item">
+                    <span class="small">@SourceLabel(item.SourceRef)</span>
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+
+            <BbDataGridTemplateColumn TData="QueryApiDef" Id="status" Title="Status"
+                                      Width="@gridMgr.GetWidth("status", "7.5rem")" Visible="@gridMgr.IsVisible("status")" Resizable="true" Sortable="true" SortBy="d => d.Config.Enabled">
+                <ChildContent Context="item">
+                    <BbBadge Variant="@(item.Config.Enabled ? BadgeVariant.SoftSuccess : BadgeVariant.Soft)">@(item.Config.Enabled ? "Active" : "Inactive")</BbBadge>
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+
+            <BbDataGridTemplateColumn TData="QueryApiDef" Id="actions" Title="Actions"
+                                      Width="@gridMgr.GetWidth("actions", "7.5rem")" Hideable="false" Resizable="false">
+                <ChildContent Context="item">
+                    <div style="display:flex;align-items:center;gap:.35rem">
+                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" Href="@($"/query-apis/{item.Id}/edit")"><LucideIcon Name="pencil" Size="15" /> Edit</BbButton>
+                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@($"Delete {item.Name}")" OnClick="() => Delete(item)"><LucideIcon Name="trash-2" Size="15" /></BbButton>
+                    </div>
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+        </Columns>
+        <EmptyTemplate>
+            <div style="padding:2.5rem 1rem;text-align:center">
+                <BbEmpty Title="No query APIs found" Description="Create one directly, or check &quot;Also publish as API&quot; when saving a dashboard widget or report template." />
+            </div>
+        </EmptyTemplate>
+    </BbDataGrid>
 }
 
 @code {
     private IReadOnlyList<QueryApiDef>? items;
     private bool designer;
+    private Framework.Web.Services.DataGridPreferenceManager<QueryApiDef> gridMgr = default!;
 
     protected override async Task OnInitializedAsync()
     {
+        gridMgr = new(UserPrefs, Current, "grid:admin:query-apis", StateHasChanged);
+        if (Current.User is not null)
+        {
+            await gridMgr.InitializeAsync();
+        }
+
         designer = QueryApiService.CanDesign(Current.Required);
         if (designer && Apis.IsAvailable) items = await Apis.ListAsync(Current.Required);
+    }
+
+    private async Task ResetColumnsLayout()
+    {
+        await gridMgr.ResetAsync();
+        Toasts.Success("Column layout has been reset to default.", "Reset Columns");
+    }
+
+    public void Dispose()
+    {
+        gridMgr?.Dispose();
     }
 
     private async Task Delete(QueryApiDef d)
