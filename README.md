@@ -1,4 +1,8 @@
-# FrogFrame — Metadata-Driven .NET Business Application Framework
+# FrogFramework — Metadata-Driven .NET Business Application Framework
+
+<p align="center">
+  <img src="docs/images/logo.png" alt="FrogFramework Logo" width="140" />
+</p>
 
 [![.NET 10](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL_3.0-blue.svg)](LICENSE)
@@ -6,11 +10,49 @@
 [![Documentation](https://img.shields.io/badge/Docs-DocFX-informational.svg)](docs/index.md)
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/frogframework-admin/frogframe)
 
-**FrogFrame** is an extensible, metadata-driven business application framework built on **.NET 10**, **ASP.NET Core**, **Blazor Server (Interactive)**, and **[Blazor Blueprint UI](https://blazorblueprintui.com)** (shadcn/ui-styled components for Blazor).
+**FrogFramework** is an extensible, metadata-driven business application framework built on **.NET 10**, **ASP.NET Core**, **Blazor Server (Interactive)**, and **[Blazor Blueprint UI](https://blazorblueprintui.com)** (shadcn/ui-styled components for Blazor).
 
-Inspired by modern, metadata-oriented architectures (such as Frappe Framework), FrogFrame provides a cohesive set of foundational primitives for rapid enterprise software development: **DocType metadata modeling**, **document lifecycle & validation pipeline**, **declarative role-based permissions**, **workflow state machines**, **generic UI views and REST APIs**, and an **extensible plugin/hook architecture**.
+Engineered around **The "Two Worlds" Architecture**, FrogFramework establishes a strict separation of concerns between **World 1 (OLTP operational workflows)** and **World 2 (OLAP analytical reporting)**:
+- **World 1 (OLTP)** guarantees single-document transactional agility, optimistic concurrency, dynamic schema validation, and atomic multi-step mutations.
+- **World 2 (OLAP)** offloads heavy historical aggregations, interactive SVG dashboards, and large spreadsheet exports to dedicated read replicas (`frogframe_ro`) with zero contention on primary operational tables.
 
-Storage can be seamlessly toggled via configuration: **in-memory** (for development, demos, and testing) or **PostgreSQL** (production-grade persistence with advisory locks and analytical read replicas). Both backends pass the same test suites.
+Storage can be seamlessly toggled via configuration: **in-memory** (for development, demos, and testing) or **PostgreSQL** (production-grade persistence with advisory locks, partial expression indexes, and analytical read replicas). Both backends pass the same test suites.
+
+---
+
+## The "Two Worlds" Architecture
+
+A foundational architectural design of FrogFramework is the strict segregation between transactional OLTP operations and analytical OLAP reporting workloads:
+
+```mermaid
+flowchart LR
+    subgraph World1 ["World 1: OLTP Engine (Operational Single Source of Truth)"]
+        DocService["DocumentService"] --> DocDB[("frogframe_documents (JSONB)")]
+        DocService --> Outbox[("frogframe_outbox")]
+    end
+
+    subgraph World2 ["World 2: Analytical Engine (OLAP & High-Throughput Reporting)"]
+        OutboxWorker["Transactional Outbox Worker"] --> AnalyticalViews["reporting.* Views & Facts"]
+        AnalyticalViews --> ReadReplica[("Read Replica / frogframe_ro")]
+        ReadReplica --> Dashboards["SQL Dashboards"]
+        ReadReplica --> Reports["Excel / Word Reports"]
+        ReadReplica --> QueryAPIs["Saved Query REST APIs"]
+    end
+
+    Outbox -.-> OutboxWorker
+```
+
+### Why Segregate?
+1. **World 1 (OLTP Operational Layer)**:
+   - Preserved as the frozen single source of truth in `frogframe_documents`.
+   - Optimized for single-document reads/writes, atomic validations, optimistic locking (`version = @expected`), and dynamic metadata-driven lifecycle hooks.
+   - Analytical reporting queries are never permitted to lock or degrade operational tables.
+2. **World 2 (OLAP Analytical Layer)**:
+   - Real-time projections and `reporting.<doctype>` views populated via the transactional outbox (`occurredAt`, document snapshot, and `version`).
+   - Read-replica offloading: queries execute through a dedicated read-only database user (`frogframe_ro`) in `READ ONLY` transactions with strict execution timeouts.
+   - Powers interactive SVG dashboards, cross-DocType aggregation facts, and heavy OpenXML exports without transactional contention.
+
+For deep-dive architectural specifications, benchmarks, and indexing strategies, see the [Analytical Engine (World 2 OLAP) Guide](docs/guides/analytics-engine.md) and [Project Structure Reference](docs/PROJECT_STRUCTURE.md).
 
 ---
 
@@ -36,7 +78,7 @@ Storage can be seamlessly toggled via configuration: **in-memory** (for developm
 ## Quick Start
 
 ### Instant Cloud Demo (GitHub Codespaces)
-Run and explore FrogFrame directly in your browser without local setup:
+Run and explore FrogFramework directly in your browser without local setup:
 
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/frogframework-admin/frogframe)
 
@@ -76,10 +118,10 @@ dotnet run --project src/Apps.Sample --Persistence:Provider=PostgreSql
 
 ## Architecture & Subsystems
 
-FrogFrame is divided into four cleanly decoupled projects:
+FrogFramework is divided into four cleanly decoupled projects:
 
 ```text
-FrogFrame/
+FrogFramework/
 ├── src/
 │   ├── Framework.Core/               # Pure domain & metadata compiler (no web dependencies)
 │   ├── Framework.Persistence.PostgreSql/ # Production storage, index sync & analytics
@@ -103,11 +145,11 @@ Built using Blazor Blueprint components styled with OKLCH theme variables:
 - Real-time workflow state badges and status stamp components.
 - Generic organizational tree visualizations (`OrgTree`).
 
-### 3. PostgreSQL Persistence & Analytics (`Framework.Persistence.PostgreSql`)
-- **JSONB Document Store**: Unified `frogframe_documents` table with GIN index acceleration and optimistic concurrency checks (`version = @expected`).
-- **Metadata Index Synchronizer**: Automatically creates and drops B-tree and GIN trigram indexes based on `listView` configurations concurrently.
-- **Reporting Schema Views**: Dynamic `reporting.<doctype>` views populated for fast analytical queries and SQL dashboards.
-- **Transactional Outbox**: Guaranteed event delivery with worker lease locks (`FOR UPDATE SKIP LOCKED`).
+### 3. The "Two Worlds" Persistence & Analytics (`Framework.Persistence.PostgreSql`)
+- **World 1 (OLTP Operational Store)**: Unified `frogframe_documents` JSONB store with optimistic concurrency checks (`version = @expected`) and sub-millisecond atomic transactions.
+- **World 2 (OLAP Analytical Layer)**: Dynamic `reporting.<doctype>` views and projection facts queried via `frogframe_ro` read replica connections.
+- **Transactional Outbox**: Guaranteed at-least-once event delivery bridging World 1 mutations to World 2 analytical projections.
+- **Metadata Index Synchronizer**: Automatically creates and drops B-tree, partial, and GIN trigram indexes based on `listView` configurations concurrently.
 
 ---
 
@@ -130,7 +172,7 @@ Claims missing a tenant are rejected immediately (fail-closed). Accounts lock au
 
 ## SQL Dashboards & Saved Query APIs
 
-FrogFrame allows administrators to build live dashboards and publish read-only SQL queries as secure REST endpoints:
+FrogFramework allows administrators to build live dashboards and publish read-only SQL queries as secure REST endpoints:
 
 - **Isolated Read-Only User**: Analytical queries execute under a dedicated `frogframe_ro` role with restricted privileges and per-connection session isolation.
 - **Visual Chart Widgets**: Bar, Line, Pie, Doughnut, Single Value KPI, and Data Grid widgets rendered using lightweight, pure SVG.
@@ -166,7 +208,7 @@ For detailed architecture and code examples, see [Architecture Guide: Hooks, Act
 
 ## REST API Overview
 
-FrogFrame provides auto-generated REST endpoints for every API-enabled DocType:
+FrogFramework provides auto-generated REST endpoints for every API-enabled DocType:
 
 ```bash
 # 1. Obtain an access token
@@ -207,4 +249,4 @@ The complete technical documentation, architecture specifications, and .NET API 
 
 ## License
 
-FrogFrame is licensed under the [GNU Affero General Public License v3.0](LICENSE).
+FrogFramework is licensed under the [GNU Affero General Public License v3.0](LICENSE).

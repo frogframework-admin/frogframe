@@ -83,7 +83,7 @@ public sealed class NullSchedulerLogger : ISchedulerLogger
 }
 
 /// <summary>
-/// Scheduled job definition (inspired by Frappe scheduler_events, strictly typed and audited).
+/// Scheduled job definition (strictly typed, distributed, and audited).
 /// </summary>
 public interface IScheduledJob
 {

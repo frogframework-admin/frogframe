@@ -1,6 +1,6 @@
-# Backup & Disaster Recovery Runbook
+﻿# Backup & Disaster Recovery Runbook
 
-Operational guide for backing up and restoring FrogFrame environments in production.
+Operational guide for backing up and restoring FrogFramework environments in production.
 
 ---
 
@@ -15,12 +15,12 @@ Operational guide for backing up and restoring FrogFrame environments in product
 
 ## 2. Backup Scope
 
-All persistent state in FrogFrame resides in PostgreSQL. A single `pg_dump` covers:
-- **Documents & Audit**: `frogframe_documents`, `FrogFrame_audit`
-- **Uploaded Files / Images**: `FrogFrame_files`
-- **Data Protection Keys (Session Cookies)**: `FrogFrame_data_protection_keys`
-- **Metadata, Workflows, Menus, Roles, Users**: `FrogFrame_metadata_versions`, `FrogFrame_workflow_versions`, `FrogFrame_navigation_*`, `frogframe_roles`, `frogframe_users`
-- **Outbox, Job History, Error Logs**: `FrogFrame_outbox`, `FrogFrame_scheduled_job_runs`, `FrogFrame_error_logs`
+All persistent state in FrogFramework resides in PostgreSQL. A single `pg_dump` covers:
+- **Documents & Audit**: `frogframe_documents`, `frogframe_audit`
+- **Uploaded Files / Images**: `frogframe_files`
+- **Data Protection Keys (Session Cookies)**: `frogframe_data_protection_keys`
+- **Metadata, Workflows, Menus, Roles, Users**: `frogframe_metadata_versions`, `frogframe_workflow_versions`, `frogframe_navigation_*`, `frogframe_roles`, `frogframe_users`
+- **Outbox, Job History, Error Logs**: `frogframe_outbox`, `frogframe_scheduled_job_runs`, `frogframe_error_logs`
 
 > [!CAUTION]
 > Data Protection keys stored in the database are sensitive. Restrict backup file permissions and encrypt storage buckets (e.g., AWS S3 SSE, GCP Cloud Storage default encryption).
@@ -35,7 +35,7 @@ All persistent state in FrogFrame resides in PostgreSQL. A single `pg_dump` cove
 Execute the backup script via cron or scheduled task:
 
 ```bash
-pg_dump -Fc -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" -f "/backups/FrogFrame_$(date +%Y%m%d_%H%M%S).dump"
+pg_dump -Fc -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" -f "/backups/FrogFramework_$(date +%Y%m%d_%H%M%S).dump"
 ```
 
 Retention policy:

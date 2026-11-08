@@ -53,12 +53,16 @@ window.frogframe = window.frogframe || {};
             toggleBtn.click();
         } else {
             var html = document.documentElement;
+            var currentBb = {};
+            try { currentBb = JSON.parse(localStorage.getItem('bb-theme') || '{}') || {}; } catch(e){}
             if (html.classList.contains('dark')) {
                 html.classList.remove('dark');
-                try { localStorage.setItem('bb-theme', 'light'); } catch(e){}
+                currentBb.isDarkMode = false;
+                try { localStorage.setItem('bb-theme', JSON.stringify(currentBb)); } catch(e){}
             } else {
                 html.classList.add('dark');
-                try { localStorage.setItem('bb-theme', 'dark'); } catch(e){}
+                currentBb.isDarkMode = true;
+                try { localStorage.setItem('bb-theme', JSON.stringify(currentBb)); } catch(e){}
             }
         }
     };

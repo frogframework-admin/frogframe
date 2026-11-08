@@ -1,6 +1,6 @@
-# FrogFrame: Project Status Report & Feature Roadmap
+﻿# FrogFramework: Project Status Report & Feature Roadmap
 
-This document summarizes the current development status of FrogFrame, including completed features, testing coverage, backlog items (gap analysis against platform capabilities such as Frappe Framework), and the upcoming development roadmap.
+This document summarizes the current development status of FrogFramework, including completed features, testing coverage, backlog items (gap analysis against modern enterprise platform capabilities), and the upcoming development roadmap.
 
 *Last updated: November 2026*
 
@@ -24,6 +24,7 @@ This document summarizes the current development status of FrogFrame, including 
 - **Relational Integrity (Link Checking):** Automatic referential integrity validation preventing deletion of parent documents still referenced by other documents or child tables.
 - **Observability:** OpenTelemetry Tracing, activity metrics (Meters & Activities), and centralized Error Logging (`020_error_logs.sql`).
 - **Backup & Disaster Recovery:** Comprehensive DR runbooks and k6 load testing baselines ([`backup-disaster-recovery.md`](backup-disaster-recovery.md)).
+- **Automated CI & Documentation Pipeline:** GitHub Actions workflows for continuous integration (`ci.yml` - build, vulnerability check, in-memory & PostgreSQL test suite) and automated DocFX website publishing (`deploy-docs.yml`).
 
 ### B. Modern UI/UX & Design
 - **Corporate Blue Theme & Full Dark Mode:** Seamless light and dark mode support with synchronized theme CSS variables.
@@ -49,7 +50,7 @@ This document summarizes the current development status of FrogFrame, including 
 
 ---
 
-## 3. Backlog & Gap Analysis (Parity with Frappe Platform)
+## 3. Backlog & Gap Analysis (Enterprise Platform Parity)
 
 | Feature / Capability | Priority | Current Status | Description |
 |---|---|---|---|
@@ -63,6 +64,6 @@ This document summarizes the current development status of FrogFrame, including 
 
 ## 4. Next Steps & Development Roadmap
 
-1. Database role segregation (migration owner vs runtime app user).
-2. Dynamic visual workflow state machine transition editor.
-3. Continuous integration and automated DocFX deployment pipeline.
+1. **Production Readiness Hardening (P0/P1):** Complete the items identified in the [Production Readiness Checklist](production-readiness.md) (secret isolation, demo decoupling, automated backup verification, migration runner isolation).
+2. **Database Role Segregation (P2):** Separation of database migration owner role from runtime application role for append-only audit enforcement.
+3. **Dynamic Workflows (P2):** Visual state machine transition editor with conditional approvals.

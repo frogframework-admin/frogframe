@@ -1,6 +1,6 @@
-# SQL Dashboards & Analytical Widgets Guide
+﻿# SQL Dashboards & Analytical Widgets Guide
 
-FrogFrame enables administrators to build real-time visual dashboards by querying dedicated analytical PostgreSQL views.
+FrogFramework enables administrators to build real-time visual dashboards by querying dedicated analytical PostgreSQL views.
 
 ---
 
@@ -35,7 +35,7 @@ flowchart TD
 ```
 
 ### Safety Rules
-- **Dedicated Read-Only User**: Runs under `frogframe_ro`. If this user has superuser status or `INSERT`/`UPDATE`/`DELETE` privileges, FrogFrame blocks query execution.
+- **Dedicated Read-Only User**: Runs under `frogframe_ro`. If this user has superuser status or `INSERT`/`UPDATE`/`DELETE` privileges, FrogFramework blocks query execution.
 - **Tenant Isolation**: Reporting views filter by `tenant_id` populated from application session state. Because `frogframe_ro` lacks table modification rights, tenant boundaries cannot be bypassed via `SET` or `set_config`.
 - **Pure SVG Rendering**: Visual charts render as standards-compliant SVGs without client-side JavaScript execution, seamlessly adapting to Light and Dark themes.
 

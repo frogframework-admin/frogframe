@@ -1,6 +1,6 @@
-# Secure File & Image Storage Guide
+﻿# Secure File & Image Storage Guide
 
-FrogFrame manages document attachments and images through a unified, secure storage subsystem (`IFileStore`).
+FrogFramework manages document attachments and images through a unified, secure storage subsystem (`IFileStore`).
 
 ---
 
@@ -10,7 +10,7 @@ When files or images are uploaded via document forms:
 - **Magic-Byte Sniffing**: MIME types are determined by inspecting binary headers rather than relying on user-supplied file extensions.
 - **Allowed Formats**: PNG, JPEG, WebP, GIF, PDF, XLSX, DOCX, CSV.
 - **Dangerous Extensions Rejected**: Executables, scripts, HTML files, and SVGs (which can contain embedded scripts causing Stored XSS) are blocked.
-- **Database BLOB Persistence**: In PostgreSQL mode, files are stored in `FrogFrame_files`, ensuring backups and replication clusters maintain full document parity without needing shared network drives.
+- **Database BLOB Persistence**: In PostgreSQL mode, files are stored in `frogframe_files`, ensuring backups and replication clusters maintain full document parity without needing shared network drives.
 
 ---
 

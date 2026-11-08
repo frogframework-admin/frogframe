@@ -120,7 +120,7 @@ public static class DocApi
             };
         }));
 
-        // ---------- Method kustom (padanan /api/method di Frappe) ----------
+        // ---------- Method kustom (RPC /api/method) ----------
         api.MapGet("/method", (Delegate)((HttpContext http) => Run(http, AnyApiKeyScope, (user, sp) =>
         {
             var granted = http.User.FindAll(Framework.Web.Identity.ApiKeyDefaults.ScopeClaim).Select(c => c.Value).ToList();

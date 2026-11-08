@@ -1,12 +1,12 @@
-# PDF Printing & Server-Side Rendering Guide
+﻿# PDF Printing & Server-Side Rendering Guide
 
-FrogFrame enables printing documents with customizable letterheads, tabular layouts, and pixel-perfect server-side PDF exports.
+FrogFramework enables printing documents with customizable letterheads, tabular layouts, and pixel-perfect server-side PDF exports.
 
 ---
 
 ## 1. Print Format Architecture
 
-FrogFrame print templates are defined using metadata structures:
+FrogFramework print templates are defined using metadata structures:
 - **Header & Letterhead**: Dynamic company logos, addresses, and tax identifiers retrieved from `ILetterheadProvider`.
 - **Document Sections**: Grouped field key-value pairs formatted with clean typographic borders.
 - **Child Tables**: Formatted line items with aligned numerical amounts, tax summaries, and grand totals.
@@ -16,7 +16,7 @@ FrogFrame print templates are defined using metadata structures:
 
 ## 2. Server-Side Chromium PDF Renderer
 
-To ensure identical rendering across client devices and operating systems, FrogFrame renders PDFs using headless Chromium (`IPdfRenderer`):
+To ensure identical rendering across client devices and operating systems, FrogFramework renders PDFs using headless Chromium (`IPdfRenderer`):
 
 ```csharp
 public interface IPdfRenderer

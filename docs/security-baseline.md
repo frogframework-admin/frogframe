@@ -1,6 +1,6 @@
-# FrogFrame Security Baseline (OWASP Top 10)
+﻿# FrogFramework Security Baseline (OWASP Top 10)
 
-The security posture of FrogFrame is mapped directly to the **OWASP Top 10 (2021)** standards. Every item lists concrete **evidence** present in code and automated tests, rather than mere design intent.
+The security posture of FrogFramework is mapped directly to the **OWASP Top 10 (2021)** standards. Every item lists concrete **evidence** present in code and automated tests, rather than mere design intent.
 
 **Status Legend:**
 - **Automated Test**: Covered by tests in `tests/Framework.Tests` that fail if the control breaks.

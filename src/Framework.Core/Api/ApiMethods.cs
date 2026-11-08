@@ -27,7 +27,7 @@ public sealed class ApiMethodContext
 public sealed class ApiMethodException(string message) : Exception(message);
 
 /// <summary>
-/// Method kustom yang dibuka sebagai API (padanan @frappe.whitelist): POST /api/method/{Name}.
+/// Method kustom yang dibuka sebagai API (RPC): POST /api/method/{Name}.
 /// Method berjalan sebagai pemanggil — gunakan DocumentService agar permission, cakupan baris, dan validasi tetap berlaku.
 /// </summary>
 public interface IApiMethod

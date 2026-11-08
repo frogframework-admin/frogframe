@@ -6,6 +6,8 @@
       href: PROJECT_STRUCTURE.md
     - name: Roadmap & Status
       href: project-status-roadmap.md
+    - name: Production Readiness
+      href: production-readiness.md
 - name: Core Guides & Features
   items:
     - name: DocTypes & Visual Workflows

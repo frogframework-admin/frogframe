@@ -8,7 +8,7 @@ using System.Text.RegularExpressions;
 namespace Framework.Security;
 
 /// <summary>
-/// Kunci API untuk integrasi sistem-ke-sistem (padanan api_key:api_secret di Frappe). Kunci melekat pada sebuah akun:
+/// Kunci API untuk integrasi sistem-ke-sistem (format api_key:api_secret). Kunci melekat pada sebuah akun:
 /// role, tenant, dan departemen akun itulah yang menentukan akses — lewat jalur DocumentService yang sama dengan UI.
 /// Cakupan (scope) opsional membatasi lebih jauh. Secret hanya ditampilkan sekali; yang disimpan hanya hash-nya.
 /// </summary>

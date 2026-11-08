@@ -1,6 +1,10 @@
 # Documentation & Guides
 
-Welcome to the **FrogFrame** developer guides, architectural blueprints, and technical specifications.
+<p align="center">
+  <img src="images/logo.png" alt="FrogFramework Logo" width="120" />
+</p>
+
+Welcome to the **FrogFramework** developer guides, architectural blueprints, and technical specifications.
 
 ## Prerequisites
 
@@ -36,7 +40,8 @@ dotnet test
 
 ### Architecture & Production Operations
 - **[Project Structure Reference](PROJECT_STRUCTURE.md)**: Complete 4-project solution layout, dependency graphs, and subsystem designs.
-- **[Roadmap & Feature Gap Analysis](project-status-roadmap.md)**: Current completion status and comparison with Frappe platform features.
+- **[Roadmap & Feature Gap Analysis](project-status-roadmap.md)**: Current completion status and enterprise platform feature gap analysis.
+- **[Production Readiness Checklist](production-readiness.md)**: Pre-production hardening (P0), scale-up readiness (P1), and Day-2 operations checklist (P2).
 - **[Security Baseline (OWASP Top 10)](security-baseline.md)**: Mapping of application security controls to OWASP Top 10 standards with automated test evidence.
 - **[Observability & Telemetry](observability.md)**: OpenTelemetry tracing spans, BCL metrics (`Meter`), and centralized error logs.
 - **[Backup & Disaster Recovery Runbook](backup-disaster-recovery.md)**: RPO/RTO targets, PostgreSQL snapshot routines, and restoration procedures.

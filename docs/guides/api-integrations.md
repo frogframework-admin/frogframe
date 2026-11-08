@@ -1,6 +1,6 @@
-# API Integrations: API Keys & Custom Methods
+﻿# API Integrations: API Keys & Custom Methods
 
-FrogFrame provides secure external integration endpoints for automation, third-party services, and microservices.
+FrogFramework provides secure external integration endpoints for automation, third-party services, and microservices.
 
 ---
 

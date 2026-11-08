@@ -1,18 +1,18 @@
-# Analytical Engine & Performance Architecture (World 2 OLAP)
+﻿# Analytical Engine & Performance Architecture (World 2 OLAP)
 
-This guide documents the design of FrogFrame's Analytical Engine ("World 2"), automatic metadata indexing, and query performance optimizations.
+This guide documents the design of FrogFramework's Analytical Engine ("World 2"), automatic metadata indexing, and query performance optimizations.
 
 ---
 
 ## 1. The "Two Worlds" Architecture
 
-FrogFrame strictly segregates operational transactional workloads from analytical reporting:
+FrogFramework strictly segregates operational transactional workloads from analytical reporting:
 
 ```mermaid
 flowchart LR
     subgraph World1 ["World 1: OLTP Engine"]
         DocService["DocumentService"] --> DocDB[("frogframe_documents (JSONB)")]
-        DocService --> Outbox[("FrogFrame_outbox")]
+        DocService --> Outbox[("frogframe_outbox")]
     end
 
     subgraph World2 ["World 2: Analytical Engine"]
@@ -34,7 +34,7 @@ flowchart LR
 
 ## 2. Automatic Metadata Indexing (`DocumentIndexSync`)
 
-FrogFrame inspects active DocType metadata at startup and upon publishing to automatically synchronize PostgreSQL indexes:
+FrogFramework inspects active DocType metadata at startup and upon publishing to automatically synchronize PostgreSQL indexes:
 
 | Metadata Configuration | Generated PostgreSQL Index | Target Query Type |
 |---|---|---|

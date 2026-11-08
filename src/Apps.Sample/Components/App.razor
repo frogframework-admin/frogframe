@@ -56,6 +56,31 @@
     </div>
 
     <script src="@Assets["_framework/blazor.web.js"]"></script>
+    <script>
+        if (window.Blazor && window.Blazor.addEventListener) {
+            window.Blazor.addEventListener('enhancedload', function () {
+                try {
+                    var t = localStorage.getItem('frogframe-theme');
+                    if (t && t !== 'blue') {
+                        document.documentElement.setAttribute('data-theme', t);
+                    } else {
+                        document.documentElement.removeAttribute('data-theme');
+                    }
+                    var raw = localStorage.getItem('bb-theme');
+                    if (raw) {
+                        var saved = JSON.parse(raw);
+                        if (saved && typeof saved.isDarkMode === 'boolean') {
+                            if (saved.isDarkMode) {
+                                document.documentElement.classList.add('dark');
+                            } else {
+                                document.documentElement.classList.remove('dark');
+                            }
+                        }
+                    }
+                } catch (e) {}
+            });
+        }
+    </script>
     <script src="@Assets["_content/Framework.Web/desk.js"]"></script>
 </body>
 </html>

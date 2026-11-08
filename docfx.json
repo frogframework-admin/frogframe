@@ -49,11 +49,11 @@
     ],
     "output": "_site",
     "globalMetadata": {
-      "_appName": "FrogFrame",
-      "_appTitle": "FrogFrame — .NET Business Framework",
+      "_appName": "FrogFramework",
+      "_appTitle": "FrogFramework — .NET Business Framework",
       "_enableSearch": true,
-      "_appLogoPath": null,
-      "_appFaviconPath": null
+      "_appLogoPath": "images/logo.png",
+      "_appFaviconPath": "images/logo.png"
     },
     "template": [
       "default",

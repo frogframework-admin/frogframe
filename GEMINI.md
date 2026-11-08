@@ -2,6 +2,7 @@
 
 ## Language & Communication Defaults
 - **Language Default**: All UI labels, descriptions, captions, tooltips, error messages, placeholders, and source code comments must default to **English** unless the user explicitly requests another language for a specific feature.
+- **Documentation**: All documentation files (Markdown, DocFX, README, guides, runbooks, RFCs, architectural specs, and TODO lists) must be written in **English**.
 - **Code Comments**: Keep code comments and docstrings in English.
 - **UI Elements**: Ensure UI text is clean, professional, and grammatically correct English.
 

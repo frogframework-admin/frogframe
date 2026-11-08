@@ -1,6 +1,6 @@
-# Saved Query APIs Guide
+﻿# Saved Query APIs Guide
 
-FrogFrame enables publishing read-only SQL queries as secure, parameter-validated REST API endpoints without writing custom server code.
+FrogFramework enables publishing read-only SQL queries as secure, parameter-validated REST API endpoints without writing custom server code.
 
 ---
 
@@ -19,7 +19,7 @@ GET /api/query/{slug}?Parameter1=Value1&Parameter2=Value2
 
 ## 2. Parameter Binding & Security
 
-FrogFrame enforces strict server-side parameter isolation:
+FrogFramework enforces strict server-side parameter isolation:
 
 | Binding Mode | Description | Overridable via URL? |
 |---|---|---|
