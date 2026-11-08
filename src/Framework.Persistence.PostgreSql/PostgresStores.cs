@@ -53,7 +53,7 @@ public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider 
 
     public async Task<Document?> GetAsync(string tenantId, string docType, string name, CancellationToken ct = default)
     {
-        await using var cmd = db.CreateCommand($"SELECT {Columns} FROM docframe_documents d WHERE d.tenant_id = $1 AND d.doctype = $2 AND d.name = $3");
+        await using var cmd = db.CreateCommand($"SELECT {Columns} FROM frogframe_documents d WHERE d.tenant_id = $1 AND d.doctype = $2 AND d.name = $3");
         cmd.Parameters.AddWithValue(tenantId); cmd.Parameters.AddWithValue(docType); cmd.Parameters.AddWithValue(name);
         await using var r = await cmd.ExecuteReaderAsync(ct);
         return await r.ReadAsync(ct) ? ReadDocument(r) : null;
@@ -79,7 +79,7 @@ public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider 
         await using var conn = await db.OpenConnectionAsync(ct);
         int total;
         // Hitungan dibatasi: berhenti memindai setelah CountCap+1 baris (jutaan baris tidak dihitung satu per satu).
-        await using (var count = new NpgsqlCommand($"SELECT count(*) FROM (SELECT 1 FROM docframe_documents d WHERE {whereSql} LIMIT {QueryLimits.CountCap + 1}) AS capped", conn))
+        await using (var count = new NpgsqlCommand($"SELECT count(*) FROM (SELECT 1 FROM frogframe_documents d WHERE {whereSql} LIMIT {QueryLimits.CountCap + 1}) AS capped", conn))
         {
             // Query hitung hanya memakai parameter WHERE (bukan ORDER BY / OFFSET / LIMIT).
             foreach (var p in b.Parameters.Take(whereParamCount)) count.Parameters.Add(p.Clone());
@@ -88,7 +88,7 @@ public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider 
         var capped = total > QueryLimits.CountCap;
         if (capped) total = QueryLimits.CountCap;
         var items = new List<Document>();
-        await using (var cmd = new NpgsqlCommand($"SELECT {Columns} FROM docframe_documents d WHERE {whereSql} ORDER BY {order} OFFSET {skip} LIMIT {take}", conn))
+        await using (var cmd = new NpgsqlCommand($"SELECT {Columns} FROM frogframe_documents d WHERE {whereSql} ORDER BY {order} OFFSET {skip} LIMIT {take}", conn))
         {
             foreach (var p in b.Parameters) cmd.Parameters.Add(p.Clone());
             await using var r = await cmd.ExecuteReaderAsync(ct);
@@ -102,8 +102,8 @@ public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider 
         var (prefix, width, suffix) = NamingPattern.Parse(pattern, docType, now);
         // Atomik dan aman untuk banyak instance aplikasi.
         await using var cmd = db.CreateCommand(
-            "INSERT INTO docframe_series (tenant_id, doctype, prefix, current) VALUES ($1, $2, $3, 1) " +
-            "ON CONFLICT (tenant_id, doctype, prefix) DO UPDATE SET current = docframe_series.current + 1 RETURNING current");
+            "INSERT INTO frogframe_series (tenant_id, doctype, prefix, current) VALUES ($1, $2, $3, 1) " +
+            "ON CONFLICT (tenant_id, doctype, prefix) DO UPDATE SET current = frogframe_series.current + 1 RETURNING current");
         cmd.Parameters.AddWithValue(tenantId); cmd.Parameters.AddWithValue(docType); cmd.Parameters.AddWithValue(prefix);
         var next = Convert.ToInt32(await cmd.ExecuteScalarAsync(ct));
         return prefix + next.ToString(new string('0', width)) + suffix;
@@ -130,7 +130,7 @@ public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider 
             }
             foreach (var (tenant, docType, name, expected) in uow.Deletes)
             {
-                await using var del = new NpgsqlCommand("DELETE FROM docframe_documents WHERE tenant_id = $1 AND doctype = $2 AND name = $3 AND version = $4", conn, tx);
+                await using var del = new NpgsqlCommand("DELETE FROM frogframe_documents WHERE tenant_id = $1 AND doctype = $2 AND name = $3 AND version = $4", conn, tx);
                 del.Parameters.AddWithValue(tenant); del.Parameters.AddWithValue(docType); del.Parameters.AddWithValue(name); del.Parameters.AddWithValue(expected);
                 if (await del.ExecuteNonQueryAsync(ct) == 0)
                     throw new ConcurrencyException(name, expected, await CurrentVersion(conn, tx, tenant, docType, name, ct));
@@ -141,7 +141,7 @@ public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider 
             foreach (var a in uow.Audits)
             {
                 await using var ins = new NpgsqlCommand(
-                    "INSERT INTO docframe_audit (tenant_id, doctype, doc_name, action, actor, at, changes, comment, from_state, to_state, workflow_version, schema_version) " +
+                    "INSERT INTO frogframe_audit (tenant_id, doctype, doc_name, action, actor, at, changes, comment, from_state, to_state, workflow_version, schema_version) " +
                     "VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9,$10,$11,$12)", conn, tx);
                 ins.Parameters.AddWithValue(a.TenantId); ins.Parameters.AddWithValue(a.DocType); ins.Parameters.AddWithValue(a.DocName);
                 ins.Parameters.AddWithValue(a.Action); ins.Parameters.AddWithValue(a.Actor); ins.Parameters.AddWithValue(a.At);
@@ -154,7 +154,7 @@ public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider 
             foreach (var m in uow.Outbox)
             {
                 await using var ins = new NpgsqlCommand(
-                    "INSERT INTO docframe_outbox (id, tenant_id, type, payload, idempotency_key, created_at) VALUES ($1,$2,$3,$4::jsonb,$5,$6) " +
+                    "INSERT INTO frogframe_outbox (id, tenant_id, type, payload, idempotency_key, created_at) VALUES ($1,$2,$3,$4::jsonb,$5,$6) " +
                     "ON CONFLICT (idempotency_key) DO NOTHING", conn, tx);
                 ins.Parameters.AddWithValue(m.Id); ins.Parameters.AddWithValue(m.TenantId); ins.Parameters.AddWithValue(m.Type);
                 ins.Parameters.AddWithValue(JsonSerializer.Serialize(m.Payload)); ins.Parameters.AddWithValue(m.IdempotencyKey); ins.Parameters.AddWithValue(m.CreatedAt);
@@ -162,7 +162,7 @@ public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider 
             }
             await tx.CommitAsync(ct); // constraint trigger keseimbangan GL berjalan di sini
         }
-        catch (PostgresException ex) when (ex.MessageText.StartsWith("docframe_gl:") || ex.ConstraintName?.StartsWith("ck_gl") == true
+        catch (PostgresException ex) when (ex.MessageText.StartsWith("frogframe_gl:") || ex.ConstraintName?.StartsWith("ck_gl") == true
                                            || ex.ConstraintName is "uq_gl_voucher_line" or "uq_gl_reversal")
         {
             await tx.RollbackAsync(CancellationToken.None);
@@ -171,7 +171,7 @@ public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider 
                 "uq_gl_voucher_line" => "Voucher versi ini sudah diposting",
                 "uq_gl_reversal" => "Baris ini sudah pernah dibalik",
                 "ck_gl_one_side" => "Setiap baris harus berisi debit ATAU kredit",
-                _ => ex.MessageText.Replace("docframe_gl: ", ""),
+                _ => ex.MessageText.Replace("frogframe_gl: ", ""),
             });
         }
         catch
@@ -190,14 +190,14 @@ public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider 
         foreach (var tenantGroup in uow.Ledger.GroupBy(x => x.Voucher.TenantId).OrderBy(g => g.Key, StringComparer.Ordinal))
         {
             var tenant = tenantGroup.Key;
-            await using (var lk = new NpgsqlCommand("SELECT pg_advisory_xact_lock(hashtext('docframe.gl'), hashtext($1))", conn, tx))
+            await using (var lk = new NpgsqlCommand("SELECT pg_advisory_xact_lock(hashtext('FrogFrame.gl'), hashtext($1))", conn, tx))
             { lk.Parameters.AddWithValue(tenant); await lk.ExecuteScalarAsync(ct); }
 
             var periods = new Dictionary<DateOnly, string>();
             foreach (var date in tenantGroup.Select(x => x.Line.PostingDate).Distinct())
             {
                 await using var q = new NpgsqlCommand(
-                    "SELECT name FROM docframe_documents WHERE tenant_id = $1 AND doctype = $2 AND data->>'status' = 'Terbuka' " +
+                    "SELECT name FROM frogframe_documents WHERE tenant_id = $1 AND doctype = $2 AND data->>'status' = 'Terbuka' " +
                     "AND (data->>'start_date')::date <= $3 AND (data->>'end_date')::date >= $3 ORDER BY name LIMIT 1 FOR SHARE", conn, tx);
                 q.Parameters.AddWithValue(tenant); q.Parameters.AddWithValue(Framework.Accounting.Ledger.PeriodDocType); q.Parameters.AddWithValue(date);
                 periods[date] = await q.ExecuteScalarAsync(ct) as string
@@ -207,7 +207,7 @@ public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider 
             var accounts = tenantGroup.Select(x => x.Line.Account).Distinct().ToArray();
             var found = new Dictionary<string, (string? Group, string? Active)>();
             await using (var q = new NpgsqlCommand(
-                "SELECT name, data->>'is_group', data->>'is_active' FROM docframe_documents WHERE tenant_id = $1 AND doctype = $2 AND name = ANY($3)", conn, tx))
+                "SELECT name, data->>'is_group', data->>'is_active' FROM frogframe_documents WHERE tenant_id = $1 AND doctype = $2 AND name = ANY($3)", conn, tx))
             {
                 q.Parameters.AddWithValue(tenant); q.Parameters.AddWithValue(Framework.Accounting.Ledger.AccountDocType); q.Parameters.AddWithValue(accounts);
                 await using var r = await q.ExecuteReaderAsync(ct);
@@ -221,7 +221,7 @@ public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider 
             }
 
             long seq = 0; var prev = Framework.Accounting.Ledger.Genesis;
-            await using (var q = new NpgsqlCommand("SELECT seq, entry_hash FROM docframe_gl_entries WHERE tenant_id = $1 ORDER BY seq DESC LIMIT 1", conn, tx))
+            await using (var q = new NpgsqlCommand("SELECT seq, entry_hash FROM frogframe_gl_entries WHERE tenant_id = $1 ORDER BY seq DESC LIMIT 1", conn, tx))
             {
                 q.Parameters.AddWithValue(tenant);
                 await using var r = await q.ExecuteReaderAsync(ct);
@@ -238,7 +238,7 @@ public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider 
                     var hash = Framework.Accounting.Ledger.Hash(prev, Framework.Accounting.Ledger.Canonical(tenant, seq, l.PostingDate, period, l.Account, l.Debit, l.Credit,
                         doc.DocType, doc.Name, doc.Version, lineNo, l.PartyType, l.Party, l.AgainstVoucherType, l.AgainstVoucherName, l.Department, l.Remarks, l.ReversalOf));
                     await using var ins = new NpgsqlCommand(
-                        "INSERT INTO docframe_gl_entries (id, tenant_id, seq, posting_date, period_id, account_id, debit, credit, voucher_type, voucher_name, " +
+                        "INSERT INTO frogframe_gl_entries (id, tenant_id, seq, posting_date, period_id, account_id, debit, credit, voucher_type, voucher_name, " +
                         "voucher_version, line_number, party_type, party, against_voucher_type, against_voucher_name, department_id, remarks, reversal_of, " +
                         "prev_hash, entry_hash, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)", conn, tx);
                     object N(object? v) => v ?? DBNull.Value;
@@ -258,7 +258,7 @@ public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider 
             {
                 var rows = new List<(string, string, string, string, decimal, decimal)>();
                 await using var q = new NpgsqlCommand(
-                    "SELECT voucher_name, debit, credit FROM docframe_gl_entries WHERE tenant_id = $1 AND against_voucher_type = $2 AND against_voucher_name = $3 AND account_id = $4", conn, tx);
+                    "SELECT voucher_name, debit, credit FROM frogframe_gl_entries WHERE tenant_id = $1 AND against_voucher_type = $2 AND against_voucher_name = $3 AND account_id = $4", conn, tx);
                 q.Parameters.AddWithValue(tenant); q.Parameters.AddWithValue(aType); q.Parameters.AddWithValue(aName); q.Parameters.AddWithValue(account);
                 await using (var r = await q.ExecuteReaderAsync(ct))
                     while (await r.ReadAsync(ct)) rows.Add((aType, aName, account, r.GetString(0), r.GetDecimal(1), r.GetDecimal(2)));
@@ -271,14 +271,14 @@ public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider 
     private static async Task LockDocType(NpgsqlConnection conn, NpgsqlTransaction tx, string docType, bool shared, CancellationToken ct)
     {
         var mode = shared ? "pg_advisory_xact_lock_shared" : "pg_advisory_xact_lock";
-        await using var cmd = new NpgsqlCommand($"SELECT {mode}(hashtext('docframe.doctype'), hashtext($1))", conn, tx);
+        await using var cmd = new NpgsqlCommand($"SELECT {mode}(hashtext('FrogFrame.doctype'), hashtext($1))", conn, tx);
         cmd.Parameters.AddWithValue(docType);
         await cmd.ExecuteScalarAsync(ct);
     }
 
     private static async Task<int> PublishedSchemaVersion(NpgsqlConnection conn, NpgsqlTransaction tx, string docType, CancellationToken ct)
     {
-        await using var cmd = new NpgsqlCommand("SELECT version FROM docframe_metadata_versions WHERE doctype=$1 AND status='Published'", conn, tx);
+        await using var cmd = new NpgsqlCommand("SELECT version FROM frogframe_metadata_versions WHERE doctype=$1 AND status='Published'", conn, tx);
         cmd.Parameters.AddWithValue(docType);
         var result = await cmd.ExecuteScalarAsync(ct);
         return result is int version ? version : throw new InvalidOperationException($"Tidak ada metadata Published untuk DocType '{docType}'.");
@@ -297,7 +297,7 @@ public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider 
     private static async Task InsertDocument(NpgsqlConnection conn, NpgsqlTransaction tx, Document d, CancellationToken ct)
     {
         await using var cmd = new NpgsqlCommand(
-            "INSERT INTO docframe_documents (tenant_id, doctype, name, owner, docstatus, workflow_state, created, modified, modified_by, version, schema_version, workflow_version, amended_from, data) " +
+            "INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, workflow_state, created, modified, modified_by, version, schema_version, workflow_version, amended_from, data) " +
             "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb)", conn, tx);
         AddDocumentParams(cmd, d);
         try { await cmd.ExecuteNonQueryAsync(ct); }
@@ -310,7 +310,7 @@ public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider 
     private static async Task UpdateDocument(NpgsqlConnection conn, NpgsqlTransaction tx, Document d, int expected, CancellationToken ct)
     {
         await using var cmd = new NpgsqlCommand(
-            "UPDATE docframe_documents SET owner=$4, docstatus=$5, workflow_state=$6, created=$7, modified=$8, modified_by=$9, version=$10, " +
+            "UPDATE frogframe_documents SET owner=$4, docstatus=$5, workflow_state=$6, created=$7, modified=$8, modified_by=$9, version=$10, " +
             "schema_version=$11, workflow_version=$12, amended_from=$13, data=$14::jsonb " +
             "WHERE tenant_id=$1 AND doctype=$2 AND name=$3 AND version=$15", conn, tx);
         AddDocumentParams(cmd, d);
@@ -333,7 +333,7 @@ public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider 
 
     private static async Task<int> CurrentVersion(NpgsqlConnection conn, NpgsqlTransaction tx, string tenant, string docType, string name, CancellationToken ct)
     {
-        await using var cmd = new NpgsqlCommand("SELECT version FROM docframe_documents WHERE tenant_id=$1 AND doctype=$2 AND name=$3", conn, tx);
+        await using var cmd = new NpgsqlCommand("SELECT version FROM frogframe_documents WHERE tenant_id=$1 AND doctype=$2 AND name=$3", conn, tx);
         cmd.Parameters.AddWithValue(tenant); cmd.Parameters.AddWithValue(docType); cmd.Parameters.AddWithValue(name);
         return await cmd.ExecuteScalarAsync(ct) is int v ? v : 0;
     }
@@ -342,7 +342,7 @@ public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider 
     {
         await using var cmd = db.CreateCommand(
             "SELECT id, tenant_id, doctype, doc_name, action, actor, at, changes::text, comment, from_state, to_state, workflow_version, schema_version " +
-            "FROM docframe_audit WHERE tenant_id=$1 AND doctype=$2 AND doc_name=$3 ORDER BY id DESC");
+            "FROM frogframe_audit WHERE tenant_id=$1 AND doctype=$2 AND doc_name=$3 ORDER BY id DESC");
         cmd.Parameters.AddWithValue(tenantId); cmd.Parameters.AddWithValue(docType); cmd.Parameters.AddWithValue(name);
         var list = new List<AuditEntry>();
         await using var r = await cmd.ExecuteReaderAsync(ct);
@@ -389,7 +389,7 @@ public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider 
             }
 
             await using var cmd = new NpgsqlCommand(
-                "SELECT doctype, name FROM docframe_documents " +
+                "SELECT doctype, name FROM frogframe_documents " +
                 "WHERE tenant_id = $1 AND doctype = $2 AND docstatus != 2 " +
                 "AND NOT (doctype = $3 AND name = $4) " +
                 "AND data @> $5::jsonb " +
@@ -434,8 +434,8 @@ public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider 
     public async Task<IReadOnlyList<OutboxMessage>> FetchDueAsync(DateTimeOffset now, int max, CancellationToken ct = default)
     {
         await using var cmd = db.CreateCommand(
-            $"UPDATE docframe_outbox SET locked_until = now() + interval '2 minutes' WHERE id IN (" +
-            "SELECT id FROM docframe_outbox WHERE processed_at IS NULL AND NOT dead_lettered " +
+            $"UPDATE frogframe_outbox SET locked_until = now() + interval '2 minutes' WHERE id IN (" +
+            "SELECT id FROM frogframe_outbox WHERE processed_at IS NULL AND NOT dead_lettered " +
             "AND (next_attempt_at IS NULL OR next_attempt_at <= $1) AND (locked_until IS NULL OR locked_until < now()) " +
             $"ORDER BY created_at LIMIT $2 FOR UPDATE SKIP LOCKED) RETURNING {OutboxColumns}");
         cmd.Parameters.AddWithValue(now); cmd.Parameters.AddWithValue(max);
@@ -448,7 +448,7 @@ public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider 
     public async Task UpdateAsync(OutboxMessage m, CancellationToken ct = default)
     {
         await using var cmd = db.CreateCommand(
-            "UPDATE docframe_outbox SET attempts=$2, next_attempt_at=$3, processed_at=$4, last_error=$5, dead_lettered=$6, locked_until=NULL WHERE id=$1");
+            "UPDATE frogframe_outbox SET attempts=$2, next_attempt_at=$3, processed_at=$4, last_error=$5, dead_lettered=$6, locked_until=NULL WHERE id=$1");
         cmd.Parameters.AddWithValue(m.Id); cmd.Parameters.AddWithValue(m.Attempts);
         cmd.Parameters.AddWithValue((object?)m.NextAttemptAt ?? DBNull.Value); cmd.Parameters.AddWithValue((object?)m.ProcessedAt ?? DBNull.Value);
         cmd.Parameters.AddWithValue((object?)m.LastError ?? DBNull.Value); cmd.Parameters.AddWithValue(m.DeadLettered);
@@ -458,7 +458,7 @@ public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider 
     public async Task<int> PruneAsync(DateTimeOffset processedBefore, int max, CancellationToken ct = default)
     {
         await using var cmd = db.CreateCommand(
-            "DELETE FROM docframe_outbox WHERE id IN (SELECT id FROM docframe_outbox WHERE processed_at < $1 AND NOT dead_lettered LIMIT $2)");
+            "DELETE FROM frogframe_outbox WHERE id IN (SELECT id FROM frogframe_outbox WHERE processed_at < $1 AND NOT dead_lettered LIMIT $2)");
         cmd.Parameters.AddWithValue(processedBefore);
         cmd.Parameters.AddWithValue(max);
         return await cmd.ExecuteNonQueryAsync(ct);
@@ -467,7 +467,7 @@ public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider 
     public async Task EnqueueAsync(OutboxMessage m, CancellationToken ct = default)
     {
         await using var ins = db.CreateCommand(
-            "INSERT INTO docframe_outbox (id, tenant_id, type, payload, idempotency_key, created_at) VALUES ($1,$2,$3,$4::jsonb,$5,$6) " +
+            "INSERT INTO frogframe_outbox (id, tenant_id, type, payload, idempotency_key, created_at) VALUES ($1,$2,$3,$4::jsonb,$5,$6) " +
             "ON CONFLICT (idempotency_key) DO NOTHING");
         ins.Parameters.AddWithValue(m.Id);
         ins.Parameters.AddWithValue(m.TenantId);
@@ -480,7 +480,7 @@ public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider 
 
     public IReadOnlyList<OutboxMessage> Snapshot()
     {
-        using var cmd = db.CreateCommand($"SELECT {OutboxColumns} FROM docframe_outbox ORDER BY created_at DESC LIMIT 200");
+        using var cmd = db.CreateCommand($"SELECT {OutboxColumns} FROM frogframe_outbox ORDER BY created_at DESC LIMIT 200");
         using var r = cmd.ExecuteReader();
         var list = new List<OutboxMessage>();
         while (r.Read()) list.Add(ReadOutbox(r));
@@ -493,7 +493,7 @@ public sealed class PostgresNotificationStore(NpgsqlDataSource db) : INotificati
     public void Add(Notification n)
     {
         using var cmd = db.CreateCommand(
-            "INSERT INTO docframe_notifications (id, tenant_id, user_id, subject, body, doctype, doc_name, at, read) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (id) DO NOTHING");
+            "INSERT INTO frogframe_notifications (id, tenant_id, user_id, subject, body, doctype, doc_name, at, read) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (id) DO NOTHING");
         cmd.Parameters.AddWithValue(n.Id); cmd.Parameters.AddWithValue(n.TenantId); cmd.Parameters.AddWithValue(n.UserId);
         cmd.Parameters.AddWithValue(n.Subject); cmd.Parameters.AddWithValue(n.Body);
         cmd.Parameters.AddWithValue((object?)n.DocType ?? DBNull.Value); cmd.Parameters.AddWithValue((object?)n.DocName ?? DBNull.Value);
@@ -504,7 +504,7 @@ public sealed class PostgresNotificationStore(NpgsqlDataSource db) : INotificati
     public IReadOnlyList<Notification> ForUser(string tenantId, string userId)
     {
         using var cmd = db.CreateCommand(
-            "SELECT id, tenant_id, user_id, subject, body, doctype, doc_name, at, read FROM docframe_notifications WHERE tenant_id=$1 AND user_id=$2 ORDER BY at DESC LIMIT 200");
+            "SELECT id, tenant_id, user_id, subject, body, doctype, doc_name, at, read FROM frogframe_notifications WHERE tenant_id=$1 AND user_id=$2 ORDER BY at DESC LIMIT 200");
         cmd.Parameters.AddWithValue(tenantId); cmd.Parameters.AddWithValue(userId);
         using var r = cmd.ExecuteReader();
         var list = new List<Notification>();
@@ -516,7 +516,7 @@ public sealed class PostgresNotificationStore(NpgsqlDataSource db) : INotificati
 
     public void MarkRead(string tenantId, string userId, Guid id)
     {
-        using var cmd = db.CreateCommand("UPDATE docframe_notifications SET read = true WHERE id=$1 AND tenant_id=$2 AND user_id=$3");
+        using var cmd = db.CreateCommand("UPDATE frogframe_notifications SET read = true WHERE id=$1 AND tenant_id=$2 AND user_id=$3");
         cmd.Parameters.AddWithValue(id); cmd.Parameters.AddWithValue(tenantId); cmd.Parameters.AddWithValue(userId);
         cmd.ExecuteNonQuery();
     }
@@ -526,7 +526,7 @@ public sealed class PostgresNotificationRuleStore(NpgsqlDataSource db) : INotifi
 {
     public async Task<IReadOnlyList<NotificationRule>> ListAsync(string tenantId, string? docType = null, bool onlyActive = false, CancellationToken ct = default)
     {
-        var sql = "SELECT id, tenant_id, name, doctype, trigger, trigger_field, days_offset, condition, channel, receiver_type, receiver_value, subject_template, message_template, is_active, created_at, modified_at FROM docframe_notification_rules WHERE tenant_id = $1";
+        var sql = "SELECT id, tenant_id, name, doctype, trigger, trigger_field, days_offset, condition, channel, receiver_type, receiver_value, subject_template, message_template, is_active, created_at, modified_at FROM frogframe_notification_rules WHERE tenant_id = $1";
         if (onlyActive) sql += " AND is_active = true";
         if (!string.IsNullOrEmpty(docType)) sql += " AND doctype = $2";
         sql += " ORDER BY modified_at DESC";
@@ -546,7 +546,7 @@ public sealed class PostgresNotificationRuleStore(NpgsqlDataSource db) : INotifi
 
     public async Task<NotificationRule?> GetAsync(string tenantId, string id, CancellationToken ct = default)
     {
-        await using var cmd = db.CreateCommand("SELECT id, tenant_id, name, doctype, trigger, trigger_field, days_offset, condition, channel, receiver_type, receiver_value, subject_template, message_template, is_active, created_at, modified_at FROM docframe_notification_rules WHERE tenant_id = $1 AND id = $2");
+        await using var cmd = db.CreateCommand("SELECT id, tenant_id, name, doctype, trigger, trigger_field, days_offset, condition, channel, receiver_type, receiver_value, subject_template, message_template, is_active, created_at, modified_at FROM frogframe_notification_rules WHERE tenant_id = $1 AND id = $2");
         cmd.Parameters.AddWithValue(tenantId);
         cmd.Parameters.AddWithValue(id);
 
@@ -561,7 +561,7 @@ public sealed class PostgresNotificationRuleStore(NpgsqlDataSource db) : INotifi
     public async Task SaveAsync(NotificationRule rule, CancellationToken ct = default)
     {
         await using var cmd = db.CreateCommand(@"
-            INSERT INTO docframe_notification_rules 
+            INSERT INTO frogframe_notification_rules 
                 (id, tenant_id, name, doctype, trigger, trigger_field, days_offset, condition, channel, receiver_type, receiver_value, subject_template, message_template, is_active, created_at, modified_at)
             VALUES 
                 ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
@@ -602,7 +602,7 @@ public sealed class PostgresNotificationRuleStore(NpgsqlDataSource db) : INotifi
 
     public async Task DeleteAsync(string tenantId, string id, CancellationToken ct = default)
     {
-        await using var cmd = db.CreateCommand("DELETE FROM docframe_notification_rules WHERE tenant_id = $1 AND id = $2");
+        await using var cmd = db.CreateCommand("DELETE FROM frogframe_notification_rules WHERE tenant_id = $1 AND id = $2");
         cmd.Parameters.AddWithValue(tenantId);
         cmd.Parameters.AddWithValue(id);
         await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
@@ -638,7 +638,7 @@ public sealed class PostgresUserPreferenceStore(NpgsqlDataSource db) : IUserPref
 
     public async Task<T?> GetAsync<T>(string tenantId, string userId, string key, CancellationToken ct = default)
     {
-        await using var cmd = db.CreateCommand("SELECT pref_value::text FROM docframe_user_preferences WHERE tenant_id = $1 AND user_id = $2 AND pref_key = $3");
+        await using var cmd = db.CreateCommand("SELECT pref_value::text FROM frogframe_user_preferences WHERE tenant_id = $1 AND user_id = $2 AND pref_key = $3");
         cmd.Parameters.AddWithValue(tenantId);
         cmd.Parameters.AddWithValue(userId);
         cmd.Parameters.AddWithValue(key);
@@ -654,7 +654,7 @@ public sealed class PostgresUserPreferenceStore(NpgsqlDataSource db) : IUserPref
     {
         var json = JsonSerializer.Serialize(value, JsonOpts);
         await using var cmd = db.CreateCommand(@"
-            INSERT INTO docframe_user_preferences (tenant_id, user_id, pref_key, pref_value, updated_at)
+            INSERT INTO frogframe_user_preferences (tenant_id, user_id, pref_key, pref_value, updated_at)
             VALUES ($1, $2, $3, $4::jsonb, $5)
             ON CONFLICT (tenant_id, user_id, pref_key) DO UPDATE SET
                 pref_value = EXCLUDED.pref_value,
@@ -670,7 +670,7 @@ public sealed class PostgresUserPreferenceStore(NpgsqlDataSource db) : IUserPref
 
     public async Task DeleteAsync(string tenantId, string userId, string key, CancellationToken ct = default)
     {
-        await using var cmd = db.CreateCommand("DELETE FROM docframe_user_preferences WHERE tenant_id = $1 AND user_id = $2 AND pref_key = $3");
+        await using var cmd = db.CreateCommand("DELETE FROM frogframe_user_preferences WHERE tenant_id = $1 AND user_id = $2 AND pref_key = $3");
         cmd.Parameters.AddWithValue(tenantId);
         cmd.Parameters.AddWithValue(userId);
         cmd.Parameters.AddWithValue(key);
@@ -691,7 +691,7 @@ public sealed class PostgresMetadataVersionStore(NpgsqlDataSource db) : IMetadat
         try
         {
             LockDocType(conn, tx, target.Name);
-            using (var active = new NpgsqlCommand("SELECT version FROM docframe_metadata_versions WHERE doctype=$1 AND status='Published' FOR SHARE", conn, tx))
+            using (var active = new NpgsqlCommand("SELECT version FROM frogframe_metadata_versions WHERE doctype=$1 AND status='Published' FOR SHARE", conn, tx))
             {
                 active.Parameters.AddWithValue(target.Name);
                 if (active.ExecuteScalar() is not int activeVersion || activeVersion != source.Version)
@@ -701,7 +701,7 @@ public sealed class PostgresMetadataVersionStore(NpgsqlDataSource db) : IMetadat
             var count = 0;
             using (var select = new NpgsqlCommand(
                 "SELECT tenant_id, doctype, name, owner, docstatus, workflow_state, created, modified, modified_by, version, schema_version, workflow_version, amended_from, data::text " +
-                "FROM docframe_documents WHERE doctype=$1 ORDER BY tenant_id, name LIMIT $2 FOR UPDATE", conn, tx))
+                "FROM frogframe_documents WHERE doctype=$1 ORDER BY tenant_id, name LIMIT $2 FOR UPDATE", conn, tx))
             {
                 select.Parameters.AddWithValue(target.Name);
                 select.Parameters.AddWithValue(maxDocuments + 1);
@@ -737,7 +737,7 @@ public sealed class PostgresMetadataVersionStore(NpgsqlDataSource db) : IMetadat
 
     public IReadOnlyList<MetadataVersion> LoadAll()
     {
-        using var cmd = db.CreateCommand("SELECT doctype, version, definition::text, status, published_by, published_at, changes::text FROM docframe_metadata_versions ORDER BY doctype, version");
+        using var cmd = db.CreateCommand("SELECT doctype, version, definition::text, status, published_by, published_at, changes::text FROM frogframe_metadata_versions ORDER BY doctype, version");
         using var r = cmd.ExecuteReader();
         var list = new List<MetadataVersion>();
         while (r.Read())
@@ -769,7 +769,7 @@ public sealed class PostgresMetadataVersionStore(NpgsqlDataSource db) : IMetadat
         try
         {
             LockDocType(conn, tx, version.DocType);
-            using (var active = new NpgsqlCommand("SELECT version FROM docframe_metadata_versions WHERE doctype=$1 AND status='Published' FOR UPDATE", conn, tx))
+            using (var active = new NpgsqlCommand("SELECT version FROM frogframe_metadata_versions WHERE doctype=$1 AND status='Published' FOR UPDATE", conn, tx))
             {
                 active.Parameters.AddWithValue(version.DocType);
                 if (active.ExecuteScalar() is not int activeVersion || activeVersion != source.Version)
@@ -779,7 +779,7 @@ public sealed class PostgresMetadataVersionStore(NpgsqlDataSource db) : IMetadat
             var documents = new List<Document>();
             using (var select = new NpgsqlCommand(
                 "SELECT tenant_id, doctype, name, owner, docstatus, workflow_state, created, modified, modified_by, version, schema_version, workflow_version, amended_from, data::text " +
-                "FROM docframe_documents WHERE doctype=$1 ORDER BY tenant_id, name LIMIT $2 FOR UPDATE", conn, tx))
+                "FROM frogframe_documents WHERE doctype=$1 ORDER BY tenant_id, name LIMIT $2 FOR UPDATE", conn, tx))
             {
                 select.Parameters.AddWithValue(version.DocType);
                 select.Parameters.AddWithValue(maxDocuments + 1);
@@ -810,7 +810,7 @@ public sealed class PostgresMetadataVersionStore(NpgsqlDataSource db) : IMetadat
             {
                 var (migrated, changes) = DocTypeDataMigrator.Transform(document, target, plan.Operations, version.PublishedBy, version.PublishedAt);
                 using (var update = new NpgsqlCommand(
-                    "UPDATE docframe_documents SET modified=$4, modified_by=$5, version=$6, schema_version=$7, data=$8::jsonb " +
+                    "UPDATE frogframe_documents SET modified=$4, modified_by=$5, version=$6, schema_version=$7, data=$8::jsonb " +
                     "WHERE tenant_id=$1 AND doctype=$2 AND name=$3 AND version=$9", conn, tx))
                 {
                     update.Parameters.AddWithValue(migrated.TenantId); update.Parameters.AddWithValue(migrated.DocType); update.Parameters.AddWithValue(migrated.Name);
@@ -820,7 +820,7 @@ public sealed class PostgresMetadataVersionStore(NpgsqlDataSource db) : IMetadat
                     if (update.ExecuteNonQuery() != 1) throw new InvalidOperationException($"Dokumen {document.Name} berubah selama migrasi.");
                 }
                 using var audit = new NpgsqlCommand(
-                    "INSERT INTO docframe_audit (tenant_id, doctype, doc_name, action, actor, at, changes, schema_version) " +
+                    "INSERT INTO frogframe_audit (tenant_id, doctype, doc_name, action, actor, at, changes, schema_version) " +
                     "VALUES ($1,$2,$3,'Migrate',$4,$5,$6::jsonb,$7)", conn, tx);
                 audit.Parameters.AddWithValue(migrated.TenantId); audit.Parameters.AddWithValue(migrated.DocType); audit.Parameters.AddWithValue(migrated.Name);
                 audit.Parameters.AddWithValue(version.PublishedBy); audit.Parameters.AddWithValue(version.PublishedAt);
@@ -841,20 +841,20 @@ public sealed class PostgresMetadataVersionStore(NpgsqlDataSource db) : IMetadat
 
     private static void LockDocType(NpgsqlConnection conn, NpgsqlTransaction tx, string docType)
     {
-        using var cmd = new NpgsqlCommand("SELECT pg_advisory_xact_lock(hashtext('docframe.doctype'), hashtext($1))", conn, tx);
+        using var cmd = new NpgsqlCommand("SELECT pg_advisory_xact_lock(hashtext('FrogFrame.doctype'), hashtext($1))", conn, tx);
         cmd.Parameters.AddWithValue(docType);
         cmd.ExecuteScalar();
     }
 
     private static void SavePublishedVersion(NpgsqlConnection conn, NpgsqlTransaction tx, MetadataVersion v)
     {
-        using (var dep = new NpgsqlCommand("UPDATE docframe_metadata_versions SET status = 'Deprecated' WHERE doctype = $1 AND status = 'Published'", conn, tx))
+        using (var dep = new NpgsqlCommand("UPDATE frogframe_metadata_versions SET status = 'Deprecated' WHERE doctype = $1 AND status = 'Published'", conn, tx))
         {
             dep.Parameters.AddWithValue(v.DocType);
             dep.ExecuteNonQuery();
         }
         using (var ins = new NpgsqlCommand(
-            "INSERT INTO docframe_metadata_versions (doctype, version, definition, status, published_by, published_at, changes) VALUES ($1,$2,$3::jsonb,$4,$5,$6,$7::jsonb)", conn, tx))
+            "INSERT INTO frogframe_metadata_versions (doctype, version, definition, status, published_by, published_at, changes) VALUES ($1,$2,$3::jsonb,$4,$5,$6,$7::jsonb)", conn, tx))
         {
             ins.Parameters.AddWithValue(v.DocType); ins.Parameters.AddWithValue(v.Version);
             ins.Parameters.AddWithValue(MetadataJson.Serialize(v.Def)); ins.Parameters.AddWithValue(v.Status.ToString());
@@ -866,7 +866,7 @@ public sealed class PostgresMetadataVersionStore(NpgsqlDataSource db) : IMetadat
 
     public IReadOnlyList<WorkflowVersion> LoadAllWorkflows()
     {
-        using var cmd = db.CreateCommand("SELECT name, doctype, version, definition::text, status, published_by, published_at, changes::text FROM docframe_workflow_versions ORDER BY name, version");
+        using var cmd = db.CreateCommand("SELECT name, doctype, version, definition::text, status, published_by, published_at, changes::text FROM frogframe_workflow_versions ORDER BY name, version");
         using var r = cmd.ExecuteReader();
         var list = new List<WorkflowVersion>();
         while (r.Read())
@@ -880,13 +880,13 @@ public sealed class PostgresMetadataVersionStore(NpgsqlDataSource db) : IMetadat
     {
         using var conn = db.OpenConnection();
         using var tx = conn.BeginTransaction();
-        using (var dep = new NpgsqlCommand("UPDATE docframe_workflow_versions SET status = 'Deprecated' WHERE name = $1 AND status = 'Published'", conn, tx))
+        using (var dep = new NpgsqlCommand("UPDATE frogframe_workflow_versions SET status = 'Deprecated' WHERE name = $1 AND status = 'Published'", conn, tx))
         {
             dep.Parameters.AddWithValue(v.Name);
             dep.ExecuteNonQuery();
         }
         using (var ins = new NpgsqlCommand(
-            "INSERT INTO docframe_workflow_versions (name, doctype, version, definition, status, published_by, published_at, changes) VALUES ($1,$2,$3,$4::jsonb,$5,$6,$7,$8::jsonb)", conn, tx))
+            "INSERT INTO frogframe_workflow_versions (name, doctype, version, definition, status, published_by, published_at, changes) VALUES ($1,$2,$3,$4::jsonb,$5,$6,$7,$8::jsonb)", conn, tx))
         {
             ins.Parameters.AddWithValue(v.Name); ins.Parameters.AddWithValue((object?)v.DocType ?? DBNull.Value); ins.Parameters.AddWithValue(v.Version);
             ins.Parameters.AddWithValue(MetadataJson.Serialize(v.Def)); ins.Parameters.AddWithValue(v.Status.ToString());
@@ -905,14 +905,14 @@ public static class PostgreSqlServiceCollectionExtensions
         services.GetService<DocumentIndexSync>()?.SyncAsync(ct) ?? Task.CompletedTask;
 
     /// <summary>
-    /// Mengganti penyimpanan in-memory dengan PostgreSQL. Boleh dipanggil sebelum atau sesudah AddDocFramework.
-    /// Jalankan <see cref="MigrateDocFrameworkDatabaseAsync"/> saat startup sebelum aplikasi melayani request.
+    /// Mengganti penyimpanan in-memory dengan PostgreSQL. Boleh dipanggil sebelum atau sesudah AddFrogFramework.
+    /// Jalankan <see cref="MigrateFrogFrameworkDatabaseAsync"/> saat startup sebelum aplikasi melayani request.
     /// </summary>
     /// <param name="schemaConnectionString">
     /// Opsional: koneksi PEMILIK skema untuk DDL (migrasi, sinkronisasi indeks). Bila diisi, <paramref name="connectionString"/>
     /// sebaiknya peran app tanpa hak UPDATE/DELETE pada buku besar (lihat deploy/sql/gl-roles.sql). Kosong = satu koneksi.
     /// </param>
-    public static IServiceCollection AddDocFrameworkPostgreSql(this IServiceCollection services, string connectionString, string? schemaConnectionString = null)
+    public static IServiceCollection AddFrogFrameworkPostgreSql(this IServiceCollection services, string connectionString, string? schemaConnectionString = null)
     {
         services.AddSingleton(_ => NpgsqlDataSource.Create(connectionString));
         services.AddSingleton(sp => new SchemaDataSource(string.IsNullOrWhiteSpace(schemaConnectionString)
@@ -940,7 +940,7 @@ public static class PostgreSqlServiceCollectionExtensions
         services.Replace(ServiceDescriptor.Singleton<Framework.Jobs.IScheduledJobLogStore, PostgresScheduledJobLogStore>());
         services.Replace(ServiceDescriptor.Singleton<Framework.Observability.IErrorLogStore, PostgresErrorLogStore>());
         services.AddDataProtection()
-            .SetApplicationName("DocFrame");
+            .SetApplicationName("FrogFrame");
         services.AddSingleton<Microsoft.AspNetCore.DataProtection.Repositories.IXmlRepository, PostgresXmlRepository>();
         services.AddOptions<Microsoft.AspNetCore.DataProtection.KeyManagement.KeyManagementOptions>()
             .Configure<Microsoft.AspNetCore.DataProtection.Repositories.IXmlRepository>((options, repo) =>
@@ -951,6 +951,6 @@ public static class PostgreSqlServiceCollectionExtensions
         return services;
     }
 
-    public static Task MigrateDocFrameworkDatabaseAsync(this IServiceProvider services, CancellationToken ct = default) =>
+    public static Task MigrateFrogFrameworkDatabaseAsync(this IServiceProvider services, CancellationToken ct = default) =>
         services.GetRequiredService<SchemaMigrator>().MigrateAsync(ct);
 }

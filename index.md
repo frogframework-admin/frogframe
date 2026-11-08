@@ -1,6 +1,6 @@
-# Welcome to DocFrame
+# Welcome to FrogFrame
 
-**DocFrame** is a metadata-driven .NET Business Framework inspired by modern extensible enterprise architectures (such as Frappe Framework). Built with **.NET 10**, **ASP.NET Core**, **Blazor Server**, and **Blazor Blueprint UI** (shadcn/ui styling for Blazor).
+**FrogFrame** is a metadata-driven .NET Business Framework inspired by modern extensible enterprise architectures (such as Frappe Framework). Built with **.NET 10**, **ASP.NET Core**, **Blazor Server**, and **Blazor Blueprint UI** (shadcn/ui styling for Blazor).
 
 ---
 

@@ -4,7 +4,7 @@
 > **Target Framework**: .NET 10, ASP.NET Core, Blazor Server  
 > **Design Goal**: Frappe-Parity with Enterprise .NET Security & Concurrency Standards  
 
-This document details three foundational extensibility capabilities in **DocFrame**:
+This document details three foundational extensibility capabilities in **FrogFrame**:
 1. **Document Lifecycle Hooks Expansion & Safe Helper APIs**: Extended document lifecycle stages (`BeforeDelete`, `AfterDelete`, `OnCancel`, `OnAmend`) with strongly-typed context helpers.
 2. **Custom Form Actions (`IFormAction<TDoc>`)**: Server-side executed toolbar action buttons with granular permission verification.
 3. **Background Scheduler (`AddScheduledJob<T>`)**: Distributed cron execution engine utilizing PostgreSQL advisory locks running under system identity (`UserContext.System`).
@@ -13,8 +13,8 @@ This document details three foundational extensibility capabilities in **DocFram
 
 ## 1. Security & Architectural Principles (Safe Frappe Parity)
 
-While Frappe Framework offers flexible metadata hooks, certain design patterns introduce concurrency and security risks in multi-tenant environments. DocFrame resolves these challenges:
-- **No Client JavaScript Metadata Execution**: DocFrame never evaluates untrusted JavaScript strings stored in the database on client browsers (mitigating Stored XSS). All custom logic runs in compiled C# or via sandboxed AST interpreters.
+While Frappe Framework offers flexible metadata hooks, certain design patterns introduce concurrency and security risks in multi-tenant environments. FrogFrame resolves these challenges:
+- **No Client JavaScript Metadata Execution**: FrogFrame never evaluates untrusted JavaScript strings stored in the database on client browsers (mitigating Stored XSS). All custom logic runs in compiled C# or via sandboxed AST interpreters.
 - **No Arbitrary Raw SQL (`frappe.db.sql`)**: Hooks and actions cannot execute unbounded raw SQL strings that bypass tenant isolation or introduce table locks. Data operations occur through tenant-scoped `DocumentService` or read-only `IReportingQueryExecutor`.
 - **No Fragile Monkey-Patching**: Rather than dynamically overriding class implementations at runtime, extensions register cleanly via .NET Dependency Injection (DI).
 - **Layered Access Control**: Form action buttons evaluate the authenticated caller's `UserContext`, while scheduled jobs execute under `UserContext.System` with full audit trail logging.

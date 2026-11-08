@@ -2,7 +2,7 @@ import http from 'k6/http';
 import { check, sleep, group } from 'k6';
 
 // ============================================================================
-// DocFrame Baseline Load Testing Script (k6)
+// FrogFrame Baseline Load Testing Script (k6)
 // Simulates concurrent user workload: health checks, document reads, and writes.
 // Token is acquired in setup() following k6 best practices.
 // ============================================================================
@@ -31,7 +31,7 @@ const BASE_URL = __ENV.BASE_URL || 'http://localhost:5080';
 export function setup() {
   const loginPayload = JSON.stringify({
     userName: 'admin',
-    password: __ENV.DEMO_PASSWORD || 'DocFrame#2026',
+    password: __ENV.DEMO_PASSWORD || 'FrogFrame#2026',
   });
 
   const res = http.post(`${BASE_URL}/api/auth/login`, loginPayload, {

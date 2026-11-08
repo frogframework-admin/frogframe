@@ -1,6 +1,6 @@
--- DocFrame: API dari query tersimpan (GET /api/query/{slug}). source_ref menautkan API yang diterbitkan dari
+-- FrogFrame: API dari query tersimpan (GET /api/query/{slug}). source_ref menautkan API yang diterbitkan dari
 -- widget dashboard / template laporan agar ikut diperbarui saat sumbernya disimpan.
-CREATE TABLE docframe_query_apis (
+CREATE TABLE frogframe_query_apis (
     tenant_id   text        NOT NULL,
     id          text        NOT NULL,
     slug        text        NOT NULL,

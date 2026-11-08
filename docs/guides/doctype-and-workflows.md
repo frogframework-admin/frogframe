@@ -1,6 +1,6 @@
 # DocType Modeling & Visual Workflow Guide
 
-This guide covers how to design DocTypes, manage permissions, and configure state-machine workflows using the DocFrame visual editor and compiler.
+This guide covers how to design DocTypes, manage permissions, and configure state-machine workflows using the FrogFrame visual editor and compiler.
 
 ---
 
@@ -35,7 +35,7 @@ Accessible at `/admin/metadata/{DocType}/editor`:
 
 ## 3. Workflow State Machine Design
 
-DocFrame provides a visual state machine designer at `/admin/workflows/{Name}/editor`.
+FrogFrame provides a visual state machine designer at `/admin/workflows/{Name}/editor`.
 
 ```mermaid
 stateDiagram-v2

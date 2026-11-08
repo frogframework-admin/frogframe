@@ -10,7 +10,7 @@ using Npgsql;
 /// Benchmark performa query di PostgreSQL. Data sintetis dibuat langsung dengan SQL (jauh lebih cepat dari pipeline
 /// dokumen), lalu yang diukur adalah jalur kode sungguhan: IDocumentStore.QueryAsync (halaman daftar) dan agregasi
 /// dashboard lewat eksekutor read-only.
-///   DOCFRAME_TEST_PG=... [DOCFRAME_TEST_PG_RO=...] dotnet run --project tests/Framework.Tests -- --bench 1000000
+///   FROGFRAME_TEST_PG=... [FROGFRAME_TEST_PG_RO=...] dotnet run --project tests/Framework.Tests -- --bench 1000000
 /// </summary>
 public static class Bench
 {
@@ -19,7 +19,7 @@ public static class Bench
 
     public static async Task<int> RunAsync(string[] args)
     {
-        if (Tests.PgConnection is null) { Console.WriteLine("Benchmark butuh DOCFRAME_TEST_PG."); return 2; }
+        if (Tests.PgConnection is null) { Console.WriteLine("Benchmark butuh FROGFRAME_TEST_PG."); return 2; }
         var count = args.Length > 1 && int.TryParse(args[1], out var n) ? n : 200_000;
         var reuse = args.Contains("--reuse");
 
@@ -31,20 +31,20 @@ public static class Bench
             await Tests.SeedForBenchAsync(sp);
             await GenerateAsync(db, count);
         }
-        await Exec(db, "ANALYZE docframe_documents");
-        var total = await Scalar(db, $"SELECT count(*) FROM docframe_documents WHERE tenant_id = '{Tenant}' AND doctype = '{PR}'");
-        var size = await Scalar(db, "SELECT pg_size_pretty(pg_total_relation_size('docframe_documents'))");
+        await Exec(db, "ANALYZE frogframe_documents");
+        var total = await Scalar(db, $"SELECT count(*) FROM frogframe_documents WHERE tenant_id = '{Tenant}' AND doctype = '{PR}'");
+        var size = await Scalar(db, "SELECT pg_size_pretty(pg_total_relation_size('frogframe_documents'))");
         Console.WriteLine($"\nData: {total:N0} {PR} (tenant {Tenant}) · tabel+indeks {size}\n");
 
         var sync = sp.GetService<Framework.Persistence.PostgreSql.DocumentIndexSync>();
         if (sync is not null && !args.Contains("--only-after")) await sync.DropManagedAsync();
-        await Exec(db, "ANALYZE docframe_documents");
+        await Exec(db, "ANALYZE frogframe_documents");
         var before = await SuiteAsync(sp, db, "Sebelum (indeks bawaan saja)");
         if (sync is not null)
         {
             var sw = Stopwatch.StartNew();
             await sync.SyncAsync();
-            await Exec(db, "ANALYZE docframe_documents");
+            await Exec(db, "ANALYZE frogframe_documents");
             Console.WriteLine($"Indeks dari metadata dibuat dalam {sw.Elapsed.TotalSeconds:N1} detik\n");
             var after = await SuiteAsync(sp, db, "Sesudah (indeks dari metadata)");
             Console.WriteLine("\nRingkasan (median ms):");
@@ -65,7 +65,7 @@ public static class Bench
         {
             var end = Math.Min(count, start + batch - 1);
             await Exec(db, $$"""
-                INSERT INTO docframe_documents (tenant_id, doctype, name, owner, docstatus, workflow_state, version, schema_version, data, created, modified, modified_by)
+                INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, workflow_state, version, schema_version, data, created, modified, modified_by)
                 SELECT '{{Tenant}}', '{{PR}}', 'BPR-' || lpad(i::text, 8, '0'),
                        'user' || (i % 50), CASE WHEN i % 5 = 0 THEN 0 ELSE 1 END,
                        (ARRAY['Draft','Menunggu Atasan','Menunggu Finance','Disetujui','Ditolak'])[1 + i % 5],
@@ -84,7 +84,7 @@ public static class Bench
                 """);
             // Dokumen DocType lain sebagai "derau" agar indeks parsial per DocType benar-benar diuji.
             await Exec(db, $$"""
-                INSERT INTO docframe_documents (tenant_id, doctype, name, owner, docstatus, version, schema_version, data, created, modified, modified_by)
+                INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, version, schema_version, data, created, modified, modified_by)
                 SELECT '{{Tenant}}', 'Vendor', 'BVN-' || lpad(i::text, 8, '0'), 'rina', 0, 1, 1,
                        jsonb_build_object('vendor_name', 'Pemasok ' || i, 'city', 'Kota ' || (i % 80)),
                        now(), now(), 'rina'
@@ -135,7 +135,7 @@ public static class Bench
         }
         // Agregasi yang sama langsung ke tabel dokumen (ekstraksi JSONB, tanpa batas waktu): biaya sebenarnya.
         var direct = await Median(async () => await Scalar(db,
-            "SELECT count(*) FROM (SELECT data ->> 'department', count(*), sum((data ->> 'total')::numeric) FROM docframe_documents " +
+            "SELECT count(*) FROM (SELECT data ->> 'department', count(*), sum((data ->> 'total')::numeric) FROM frogframe_documents " +
             $"WHERE tenant_id = '{Tenant}' AND doctype = '{PR}' AND (data ->> 'request_date') BETWEEN '2025-01-01' AND '2025-12-31' GROUP BY 1) s"), 3);
         results["Agregasi JSONB langsung (tanpa batas waktu)"] = direct;
         Console.WriteLine($"  {"Agregasi JSONB langsung (tanpa batas waktu)",-46} {direct,8:N1} ms");

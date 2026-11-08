@@ -1,6 +1,6 @@
-# DocFrame — Architecture & Project Structure Reference
+# FrogFrame — Architecture & Project Structure Reference
 
-> **Purpose of this Document**: This is the authoritative engineering and architectural reference for **DocFrame**, a metadata-driven .NET 10 business application framework inspired by the Frappe Framework. It consolidates the core RFC v2 design, the "Two Worlds" (Operational vs. Analytical) architecture, the 4-project solution structure, security invariants, database schema, API contracts, and developer extension playbooks to serve as the primary blueprint for all future development.
+> **Purpose of this Document**: This is the authoritative engineering and architectural reference for **FrogFrame**, a metadata-driven .NET 10 business application framework inspired by the Frappe Framework. It consolidates the core RFC v2 design, the "Two Worlds" (Operational vs. Analytical) architecture, the 4-project solution structure, security invariants, database schema, API contracts, and developer extension playbooks to serve as the primary blueprint for all future development.
 
 ---
 
@@ -34,15 +34,15 @@
 7. [Database Schema & Migrations Reference](#7-database-schema--migrations-reference)
 8. [HTTP REST API & Blazor Route Reference](#8-http-rest-api--blazor-route-reference)
 9. [Configuration & Deployment Reference](#9-configuration--deployment-reference)
-10. [Developer Playbook: How to Extend DocFrame](#10-developer-playbook-how-to-extend-docframe)
+10. [Developer Playbook: How to Extend FrogFrame](#10-developer-playbook-how-to-extend-FrogFrame)
 
 ---
 
 ## 1. Executive Summary & Core Philosophy
 
-**DocFrame** is a metadata-driven business application framework built on **.NET 10**, **ASP.NET Core**, **Blazor Server (Interactive Server)**, **Blazor Blueprint UI 4.1.0**, and **PostgreSQL** (via raw **Npgsql** without Entity Framework Core).
+**FrogFrame** is a metadata-driven business application framework built on **.NET 10**, **ASP.NET Core**, **Blazor Server (Interactive Server)**, **Blazor Blueprint UI 4.1.0**, and **PostgreSQL** (via raw **Npgsql** without Entity Framework Core).
 
-In traditional CRUD applications, adding a new business entity requires hand-coding database tables, DTOs, repositories, service layers, validation rules, REST controllers, list pages, and form UIs. DocFrame replaces this repetitive boilerplate with a single declarative artifact: the **DocType**.
+In traditional CRUD applications, adding a new business entity requires hand-coding database tables, DTOs, repositories, service layers, validation rules, REST controllers, list pages, and form UIs. FrogFrame replaces this repetitive boilerplate with a single declarative artifact: the **DocType**.
 
 ```text
 DocType (Declarative Metadata)
@@ -62,33 +62,33 @@ DocType (Declarative Metadata)
 
 ## 2. Non-Negotiable Architectural Principles
 
-Every feature built on or added to DocFrame must adhere to the following **8 core invariants** (established in RFC v2):
+Every feature built on or added to FrogFrame must adhere to the following **8 core invariants** (established in RFC v2):
 
 1. **Metadata First, Code for Exceptions**: Standard forms, lists, CRUD APIs, permissions, workflows, and basic validations are declared in JSON metadata or via the visual admin editors. C# code is written strictly for domain-specific business rules (`IDocumentHandler`), custom validators (`IFieldValidator`), custom RPC endpoints (`IApiMethod`), and complex coded reports (`IReport`).
 2. **Single Choke Point (`DocumentService`)**: Every document mutation—whether triggered from a Blazor form, a REST API call, an Excel/CSV import row, a custom `IApiMethod`, or startup seed data—**must** pass through `DocumentService`. There is no "backdoor" or separate validation ruleset for APIs or imports.
 3. **Zero `eval`, Zero Arbitrary Code Execution**: Metadata expressions (`requiredWhen`, `visibleWhen`, `readOnlyWhen`, `compute`, `validationRules`, and workflow transition conditions) are parsed by a custom AST interpreter (`Expressions.cs`) with an explicit function allowlist and strict length, depth, and step limits. Dynamic C# compilation (Roslyn) or arbitrary SQL interpolation from metadata is strictly forbidden.
 4. **Never Trust Client-Computed Values**: Although `DocumentEvaluator` runs live in the Blazor UI for instant user feedback, the server **discards** any client-supplied values for `compute` or `fetchFrom` fields, recalculating them in topological order on the server during save.
 5. **Fail-Closed Security & Anti-IDOR**:
-   - Missing tenant claim (`docframe:tenant`) immediately denies access, even for `System Manager` / `Administrator`.
+   - Missing tenant claim (`frogframe:tenant`) immediately denies access, even for `System Manager` / `Administrator`.
    - Unauthorized access to a specific document (out of row scope or cross-tenant) throws `DocumentNotFoundException` (`404 Not Found`), preventing Insecure Direct Object Reference (IDOR) enumeration.
    - Restricted fields (`permLevel > 0`) that a user lacks permission to read are stripped before sending data to the client, blocked on write (mass-assignment protection), excluded from audit diffs for that user, and omitted from `reporting.*` views.
 6. **Monotonic Document Lifecycle (`DocStatus`)**: Documents progress strictly forward: `0 (Draft)` → `1 (Submitted / Locked)` → `2 (Cancelled)`. A locked (`Submitted`) or `Cancelled` document can never transition back to `Draft`. Revisions to a rejected or cancelled document must create a new linked document via **Amend** (`PR-2026-00001-1`).
-7. **Atomic Persistence (Document + Audit + Outbox)**: Every save or workflow transition commits the document row, the `docframe_audit` entry, and the `docframe_outbox` event(s) inside a **single database transaction**. Optimistic concurrency (`version = @expected`) guarantees no lost updates across multiple web instances.
+7. **Atomic Persistence (Document + Audit + Outbox)**: Every save or workflow transition commits the document row, the `FrogFrame_audit` entry, and the `FrogFrame_outbox` event(s) inside a **single database transaction**. Optimistic concurrency (`version = @expected`) guarantees no lost updates across multiple web instances.
 8. **Separation of Operational (World 1) and Analytical (World 2) Workloads**: Heavy reporting and dashboard queries must never lock, slow down, or compromise transactional tables.
 
 ---
 
 ## 3. The "Two Worlds" Architecture (World 1 OLTP vs. World 2 OLAP)
 
-DocFrame explicitly separates operational processing from analytical reporting into two distinct worlds connected by the transactional outbox.
+FrogFrame explicitly separates operational processing from analytical reporting into two distinct worlds connected by the transactional outbox.
 
 ```mermaid
 flowchart TB
     subgraph W1["World 1 — Operational (OLTP / Single Source of Truth)"]
         UI["Blazor UI / REST API / Excel Import"] --> DS["DocumentService Pipeline"]
-        DS -->|"Single ACID Transaction"| DOC[("docframe_documents (JSONB + Metadata Indexes)")]
-        DS -->|"Single ACID Transaction"| AUD[("docframe_audit")]
-        DS -->|"Single ACID Transaction"| OUT[("docframe_outbox (payloadVersion = 2 + Snapshot)")]
+        DS -->|"Single ACID Transaction"| DOC[("frogframe_documents (JSONB + Metadata Indexes)")]
+        DS -->|"Single ACID Transaction"| AUD[("FrogFrame_audit")]
+        DS -->|"Single ACID Transaction"| OUT[("FrogFrame_outbox (payloadVersion = 2 + Snapshot)")]
     end
 
     subgraph Bridge["The Bridge — Outbox and Projection Engine"]
@@ -99,23 +99,23 @@ flowchart TB
     subgraph W2["World 2 — Analytical (OLAP / Read-Only Reporting)"]
         PROJ --> VIEWS[("Current Foundation: reporting views + Native Casts")]
         PROJ --> STAR[("Target Scale Architecture: fact and dim tables")]
-        VIEWS --> EXEC["DashboardSqlExecutor (docframe_ro User + READ ONLY + Timeout)"]
+        VIEWS --> EXEC["DashboardSqlExecutor (frogframe_ro User + READ ONLY + Timeout)"]
         STAR --> EXEC
         EXEC --> CONSUMERS["SQL Dashboards / Excel/Word Reports / Saved Query APIs"]
     end
 ```
 
 ### 3.1 World 1: Operational Layer (Frozen as Single Source of Truth)
-- Stored in `docframe_documents` using standard relational columns (`tenant_id`, `doctype`, `name`, `owner`, `docstatus`, `workflow_state`, `version`, `schema_version`, `created`, `modified`) plus a flexible `data JSONB` payload.
+- Stored in `frogframe_documents` using standard relational columns (`tenant_id`, `doctype`, `name`, `owner`, `docstatus`, `workflow_state`, `version`, `schema_version`, `created`, `modified`) plus a flexible `data JSONB` payload.
 - Optimized for single-document reads/writes, schema agility, optimistic locking, and filtered list pagination (accelerated by `DocumentIndexSync` partial expression indexes and `QueryLimits.CountCap = 10_000`).
-- **Frozen Rule**: Analytical requirements never force structural changes onto World 1 tables. The only touchpoint in World 1 is ensuring `docframe_outbox` carries a rich event payload (`payloadVersion = 2`), including the authoritative `occurredAt` timestamp, actor, document `version`, and the complete **point-in-time JSON snapshot (`data`)** at the exact moment of the event.
+- **Frozen Rule**: Analytical requirements never force structural changes onto World 1 tables. The only touchpoint in World 1 is ensuring `FrogFrame_outbox` carries a rich event payload (`payloadVersion = 2`), including the authoritative `occurredAt` timestamp, actor, document `version`, and the complete **point-in-time JSON snapshot (`data`)** at the exact moment of the event.
 
 ### 3.2 World 2: Analytical Layer (Current Foundation & Target Scale Design)
-As documented in the *World 2 Analytics Layer Architecture Specification*, JSONB extraction on `docframe_documents` works well up to hundreds of thousands of rows (~0.8s for 1M rows using direct `::numeric` / `::date` casts in `reporting.*` views), but tens of millions of rows and complex multi-DocType historical aggregations require dedicated analytical modeling:
+As documented in the *World 2 Analytics Layer Architecture Specification*, JSONB extraction on `frogframe_documents` works well up to hundreds of thousands of rows (~0.8s for 1M rows using direct `::numeric` / `::date` casts in `reporting.*` views), but tens of millions of rows and complex multi-DocType historical aggregations require dedicated analytical modeling:
 
 1. **Golden Rule of Workload Isolation**:
-   - Reporting queries execute through a dedicated, verified read-only database user (`docframe_ro` via `ConnectionStrings:DocFrameReadOnly`) inside a `READ ONLY` transaction with a strict `statement_timeout`.
-   - When `ConnectionStrings:DocFrameAnalytics` is configured, analytical reads and tenant-session pinning can be routed to a **PostgreSQL Logical Replica** so OLTP primary CPU/IO is completely untouched.
+   - Reporting queries execute through a dedicated, verified read-only database user (`frogframe_ro` via `ConnectionStrings:FrogFrameReadOnly`) inside a `READ ONLY` transaction with a strict `statement_timeout`.
+   - When `ConnectionStrings:FrogFrameAnalytics` is configured, analytical reads and tenant-session pinning can be routed to a **PostgreSQL Logical Replica** so OLTP primary CPU/IO is completely untouched.
 2. **Three Locked Architectural Decisions for World 2**:
    - **Decision 1 — Dual Historical Strategy**:
      - **A. Periodic Snapshots** (populated by scheduled batch jobs at end-of-day/month): Fast, compact tables for answering *"What was the pending total per department at the end of each month?"*
@@ -135,7 +135,7 @@ As documented in the *World 2 Analytics Layer Architecture Specification*, JSONB
 
 ## 4. Solution Overview & Dependency Graph
 
-The solution (`DocFrame.sln`) is organized into **4 source projects** under `src/`, **1 test & benchmark project** under `tests/`, and deployment artifacts under `deploy/`.
+The solution (`FrogFrame.sln`) is organized into **4 source projects** under `src/`, **1 test & benchmark project** under `tests/`, and deployment artifacts under `deploy/`.
 
 ```mermaid
 graph TD
@@ -158,18 +158,18 @@ graph TD
 
 | Project | Target SDK | Layer / Role | External Dependencies |
 | :--- | :--- | :--- | :--- |
-| **[Framework.Core](file:///d:/Side%20Projects/DocFrame/src/Framework.Core/Framework.Core.csproj)** | `Microsoft.NET.Sdk` (`net10.0`) | Pure Core Domain & Engine | **None** (Zero NuGet packages; pure BCL) |
-| **[Framework.Persistence.PostgreSql](file:///d:/Side%20Projects/DocFrame/src/Framework.Persistence.PostgreSql/Framework.Persistence.PostgreSql.csproj)** | `Microsoft.NET.Sdk` (`net10.0`) | PostgreSQL Persistence & Analytics | `Npgsql` (10.0.3), `Microsoft.Extensions.Logging.Abstractions` |
-| **[Framework.Web](file:///d:/Side%20Projects/DocFrame/src/Framework.Web/Framework.Web.csproj)** | `Microsoft.NET.Sdk.Razor` (`net10.0`) | Web UI (Blazor Server) & HTTP APIs | `BlazorBlueprint.Components` (4.1.0), ASP.NET Core shared framework |
-| **[Apps.Sample](file:///d:/Side%20Projects/DocFrame/src/Apps.Sample/Apps.Sample.csproj)** | `Microsoft.NET.Sdk.Web` (`net10.0`) | Runnable Host & Sample Pilot App | References `Core`, `Persistence.PostgreSql`, and `Web` |
-| **[Framework.Tests](file:///d:/Side%20Projects/DocFrame/tests/Framework.Tests/Framework.Tests.csproj)** | `Microsoft.NET.Sdk` (`net10.0`) | Automated Tests & Benchmarks | References all 4 `src/` projects |
+| **[Framework.Core](file:///d:/Side%20Projects/FrogFrame/src/Framework.Core/Framework.Core.csproj)** | `Microsoft.NET.Sdk` (`net10.0`) | Pure Core Domain & Engine | **None** (Zero NuGet packages; pure BCL) |
+| **[Framework.Persistence.PostgreSql](file:///d:/Side%20Projects/FrogFrame/src/Framework.Persistence.PostgreSql/Framework.Persistence.PostgreSql.csproj)** | `Microsoft.NET.Sdk` (`net10.0`) | PostgreSQL Persistence & Analytics | `Npgsql` (10.0.3), `Microsoft.Extensions.Logging.Abstractions` |
+| **[Framework.Web](file:///d:/Side%20Projects/FrogFrame/src/Framework.Web/Framework.Web.csproj)** | `Microsoft.NET.Sdk.Razor` (`net10.0`) | Web UI (Blazor Server) & HTTP APIs | `BlazorBlueprint.Components` (4.1.0), ASP.NET Core shared framework |
+| **[Apps.Sample](file:///d:/Side%20Projects/FrogFrame/src/Apps.Sample/Apps.Sample.csproj)** | `Microsoft.NET.Sdk.Web` (`net10.0`) | Runnable Host & Sample Pilot App | References `Core`, `Persistence.PostgreSql`, and `Web` |
+| **[Framework.Tests](file:///d:/Side%20Projects/FrogFrame/tests/Framework.Tests/Framework.Tests.csproj)** | `Microsoft.NET.Sdk` (`net10.0`) | Automated Tests & Benchmarks | References all 4 `src/` projects |
 
 ---
 
 ## 5. Detailed Project Breakdown (`src/`, `tests/`, `deploy/`)
 
 ### 5.1 `Framework.Core` — Pure Domain & Metadata Engine
-Located at [src/Framework.Core](file:///d:/Side%20Projects/DocFrame/src/Framework.Core), this project contains all core business mechanics and persistence contracts. It has **zero web or database driver dependencies** and ships with complete in-memory transactional stores for fast unit testing and demo mode.
+Located at [src/Framework.Core](file:///d:/Side%20Projects/FrogFrame/src/Framework.Core), this project contains all core business mechanics and persistence contracts. It has **zero web or database driver dependencies** and ships with complete in-memory transactional stores for fast unit testing and demo mode.
 
 ```text
 src/Framework.Core/
@@ -219,26 +219,26 @@ src/Framework.Core/
 ```
 
 ### 5.2 `Framework.Persistence.PostgreSql` — Production Storage & Analytics Engine
-Located at [src/Framework.Persistence.PostgreSql](file:///d:/Side%20Projects/DocFrame/src/Framework.Persistence.PostgreSql), this project implements all `Framework.Core` storage contracts against PostgreSQL using parameterized raw SQL over `Npgsql`.
+Located at [src/Framework.Persistence.PostgreSql](file:///d:/Side%20Projects/FrogFrame/src/Framework.Persistence.PostgreSql), this project implements all `Framework.Core` storage contracts against PostgreSQL using parameterized raw SQL over `Npgsql`.
 
 ```text
 src/Framework.Persistence.PostgreSql/
 ├── Migrations/                  # Embedded SQL schema migrations (001_initial.sql .. 014_roles.sql)
 │   ├── 001_initial.sql          # Core tables: documents, series, audit, outbox, notifications, metadata_versions
-│   ├── 002_user_accounts.sql    # docframe_users (Identity accounts, password hash, security stamp, lockout)
-│   ├── 003_workflows.sql        # docframe_workflow_versions (versioned workflow definitions)
-│   ├── 004_files.sql            # docframe_files (binary image blobs, sha256, content_type)
-│   ├── 005_dashboards.sql       # docframe_dashboard_widgets, docframe_dashboards, docframe_reporting_sessions
-│   ├── 006_report_templates.sql # docframe_report_templates (.xlsx/.docx binary templates + JSON config)
-│   ├── 007_api_keys.sql         # docframe_api_keys (SHA-256 secret hash, scopes, allowed_ips)
-│   ├── 008_query_apis.sql       # docframe_query_apis (saved SQL endpoints, linked source widget/report)
-│   ├── 009_imports.sql          # docframe_imports (Excel/CSV import history & failed-row file blob)
+│   ├── 002_user_accounts.sql    # frogframe_users (Identity accounts, password hash, security stamp, lockout)
+│   ├── 003_workflows.sql        # FrogFrame_workflow_versions (versioned workflow definitions)
+│   ├── 004_files.sql            # FrogFrame_files (binary image blobs, sha256, content_type)
+│   ├── 005_dashboards.sql       # FrogFrame_dashboard_widgets, FrogFrame_dashboards, frogframe_reporting_sessions
+│   ├── 006_report_templates.sql # FrogFrame_report_templates (.xlsx/.docx binary templates + JSON config)
+│   ├── 007_api_keys.sql         # FrogFrame_api_keys (SHA-256 secret hash, scopes, allowed_ips)
+│   ├── 008_query_apis.sql       # FrogFrame_query_apis (saved SQL endpoints, linked source widget/report)
+│   ├── 009_imports.sql          # FrogFrame_imports (Excel/CSV import history & failed-row file blob)
 │   ├── 010_list_sort_index.sql  # Composite index (tenant_id, doctype, modified DESC, name)
 │   ├── 011_outbox_retention_index.sql # Partial index on processed_at for fast hourly retention cleanup
 │   ├── 012_AnalyticsLogicalReplica.sql # Reference script for logical replica setup
-│   ├── 013_navigation_menus.sql # docframe_navigation_menus + hierarchical seed items
-│   └── 014_roles.sql            # docframe_roles + seed roles (Administrator, User, HR, Purchasing)
-├── DashboardSqlExecutor.cs      # 6-layer secured read-only SQL executor (verifies docframe_ro privileges)
+│   ├── 013_navigation_menus.sql # FrogFrame_navigation_menus + hierarchical seed items
+│   └── 014_roles.sql            # frogframe_roles + seed roles (Administrator, User, HR, Purchasing)
+├── DashboardSqlExecutor.cs      # 6-layer secured read-only SQL executor (verifies frogframe_ro privileges)
 ├── DocumentIndexSync.cs         # Builds/drops CONCURRENTLY partial B-tree & pg_trgm GIN indexes from metadata
 ├── MigrationRunner.cs           # Advisory-locked (pg_advisory_lock) transactional SQL migration runner
 ├──OutboxRetentionCleaner.cs     # Background service pruning processed outbox messages older than RetentionDays
@@ -255,17 +255,17 @@ src/Framework.Persistence.PostgreSql/
 ├── PostgresStores.cs            # Core stores: PostgresUnitOfWork, DocumentStore, SeriesStore, AuditStore, OutboxStore
 ├── PostgresUserAccountStore.cs  # PostgreSQL store for user accounts
 ├── ReportingViewManager.cs      # Auto-generates & updates reporting.<doctype> and reporting.<doctype>_<child> SQL views
-└── ServiceCollectionExtensions.cs # AddDocFramePostgres() DI registration & startup initializer
+└── ServiceCollectionExtensions.cs # AddFrogFramePostgres() DI registration & startup initializer
 ```
 
 ### 5.3 `Framework.Web` — Blazor Blueprint UI, Identity & REST Adapters
-Located at [src/Framework.Web](file:///d:/Side%20Projects/DocFrame/src/Framework.Web), this Razor Class Library (RCL) hosts the interactive Blazor Server UI, authentication endpoints, OpenXML template engine, headless browser PDF generator, and generic HTTP APIs.
+Located at [src/Framework.Web](file:///d:/Side%20Projects/FrogFrame/src/Framework.Web), this Razor Class Library (RCL) hosts the interactive Blazor Server UI, authentication endpoints, OpenXML template engine, headless browser PDF generator, and generic HTTP APIs.
 
 ```text
 src/Framework.Web/
 ├── Api/
 │   ├── ApiMethods.cs            # IApiMethod contract, parameter validator, and /api/method dispatcher
-│   ├── DocFrameEndpoints.cs     # All /api/* minimal API endpoints, ProblemDetails mapper, rate limiter
+│   ├── FrogFrameEndpoints.cs     # All /api/* minimal API endpoints, ProblemDetails mapper, rate limiter
 │   └── OpenXmlReportEngine.cs   # Pure-BCL .xlsx & .docx template expander (tags, repeating rows, formula shifting)
 ├── Auth/
 │   ├── AccountEndpoints.cs      # /account/login, /account/logout, and /api/auth/{login,me} bearer token issuer
@@ -323,11 +323,11 @@ src/Framework.Web/
 │   ├── desk.css                 # Application layout, print A4 styles, org chart, and editor styles
 │   └── theme.css                # OKLCH light/dark shadcn/ui theme variables for Blazor Blueprint
 ├── HttpHardening.cs             # Production HTTP hardening: ForwardedHeaders, HSTS, security headers, RFC 7807 handler, sanitized health checks
-└── WebServiceCollectionExtensions.cs # AddDocFrameWeb() and MapDocFrame() setup
+└── WebServiceCollectionExtensions.cs # AddFrogFrameWeb() and MapFrogFrame() setup
 ```
 
 ### 5.4 `Apps.Sample` — Host Application & Procurement/HR Pilot
-Located at [src/Apps.Sample](file:///d:/Side%20Projects/DocFrame/src/Apps.Sample), this is the executable entry point that wires the framework together and implements the **Procurement (Pengajuan Pembelian)** and **HR (Karyawan & Departemen)** pilot modules.
+Located at [src/Apps.Sample](file:///d:/Side%20Projects/FrogFrame/src/Apps.Sample), this is the executable entry point that wires the framework together and implements the **Procurement (Pengajuan Pembelian)** and **HR (Karyawan & Departemen)** pilot modules.
 
 ```text
 src/Apps.Sample/
@@ -350,7 +350,7 @@ src/Apps.Sample/
 ```
 
 ### 5.5 `Framework.Tests` — Verification & Benchmark Suite
-Located at [tests/Framework.Tests](file:///d:/Side%20Projects/DocFrame/tests/Framework.Tests), this console test runner executes deterministic functional, security, and concurrency suites against both In-Memory and PostgreSQL backends, plus a 1,000,000-row synthetic benchmark.
+Located at [tests/Framework.Tests](file:///d:/Side%20Projects/FrogFrame/tests/Framework.Tests), this console test runner executes deterministic functional, security, and concurrency suites against both In-Memory and PostgreSQL backends, plus a 1,000,000-row synthetic benchmark.
 
 ```text
 tests/Framework.Tests/
@@ -374,21 +374,21 @@ tests/Framework.Tests/
 ## 6. Deep-Dive into Core Subsystems
 
 ### 6.1 Metadata Compiler, Versioning & Risk Classification
-- **Startup & Live Compilation**: `MetadataCompiler` ([Compiler.cs](file:///d:/Side%20Projects/DocFrame/src/Framework.Core/Metadata/Compiler.cs)) validates all `*.doctype.json` and `*.workflow.json` definitions before any version can become active. It checks:
+- **Startup & Live Compilation**: `MetadataCompiler` ([Compiler.cs](file:///d:/Side%20Projects/FrogFrame/src/Framework.Core/Metadata/Compiler.cs)) validates all `*.doctype.json` and `*.workflow.json` definitions before any version can become active. It checks:
   - Identifier syntax (`PascalCase` for DocTypes, `snake_case` for fields, avoiding reserved `StandardFields`).
   - Field types against `FieldTypeRegistry`, `Link` targets, and `Table` child DocTypes (`isChild: true`).
   - `addFromLookup` mappings (verifying `linkField` and mapped fields exist on both child and source DocTypes).
   - All expressions (`requiredWhen`, `visibleWhen`, `readOnlyWhen`, `compute`, `validationRules`, workflow transition `condition`) via the AST parser.
   - **Dependency Graph & Cycle Detection**: Builds a directed graph of `compute` field references and performs a topological sort so derived fields are evaluated in deterministic dependency order (e.g., child `amount = qty * rate` before parent `total = sum(items, 'amount')`). Circular dependencies are rejected at compile time.
 - **Immutable Versioning & Risk Diffing**:
-  - Published metadata snapshots are immutable (`CompiledDocType` / `CompiledWorkflow`) and stored in `docframe_metadata_versions` and `docframe_workflow_versions`.
+  - Published metadata snapshots are immutable (`CompiledDocType` / `CompiledWorkflow`) and stored in `FrogFrame_metadata_versions` and `FrogFrame_workflow_versions`.
   - Before publishing a new version, `MetadataDiffEngine` compares the candidate against the active version and classifies every change into one of three risk levels:
     - `Safe`: Adding an optional field, changing a label, adding a workflow state/transition.
     - `RequiresTransformation`: Changing a field's data type, making an existing field unconditionally required, removing a workflow transition.
     - `Risky`: Removing a field, narrowing `permLevel`, changing permission rules, removing a workflow state, or changing transition roles/conditions. Publishing a `Risky` diff requires explicit confirmation (`ConfirmRisky = true`).
 
 ### 6.2 Safe AST Expression Engine
-Implemented in [Expressions.cs](file:///d:/Side%20Projects/DocFrame/src/Framework.Core/Expressions/Expressions.cs), the expression engine provides spreadsheet-like reactivity without security risks:
+Implemented in [Expressions.cs](file:///d:/Side%20Projects/FrogFrame/src/Framework.Core/Expressions/Expressions.cs), the expression engine provides spreadsheet-like reactivity without security risks:
 - **Hard Resource Limits**: `MaxLength = 512` characters, `MaxDepth = 24` AST nodes, `MaxSteps = 1_000` evaluation steps per call.
 - **Supported Syntax**: Literals (`string`, `number`, `true`/`false`, `null`), field identifiers, dotted context paths (`user.id`, `user.department`, `user.tenant`), arithmetic (`+`, `-`, `*`, `/`), comparisons (`==`, `!=`, `<`, `<=`, `>`, `>=`), boolean logic (`&&`/`and`, `||`/`or`, `!`/`not`), and parenthesized grouping.
 - **Allowlisted Functions Only**:
@@ -403,10 +403,10 @@ Implemented in [Expressions.cs](file:///d:/Side%20Projects/DocFrame/src/Framewor
 ### 6.3 Identity, Master Roles & 3-Tier Permission Model
 1. **Authentication & Claims Mapping**:
    - Supports Cookie authentication (browser sessions), Bearer tokens (`/api/auth/login`), and Integration API Keys (`Authorization: ApiKey dfk_...`).
-   - `ClaimsUserMapper` ([AccountModels.cs](file:///d:/Side%20Projects/DocFrame/src/Framework.Core/Identity/AccountModels.cs)) is the single place that maps `ClaimsPrincipal` into an immutable `UserContext`.
+   - `ClaimsUserMapper` ([AccountModels.cs](file:///d:/Side%20Projects/FrogFrame/src/Framework.Core/Identity/AccountModels.cs)) is the single place that maps `ClaimsPrincipal` into an immutable `UserContext`.
    - `BlazorIdentityRevalidator` checks the user's `SecurityStamp` every 60 seconds so role changes, department transfers, or account deactivation take effect in open browser tabs without waiting for cookie expiration.
 2. **Master Roles (`IRoleStore`)**:
-   - Managed at `/admin/roles` and persisted in `docframe_roles` (`014_roles.sql`).
+   - Managed at `/admin/roles` and persisted in `frogframe_roles` (`014_roles.sql`).
    - System roles (`IsSystem = true`)—specifically **`Administrator`** (`System Manager`) and **`User`** (`Employee`)—are seeded automatically and **cannot be deleted**. Sample business roles (`HR`, `Purchasing`, `Manager`, `Finance`, `Procurement`) are also seeded.
    - `UserContext.IsAdmin` returns `true` when the user holds either `Administrator` or `System Manager`.
 3. **3-Tier Permission Evaluation (`PermissionService`)**:
@@ -419,7 +419,7 @@ Implemented in [Expressions.cs](file:///d:/Side%20Projects/DocFrame/src/Framewor
      - Fields default to `permLevel: 0`. Fields with `permLevel > 0` (e.g., procurement vendor evaluation notes at `permLevel: 1`) are only readable or writable if the user has a permission rule for that `permLevel`.
 
 ### 6.4 Document Lifecycle, Save Pipeline & Workflow Engine
-Every call to `InsertAsync` or `UpdateAsync` on `DocumentService` ([DocumentService.cs](file:///d:/Side%20Projects/DocFrame/src/Framework.Core/Documents/DocumentService.cs)) executes this exact 10-step pipeline:
+Every call to `InsertAsync` or `UpdateAsync` on `DocumentService` ([DocumentService.cs](file:///d:/Side%20Projects/FrogFrame/src/Framework.Core/Documents/DocumentService.cs)) executes this exact 10-step pipeline:
 1. **Authorize Action**: Verify `Create` or `Write` permission for the caller.
 2. **Load & Check Optimistic Concurrency**: For updates, verify tenant, check row scope (throwing `404` if out of scope), ensure `DocStatus == Draft`, and verify `expectedVersion == doc.Version` (throwing `409 Conflict` on mismatch).
 3. **Reject Mass-Assignment on Restricted Fields**: If the payload attempts to set any field whose `PermLevel` is not writable by the user, throw `PermissionDeniedException` (`403`).
@@ -432,7 +432,7 @@ Every call to `InsertAsync` or `UpdateAsync` on `DocumentService` ([DocumentServ
 10. **Execute `IAfterSave` Hooks**: Run post-commit notifications or in-process triggers.
 
 ### 6.5 Master Navigation Menu
-- Managed at `/admin/menus` ([MenuAdmin.razor](file:///d:/Side%20Projects/DocFrame/src/Framework.Web/Pages/MenuAdmin.razor)) and stored in `docframe_navigation_menus` (`013_navigation_menus.sql`) via `INavigationMenuStore`.
+- Managed at `/admin/menus` ([MenuAdmin.razor](file:///d:/Side%20Projects/FrogFrame/src/Framework.Web/Pages/MenuAdmin.razor)) and stored in `FrogFrame_navigation_menus` (`013_navigation_menus.sql`) via `INavigationMenuStore`.
 - Supports hierarchical parent/child groups (e.g., `Pengadaan`, `HR`, `Administrasi`) and leaf items with Lucide icons, sort order, active toggle, `RequiresReadOf` (DocType read check), `RequiredRole` (`System Manager` / `Administrator`), and `SystemKey` protection (`admin-menus` and `admin-roles` cannot be deleted).
 - `DeskLayout.razor` dynamically renders the sidebar from `INavigationMenuStore` and subscribes to `OnChanged` so menu edits or newly created DocTypes appear immediately across active sessions.
 
@@ -445,7 +445,7 @@ Every call to `InsertAsync` or `UpdateAsync` on `DocumentService` ([DocumentServ
   - `OrgTree.razor` renders interactive, collapsible organization charts (`/hr/struktur-organisasi`) for both departments and supervisor hierarchies, highlighting the logged-in user's position.
 
 ### 6.7 Secure File & Image Storage (`IFileStore`)
-- Supports `Image` fields (e.g., Employee photo, Product image) stored in `docframe_files` (`004_files.sql`).
+- Supports `Image` fields (e.g., Employee photo, Product image) stored in `FrogFrame_files` (`004_files.sql`).
 - **Magic-Byte Inspection**: `FileUploadValidator` inspects actual file header bytes (PNG, JPEG, WebP, GIF up to 2 MB) rather than trusting file extensions or `Content-Type`. SVG is explicitly blocked to prevent stored XSS.
 - **Strict Reference ACL (`GET /files/{id}`)**:
   - Unauthenticated or cross-tenant requests return `404`.
@@ -455,8 +455,8 @@ Every call to `InsertAsync` or `UpdateAsync` on `DocumentService` ([DocumentServ
 ### 6.8 Print Format Engine & Server-Side PDF Generation
 - Every document form displays **Cetak** (browser A4 preview at `/print/{DocType}/{Name}`) and **PDF** (`GET /api/data/{DocType}/{Name}/pdf`) buttons.
 - Both paths render the exact same Blazor component (`PrintDocument.razor`), ensuring 100% visual parity between browser print and server-generated PDF.
-- **Features**: Tenant letterhead (`Print:OrganizationName`), status stamp, formatted child tables, Indonesian currency-in-words (`Terbilang.Rupiah`), automatic electronic signature boxes extracted from workflow approval history (`docframe_audit`), non-final watermarks (`DRAFT`, `BELUM DISETUJUI`, `DITOLAK`), and a deterministic verification footer code.
-- **Zero-Dependency PDF Conversion**: `PrintService` invokes locally installed headless Chromium / Google Chrome / Microsoft Edge (`--headless --print-to-pdf`) in an isolated temporary profile with strict timeouts. Every print or PDF download is recorded in `docframe_audit`.
+- **Features**: Tenant letterhead (`Print:OrganizationName`), status stamp, formatted child tables, Indonesian currency-in-words (`Terbilang.Rupiah`), automatic electronic signature boxes extracted from workflow approval history (`FrogFrame_audit`), non-final watermarks (`DRAFT`, `BELUM DISETUJUI`, `DITOLAK`), and a deterministic verification footer code.
+- **Zero-Dependency PDF Conversion**: `PrintService` invokes locally installed headless Chromium / Google Chrome / Microsoft Edge (`--headless --print-to-pdf`) in an isolated temporary profile with strict timeouts. Every print or PDF download is recorded in `FrogFrame_audit`.
 
 ### 6.9 Excel/CSV Data Import Engine
 - Accessible via the **Impor** button on any DocType list page (`/app/{DocType}/import`) for users with `Create` permission.
@@ -467,10 +467,10 @@ Every call to `InsertAsync` or `UpdateAsync` on `DocumentService` ([DocumentServ
   4. **Commit (`SkipFailed` vs. `AllOrNothing`) & Failed-Row Workbook**: Creates documents with audit trail `"Dibuat lewat impor #imp_..."` and generates a downloadable `.xlsx` of failed rows with an appended `"Alasan"` (Reason) column for easy correction and re-upload.
 
 ### 6.10 SQL Dashboard, Saved Query APIs & OpenXML Excel/Word Reports
-All three analytical features share `DashboardSqlExecutor` ([DashboardSqlExecutor.cs](file:///d:/Side%20Projects/DocFrame/src/Framework.Persistence.PostgreSql/DashboardSqlExecutor.cs)) and query `reporting.<doctype>` views:
+All three analytical features share `DashboardSqlExecutor` ([DashboardSqlExecutor.cs](file:///d:/Side%20Projects/FrogFrame/src/Framework.Persistence.PostgreSql/DashboardSqlExecutor.cs)) and query `reporting.<doctype>` views:
 - **6-Layer Read-Only SQL Security**:
-  1. Dedicated `docframe_ro` connection (`ConnectionStrings:DocFrameReadOnly`) verified at runtime: must not be superuser, must have zero write privileges, and must be denied direct `SELECT` on `docframe_documents`, `docframe_users`, and `docframe_reporting_sessions`.
-  2. **Unhijackable Tenant Isolation**: Before running a query, the app registers `(backend_pid, tenant_id)` in `docframe_reporting_sessions` using the main connection. The `reporting.*` views filter by `tenant_id = pg_Temp/session lookup for pg_backend_pid()`. Because `docframe_ro` cannot modify `docframe_reporting_sessions`, SQL queries cannot spoof another tenant via `SET` or `set_config`.
+  1. Dedicated `frogframe_ro` connection (`ConnectionStrings:FrogFrameReadOnly`) verified at runtime: must not be superuser, must have zero write privileges, and must be denied direct `SELECT` on `frogframe_documents`, `frogframe_users`, and `frogframe_reporting_sessions`.
+  2. **Unhijackable Tenant Isolation**: Before running a query, the app registers `(backend_pid, tenant_id)` in `frogframe_reporting_sessions` using the main connection. The `reporting.*` views filter by `tenant_id = pg_Temp/session lookup for pg_backend_pid()`. Because `frogframe_ro` cannot modify `frogframe_reporting_sessions`, SQL queries cannot spoof another tenant via `SET` or `set_config`.
   3. `BEGIN TRANSACTION READ ONLY` + `SET LOCAL statement_timeout` (5s for dashboards/APIs, 30s for reports) + always `ROLLBACK`.
   4. Subquery row-limit wrapper: `SELECT * FROM (<user_sql>) AS __q LIMIT n`.
   5. Lexer-based `@Param` extraction (ignoring `@` inside string literals or comments) bound as strongly-typed native Npgsql parameters (`$1, $2`).
@@ -485,7 +485,7 @@ All three analytical features share `DashboardSqlExecutor` ([DashboardSqlExecuto
 
 ### 6.11 Integration API Keys & Custom `IApiMethod`
 - **Integration API Keys (`/admin/api-keys`)**:
-  - Format: `Authorization: ApiKey dfk_<id>.<secret>`. Only the SHA-256 hash of the 256-bit secret is stored (`docframe_api_keys`), verified in constant time.
+  - Format: `Authorization: ApiKey dfk_<id>.<secret>`. Only the SHA-256 hash of the 256-bit secret is stored (`FrogFrame_api_keys`), verified in constant time.
   - Tied to a user account (typically a passwordless **Integration Account**).
   - Supports granular wildcard scopes (`doc:{DocType}:{list|read|create|update|delete|action}`, `method:{name}`, `report:{id}`, `query:{slug}`), expiration dates, and IP/CIDR allowlists. Endpoints without an explicit scope annotation reject API keys (fail-closed).
 - **Custom `IApiMethod` (`/api/method/{name}`)**:
@@ -503,7 +503,7 @@ All three analytical features share `DashboardSqlExecutor` ([DashboardSqlExecuto
 ### 6.13 Background Scheduler & Distributed Job Execution
 - **Distributed Cron Architecture**:
   - `IScheduledJob`: Defines `Name`, `Schedule` (cron format or aliases like `@hourly`, `@daily`, `@every_15m`), and `ExecuteAsync(context, ct)`.
-  - `IDistributedLock` & `InMemoryDistributedLock`: Acquires non-blocking key leases (`docframe:scheduler:{job}:{tenant}`) to ensure that in multi-instance cluster deployments, jobs run exactly once per scheduled interval.
+  - `IDistributedLock` & `InMemoryDistributedLock`: Acquires non-blocking key leases (`FrogFrame:scheduler:{job}:{tenant}`) to ensure that in multi-instance cluster deployments, jobs run exactly once per scheduled interval.
   - `CronSchedule`: Comprehensive evaluator supporting standard 5-part cron syntax with duplicate execution suppression within the same minute.
   - `ScheduledJobContext`: Injects `TenantId`, `SystemUser` (`UserContext.System(tenant)` with `Administrator` and `System Manager` roles), `DocumentService`, and `IServiceProvider`.
   - `SchedulerWorker`: `BackgroundService` polling on a configurable interval (`Scheduler:PollIntervalSeconds`, default 15s) executing due jobs across all active tenants discovered via `ITenantProvider`.
@@ -523,29 +523,29 @@ All migrations live in `src/Framework.Persistence.PostgreSql/Migrations/` and ar
 
 | Migration File | Table(s) / Objects Created | Purpose |
 | :--- | :--- | :--- |
-| `001_initial.sql` | `docframe_documents`, `docframe_series`, `docframe_audit`, `docframe_outbox`, `docframe_notifications`, `docframe_metadata_versions` | Core operational tables (World 1), optimistic concurrency, audit log, transactional outbox, and versioned DocType metadata. |
-| `002_user_accounts.sql` | `docframe_users` | User accounts, PBKDF2 password hashes, security stamps, lockout counters, tenant, department, employee link, and roles JSONB. |
-| `003_workflows.sql` | `docframe_workflow_versions` | Immutable published versions of workflows. |
-| `004_files.sql` | `docframe_files` | Uploaded binary files (images), SHA-256 hash, MIME type, uploader, and tenant. |
-| `005_dashboards.sql` | `docframe_dashboard_widgets`, `docframe_dashboards`, `docframe_reporting_sessions`, ` SCHEMA reporting` | SQL dashboard widgets, per-tenant dashboard layout, PID-keyed tenant session isolation table, and `reporting` schema. |
-| `006_report_templates.sql` | `docframe_report_templates` | OpenXML `.xlsx` and `.docx` binary templates and JSON query/parameter configurations. |
-| `007_api_keys.sql` | `docframe_api_keys` | Integration API keys (`dfk_...`), SHA-256 secret hashes, scopes, IP allowlists, and last-used tracking. |
-| `008_query_apis.sql` | `docframe_query_apis` | Saved SQL Query API definitions (`/api/query/{slug}`) and links to source widgets/reports. |
-| `009_imports.sql` | `docframe_imports` | Excel/CSV import history logs and downloadable failed-row `.xlsx` blobs. |
-| `010_list_sort_index.sql` | `ix_docframe_documents_list_default` | Composite index `(tenant_id, doctype, modified DESC, name)` for sub-10ms default list pagination. |
-| `011_outbox_retention_index.sql` | `ix_docframe_outbox_processed_at` | Partial index on `processed_at` for hourly outbox retention cleanup (`pg_trgm` extension also enabled). |
+| `001_initial.sql` | `frogframe_documents`, `FrogFrame_series`, `FrogFrame_audit`, `FrogFrame_outbox`, `FrogFrame_notifications`, `FrogFrame_metadata_versions` | Core operational tables (World 1), optimistic concurrency, audit log, transactional outbox, and versioned DocType metadata. |
+| `002_user_accounts.sql` | `frogframe_users` | User accounts, PBKDF2 password hashes, security stamps, lockout counters, tenant, department, employee link, and roles JSONB. |
+| `003_workflows.sql` | `FrogFrame_workflow_versions` | Immutable published versions of workflows. |
+| `004_files.sql` | `FrogFrame_files` | Uploaded binary files (images), SHA-256 hash, MIME type, uploader, and tenant. |
+| `005_dashboards.sql` | `FrogFrame_dashboard_widgets`, `FrogFrame_dashboards`, `frogframe_reporting_sessions`, ` SCHEMA reporting` | SQL dashboard widgets, per-tenant dashboard layout, PID-keyed tenant session isolation table, and `reporting` schema. |
+| `006_report_templates.sql` | `FrogFrame_report_templates` | OpenXML `.xlsx` and `.docx` binary templates and JSON query/parameter configurations. |
+| `007_api_keys.sql` | `FrogFrame_api_keys` | Integration API keys (`dfk_...`), SHA-256 secret hashes, scopes, IP allowlists, and last-used tracking. |
+| `008_query_apis.sql` | `FrogFrame_query_apis` | Saved SQL Query API definitions (`/api/query/{slug}`) and links to source widgets/reports. |
+| `009_imports.sql` | `FrogFrame_imports` | Excel/CSV import history logs and downloadable failed-row `.xlsx` blobs. |
+| `010_list_sort_index.sql` | `ix_frogframe_documents_list_default` | Composite index `(tenant_id, doctype, modified DESC, name)` for sub-10ms default list pagination. |
+| `011_outbox_retention_index.sql` | `ix_FrogFrame_outbox_processed_at` | Partial index on `processed_at` for hourly outbox retention cleanup (`pg_trgm` extension also enabled). |
 | `012_AnalyticsLogicalReplica.sql` | *(Comments / Reference)* | Documentation pointer to `deploy/sql/analytics-logical-replica.sql`. |
-| `013_navigation_menus.sql` | `docframe_navigation_menus` | Master Navigation Menu hierarchy with seeded parent groups and menu items. |
-| `014_roles.sql` | `docframe_roles` | Master Roles table seeded with mandatory `Administrator` & `User` (`is_system = true`) plus `HR`, `Purchasing`, `Manager`, `Finance`, `Procurement`. |
-| `015_modules_and_menu_groups.sql` | `docframe_navigation_modules`, `docframe_navigation_menu_groups` | Dynamic navigation modules and parent menu groups. |
-| `016_user_avatar.sql` | `docframe_users` avatar column | User avatar image reference support. |
-| `017_workflow_doctype_optional.sql` | `docframe_workflow_versions` | Makes doctype column nullable for standalone workflow templates. |
-| `018_scheduled_jobs.sql` | `docframe_scheduled_job_runs` | Persistent scheduled job run audit trail, duration, status, and error logs with fast lookup indexes. |
-| `019_data_protection_keys.sql` | `docframe_data_protection_keys` | Persisted ASP.NET Core Data Protection XML key ring for persistent session cookies across deployments. |
+| `013_navigation_menus.sql` | `FrogFrame_navigation_menus` | Master Navigation Menu hierarchy with seeded parent groups and menu items. |
+| `014_roles.sql` | `frogframe_roles` | Master Roles table seeded with mandatory `Administrator` & `User` (`is_system = true`) plus `HR`, `Purchasing`, `Manager`, `Finance`, `Procurement`. |
+| `015_modules_and_menu_groups.sql` | `FrogFrame_navigation_modules`, `FrogFrame_navigation_menu_groups` | Dynamic navigation modules and parent menu groups. |
+| `016_user_avatar.sql` | `frogframe_users` avatar column | User avatar image reference support. |
+| `017_workflow_doctype_optional.sql` | `FrogFrame_workflow_versions` | Makes doctype column nullable for standalone workflow templates. |
+| `018_scheduled_jobs.sql` | `FrogFrame_scheduled_job_runs` | Persistent scheduled job run audit trail, duration, status, and error logs with fast lookup indexes. |
+| `019_data_protection_keys.sql` | `FrogFrame_data_protection_keys` | Persisted ASP.NET Core Data Protection XML key ring for persistent session cookies across deployments. |
 
 **Auxiliary DBA SQL Scripts (`deploy/sql/`)**:
-- [reporting-readonly-user.sql](file:///d:/Side%20Projects/DocFrame/deploy/sql/reporting-readonly-user.sql): Creates the `docframe_ro` PostgreSQL role with `SELECT` access restricted exclusively to the `reporting` schema and `reporting_current_tenant()` function.
-- [analytics-logical-replica.sql](file:///d:/Side%20Projects/DocFrame/deploy/sql/analytics-logical-replica.sql): Setup guide for PostgreSQL Logical Replication (`CREATE PUBLICATION` / `CREATE SUBSCRIPTION`) when offloading World 2 analytical queries to a dedicated analytics database (`ConnectionStrings:DocFrameAnalytics`).
+- [reporting-readonly-user.sql](file:///d:/Side%20Projects/FrogFrame/deploy/sql/reporting-readonly-user.sql): Creates the `frogframe_ro` PostgreSQL role with `SELECT` access restricted exclusively to the `reporting` schema and `reporting_current_tenant()` function.
+- [analytics-logical-replica.sql](file:///d:/Side%20Projects/FrogFrame/deploy/sql/analytics-logical-replica.sql): Setup guide for PostgreSQL Logical Replication (`CREATE PUBLICATION` / `CREATE SUBSCRIPTION`) when offloading World 2 analytical queries to a dedicated analytics database (`ConnectionStrings:FrogFrameAnalytics`).
 
 ---
 
@@ -582,7 +582,7 @@ All migrations live in `src/Framework.Persistence.PostgreSql/Migrations/` and ar
 | `/admin/query-apis` | `QueryApiAdmin.razor` | `Administrator` / `System Manager` | Saved SQL Query API management |
 | `/admin/outbox` | `OutboxAdmin.razor` | `Administrator` / `System Manager` | Outbox queue & dead-letter diagnostics |
 
-### 8.2 HTTP REST API Endpoints (`DocFrameEndpoints.cs`)
+### 8.2 HTTP REST API Endpoints (`FrogFrameEndpoints.cs`)
 
 > **CSRF & Auth Rule**: `GET` endpoints accept Bearer tokens, Integration API Keys, or browser cookies. State-changing requests (`POST`, `PATCH`, `DELETE`) **require** `Authorization: Bearer <token>` or `Authorization: ApiKey dfk_...` (browser cookies are rejected with `403 Forbidden` to prevent CSRF).
 
@@ -620,11 +620,11 @@ All migrations live in `src/Framework.Persistence.PostgreSql/Migrations/` and ar
 | Key | Default | Description |
 | :--- | :--- | :--- |
 | `Persistence:Provider` | `"InMemory"` | `"InMemory"` (demo/test) or `"PostgreSql"` (pilot/production) |
-| `ConnectionStrings:DocFrame` | `Host=localhost;...` | Primary read-write PostgreSQL connection (World 1) |
-| `ConnectionStrings:DocFrameReadOnly` | `""` | Read-only PostgreSQL connection (`docframe_ro`) for SQL Dashboards, OpenXML Reports, and Query APIs |
-| `ConnectionStrings:DocFrameAnalytics` | `""` | Optional logical replica connection string for World 2 analytical queries |
+| `ConnectionStrings:FrogFrame` | `Host=localhost;...` | Primary read-write PostgreSQL connection (World 1) |
+| `ConnectionStrings:FrogFrameReadOnly` | `""` | Read-only PostgreSQL connection (`frogframe_ro`) for SQL Dashboards, OpenXML Reports, and Query APIs |
+| `ConnectionStrings:FrogFrameAnalytics` | `""` | Optional logical replica connection string for World 2 analytical queries |
 | `Demo:SeedData` | `false` (`true` in Dev) | Seeds 8 demo accounts and sample Procurement/HR documents when DB is empty |
-| `Demo:Password` | `"DocFrame#2026"` | Password for seeded demo accounts |
+| `Demo:Password` | `"FrogFrame#2026"` | Password for seeded demo accounts |
 | `Bootstrap:AdminUserName` | `""` | Production bootstrap admin username (used only when 0 accounts exist) |
 | `Bootstrap:AdminPassword` | `""` | Production bootstrap admin password (min 10 chars, upper/lower/digit) |
 | `Bootstrap:TenantId` | `"default"` | Tenant ID assigned to the bootstrap admin account |
@@ -651,7 +651,7 @@ All migrations live in `src/Framework.Persistence.PostgreSql/Migrations/` and ar
   dotnet run --project tests/Framework.Tests
   ```
 - **Update & Redeploy Docker Container (`http://localhost:5080`)**:
-  Because the Docker container runs a compiled release image (`Dockerfile` copies from `./publish`), editing source code on the host requires publishing and rebuilding the container via [redeploy.ps1](file:///d:/Side%20Projects/DocFrame/redeploy.ps1):
+  Because the Docker container runs a compiled release image (`Dockerfile` copies from `./publish`), editing source code on the host requires publishing and rebuilding the container via [redeploy.ps1](file:///d:/Side%20Projects/FrogFrame/redeploy.ps1):
   ```powershell
   .\redeploy.ps1
   ```
@@ -659,11 +659,11 @@ All migrations live in `src/Framework.Persistence.PostgreSql/Migrations/` and ar
 
 ---
 
-## 10. Developer Playbook: How to Extend DocFrame
+## 10. Developer Playbook: How to Extend FrogFrame
 
 ### 10.1 Adding a New DocType
 1. **Via UI (Recommended for System Managers)**:
-   Navigate to `/admin/metadata/new`, enter the title and module, choose a template (*Dengan persetujuan*, *Sederhana*, or *Kosong*), design fields in `/admin/metadata/{DocType}/editor`, preview changes, and click **Publikasikan**. The DocType is immediately saved to `docframe_metadata_versions`, registered in the Master Navigation Menu, indexed by `DocumentIndexSync`, and exposed as `reporting.<doctype>`.
+   Navigate to `/admin/metadata/new`, enter the title and module, choose a template (*Dengan persetujuan*, *Sederhana*, or *Kosong*), design fields in `/admin/metadata/{DocType}/editor`, preview changes, and click **Publikasikan**. The DocType is immediately saved to `FrogFrame_metadata_versions`, registered in the Master Navigation Menu, indexed by `DocumentIndexSync`, and exposed as `reporting.<doctype>`.
 2. **Via JSON File (For Version-Controlled Base Modules)**:
    Create `src/Apps.Sample/Metadata/<Name>.doctype.json` (and optional `<Name>Approval.workflow.json`). On startup, `FileMetadataLoader` compiles and publishes any file whose `version` is newer than the database version.
 

@@ -1,6 +1,6 @@
--- DocFrame: template laporan Excel/Word. Konfigurasi (query, parameter, format, role) sebagai JSON;
+-- FrogFrame: template laporan Excel/Word. Konfigurasi (query, parameter, format, role) sebagai JSON;
 -- file template (.xlsx/.docx, maks. 5 MB) disimpan di kolom bytea agar ikut backup dan tersedia di semua instance.
-CREATE TABLE docframe_report_templates (
+CREATE TABLE frogframe_report_templates (
     tenant_id          text        NOT NULL,
     id                 text        NOT NULL,
     name               text        NOT NULL,

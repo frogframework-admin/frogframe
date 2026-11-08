@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    DocFrame Production PostgreSQL Restore Script (PowerShell)
+    FrogFrame Production PostgreSQL Restore Script (PowerShell)
 .DESCRIPTION
     Restores a compressed, custom-format (-Fc) pg_dump backup in a single transaction.
     Exits with a non-zero code if any step fails.
@@ -14,7 +14,7 @@ param(
     [string]$Database = "",
     [string]$User = "",
     [string]$Password = "",
-    [string]$Container = "docframe-postgres",
+    [string]$Container = "frogframe-postgres",
     [switch]$Force
 )
 
@@ -30,8 +30,8 @@ function Invoke-Native {
 
 if (-not $HostName) { $HostName = if ($env:PGHOST) { $env:PGHOST } else { "127.0.0.1" } }
 if ($Port -le 0) { $Port = if ($env:PGPORT) { [int]$env:PGPORT } else { 5432 } }
-if (-not $Database) { $Database = if ($env:PGDATABASE) { $env:PGDATABASE } else { "docframe" } }
-if (-not $User) { $User = if ($env:PGUSER) { $env:PGUSER } else { "docframe" } }
+if (-not $Database) { $Database = if ($env:PGDATABASE) { $env:PGDATABASE } else { "FrogFrame" } }
+if (-not $User) { $User = if ($env:PGUSER) { $env:PGUSER } else { "FrogFrame" } }
 if (-not $Password) {
     if (-not $env:PGPASSWORD) { throw "Set PGPASSWORD or pass -Password." }
     $Password = $env:PGPASSWORD

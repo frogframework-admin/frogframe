@@ -10,7 +10,7 @@ sealed partial class Tests
     public async Task HttpHardening_SecurityHeadersMiddleware_menambahkan_semua_header_keamanan()
     {
         var context = new DefaultHttpContext();
-        var middleware = new DocFrameSecurityHeadersMiddleware(_ => Task.CompletedTask);
+        var middleware = new FrogFrameSecurityHeadersMiddleware(_ => Task.CompletedTask);
 
         await middleware.InvokeAsync(context);
 

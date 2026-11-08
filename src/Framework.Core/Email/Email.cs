@@ -33,8 +33,8 @@ public sealed class SmtpEmailOptions
     public bool EnableSsl { get; set; } = false;
     public string? UserName { get; set; }
     public string? Password { get; set; }
-    public string FromAddress { get; set; } = "noreply@docframe.local";
-    public string? FromDisplayName { get; set; } = "DocFrame";
+    public string FromAddress { get; set; } = "noreply@frogframe.local";
+    public string? FromDisplayName { get; set; } = "FrogFrame";
 }
 
 public sealed class SmtpEmailSender(SmtpEmailOptions options) : IEmailSender

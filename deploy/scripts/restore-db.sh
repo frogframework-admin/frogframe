@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# DocFrame Production PostgreSQL Restore Script
+# FrogFrame Production PostgreSQL Restore Script
 # Restores a compressed, custom-format (-Fc) dump with safety checks.
 # Exits non-zero if pg_restore reports any error.
 # ==============================================================================
@@ -9,8 +9,8 @@ set -euo pipefail
 BACKUP_FILE="${1:-}"
 PGHOST="${PGHOST:-localhost}"
 PGPORT="${PGPORT:-5432}"
-PGDATABASE="${PGDATABASE:-docframe}"
-PGUSER="${PGUSER:-docframe}"
+PGDATABASE="${PGDATABASE:-FrogFrame}"
+PGUSER="${PGUSER:-FrogFrame}"
 FORCE="${FORCE:-false}"
 
 if [ -z "${BACKUP_FILE}" ]; then
@@ -38,7 +38,7 @@ if [ "${FORCE}" != "true" ] && [ "${2:-}" != "--force" ]; then
   fi
 fi
 
-LOG_PREFIX="[$(date +'%Y-%m-%d %H:%M:%S')] [DocFrame Restore]"
+LOG_PREFIX="[$(date +'%Y-%m-%d %H:%M:%S')] [FrogFrame Restore]"
 echo "${LOG_PREFIX} Restoring database '${PGDATABASE}' from '${BACKUP_FILE}'..."
 
 # --single-transaction: all-or-nothing; a failure leaves the database unchanged.

@@ -1,4 +1,4 @@
--- DocFrame: add avatar_id column to docframe_users for user profile photos.
-ALTER TABLE docframe_users
+-- FrogFrame: add avatar_id column to frogframe_users for user profile photos.
+ALTER TABLE frogframe_users
     ADD COLUMN IF NOT EXISTS avatar_id text;
 

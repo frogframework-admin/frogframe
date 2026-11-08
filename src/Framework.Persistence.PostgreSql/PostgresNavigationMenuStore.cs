@@ -74,8 +74,8 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
     {
         await EnsureSeededOnceAsync(tenantId, ct);
         var sql = onlyActive
-            ? $"SELECT {ModuleCols} FROM docframe_navigation_modules WHERE tenant_id = $1 AND is_active = true ORDER BY sort_order, name"
-            : $"SELECT {ModuleCols} FROM docframe_navigation_modules WHERE tenant_id = $1 ORDER BY sort_order, name";
+            ? $"SELECT {ModuleCols} FROM frogframe_navigation_modules WHERE tenant_id = $1 AND is_active = true ORDER BY sort_order, name"
+            : $"SELECT {ModuleCols} FROM frogframe_navigation_modules WHERE tenant_id = $1 ORDER BY sort_order, name";
 
         await using var cmd = db.CreateCommand(sql);
         cmd.Parameters.AddWithValue(tenantId);
@@ -88,7 +88,7 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
 
     public async Task<NavigationModule?> GetModuleAsync(string id, string tenantId, CancellationToken ct = default)
     {
-        await using var cmd = db.CreateCommand($"SELECT {ModuleCols} FROM docframe_navigation_modules WHERE id = $1 AND tenant_id = $2");
+        await using var cmd = db.CreateCommand($"SELECT {ModuleCols} FROM frogframe_navigation_modules WHERE id = $1 AND tenant_id = $2");
         cmd.Parameters.AddWithValue(id);
         cmd.Parameters.AddWithValue(tenantId);
         await using var r = await cmd.ExecuteReaderAsync(ct);
@@ -103,7 +103,7 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
         module.Code = NavigationModule.NormalizeCode(module.Code);
 
         // Kode adalah kunci referensi DocType: setelah tersimpan tidak boleh berubah.
-        await using (var cur = db.CreateCommand("SELECT code FROM docframe_navigation_modules WHERE id = $1 AND tenant_id = $2"))
+        await using (var cur = db.CreateCommand("SELECT code FROM frogframe_navigation_modules WHERE id = $1 AND tenant_id = $2"))
         {
             cur.Parameters.AddWithValue(module.Id); cur.Parameters.AddWithValue(module.TenantId);
             if (await cur.ExecuteScalarAsync(ct) is string existingCode && existingCode.Length > 0 && existingCode != module.Code)
@@ -111,7 +111,7 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
         }
 
         await using var cmd = db.CreateCommand(
-            $"INSERT INTO docframe_navigation_modules ({ModuleCols}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) " +
+            $"INSERT INTO frogframe_navigation_modules ({ModuleCols}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) " +
             "ON CONFLICT (id) DO UPDATE SET name=$3, description=$4, icon=$5, sort_order=$6, allowed_roles=$7, is_system=$8, is_active=$9, updated_at=$11, code=$12");
 
         cmd.Parameters.AddWithValue(module.Id);
@@ -141,7 +141,7 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
         if (mod is null) return;
         if (mod.IsSystem) throw new InvalidOperationException("Modul sistem tidak dapat dihapus.");
 
-        await using (var chk = db.CreateCommand("SELECT COUNT(1) FROM docframe_navigation_menu_groups WHERE tenant_id = $1 AND module_id = $2"))
+        await using (var chk = db.CreateCommand("SELECT COUNT(1) FROM frogframe_navigation_menu_groups WHERE tenant_id = $1 AND module_id = $2"))
         {
             chk.Parameters.AddWithValue(tenantId);
             chk.Parameters.AddWithValue(id);
@@ -150,7 +150,7 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
                 throw new InvalidOperationException("Modul masih memiliki group menu. Pindahkan atau hapus group menu terlebih dahulu.");
         }
 
-        await using var cmd = db.CreateCommand("DELETE FROM docframe_navigation_modules WHERE id = $1 AND tenant_id = $2");
+        await using var cmd = db.CreateCommand("DELETE FROM frogframe_navigation_modules WHERE id = $1 AND tenant_id = $2");
         cmd.Parameters.AddWithValue(id);
         cmd.Parameters.AddWithValue(tenantId);
         await cmd.ExecuteNonQueryAsync(ct);
@@ -161,8 +161,8 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
     {
         await EnsureSeededOnceAsync(tenantId, ct);
         var sql = onlyActive
-            ? $"SELECT {GroupCols} FROM docframe_navigation_menu_groups WHERE tenant_id = $1 AND is_active = true ORDER BY sort_order, name"
-            : $"SELECT {GroupCols} FROM docframe_navigation_menu_groups WHERE tenant_id = $1 ORDER BY sort_order, name";
+            ? $"SELECT {GroupCols} FROM frogframe_navigation_menu_groups WHERE tenant_id = $1 AND is_active = true ORDER BY sort_order, name"
+            : $"SELECT {GroupCols} FROM frogframe_navigation_menu_groups WHERE tenant_id = $1 ORDER BY sort_order, name";
 
         await using var cmd = db.CreateCommand(sql);
         cmd.Parameters.AddWithValue(tenantId);
@@ -175,7 +175,7 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
 
     public async Task<NavigationMenuGroup?> GetGroupAsync(string id, string tenantId, CancellationToken ct = default)
     {
-        await using var cmd = db.CreateCommand($"SELECT {GroupCols} FROM docframe_navigation_menu_groups WHERE id = $1 AND tenant_id = $2");
+        await using var cmd = db.CreateCommand($"SELECT {GroupCols} FROM frogframe_navigation_menu_groups WHERE id = $1 AND tenant_id = $2");
         cmd.Parameters.AddWithValue(id);
         cmd.Parameters.AddWithValue(tenantId);
         await using var r = await cmd.ExecuteReaderAsync(ct);
@@ -189,7 +189,7 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
         if (string.IsNullOrWhiteSpace(group.Id)) group.Id = Guid.NewGuid().ToString("N");
 
         await using (var cmd = db.CreateCommand(
-            $"INSERT INTO docframe_navigation_menu_groups ({GroupCols}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) " +
+            $"INSERT INTO frogframe_navigation_menu_groups ({GroupCols}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) " +
             "ON CONFLICT (id) DO UPDATE SET module_id=$3, name=$4, icon=$5, sort_order=$6, is_system=$7, is_active=$8, updated_at=$10"))
         {
             cmd.Parameters.AddWithValue(group.Id);
@@ -206,7 +206,7 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
         }
 
         // Keep group_name synchronized on child menu items referencing this group_id.
-        await using (var syncCmd = db.CreateCommand("UPDATE docframe_navigation_menus SET group_name = $1, updated_at = $2 WHERE tenant_id = $3 AND group_id = $4"))
+        await using (var syncCmd = db.CreateCommand("UPDATE frogframe_navigation_menus SET group_name = $1, updated_at = $2 WHERE tenant_id = $3 AND group_id = $4"))
         {
             syncCmd.Parameters.AddWithValue(group.Name);
             syncCmd.Parameters.AddWithValue(group.UpdatedAt);
@@ -224,7 +224,7 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
         if (grp is null) return;
         if (grp.IsSystem) throw new InvalidOperationException("Group menu sistem tidak dapat dihapus.");
 
-        await using (var chk = db.CreateCommand("SELECT COUNT(1) FROM docframe_navigation_menus WHERE tenant_id = $1 AND (group_id = $2 OR LOWER(group_name) = LOWER($3))"))
+        await using (var chk = db.CreateCommand("SELECT COUNT(1) FROM frogframe_navigation_menus WHERE tenant_id = $1 AND (group_id = $2 OR LOWER(group_name) = LOWER($3))"))
         {
             chk.Parameters.AddWithValue(tenantId);
             chk.Parameters.AddWithValue(id);
@@ -234,7 +234,7 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
                 throw new InvalidOperationException("Group menu masih memiliki item menu. Pindahkan atau hapus item menu terlebih dahulu.");
         }
 
-        await using var cmd = db.CreateCommand("DELETE FROM docframe_navigation_menu_groups WHERE id = $1 AND tenant_id = $2");
+        await using var cmd = db.CreateCommand("DELETE FROM frogframe_navigation_menu_groups WHERE id = $1 AND tenant_id = $2");
         cmd.Parameters.AddWithValue(id);
         cmd.Parameters.AddWithValue(tenantId);
         await cmd.ExecuteNonQueryAsync(ct);
@@ -245,8 +245,8 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
     {
         await EnsureSeededOnceAsync(tenantId, ct);
         var sql = onlyActive
-            ? $"SELECT {MenuCols} FROM docframe_navigation_menus WHERE tenant_id = $1 AND is_active = true ORDER BY sort_order, title"
-            : $"SELECT {MenuCols} FROM docframe_navigation_menus WHERE tenant_id = $1 ORDER BY sort_order, title";
+            ? $"SELECT {MenuCols} FROM frogframe_navigation_menus WHERE tenant_id = $1 AND is_active = true ORDER BY sort_order, title"
+            : $"SELECT {MenuCols} FROM frogframe_navigation_menus WHERE tenant_id = $1 ORDER BY sort_order, title";
 
         await using var cmd = db.CreateCommand(sql);
         cmd.Parameters.AddWithValue(tenantId);
@@ -259,7 +259,7 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
 
     public async Task<NavigationMenuItem?> GetAsync(string id, string tenantId, CancellationToken ct = default)
     {
-        await using var cmd = db.CreateCommand($"SELECT {MenuCols} FROM docframe_navigation_menus WHERE id = $1 AND tenant_id = $2");
+        await using var cmd = db.CreateCommand($"SELECT {MenuCols} FROM frogframe_navigation_menus WHERE id = $1 AND tenant_id = $2");
         cmd.Parameters.AddWithValue(id);
         cmd.Parameters.AddWithValue(tenantId);
         await using var r = await cmd.ExecuteReaderAsync(ct);
@@ -279,7 +279,7 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
         }
 
         await using var cmd = db.CreateCommand(
-            $"INSERT INTO docframe_navigation_menus ({MenuCols}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) " +
+            $"INSERT INTO frogframe_navigation_menus ({MenuCols}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) " +
             "ON CONFLICT (id) DO UPDATE SET title=$3, href=$4, icon=$5, group_id=$6, group_name=$7, sort_order=$8, allowed_roles=$9, is_system=$10, is_active=$11, badge_key=$12, updated_at=$14");
 
         cmd.Parameters.AddWithValue(item.Id);
@@ -307,7 +307,7 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
         if (item is null) return;
         if (item.IsSystem) throw new InvalidOperationException("Menu sistem tidak dapat dihapus.");
 
-        await using var cmd = db.CreateCommand("DELETE FROM docframe_navigation_menus WHERE id = $1 AND tenant_id = $2");
+        await using var cmd = db.CreateCommand("DELETE FROM frogframe_navigation_menus WHERE id = $1 AND tenant_id = $2");
         cmd.Parameters.AddWithValue(id);
         cmd.Parameters.AddWithValue(tenantId);
         await cmd.ExecuteNonQueryAsync(ct);
@@ -322,7 +322,7 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
         // 1. Seed default modules
         var existingModIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var existingModNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        await using (var chkMod = db.CreateCommand("SELECT id, name FROM docframe_navigation_modules WHERE tenant_id = $1"))
+        await using (var chkMod = db.CreateCommand("SELECT id, name FROM frogframe_navigation_modules WHERE tenant_id = $1"))
         {
             chkMod.Parameters.AddWithValue(tenantId);
             await using var r = await chkMod.ExecuteReaderAsync(ct);
@@ -347,7 +347,7 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
         // 2. Seed default menu groups
         var existingGrpIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var groupIdByName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        await using (var chkGrp = db.CreateCommand("SELECT id, name FROM docframe_navigation_menu_groups WHERE tenant_id = $1"))
+        await using (var chkGrp = db.CreateCommand("SELECT id, name FROM frogframe_navigation_menu_groups WHERE tenant_id = $1"))
         {
             chkGrp.Parameters.AddWithValue(tenantId);
             await using var r = await chkGrp.ExecuteReaderAsync(ct);
@@ -373,7 +373,7 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
 
         // 3. Seed default menu items
         var existingHrefs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        await using (var chkMenu = db.CreateCommand("SELECT href FROM docframe_navigation_menus WHERE tenant_id = $1"))
+        await using (var chkMenu = db.CreateCommand("SELECT href FROM frogframe_navigation_menus WHERE tenant_id = $1"))
         {
             chkMenu.Parameters.AddWithValue(tenantId);
             await using var r = await chkMenu.ExecuteReaderAsync(ct);
@@ -396,9 +396,9 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
 
         // 4. Backfill group_id on any existing menu items where group_id is NULL
         await using (var backfillCmd = db.CreateCommand(
-            "UPDATE docframe_navigation_menus m " +
+            "UPDATE frogframe_navigation_menus m " +
             "SET group_id = g.id " +
-            "FROM docframe_navigation_menu_groups g " +
+            "FROM frogframe_navigation_menu_groups g " +
             "WHERE m.tenant_id = $1 AND g.tenant_id = $1 AND (m.group_id IS NULL OR m.group_id = '') AND LOWER(m.group_name) = LOWER(g.name)"))
         {
             backfillCmd.Parameters.AddWithValue(tenantId);
@@ -408,7 +408,7 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
 
         // 5. Move report_templates to System group if it is still in the old Reports group, and update href/roles
         await using (var updateReportCmd = db.CreateCommand(
-            "UPDATE docframe_navigation_menus " +
+            "UPDATE frogframe_navigation_menus " +
             "SET group_id = $2, group_name = 'System', href = 'admin/report-templates', allowed_roles = $3, sort_order = 115 " +
             "WHERE tenant_id = $1 AND (id = $4 OR href = 'report-templates' OR href = 'admin/report-templates') AND (group_name <> 'System' OR href <> 'admin/report-templates')"))
         {
@@ -422,7 +422,7 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
 
         // 6. Move/update any legacy widgets menu item to System group with href admin/widgets, and purge old analytic widgets menus
         await using (var updateWidgetCmd = db.CreateCommand(
-            "UPDATE docframe_navigation_menus " +
+            "UPDATE frogframe_navigation_menus " +
             "SET group_id = $2, group_name = 'System', href = 'admin/widgets', icon = 'layout-grid', allowed_roles = $3, sort_order = 118 " +
             "WHERE tenant_id = $1 AND (id = $4 OR href = 'dashboard/widgets' OR href = 'widgets') AND (group_name <> 'System' OR href <> 'admin/widgets')"))
         {
@@ -435,7 +435,7 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
         }
 
         await using (var delOldWidgetCmd = db.CreateCommand(
-            "DELETE FROM docframe_navigation_menus WHERE tenant_id = $1 AND (href = 'dashboard/widgets' OR href = 'widgets') AND id <> $2"))
+            "DELETE FROM frogframe_navigation_menus WHERE tenant_id = $1 AND (href = 'dashboard/widgets' OR href = 'widgets') AND id <> $2"))
         {
             delOldWidgetCmd.Parameters.AddWithValue(tenantId);
             delOldWidgetCmd.Parameters.AddWithValue($"menu_{tenantId}_widgets");
@@ -450,7 +450,7 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
     private async Task SaveModuleInternalAsync(NavigationModule module, CancellationToken ct)
     {
         await using var cmd = db.CreateCommand(
-            $"INSERT INTO docframe_navigation_modules ({ModuleCols}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) ON CONFLICT DO NOTHING");
+            $"INSERT INTO frogframe_navigation_modules ({ModuleCols}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) ON CONFLICT DO NOTHING");
         cmd.Parameters.AddWithValue(module.Id);
         cmd.Parameters.AddWithValue(module.TenantId);
         cmd.Parameters.AddWithValue(module.Name);
@@ -469,7 +469,7 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
     private async Task SaveGroupInternalAsync(NavigationMenuGroup group, CancellationToken ct)
     {
         await using var cmd = db.CreateCommand(
-            $"INSERT INTO docframe_navigation_menu_groups ({GroupCols}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (id) DO NOTHING");
+            $"INSERT INTO frogframe_navigation_menu_groups ({GroupCols}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (id) DO NOTHING");
         cmd.Parameters.AddWithValue(group.Id);
         cmd.Parameters.AddWithValue(group.TenantId);
         cmd.Parameters.AddWithValue(group.ModuleId);
@@ -486,7 +486,7 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
     private async Task SaveMenuInternalAsync(NavigationMenuItem item, CancellationToken ct)
     {
         await using var cmd = db.CreateCommand(
-            $"INSERT INTO docframe_navigation_menus ({MenuCols}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) ON CONFLICT (id) DO NOTHING");
+            $"INSERT INTO frogframe_navigation_menus ({MenuCols}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) ON CONFLICT (id) DO NOTHING");
         cmd.Parameters.AddWithValue(item.Id);
         cmd.Parameters.AddWithValue(item.TenantId);
         cmd.Parameters.AddWithValue(item.Title);

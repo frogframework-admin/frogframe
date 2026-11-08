@@ -18,7 +18,7 @@ public sealed class PostgresQueryApiStore(NpgsqlDataSource db) : IQueryApiStore
 
     private async Task<List<QueryApiDef>> Query(string where, params object[] args)
     {
-        await using var cmd = db.CreateCommand($"SELECT {Cols} FROM docframe_query_apis WHERE {where} ORDER BY slug");
+        await using var cmd = db.CreateCommand($"SELECT {Cols} FROM frogframe_query_apis WHERE {where} ORDER BY slug");
         foreach (var a in args) cmd.Parameters.AddWithValue(a);
         var list = new List<QueryApiDef>();
         await using var r = await cmd.ExecuteReaderAsync();
@@ -33,7 +33,7 @@ public sealed class PostgresQueryApiStore(NpgsqlDataSource db) : IQueryApiStore
     public async Task SaveAsync(QueryApiDef d, CancellationToken ct = default)
     {
         await using var cmd = db.CreateCommand(
-            $"INSERT INTO docframe_query_apis ({Cols.Replace("::text", "")}) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11) " +
+            $"INSERT INTO frogframe_query_apis ({Cols.Replace("::text", "")}) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11) " +
             "ON CONFLICT (tenant_id, id) DO UPDATE SET slug=$3, name=$4, description=$5, config=$6::jsonb, source_ref=$7, updated_at=$10, version=$11");
         cmd.Parameters.AddWithValue(d.TenantId); cmd.Parameters.AddWithValue(d.Id); cmd.Parameters.AddWithValue(d.Slug); cmd.Parameters.AddWithValue(d.Name);
         cmd.Parameters.AddWithValue((object?)d.Description ?? DBNull.Value);
@@ -45,7 +45,7 @@ public sealed class PostgresQueryApiStore(NpgsqlDataSource db) : IQueryApiStore
 
     public async Task DeleteAsync(string tenantId, string id, CancellationToken ct = default)
     {
-        await using var cmd = db.CreateCommand("DELETE FROM docframe_query_apis WHERE tenant_id = $1 AND id = $2");
+        await using var cmd = db.CreateCommand("DELETE FROM frogframe_query_apis WHERE tenant_id = $1 AND id = $2");
         cmd.Parameters.AddWithValue(tenantId); cmd.Parameters.AddWithValue(id);
         await cmd.ExecuteNonQueryAsync(ct);
     }

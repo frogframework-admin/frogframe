@@ -55,14 +55,14 @@ var tests = typeof(Tests).GetMethods(BindingFlags.Public | BindingFlags.Instance
 var filter = args.FirstOrDefault();
 int pass = 0, fail = 0;
 Console.WriteLine(Tests.PgConnection is null
-    ? "Penyimpanan: in-memory (set DOCFRAME_TEST_PG untuk menguji PostgreSQL)\n"
+    ? "Penyimpanan: in-memory (set FROGFRAME_TEST_PG untuk menguji PostgreSQL)\n"
     : "Penyimpanan: PostgreSQL\n");
 int skipped = 0;
 foreach (var m in tests.Where(t => filter is null || t.Name.Contains(filter, StringComparison.OrdinalIgnoreCase)))
 {
     if (m.GetCustomAttribute<ReportingTestAttribute>() is not null && Tests.PgReadOnly is null)
     {
-        Console.WriteLine($"  – {m.Name.Replace('_', ' ')} (dilewati: butuh PostgreSQL + DOCFRAME_TEST_PG_RO)");
+        Console.WriteLine($"  – {m.Name.Replace('_', ' ')} (dilewati: butuh PostgreSQL + FROGFRAME_TEST_PG_RO)");
         skipped++;
         continue;
     }
@@ -91,9 +91,9 @@ Console.WriteLine($"\n{pass} lulus, {fail} gagal{(skipped > 0 ? $", {skipped} di
 return fail == 0 ? 0 : 1;
 
 [AttributeUsage(AttributeTargets.Method)] sealed class TestAttribute : Attribute;
-/// <summary>Test yang hanya berjalan bila DOCFRAME_TEST_PG berisi connection string PostgreSQL.</summary>
+/// <summary>Test yang hanya berjalan bila FROGFRAME_TEST_PG berisi connection string PostgreSQL.</summary>
 [AttributeUsage(AttributeTargets.Method)] sealed class PgTestAttribute : Attribute;
-/// <summary>Butuh PostgreSQL + koneksi read-only (DOCFRAME_TEST_PG_RO) untuk dashboard SQL.</summary>
+/// <summary>Butuh PostgreSQL + koneksi read-only (FROGFRAME_TEST_PG_RO) untuk dashboard SQL.</summary>
 [AttributeUsage(AttributeTargets.Method)] sealed class ReportingTestAttribute : Attribute;
 
 sealed class AssertException(string message) : Exception(message);
@@ -125,14 +125,14 @@ sealed partial class Tests
     private Dictionary<string, UserContext> users = new();
     /// <summary>UserContext pengguna demo, dibangun dari akun Identity lewat pemetaan klaim yang sama dengan login.</summary>
     private UserContext U(string id) => users[id];
-    public const string DemoPassword = "DocFrame#2026";
+    public const string DemoPassword = "FrogFrame#2026";
     private const string PR = "PurchaseRequest";
 
-    public static readonly string? PgConnection = Environment.GetEnvironmentVariable("DOCFRAME_TEST_PG");
-    public static readonly string? PgReadOnly = PgConnection is null ? null : Environment.GetEnvironmentVariable("DOCFRAME_TEST_PG_RO");
+    public static readonly string? PgConnection = Environment.GetEnvironmentVariable("FROGFRAME_TEST_PG");
+    public static readonly string? PgReadOnly = PgConnection is null ? null : Environment.GetEnvironmentVariable("FROGFRAME_TEST_PG_RO");
     /// <summary>Database analitik terpisah (pemilik) + user read-only di sana, untuk menguji dashboard di luar database aplikasi.</summary>
-    public static readonly string? PgAnalytics = PgReadOnly is null ? null : Environment.GetEnvironmentVariable("DOCFRAME_TEST_PG_ANALYTICS");
-    public static readonly string? PgAnalyticsRo = PgAnalytics is null ? null : Environment.GetEnvironmentVariable("DOCFRAME_TEST_PG_ANALYTICS_RO");
+    public static readonly string? PgAnalytics = PgReadOnly is null ? null : Environment.GetEnvironmentVariable("FROGFRAME_TEST_PG_ANALYTICS");
+    public static readonly string? PgAnalyticsRo = PgAnalytics is null ? null : Environment.GetEnvironmentVariable("FROGFRAME_TEST_PG_ANALYTICS_RO");
 
     /// <summary>Membuang service provider (menutup pool koneksi PostgreSQL milik test ini).</summary>
     public ValueTask DisposeAsync() => sp is IAsyncDisposable d ? d.DisposeAsync() : ValueTask.CompletedTask;
@@ -172,7 +172,7 @@ sealed partial class Tests
         {
             ["Print:Letterheads:acme:CompanyName"] = "PT Acme Nusantara Teknologi",
         }).Build());
-        services.AddDocFramework(o => o.LoadFrom(Path.Combine(AppContext.BaseDirectory, "Metadata")));
+        services.AddFrogFramework(o => o.LoadFrom(Path.Combine(AppContext.BaseDirectory, "Metadata")));
         services.AddDocHandler<PurchaseRequestHandler>();
         services.AddDocHook<PurchaseRequest, PurchaseRequestBeforeValidateHook>();
         services.AddDocHook<PurchaseRequest, PurchaseRequestBeforeInsertHook>();
@@ -203,13 +203,13 @@ sealed partial class Tests
         services.AddReport<SpendByDepartmentReport>();
         services.AddApiMethod<SisaAnggaranMethod>();
         services.AddApiMethod<AjukanMassalMethod>();
-        services.AddDocFrameworkIdentity();
-        if (PgConnection is not null) services.AddDocFrameworkPostgreSql(PgConnection);
-        if (PgReadOnly is not null) services.AddDocFrameworkReporting(PgReadOnly, o => o.StatementTimeoutSeconds = 2);
+        services.AddFrogFrameworkIdentity();
+        if (PgConnection is not null) services.AddFrogFrameworkPostgreSql(PgConnection);
+        if (PgReadOnly is not null) services.AddFrogFrameworkReporting(PgReadOnly, o => o.StatementTimeoutSeconds = 2);
         extra?.Invoke(services);
         // ValidateScopes = perilaku Development: menangkap service ber-scope yang di-resolve dari root provider.
         var sp = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
-        if (PgConnection is not null) await sp.MigrateDocFrameworkDatabaseAsync();
+        if (PgConnection is not null) await sp.MigrateFrogFrameworkDatabaseAsync();
         if (PgReadOnly is not null) await sp.SyncReportingSchemaAsync();
         return sp;
     }
@@ -1155,7 +1155,7 @@ sealed partial class Tests
         Assert.True(a.ParameterizedSql.Contains("status = $1") && a.ParameterizedSql.Contains("x = $1") && a.ParameterizedSql.Contains("tgl >= $2"), "nama sama → placeholder sama");
         Assert.True(a.ParameterizedSql.Contains("'@BukanParam'") && a.ParameterizedSql.Contains("@>"), "string literal & operator @> tidak disentuh");
         Assert.True(SqlGuard.Analyze("WITH x AS (SELECT 1) SELECT * FROM x").Ok, "WITH diizinkan");
-        Assert.True(!SqlGuard.Analyze("SELECT 1; DROP TABLE docframe_users").Ok, "multi-statement ditolak");
+        Assert.True(!SqlGuard.Analyze("SELECT 1; DROP TABLE frogframe_users").Ok, "multi-statement ditolak");
         Assert.True(!SqlGuard.Analyze("DELETE FROM reporting.employee").Ok, "bukan SELECT ditolak");
         Assert.True(!SqlGuard.Analyze("SELECT $$x$$").Ok, "dollar-quoting ditolak");
         Assert.True(!SqlGuard.Analyze("SELECT 'tidak ditutup").Ok, "string tak ditutup ditolak");
@@ -1182,8 +1182,8 @@ sealed partial class Tests
         Assert.Equal(1m, globex.Rows[0][0], "globex melihat 1 pengajuan");
         var escape = await Sql("acme", "SELECT set_config('app.tenant_id', 'globex', false) AS x, (SELECT COUNT(*) FROM reporting.purchase_request WHERE name IN (SELECT name FROM reporting.purchase_request)) AS n");
         Assert.Equal(5m, escape.Rows[0][1], "set_config tidak mengubah tenant (tenant dari tabel sesi)");
-        await Assert.Throws<QueryRejectedException>(() => Sql("acme", "SELECT tenant_id FROM public.docframe_reporting_sessions"), "tabel sesi tidak bisa dibaca");
-        await Assert.Throws<QueryRejectedException>(() => Sql("acme", "WITH u AS (UPDATE public.docframe_reporting_sessions SET tenant_id = 'globex' RETURNING 1) SELECT COUNT(*) FROM u"), "tabel sesi tidak bisa diubah");
+        await Assert.Throws<QueryRejectedException>(() => Sql("acme", "SELECT tenant_id FROM public.frogframe_reporting_sessions"), "tabel sesi tidak bisa dibaca");
+        await Assert.Throws<QueryRejectedException>(() => Sql("acme", "WITH u AS (UPDATE public.frogframe_reporting_sessions SET tenant_id = 'globex' RETURNING 1) SELECT COUNT(*) FROM u"), "tabel sesi tidak bisa diubah");
         var noSession = await Sql("acme", "SELECT COUNT(*) AS n FROM reporting.employee");
         Assert.Equal(8m, noSession.Rows[0][0], "view karyawan ter-scope tenant");
     }
@@ -1191,10 +1191,10 @@ sealed partial class Tests
     [Test, ReportingTest]
     public async Task Dashboard_hanya_baca_dan_tabel_inti_tertutup()
     {
-        var users = await Assert.Throws<QueryRejectedException>(() => Sql("acme", "SELECT user_name, password_hash FROM public.docframe_users"), "tabel akun");
+        var users = await Assert.Throws<QueryRejectedException>(() => Sql("acme", "SELECT user_name, password_hash FROM public.frogframe_users"), "tabel akun");
         Assert.True(users.Message.Contains("Akses ditolak"), "pesan akses ditolak");
-        await Assert.Throws<QueryRejectedException>(() => Sql("acme", "SELECT COUNT(*) FROM public.docframe_documents"), "tabel dokumen langsung");
-        await Assert.Throws<QueryRejectedException>(() => Sql("acme", "WITH d AS (DELETE FROM public.docframe_documents RETURNING 1) SELECT COUNT(*) FROM d"), "DELETE di CTE");
+        await Assert.Throws<QueryRejectedException>(() => Sql("acme", "SELECT COUNT(*) FROM public.frogframe_documents"), "tabel dokumen langsung");
+        await Assert.Throws<QueryRejectedException>(() => Sql("acme", "WITH d AS (DELETE FROM public.frogframe_documents RETURNING 1) SELECT COUNT(*) FROM d"), "DELETE di CTE");
         var still = await Docs.ListAsync(U("dewi"), PR, new ListRequest());
         Assert.Equal(5, still.Total, "data tidak berubah");
         var big = await Sql("acme", "SELECT g FROM generate_series(1, 500) g");
@@ -1333,7 +1333,7 @@ sealed partial class Tests
         await sync.SyncAsync();
         var db = sp.GetRequiredService<NpgsqlDataSource>();
         var names = new List<string>();
-        await using (var cmd = db.CreateCommand("SELECT indexname FROM pg_indexes WHERE tablename = 'docframe_documents' AND indexname LIKE 'ix\\_df\\_%'"))
+        await using (var cmd = db.CreateCommand("SELECT indexname FROM pg_indexes WHERE tablename = 'frogframe_documents' AND indexname LIKE 'ix\\_ff\\_%'"))
         await using (var r = await cmd.ExecuteReaderAsync())
             while (await r.ReadAsync()) names.Add(r.GetString(0));
         var desired = DocumentIndexSync.Desired(sp.GetRequiredService<MetadataRegistry>().Current);
@@ -1350,16 +1350,16 @@ sealed partial class Tests
             await using var conn = await db.OpenConnectionAsync();
             await using var tx = await conn.BeginTransactionAsync();
             var others = new List<string>();
-            await using (var q = new NpgsqlCommand("SELECT indexname FROM pg_indexes WHERE tablename = 'docframe_documents' AND indexname <> $1 AND indexname NOT LIKE '%pkey'", conn, tx))
+            await using (var q = new NpgsqlCommand("SELECT indexname FROM pg_indexes WHERE tablename = 'frogframe_documents' AND indexname <> $1 AND indexname NOT LIKE '%pkey'", conn, tx))
             {
                 q.Parameters.AddWithValue(keep);
                 await using var r = await q.ExecuteReaderAsync();
                 while (await r.ReadAsync()) others.Add(r.GetString(0));
             }
-            await using (var prep = new NpgsqlCommand("ALTER TABLE docframe_documents DROP CONSTRAINT docframe_documents_pkey; " +
+            await using (var prep = new NpgsqlCommand("ALTER TABLE frogframe_documents DROP CONSTRAINT frogframe_documents_pkey; " +
                 string.Concat(others.Select(o => $"DROP INDEX \"{o}\"; ")) + "SET LOCAL enable_seqscan = off;", conn, tx))
                 await prep.ExecuteNonQueryAsync();
-            await using var ex = new NpgsqlCommand($"EXPLAIN SELECT name FROM docframe_documents d WHERE d.tenant_id = 'acme' AND d.doctype = '{PR}' AND {where}", conn, tx);
+            await using var ex = new NpgsqlCommand($"EXPLAIN SELECT name FROM frogframe_documents d WHERE d.tenant_id = 'acme' AND d.doctype = '{PR}' AND {where}", conn, tx);
             var lines = new List<string>();
             await using (var r = await ex.ExecuteReaderAsync())
                 while (await r.ReadAsync()) lines.Add(r.GetString(0));
@@ -1374,9 +1374,9 @@ sealed partial class Tests
 
         // Sinkron ulang idempoten; indeks yang tak lagi dibutuhkan metadata dibuang.
         await sync.SyncAsync();
-        await using (var junk = db.CreateCommand("CREATE INDEX ix_df_sisa_lama ON docframe_documents (tenant_id)")) await junk.ExecuteNonQueryAsync();
+        await using (var junk = db.CreateCommand("CREATE INDEX ix_ff_sisa_lama ON frogframe_documents (tenant_id)")) await junk.ExecuteNonQueryAsync();
         await sync.SyncAsync();
-        await using var chk = db.CreateCommand("SELECT count(*) FROM pg_indexes WHERE indexname = 'ix_df_sisa_lama'");
+        await using var chk = db.CreateCommand("SELECT count(*) FROM pg_indexes WHERE indexname = 'ix_ff_sisa_lama'");
         Assert.Equal(0L, await chk.ExecuteScalarAsync(), "indeks terkelola yang tidak lagi dipakai dibuang");
     }
 
@@ -1385,7 +1385,7 @@ sealed partial class Tests
     {
         var db = sp.GetRequiredService<NpgsqlDataSource>();
         await using (var cmd = db.CreateCommand(
-            "INSERT INTO docframe_documents (tenant_id, doctype, name, owner, docstatus, version, schema_version, data, created, modified, modified_by) " +
+            "INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, version, schema_version, data, created, modified, modified_by) " +
             $"SELECT 'acme', 'Vendor', 'CAP-' || i, 'rina', 0, 1, 1, jsonb_build_object('vendor_name', 'V' || i), now(), now(), 'rina' FROM generate_series(1, {QueryLimits.CountCap + 50}) i"))
             await cmd.ExecuteNonQueryAsync();
         var list = await Docs.ListAsync(U("rina"), "Vendor", new ListRequest(PageSize: 20));
@@ -1398,19 +1398,19 @@ sealed partial class Tests
     [Test, ReportingTest]
     public async Task Dashboard_di_database_analitik_terpisah_tetap_terisolasi_per_tenant()
     {
-        if (PgAnalytics is null || PgAnalyticsRo is null) { Console.Write("    (lewati: set DOCFRAME_TEST_PG_ANALYTICS[_RO]) "); return; }
+        if (PgAnalytics is null || PgAnalyticsRo is null) { Console.Write("    (lewati: set FROGFRAME_TEST_PG_ANALYTICS[_RO]) "); return; }
         var app = sp.GetRequiredService<NpgsqlDataSource>();
         await using var analytics = NpgsqlDataSource.Create(PgAnalytics);
-        // Simulasi replika logis: instance analitik punya salinan docframe_documents (di produksi diisi oleh subscription).
+        // Simulasi replika logis: instance analitik punya salinan frogframe_documents (di produksi diisi oleh subscription).
         async Task Run(NpgsqlDataSource ds, string sql) { await using var c = ds.CreateCommand(sql); await c.ExecuteNonQueryAsync(); }
-        await Run(analytics, "DROP SCHEMA IF EXISTS reporting CASCADE; DROP TABLE IF EXISTS docframe_documents, docframe_reporting_sessions; " +
-            "CREATE TABLE docframe_documents (tenant_id text NOT NULL, doctype text NOT NULL, name text NOT NULL, owner text NOT NULL, docstatus smallint NOT NULL, " +
+        await Run(analytics, "DROP SCHEMA IF EXISTS reporting CASCADE; DROP TABLE IF EXISTS frogframe_documents, frogframe_reporting_sessions; " +
+            "CREATE TABLE frogframe_documents (tenant_id text NOT NULL, doctype text NOT NULL, name text NOT NULL, owner text NOT NULL, docstatus smallint NOT NULL, " +
             "workflow_state text, created timestamptz NOT NULL, modified timestamptz NOT NULL, data jsonb NOT NULL, PRIMARY KEY (tenant_id, doctype, name))");
-        await using (var read = app.CreateCommand("SELECT tenant_id, doctype, name, owner, docstatus, workflow_state, created, modified, data::text FROM docframe_documents"))
+        await using (var read = app.CreateCommand("SELECT tenant_id, doctype, name, owner, docstatus, workflow_state, created, modified, data::text FROM frogframe_documents"))
         await using (var r = await read.ExecuteReaderAsync())
             while (await r.ReadAsync())
             {
-                await using var ins = analytics.CreateCommand("INSERT INTO docframe_documents VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb)");
+                await using var ins = analytics.CreateCommand("INSERT INTO frogframe_documents VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb)");
                 for (var i = 0; i < 9; i++) ins.Parameters.AddWithValue(r.IsDBNull(i) ? DBNull.Value : r.GetValue(i));
                 await ins.ExecuteNonQueryAsync();
             }
@@ -1424,7 +1424,7 @@ sealed partial class Tests
 
         async Task<long> InsertsOnAppSessions()
         {
-            await using var c = app.CreateCommand("SELECT n_tup_ins FROM pg_stat_user_tables WHERE relname = 'docframe_reporting_sessions'");
+            await using var c = app.CreateCommand("SELECT n_tup_ins FROM pg_stat_user_tables WHERE relname = 'frogframe_reporting_sessions'");
             return Convert.ToInt64(await c.ExecuteScalarAsync() ?? 0L);
         }
         var before = await InsertsOnAppSessions();
@@ -1432,7 +1432,7 @@ sealed partial class Tests
         Assert.Equal(5m, await Count("acme", "SELECT COUNT(*) FROM reporting.purchase_request"), "acme di instance analitik");
         Assert.Equal(1m, await Count("globex", "SELECT COUNT(*) FROM reporting.purchase_request"), "globex di instance analitik");
         Assert.Equal(5m, await Count("acme", "SELECT (SELECT COUNT(*) FROM reporting.purchase_request) FROM (SELECT set_config('app.tenant_id', 'globex', false)) x"), "set_config tetap tidak bisa membobol tenant");
-        await Assert.Throws<QueryRejectedException>(() => exec.ExecuteAsync("acme", "SELECT tenant_id FROM public.docframe_reporting_sessions", [], 10), "sesi di instance analitik tetap tertutup");
+        await Assert.Throws<QueryRejectedException>(() => exec.ExecuteAsync("acme", "SELECT tenant_id FROM public.frogframe_reporting_sessions", [], 10), "sesi di instance analitik tetap tertutup");
         await Task.Delay(700); // statistik pg_stat dilaporkan berkala
         Assert.Equal(before, await InsertsOnAppSessions(), "sesi ditulis di instance analitik, bukan di database aplikasi");
     }
@@ -1440,7 +1440,7 @@ sealed partial class Tests
     [Test, ReportingTest]
     public async Task Dashboard_koneksi_read_only_gagal_tampil_sebagai_pesan_bukan_crash()
     {
-        // Gejala di lapangan: role docframe_ro belum dibuat / password beda → dulu exception lolos dan
+        // Gejala di lapangan: role frogframe_ro belum dibuat / password beda → dulu exception lolos dan
         // menghentikan halaman dashboard (kartu tertinggal tanpa grafik).
         var badRo = new Npgsql.NpgsqlConnectionStringBuilder(PgReadOnly!) { Password = "password-salah" }.ConnectionString;
         await using var ro = new ReadOnlyDataSource(NpgsqlDataSource.Create(badRo));
@@ -1451,7 +1451,7 @@ sealed partial class Tests
 
         var run = await dash.RunWidgetAsync(U("admin"), widget, new DashboardFilters(null, null, null));
         Assert.True(run.Result is null && run.Error is not null, "widget mengembalikan pesan error, tidak melempar exception");
-        Assert.True(run.Error!.Contains("docframe_ro") && run.Error.Contains("reporting-readonly-user.sql"), "pesan menyebut user & cara memperbaiki: " + run.Error);
+        Assert.True(run.Error!.Contains("frogframe_ro") && run.Error.Contains("reporting-readonly-user.sql"), "pesan menyebut user & cara memperbaiki: " + run.Error);
         var preview = await Assert.Throws<ReportingUnavailableException>(() => dash.PreviewAsync(U("admin"), "SELECT 1 AS n", []), "pratinjau di pembuat widget");
         Assert.True(preview.Message.Contains("Login"), "pratinjau juga memberi pesan yang jelas");
     }
@@ -1541,7 +1541,7 @@ sealed partial class Tests
     [Test, PgTest]
     public async Task Pg_injeksi_sql_diperlakukan_sebagai_teks()
     {
-        var evil = "'; DROP TABLE docframe_documents; --";
+        var evil = "'; DROP TABLE frogframe_documents; --";
         var r1 = await Docs.ListAsync(U("dewi"), PR, new ListRequest(Search: evil));
         Assert.Equal(0, r1.Total, "pencarian berbahaya tidak cocok apa pun");
         var r2 = await Docs.ListAsync(U("dewi"), PR, new ListRequest([new FilterClause("priority", "=", "x' OR '1'='1")]));

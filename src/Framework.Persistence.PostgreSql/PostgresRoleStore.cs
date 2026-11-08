@@ -22,7 +22,7 @@ public sealed class PostgresRoleStore(NpgsqlDataSource db, TimeProvider clock) :
 
     public async Task<IReadOnlyList<RoleDef>> ListAsync(string tenantId, CancellationToken ct = default)
     {
-        await using var cmd = db.CreateCommand($"SELECT {Cols} FROM docframe_roles WHERE tenant_id = $1 ORDER BY is_system DESC, name ASC");
+        await using var cmd = db.CreateCommand($"SELECT {Cols} FROM frogframe_roles WHERE tenant_id = $1 ORDER BY is_system DESC, name ASC");
         cmd.Parameters.AddWithValue(tenantId);
 
         var list = new List<RoleDef>();
@@ -40,7 +40,7 @@ public sealed class PostgresRoleStore(NpgsqlDataSource db, TimeProvider clock) :
 
     public async Task<RoleDef?> GetAsync(string id, string tenantId, CancellationToken ct = default)
     {
-        await using var cmd = db.CreateCommand($"SELECT {Cols} FROM docframe_roles WHERE id = $1 AND tenant_id = $2");
+        await using var cmd = db.CreateCommand($"SELECT {Cols} FROM frogframe_roles WHERE id = $1 AND tenant_id = $2");
         cmd.Parameters.AddWithValue(id);
         cmd.Parameters.AddWithValue(tenantId);
         await using var r = await cmd.ExecuteReaderAsync(ct);
@@ -49,7 +49,7 @@ public sealed class PostgresRoleStore(NpgsqlDataSource db, TimeProvider clock) :
 
     public async Task<RoleDef?> GetByNameAsync(string name, string tenantId, CancellationToken ct = default)
     {
-        await using var cmd = db.CreateCommand($"SELECT {Cols} FROM docframe_roles WHERE tenant_id = $1 AND LOWER(name) = LOWER($2)");
+        await using var cmd = db.CreateCommand($"SELECT {Cols} FROM frogframe_roles WHERE tenant_id = $1 AND LOWER(name) = LOWER($2)");
         cmd.Parameters.AddWithValue(tenantId);
         cmd.Parameters.AddWithValue(name);
         await using var r = await cmd.ExecuteReaderAsync(ct);
@@ -63,7 +63,7 @@ public sealed class PostgresRoleStore(NpgsqlDataSource db, TimeProvider clock) :
         if (string.IsNullOrWhiteSpace(role.Id)) role.Id = Guid.NewGuid().ToString("N");
 
         await using var cmd = db.CreateCommand(
-            $"INSERT INTO docframe_roles ({Cols}) VALUES ($1,$2,$3,$4,$5,$6,$7) " +
+            $"INSERT INTO frogframe_roles ({Cols}) VALUES ($1,$2,$3,$4,$5,$6,$7) " +
             "ON CONFLICT (id) DO UPDATE SET name=$3, description=$4, is_system=$5, updated_at=$7");
 
         cmd.Parameters.AddWithValue(role.Id);
@@ -95,7 +95,7 @@ public sealed class PostgresRoleStore(NpgsqlDataSource db, TimeProvider clock) :
             throw new InvalidOperationException($"Role '{item.Name}' adalah role sistem bawaan dan tidak dapat dihapus.");
         }
 
-        await using var cmd = db.CreateCommand("DELETE FROM docframe_roles WHERE id = $1 AND tenant_id = $2");
+        await using var cmd = db.CreateCommand("DELETE FROM frogframe_roles WHERE id = $1 AND tenant_id = $2");
         cmd.Parameters.AddWithValue(id);
         cmd.Parameters.AddWithValue(tenantId);
         await cmd.ExecuteNonQueryAsync(ct);
@@ -104,7 +104,7 @@ public sealed class PostgresRoleStore(NpgsqlDataSource db, TimeProvider clock) :
 
     public async Task EnsureDefaultRolesAsync(string tenantId, CancellationToken ct = default)
     {
-        await using var chkCmd = db.CreateCommand("SELECT name FROM docframe_roles WHERE tenant_id = $1");
+        await using var chkCmd = db.CreateCommand("SELECT name FROM frogframe_roles WHERE tenant_id = $1");
         chkCmd.Parameters.AddWithValue(tenantId);
         var existingNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         await using (var r = await chkCmd.ExecuteReaderAsync(ct))

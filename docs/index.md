@@ -1,6 +1,6 @@
 # Documentation & Guides
 
-Welcome to the **DocFrame** developer guides, architectural blueprints, and technical specifications.
+Welcome to the **FrogFrame** developer guides, architectural blueprints, and technical specifications.
 
 ## Prerequisites
 

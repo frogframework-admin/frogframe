@@ -152,17 +152,17 @@ sealed partial class Tests
             try { await using var c = db.CreateCommand(sql); await c.ExecuteNonQueryAsync(); return "TIDAK DITOLAK"; }
             catch (PostgresException ex) { return ex.MessageText; }
         }
-        Assert.True((await Fail("UPDATE docframe_gl_entries SET debit = debit + 1 WHERE debit > 0")).Contains("append-only"), "UPDATE ditolak trigger");
-        Assert.True((await Fail("DELETE FROM docframe_gl_entries")).Contains("append-only"), "DELETE ditolak trigger");
-        Assert.True((await Fail("TRUNCATE docframe_gl_entries")).Contains("append-only"), "TRUNCATE ditolak trigger");
-        var oneSided = await Fail("INSERT INTO docframe_gl_entries (id, tenant_id, seq, posting_date, period_id, account_id, debit, credit, voucher_type, voucher_name, voucher_version, line_number, prev_hash, entry_hash, created_by) " +
+        Assert.True((await Fail("UPDATE frogframe_gl_entries SET debit = debit + 1 WHERE debit > 0")).Contains("append-only"), "UPDATE ditolak trigger");
+        Assert.True((await Fail("DELETE FROM frogframe_gl_entries")).Contains("append-only"), "DELETE ditolak trigger");
+        Assert.True((await Fail("TRUNCATE frogframe_gl_entries")).Contains("append-only"), "TRUNCATE ditolak trigger");
+        var oneSided = await Fail("INSERT INTO frogframe_gl_entries (id, tenant_id, seq, posting_date, period_id, account_id, debit, credit, voucher_type, voucher_name, voucher_version, line_number, prev_hash, entry_hash, created_by) " +
             "VALUES (gen_random_uuid(), 'acme', 999, '2026-11-05', '2026-11', '1100', 50, 0, 'Manual', 'X-1', 1, 1, repeat('0',64), repeat('1',64), 'sql')");
         Assert.True(oneSided.Contains("tidak seimbang"), "insert langsung tidak seimbang ditolak saat COMMIT: " + oneSided);
         Assert.True(await LedgerReader.VerifyChainAsync("acme") is null, "rantai tetap utuh setelah upaya manipulasi yang ditolak");
 
         // Pemilik tabel bisa mematikan trigger (lapis 2 = pemisahan peran); rantai hash tetap mendeteksinya.
-        await using (var c = db.CreateCommand("ALTER TABLE docframe_gl_entries DISABLE TRIGGER trg_gl_no_update_delete; " +
-            "UPDATE docframe_gl_entries SET remarks = 'diubah' WHERE seq = 1; ALTER TABLE docframe_gl_entries ENABLE TRIGGER trg_gl_no_update_delete;"))
+        await using (var c = db.CreateCommand("ALTER TABLE frogframe_gl_entries DISABLE TRIGGER trg_gl_no_update_delete; " +
+            "UPDATE frogframe_gl_entries SET remarks = 'diubah' WHERE seq = 1; ALTER TABLE frogframe_gl_entries ENABLE TRIGGER trg_gl_no_update_delete;"))
             await c.ExecuteNonQueryAsync();
         var broken = await LedgerReader.VerifyChainAsync("acme");
         Assert.True(broken is not null && broken.Seq == 1, "perubahan oleh pemilik tabel terdeteksi rantai hash: " + broken);

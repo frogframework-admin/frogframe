@@ -1,12 +1,12 @@
 # Excel & CSV Data Import Engine Guide
 
-The DocFrame Import Engine allows users with document creation permissions to upload bulk records using `.xlsx` or `.csv` files.
+The FrogFrame Import Engine allows users with document creation permissions to upload bulk records using `.xlsx` or `.csv` files.
 
 ---
 
 ## 1. Unified Pipeline (No Shortcut Bypasses)
 
-Importing records in DocFrame executes through the standard `DocumentService` pipeline. Every single imported row respects:
+Importing records in FrogFrame executes through the standard `DocumentService` pipeline. Every single imported row respects:
 - Role permissions and field security levels (`permLevel`)
 - Lifecycle hooks (`BeforeValidate`, `BeforeSave`, `AfterSave`)
 - Formula computations and linked field fetches (`fetchFrom`)

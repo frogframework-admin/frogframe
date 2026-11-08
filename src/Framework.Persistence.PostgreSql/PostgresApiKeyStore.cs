@@ -18,7 +18,7 @@ public sealed class PostgresApiKeyStore(NpgsqlDataSource db) : IApiKeyStore
 
     public async Task<ApiKey?> GetAsync(string id, CancellationToken ct = default)
     {
-        await using var cmd = db.CreateCommand($"SELECT {Cols} FROM docframe_api_keys WHERE id = $1");
+        await using var cmd = db.CreateCommand($"SELECT {Cols} FROM frogframe_api_keys WHERE id = $1");
         cmd.Parameters.AddWithValue(id);
         await using var r = await cmd.ExecuteReaderAsync(ct);
         return await r.ReadAsync(ct) ? Read(r) : null;
@@ -26,7 +26,7 @@ public sealed class PostgresApiKeyStore(NpgsqlDataSource db) : IApiKeyStore
 
     public async Task<IReadOnlyList<ApiKey>> ListAsync(string tenantId, CancellationToken ct = default)
     {
-        await using var cmd = db.CreateCommand($"SELECT {Cols} FROM docframe_api_keys WHERE tenant_id = $1 ORDER BY created_at DESC");
+        await using var cmd = db.CreateCommand($"SELECT {Cols} FROM frogframe_api_keys WHERE tenant_id = $1 ORDER BY created_at DESC");
         cmd.Parameters.AddWithValue(tenantId);
         var list = new List<ApiKey>();
         await using var r = await cmd.ExecuteReaderAsync(ct);
@@ -37,7 +37,7 @@ public sealed class PostgresApiKeyStore(NpgsqlDataSource db) : IApiKeyStore
     public async Task SaveAsync(ApiKey k, CancellationToken ct = default)
     {
         await using var cmd = db.CreateCommand(
-            $"INSERT INTO docframe_api_keys ({Cols}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) " +
+            $"INSERT INTO frogframe_api_keys ({Cols}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) " +
             "ON CONFLICT (id) DO UPDATE SET name=$4, scopes=$6, allowed_ips=$7, expires_at=$10, revoked_at=$11, last_used_at=$12, last_used_ip=$13");
         object N(object? v) => v ?? DBNull.Value;
         cmd.Parameters.AddWithValue(k.Id); cmd.Parameters.AddWithValue(k.TenantId); cmd.Parameters.AddWithValue(k.UserId);

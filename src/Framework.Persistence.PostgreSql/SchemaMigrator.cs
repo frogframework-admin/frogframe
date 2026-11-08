@@ -18,17 +18,17 @@ public sealed class SchemaDataSource(NpgsqlDataSource source, bool owns = false)
 public sealed class SchemaMigrator(SchemaDataSource schema, ILogger<SchemaMigrator> log)
 {
     private readonly NpgsqlDataSource db = schema.Source;
-    private const long LockKey = 0x446F634672616D65; // "DocFrame"
+    private const long LockKey = 0x46726F674672616D; // "FrogFrame"
 
     public async Task MigrateAsync(CancellationToken ct = default)
     {
         await using var conn = await db.OpenConnectionAsync(ct);
-        await Exec(conn, null, "CREATE TABLE IF NOT EXISTS docframe_schema_migrations (version integer PRIMARY KEY, name text NOT NULL, applied_at timestamptz NOT NULL DEFAULT now())", ct);
+        await Exec(conn, null, "CREATE TABLE IF NOT EXISTS frogframe_schema_migrations (version integer PRIMARY KEY, name text NOT NULL, applied_at timestamptz NOT NULL DEFAULT now())", ct);
         await Exec(conn, null, $"SELECT pg_advisory_lock({LockKey})", ct);
         try
         {
             var applied = new HashSet<int>();
-            await using (var cmd = new NpgsqlCommand("SELECT version FROM docframe_schema_migrations", conn))
+            await using (var cmd = new NpgsqlCommand("SELECT version FROM frogframe_schema_migrations", conn))
             await using (var r = await cmd.ExecuteReaderAsync(ct))
                 while (await r.ReadAsync(ct)) applied.Add(r.GetInt32(0));
 
@@ -36,7 +36,7 @@ public sealed class SchemaMigrator(SchemaDataSource schema, ILogger<SchemaMigrat
             {
                 await using var tx = await conn.BeginTransactionAsync(ct);
                 await Exec(conn, tx, sql, ct);
-                await using (var ins = new NpgsqlCommand("INSERT INTO docframe_schema_migrations (version, name) VALUES ($1, $2)", conn, tx))
+                await using (var ins = new NpgsqlCommand("INSERT INTO frogframe_schema_migrations (version, name) VALUES ($1, $2)", conn, tx))
                 {
                     ins.Parameters.AddWithValue(version);
                     ins.Parameters.AddWithValue(name);

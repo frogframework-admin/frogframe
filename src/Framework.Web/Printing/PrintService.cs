@@ -236,7 +236,7 @@ public sealed class ChromiumPdfRenderer(IConfiguration config, ILogger<ChromiumP
             "Chrome/Edge was not found on the server. Configure 'Print:BrowserPath' in appsettings, or use the Print button → Save as PDF.");
 
         await Gate.WaitAsync(ct);
-        var work = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "docframe-pdf-" + Guid.NewGuid().ToString("N")));
+        var work = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "frogframe-pdf-" + Guid.NewGuid().ToString("N")));
         try
         {
             var htmlPath = Path.Combine(work.FullName, "doc.html");

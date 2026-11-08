@@ -1,4 +1,4 @@
-/* DocFrame — tata letak aplikasi di atas komponen BlazorBlueprint.
+/* FrogFrame — tata letak aplikasi di atas komponen BlazorBlueprint.
  * Hanya memakai variabel tema (--background, --border, --primary, …) sehingga mengikuti mode gelap
  * dan tema yang dipilih. Tidak membutuhkan build Tailwind di sisi aplikasi. */
 
@@ -921,7 +921,7 @@ aside[data-state][data-collapsible] {
   border-top: 1px solid var(--sidebar-border, var(--border));
 }
 
-/* Hide brand header when sidebar is collapsed so neither logo nor DocFrame text is partially clipped */
+/* Hide brand header when sidebar is collapsed so neither logo nor FrogFrame text is partially clipped */
 aside[data-state="collapsed"] [data-sidebar="header"],
 [data-collapsible="icon"] [data-sidebar="header"],
 aside[data-state="collapsed"] .brand,

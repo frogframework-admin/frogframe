@@ -39,7 +39,7 @@
                     {
                         <div class="awesomebar-loading">
                             <div class="awesomebar-spinner"></div>
-                            <span>Searching DocFrame records…</span>
+                            <span>Searching FrogFrame records…</span>
                         </div>
                     }
 
@@ -133,7 +133,7 @@
             selectedIndex = 0;
             previousOpen = true;
             await TriggerSearchAsync(string.Empty);
-            await JS.InvokeVoidAsync("docframe.focusInput", "#awesomebar-search-input");
+            await JS.InvokeVoidAsync("frogframe.focusInput", "#awesomebar-search-input");
         }
         else if (!Open && previousOpen)
         {
@@ -244,7 +244,7 @@
             else if (item.ActionKey.StartsWith("switch_theme:"))
             {
                 var theme = item.ActionKey["switch_theme:".Length..];
-                await JS.InvokeVoidAsync("docframe.setTheme", theme);
+                await JS.InvokeVoidAsync("frogframe.setTheme", theme);
                 Toasts.Success($"Theme updated to {char.ToUpper(theme[0]) + theme[1..]}.", "Theme Changed");
             }
             else if (item.ActionKey.StartsWith("switch_mod:"))
@@ -259,7 +259,7 @@
     {
         search = "";
         await TriggerSearchAsync(string.Empty);
-        await JS.InvokeVoidAsync("docframe.focusInput", "#awesomebar-search-input");
+        await JS.InvokeVoidAsync("frogframe.focusInput", "#awesomebar-search-input");
     }
 
     private async Task Close()

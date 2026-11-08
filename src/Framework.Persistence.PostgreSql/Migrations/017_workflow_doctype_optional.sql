@@ -1,1 +1,1 @@
-ALTER TABLE docframe_workflow_versions ALTER COLUMN doctype DROP NOT NULL;
+ALTER TABLE frogframe_workflow_versions ALTER COLUMN doctype DROP NOT NULL;

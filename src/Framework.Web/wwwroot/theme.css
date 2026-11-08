@@ -1,4 +1,4 @@
-/* DocFrame — tema BlazorBlueprint (variabel shadcn/ui, ruang warna OKLCH).
+/* FrogFrame — tema BlazorBlueprint (variabel shadcn/ui, ruang warna OKLCH).
  * Dimuat SEBELUM blazorblueprint.css. Dapat diganti dengan tema dari tweakcn.com. */
 @layer base {
   :root {
@@ -8,7 +8,7 @@
     --card-foreground: oklch(0.21 0.02 260);
     --popover: oklch(1 0 0);
     --popover-foreground: oklch(0.21 0.02 260);
-    --primary: oklch(0.546 0.245 262.88);       /* Biru DocFrame (Tailwind blue-600 / #2563eb / #1c64d8) */
+    --primary: oklch(0.546 0.245 262.88);       /* Biru FrogFrame (Tailwind blue-600 / #2563eb / #1c64d8) */
     --primary-foreground: oklch(0.985 0 0);
     --secondary: oklch(0.955 0.006 260);
     --secondary-foreground: oklch(0.27 0.03 260);

@@ -15,9 +15,9 @@ jobs:
       postgres:
         image: postgres:17-alpine
         env:
-          POSTGRES_DB: docframe
-          POSTGRES_USER: docframe
-          POSTGRES_PASSWORD: docframe
+          POSTGRES_DB: frogframe
+          POSTGRES_USER: frogframe
+          POSTGRES_PASSWORD: frogframe
         ports:
           - 5432:5432
         options: >-
@@ -37,7 +37,7 @@ jobs:
 
       - name: Configure Read-Only Database Role
         run: |
-          docker exec ${{ job.services.postgres.id }} psql -U docframe -d docframe -f - < deploy/sql/reporting-readonly-user.sql
+          docker exec ${{ job.services.postgres.id }} psql -U frogframe -d frogframe -f - < deploy/sql/reporting-readonly-user.sql
 
       - name: Restore dependencies
         run: dotnet restore
@@ -58,7 +58,7 @@ jobs:
 
       - name: Run Full PostgreSQL Test Suite (including Reporting & Migrations)
         env:
-          DOCFRAME_TEST_PG: "Host=127.0.0.1;Port=5432;Database=docframe;Username=docframe;Password=docframe"
-          DOCFRAME_TEST_PG_RO: "Host=127.0.0.1;Port=5432;Database=docframe;Username=docframe_ro;Password=ganti-password-ini"
+          FROGFRAME_TEST_PG: "Host=127.0.0.1;Port=5432;Database=frogframe;Username=frogframe;Password=frogframe"
+          FROGFRAME_TEST_PG_RO: "Host=127.0.0.1;Port=5432;Database=frogframe;Username=frogframe_ro;Password=ganti-password-ini"
         run: dotnet run --project tests/Framework.Tests/Framework.Tests.csproj --configuration Release --no-build
 

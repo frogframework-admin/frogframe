@@ -38,10 +38,10 @@ public sealed class OutboxProcessor(IOutboxStore outbox, IEnumerable<IEventHandl
         int ok = 0, failed = 0, dead = 0;
         foreach (var msg in await outbox.FetchDueAsync(clock.GetUtcNow(), 50, ct))
         {
-            using var activity = DocFrameTelemetry.ActivitySource.StartActivity("docframe.outbox.process");
-            activity?.SetTag("docframe.event_type", msg.Type);
-            activity?.SetTag("docframe.event_id", msg.Id);
-            activity?.SetTag("docframe.tenant", msg.TenantId);
+            using var activity = FrogFrameTelemetry.ActivitySource.StartActivity("frogframe.outbox.process");
+            activity?.SetTag("frogframe.event_type", msg.Type);
+            activity?.SetTag("frogframe.event_id", msg.Id);
+            activity?.SetTag("frogframe.tenant", msg.TenantId);
 
             try
             {
@@ -49,13 +49,13 @@ public sealed class OutboxProcessor(IOutboxStore outbox, IEnumerable<IEventHandl
                     await h.HandleAsync(msg, ct);
                 msg.ProcessedAt = clock.GetUtcNow();
                 ok++;
-                DocFrameTelemetry.OutboxEventsProcessed.Add(1, new KeyValuePair<string, object?>("type", msg.Type));
+                FrogFrameTelemetry.OutboxEventsProcessed.Add(1, new KeyValuePair<string, object?>("type", msg.Type));
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 msg.Attempts++;
                 msg.LastError = ex.Message;
-                DocFrameTelemetry.OutboxEventsFailed.Add(1, new KeyValuePair<string, object?>("type", msg.Type));
+                FrogFrameTelemetry.OutboxEventsFailed.Add(1, new KeyValuePair<string, object?>("type", msg.Type));
                 if (msg.Attempts >= MaxAttempts) { msg.DeadLettered = true; dead++; }
                 else { msg.NextAttemptAt = clock.GetUtcNow().AddSeconds(Math.Pow(2, msg.Attempts)); failed++; }
             }

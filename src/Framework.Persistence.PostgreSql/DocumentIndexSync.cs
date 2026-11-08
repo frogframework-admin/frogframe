@@ -8,16 +8,16 @@ using Npgsql;
 namespace Framework.Persistence.PostgreSql;
 
 /// <summary>
-/// Membuat indeks docframe_documents dari metadata: setiap field yang dipakai untuk filter / urut di daftar
+/// Membuat indeks frogframe_documents dari metadata: setiap field yang dipakai untuk filter / urut di daftar
 /// (listView.filters, defaultSort) mendapat indeks B-tree parsial per DocType, setiap field pencarian
-/// (listView.searchFields) mendapat indeks trigram GIN. Indeks dikelola dengan awalan ix_df_ — yang tidak lagi
+/// (listView.searchFields) mendapat indeks trigram GIN. Indeks dikelola dengan awalan ix_ff_ — yang tidak lagi
 /// dibutuhkan dibuang. Dibangun dengan CONCURRENTLY sehingga tabel tetap bisa ditulis selama pembangunan.
 /// Ekspresi indeks harus identik dengan ekspresi yang dihasilkan SqlQueryBuilder agar planner memakainya.
 /// </summary>
 public sealed class DocumentIndexSync(SchemaDataSource schema, IMetadataProvider metadata, ILogger<DocumentIndexSync> log)
 {
     private readonly NpgsqlDataSource db = schema.Source;
-    public const string Prefix = "ix_df_";
+    public const string Prefix = "ix_ff_";
     private const long LockKey = 0x496E646578; // "Index"
     private int _subscribed;
 
@@ -48,14 +48,14 @@ public sealed class DocumentIndexSync(SchemaDataSource schema, IMetadataProvider
                 var f = meta.ByName[sd.Field];
                 var desc = sd.Direction.Equals("desc", StringComparison.OrdinalIgnoreCase);
                 list.Add(Spec(meta.Name, f, "sort",
-                    $"ON docframe_documents (tenant_id, ({Expression(f)}) {(desc ? "DESC NULLS LAST" : "ASC NULLS FIRST")}, name) WHERE doctype = '{meta.Name}'"));
+                    $"ON frogframe_documents (tenant_id, ({Expression(f)}) {(desc ? "DESC NULLS LAST" : "ASC NULLS FIRST")}, name) WHERE doctype = '{meta.Name}'"));
                 sorted.Add(sd.Field);
             }
             foreach (var name in lv.Filters.Where(Indexable).Where(f => !sorted.Contains(f)).Distinct())
             {
                 var f = meta.ByName[name];
                 list.Add(Spec(meta.Name, f, "btree",
-                    $"ON docframe_documents (tenant_id, ({Expression(f)})) WHERE doctype = '{meta.Name}'"));
+                    $"ON frogframe_documents (tenant_id, ({Expression(f)})) WHERE doctype = '{meta.Name}'"));
             }
             var trgm = lv.SearchFields
                 .Where(f => !StandardFields.All.Contains(f) && meta.ByName.TryGetValue(f, out var cf) && cf.Type.ClrType == typeof(string) && cf.Def.Type is not ("Table" or "Image"))
@@ -64,7 +64,7 @@ public sealed class DocumentIndexSync(SchemaDataSource schema, IMetadataProvider
             {
                 var f = meta.ByName[name];
                 list.Add(Spec(meta.Name, f, "trgm",
-                    $"ON docframe_documents USING gin (({Expression(f)}) gin_trgm_ops) WHERE doctype = '{meta.Name}'"));
+                    $"ON frogframe_documents USING gin (({Expression(f)}) gin_trgm_ops) WHERE doctype = '{meta.Name}'"));
             }
         }
         return list;
@@ -106,7 +106,7 @@ public sealed class DocumentIndexSync(SchemaDataSource schema, IMetadataProvider
             var existing = new Dictionary<string, bool>(); // nama → valid
             await using (var cmd = new NpgsqlCommand(
                 "SELECT c.relname, i.indisvalid FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid " +
-                "JOIN pg_class t ON t.oid = i.indrelid WHERE t.relname = 'docframe_documents' AND c.relname LIKE 'ix\\_df\\_%'", conn))
+                "JOIN pg_class t ON t.oid = i.indrelid WHERE t.relname = 'frogframe_documents' AND c.relname LIKE 'ix\\_df\\_%'", conn))
             await using (var r = await cmd.ExecuteReaderAsync(ct))
                 while (await r.ReadAsync(ct)) existing[r.GetString(0)] = r.GetBoolean(1);
 
@@ -139,7 +139,7 @@ public sealed class DocumentIndexSync(SchemaDataSource schema, IMetadataProvider
     {
         await using var conn = await db.OpenConnectionAsync(ct);
         var names = new List<string>();
-        await using (var cmd = new NpgsqlCommand("SELECT indexname FROM pg_indexes WHERE tablename = 'docframe_documents' AND indexname LIKE 'ix\\_df\\_%'", conn))
+        await using (var cmd = new NpgsqlCommand("SELECT indexname FROM pg_indexes WHERE tablename = 'frogframe_documents' AND indexname LIKE 'ix\\_df\\_%'", conn))
         await using (var r = await cmd.ExecuteReaderAsync(ct))
             while (await r.ReadAsync(ct)) names.Add(r.GetString(0));
         foreach (var n in names) await Exec(conn, $"DROP INDEX CONCURRENTLY IF EXISTS \"{n}\"", ct);

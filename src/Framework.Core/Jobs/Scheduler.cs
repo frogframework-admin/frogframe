@@ -285,10 +285,10 @@ public sealed class ScheduledJobRunner(
         var job = RegisteredJobs.FirstOrDefault(j => j.Name == jobName)
             ?? throw new KeyNotFoundException($"Job '{jobName}' not found");
 
-        using var activity = DocFrameTelemetry.ActivitySource.StartActivity("docframe.scheduler.job");
-        activity?.SetTag("docframe.job_name", job.Name);
-        activity?.SetTag("docframe.tenant", tenantId);
-        activity?.SetTag("docframe.trigger", "manual");
+        using var activity = FrogFrameTelemetry.ActivitySource.StartActivity("frogframe.scheduler.job");
+        activity?.SetTag("frogframe.job_name", job.Name);
+        activity?.SetTag("frogframe.tenant", tenantId);
+        activity?.SetTag("frogframe.trigger", "manual");
 
         var now = DateTimeOffset.UtcNow;
         var context = new ScheduledJobContext
@@ -322,7 +322,7 @@ public sealed class ScheduledJobRunner(
             sw.Stop();
         }
 
-        DocFrameTelemetry.ScheduledJobRuns.Add(1, new KeyValuePair<string, object?>("job", job.Name), new KeyValuePair<string, object?>("status", status));
+        FrogFrameTelemetry.ScheduledJobRuns.Add(1, new KeyValuePair<string, object?>("job", job.Name), new KeyValuePair<string, object?>("status", status));
 
         var entry = new ScheduledJobRunEntry
         {
@@ -379,7 +379,7 @@ public sealed class ScheduledJobRunner(
                 if (!CronSchedule.IsDue(job.Schedule, now, lastRun))
                     continue;
 
-                var lockKey = $"docframe:scheduler:{job.Name}:{tenant}";
+                var lockKey = $"frogframe:scheduler:{job.Name}:{tenant}";
                 IDisposable? lockHandle = null;
                 try
                 {
@@ -399,10 +399,10 @@ public sealed class ScheduledJobRunner(
 
                 using (lockHandle)
                 {
-                    using var activity = DocFrameTelemetry.ActivitySource.StartActivity("docframe.scheduler.job");
-                    activity?.SetTag("docframe.job_name", job.Name);
-                    activity?.SetTag("docframe.tenant", tenant);
-                    activity?.SetTag("docframe.trigger", "scheduled");
+                    using var activity = FrogFrameTelemetry.ActivitySource.StartActivity("frogframe.scheduler.job");
+                    activity?.SetTag("frogframe.job_name", job.Name);
+                    activity?.SetTag("frogframe.tenant", tenant);
+                    activity?.SetTag("frogframe.trigger", "scheduled");
 
                     RecordRun(job.Name, tenant, now);
                     var context = new ScheduledJobContext
@@ -436,7 +436,7 @@ public sealed class ScheduledJobRunner(
                     finally
                     {
                         sw.Stop();
-                        DocFrameTelemetry.ScheduledJobRuns.Add(1, new KeyValuePair<string, object?>("job", job.Name), new KeyValuePair<string, object?>("status", status));
+                        FrogFrameTelemetry.ScheduledJobRuns.Add(1, new KeyValuePair<string, object?>("job", job.Name), new KeyValuePair<string, object?>("status", status));
                         var entry = new ScheduledJobRunEntry
                         {
                             JobName = job.Name,

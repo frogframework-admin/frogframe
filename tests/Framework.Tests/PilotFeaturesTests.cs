@@ -300,8 +300,8 @@ sealed partial class Tests
         {
             UserName = "reset_tester_" + Guid.NewGuid().ToString("N")[..6],
             FullName = "Reset Test User",
-            Email = "tester@docframe.local",
-            NormalizedEmail = "TESTER@DOCFRAME.LOCAL",
+            Email = "tester@frogframe.local",
+            NormalizedEmail = "TESTER@FROGFRAME.LOCAL",
             TenantId = "acme",
             Roles = ["Employee"]
         };

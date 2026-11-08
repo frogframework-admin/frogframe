@@ -1,12 +1,12 @@
-# DocFrame Performance & Load Testing Baseline
+# FrogFrame Performance & Load Testing Baseline
 
-Panduan pengujian beban (*load testing*) dan tolok ukur performa (*baseline benchmarks*) untuk DocFrame menggunakan Grafana k6.
+Panduan pengujian beban (*load testing*) dan tolok ukur performa (*baseline benchmarks*) untuk FrogFrame menggunakan Grafana k6.
 
 ---
 
 ## 1. Persyaratan
 - [Grafana k6](https://k6.io/docs/get-started/installation/) terpasang di host, **atau** gunakan Docker.
-- Instance aplikasi DocFrame berjalan (default: `http://localhost:5080`).
+- Instance aplikasi FrogFrame berjalan (default: `http://localhost:5080`).
 
 ---
 
@@ -19,7 +19,7 @@ k6 run tests/load/k6-baseline.js
 
 Atau tentukan alamat server target melalui environment variable:
 ```bash
-BASE_URL="http://staging.docframe.internal:5080" k6 run tests/load/k6-baseline.js
+BASE_URL="http://staging.frogframe.internal:5080" k6 run tests/load/k6-baseline.js
 ```
 
 ### Opsi B: Menggunakan Docker
@@ -57,10 +57,10 @@ Skrip pengujian menjalankan 4 tahapan beban bertingkat (*ramped virtual users*):
 
 ## 5. Hasil Baseline Nyata (Real Verification Run)
 
-Diverifikasi pada lingkungan Docker terisolasi (`docframe-app` + `docframe-postgres` di PostgreSQL 17, `grafana/k6` container di Docker network `docframe_default`):
+Diverifikasi pada lingkungan Docker terisolasi (`frogframe-app` + `frogframe-postgres` di PostgreSQL 17, `grafana/k6` container di Docker network `frogframe_default`):
 
 - **Durasi Uji**: 1 menit 15 detik (ramp-up 20 VU, steady 50 VU, spike 100 VU, ramp-down 0 VU)
-- **Akun Auth**: Admin demo terautentikasi via `setup()` (`admin` / `DocFrame#2026`)
+- **Akun Auth**: Admin demo terautentikasi via `setup()` (`admin` / `FrogFrame#2026`)
 - **Total Permintaan HTTP**: 5.721 requests
 - **Throughput Rata-rata**: 74,5 req/s
 - **Tingkat Keberhasilan (Checks)**: 5.720 / 5.720 passed (**100% lolos, 0% error**)

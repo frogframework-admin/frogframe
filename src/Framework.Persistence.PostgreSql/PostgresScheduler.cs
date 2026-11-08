@@ -94,7 +94,7 @@ public sealed class PostgresDistributedLock(NpgsqlDataSource dataSource, ILogger
 }
 
 /// <summary>
-/// Discovers active tenants from docframe_users table in PostgreSQL.
+/// Discovers active tenants from frogframe_users table in PostgreSQL.
 /// </summary>
 public sealed class PostgresTenantProvider(NpgsqlDataSource dataSource, string defaultTenant = "acme") : ITenantProvider
 {
@@ -105,7 +105,7 @@ public sealed class PostgresTenantProvider(NpgsqlDataSource dataSource, string d
         {
             await using var conn = await dataSource.OpenConnectionAsync(ct).ConfigureAwait(false);
             await using var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT DISTINCT tenant_id FROM docframe_users WHERE is_active = true ORDER BY tenant_id";
+            cmd.CommandText = "SELECT DISTINCT tenant_id FROM frogframe_users WHERE is_active = true ORDER BY tenant_id";
             await using var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
             while (await reader.ReadAsync(ct).ConfigureAwait(false))
             {
@@ -131,7 +131,7 @@ public sealed class PostgresScheduledJobLogStore(NpgsqlDataSource db) : ISchedul
     public async Task<DateTimeOffset?> GetLastRunAsync(string jobName, string tenantId, CancellationToken ct = default)
     {
         await using var cmd = db.CreateCommand(
-            "SELECT started_at FROM docframe_scheduled_job_runs WHERE job_name = $1 AND tenant_id = $2 ORDER BY started_at DESC LIMIT 1");
+            "SELECT started_at FROM frogframe_scheduled_job_runs WHERE job_name = $1 AND tenant_id = $2 ORDER BY started_at DESC LIMIT 1");
         cmd.Parameters.AddWithValue(jobName);
         cmd.Parameters.AddWithValue(tenantId);
 
@@ -144,7 +144,7 @@ public sealed class PostgresScheduledJobLogStore(NpgsqlDataSource db) : ISchedul
     public async Task RecordRunAsync(ScheduledJobRunEntry entry, CancellationToken ct = default)
     {
         await using var cmd = db.CreateCommand(
-            "INSERT INTO docframe_scheduled_job_runs (job_name, tenant_id, started_at, completed_at, duration_ms, status, error) " +
+            "INSERT INTO frogframe_scheduled_job_runs (job_name, tenant_id, started_at, completed_at, duration_ms, status, error) " +
             "VALUES ($1, $2, $3, $4, $5, $6, $7)");
         cmd.Parameters.AddWithValue(entry.JobName);
         cmd.Parameters.AddWithValue(entry.TenantId);
@@ -161,7 +161,7 @@ public sealed class PostgresScheduledJobLogStore(NpgsqlDataSource db) : ISchedul
     {
         await using var cmd = db.CreateCommand(
             "SELECT job_name, tenant_id, started_at, completed_at, duration_ms, status, error " +
-            "FROM docframe_scheduled_job_runs " +
+            "FROM frogframe_scheduled_job_runs " +
             "WHERE ($1 IS NULL OR tenant_id = $1) " +
             "ORDER BY started_at DESC LIMIT $2");
         cmd.Parameters.AddWithValue((object?)tenantId ?? DBNull.Value);

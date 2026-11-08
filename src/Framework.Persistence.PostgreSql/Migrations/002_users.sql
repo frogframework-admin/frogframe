@@ -1,7 +1,7 @@
--- DocFrame: akun login (ASP.NET Core Identity dengan penyimpanan DocFrame).
+-- FrogFrame: akun login (ASP.NET Core Identity dengan penyimpanan FrogFrame).
 -- Tenant, departemen, karyawan, dan role disimpan di akun lalu diterbitkan sebagai klaim saat login.
 
-CREATE TABLE docframe_users (
+CREATE TABLE frogframe_users (
     id                   text        PRIMARY KEY,
     user_name            text        NOT NULL,
     normalized_user_name text        NOT NULL UNIQUE,
@@ -22,5 +22,5 @@ CREATE TABLE docframe_users (
     created_at           timestamptz NOT NULL,
     last_login_at        timestamptz
 );
-CREATE INDEX ix_users_tenant ON docframe_users (tenant_id, full_name);
-CREATE INDEX ix_users_email  ON docframe_users (normalized_email);
+CREATE INDEX ix_users_tenant ON frogframe_users (tenant_id, full_name);
+CREATE INDEX ix_users_email  ON frogframe_users (normalized_email);

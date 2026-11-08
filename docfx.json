@@ -49,8 +49,8 @@
     ],
     "output": "_site",
     "globalMetadata": {
-      "_appName": "DocFrame",
-      "_appTitle": "DocFrame — .NET Business Framework",
+      "_appName": "FrogFrame",
+      "_appTitle": "FrogFrame — .NET Business Framework",
       "_enableSearch": true,
       "_appLogoPath": null,
       "_appFaviconPath": null

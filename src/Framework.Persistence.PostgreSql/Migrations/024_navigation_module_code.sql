@@ -1,8 +1,8 @@
--- DocFrame: kode unik untuk master modul. DocType.module merujuk ke kode ini.
-ALTER TABLE docframe_navigation_modules ADD COLUMN IF NOT EXISTS code text;
+-- FrogFrame: kode unik untuk master modul. DocType.module merujuk ke kode ini.
+ALTER TABLE frogframe_navigation_modules ADD COLUMN IF NOT EXISTS code text;
 
 -- Modul yang sudah ada diberi kode. Nama bawaan dipetakan eksplisit; nama lain dijadikan kode dari namanya.
-UPDATE docframe_navigation_modules SET code = CASE
+UPDATE frogframe_navigation_modules SET code = CASE
     WHEN name IN ('Human Resources', 'HR')  THEN 'HR'
     WHEN name = 'Procurement'               THEN 'PROCUREMENT'
     WHEN name = 'Analytics'                 THEN 'ANALYTICS'
@@ -11,4 +11,4 @@ UPDATE docframe_navigation_modules SET code = CASE
 END
 WHERE code IS NULL;
 
-CREATE UNIQUE INDEX IF NOT EXISTS ux_nav_modules_code ON docframe_navigation_modules (tenant_id, code) WHERE code IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS ux_nav_modules_code ON frogframe_navigation_modules (tenant_id, code) WHERE code IS NOT NULL;

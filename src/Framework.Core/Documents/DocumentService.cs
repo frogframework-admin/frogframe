@@ -361,14 +361,14 @@ public sealed class DocumentService(
     /// <param name="auditAction">Teks aksi di audit, mis. "Dibuat lewat impor #imp_x".</param>
     public async Task<Document> InsertAsync(UserContext user, string docType, IDictionary<string, object?> payload, string auditAction, CancellationToken ct = default)
     {
-        using var activity = DocFrameTelemetry.ActivitySource.StartActivity("docframe.document.insert");
-        activity?.SetTag("docframe.doctype", docType);
-        activity?.SetTag("docframe.tenant", user.TenantId);
-        activity?.SetTag("docframe.user", user.Id);
+        using var activity = FrogFrameTelemetry.ActivitySource.StartActivity("frogframe.document.insert");
+        activity?.SetTag("frogframe.doctype", docType);
+        activity?.SetTag("frogframe.tenant", user.TenantId);
+        activity?.SetTag("frogframe.user", user.Id);
 
         using var hookScope = hooks.EnterDocument(docType, $"(insert:{Guid.NewGuid():N})");
         var p = await PrepareInsertAsync(user, docType, payload, allocateName: true, ct);
-        activity?.SetTag("docframe.name", p.Doc.Name);
+        activity?.SetTag("frogframe.name", p.Doc.Name);
         hookScope.Dispose();
         using var finalNameScope = hooks.EnterDocument(docType, p.Doc.Name);
         var uow = new UnitOfWork();
@@ -477,11 +477,11 @@ public sealed class DocumentService(
     public async Task<Document> UpdateAsync(UserContext user, string docType, string name, int expectedVersion,
         IDictionary<string, object?> patch, CancellationToken ct = default)
     {
-        using var activity = DocFrameTelemetry.ActivitySource.StartActivity("docframe.document.update");
-        activity?.SetTag("docframe.doctype", docType);
-        activity?.SetTag("docframe.name", name);
-        activity?.SetTag("docframe.tenant", user.TenantId);
-        activity?.SetTag("docframe.user", user.Id);
+        using var activity = FrogFrameTelemetry.ActivitySource.StartActivity("frogframe.document.update");
+        activity?.SetTag("frogframe.doctype", docType);
+        activity?.SetTag("frogframe.name", name);
+        activity?.SetTag("frogframe.tenant", user.TenantId);
+        activity?.SetTag("frogframe.user", user.Id);
 
         using var hookScope = hooks.EnterDocument(docType, name);
         var meta = TopLevel(docType);
@@ -519,11 +519,11 @@ public sealed class DocumentService(
     {
         if (Meta.DocTypes.TryGetValue(docType, out var singleMeta) && singleMeta.Def.IsSingle)
             throw new InvalidStateException($"{singleMeta.Title} adalah dokumen tunggal dan tidak bisa dihapus.");
-        using var activity = DocFrameTelemetry.ActivitySource.StartActivity("docframe.document.delete");
-        activity?.SetTag("docframe.doctype", docType);
-        activity?.SetTag("docframe.name", name);
-        activity?.SetTag("docframe.tenant", user.TenantId);
-        activity?.SetTag("docframe.user", user.Id);
+        using var activity = FrogFrameTelemetry.ActivitySource.StartActivity("frogframe.document.delete");
+        activity?.SetTag("frogframe.doctype", docType);
+        activity?.SetTag("frogframe.name", name);
+        activity?.SetTag("frogframe.tenant", user.TenantId);
+        activity?.SetTag("frogframe.user", user.Id);
 
         using var hookScope = hooks.EnterDocument(docType, name);
         var meta = TopLevel(docType);
@@ -551,7 +551,7 @@ public sealed class DocumentService(
         uow.Outbox.Add(Event(current, "document.deleted", user));
         uow.Outbox.AddRange(deleteEvents);
         await store.CommitAsync(uow, ct);
-        DocFrameTelemetry.DocumentOperations.Add(1, new KeyValuePair<string, object?>("doctype", docType), new KeyValuePair<string, object?>("operation", "Delete"));
+        FrogFrameTelemetry.DocumentOperations.Add(1, new KeyValuePair<string, object?>("doctype", docType), new KeyValuePair<string, object?>("operation", "Delete"));
 
         await hooks.RunAsync(DocHookStage.AfterDelete, deleteContext, ct);
     }
@@ -560,12 +560,12 @@ public sealed class DocumentService(
     public async Task<Document> RunActionAsync(UserContext user, string docType, string name, string action, int expectedVersion,
         string? comment, CancellationToken ct = default)
     {
-        using var activity = DocFrameTelemetry.ActivitySource.StartActivity("docframe.document.action");
-        activity?.SetTag("docframe.doctype", docType);
-        activity?.SetTag("docframe.name", name);
-        activity?.SetTag("docframe.action", action);
-        activity?.SetTag("docframe.tenant", user.TenantId);
-        activity?.SetTag("docframe.user", user.Id);
+        using var activity = FrogFrameTelemetry.ActivitySource.StartActivity("frogframe.document.action");
+        activity?.SetTag("frogframe.doctype", docType);
+        activity?.SetTag("frogframe.name", name);
+        activity?.SetTag("frogframe.action", action);
+        activity?.SetTag("frogframe.tenant", user.TenantId);
+        activity?.SetTag("frogframe.user", user.Id);
 
         using var hookScope = hooks.EnterDocument(docType, name);
         var meta = TopLevel(docType);
@@ -841,7 +841,7 @@ public sealed class DocumentService(
         try { await store.CommitAsync(uow, ct); } // event eksternal baru diproses setelah commit melalui outbox
         catch (Framework.Accounting.LedgerException ex) { throw new ValidationFailedException([new FieldError("ledger", ex.Message)]); }
         doc.TransientMessages.AddRange(ctx.Messages);
-        DocFrameTelemetry.DocumentOperations.Add(1, new KeyValuePair<string, object?>("doctype", doc.DocType), new KeyValuePair<string, object?>("operation", ctx.Operation.ToString()));
+        FrogFrameTelemetry.DocumentOperations.Add(1, new KeyValuePair<string, object?>("doctype", doc.DocType), new KeyValuePair<string, object?>("operation", ctx.Operation.ToString()));
     }
 
     private HookContext CreateHookContext(DocumentContext ctx) =>

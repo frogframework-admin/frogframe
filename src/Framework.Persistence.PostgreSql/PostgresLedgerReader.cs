@@ -18,7 +18,7 @@ public sealed class PostgresLedgerReader(NpgsqlDataSource db) : ILedgerReader
 
     public async Task<IReadOnlyList<LedgerEntry>> GetVoucherAsync(string tenantId, string voucherType, string voucherName, CancellationToken ct = default)
     {
-        await using var cmd = db.CreateCommand($"SELECT {Cols} FROM docframe_gl_entries WHERE tenant_id = $1 AND voucher_type = $2 AND voucher_name = $3 ORDER BY seq");
+        await using var cmd = db.CreateCommand($"SELECT {Cols} FROM frogframe_gl_entries WHERE tenant_id = $1 AND voucher_type = $2 AND voucher_name = $3 ORDER BY seq");
         cmd.Parameters.AddWithValue(tenantId); cmd.Parameters.AddWithValue(voucherType); cmd.Parameters.AddWithValue(voucherName);
         var list = new List<LedgerEntry>();
         await using var r = await cmd.ExecuteReaderAsync(ct);
@@ -28,7 +28,7 @@ public sealed class PostgresLedgerReader(NpgsqlDataSource db) : ILedgerReader
 
     public async Task<IReadOnlyList<LedgerEntry>> GetAgainstAsync(string tenantId, string againstType, string againstName, CancellationToken ct = default)
     {
-        await using var cmd = db.CreateCommand($"SELECT {Cols} FROM docframe_gl_entries WHERE tenant_id = $1 AND against_voucher_type = $2 AND against_voucher_name = $3 ORDER BY seq");
+        await using var cmd = db.CreateCommand($"SELECT {Cols} FROM frogframe_gl_entries WHERE tenant_id = $1 AND against_voucher_type = $2 AND against_voucher_name = $3 ORDER BY seq");
         cmd.Parameters.AddWithValue(tenantId); cmd.Parameters.AddWithValue(againstType); cmd.Parameters.AddWithValue(againstName);
         var list = new List<LedgerEntry>();
         await using var r = await cmd.ExecuteReaderAsync(ct);
@@ -38,7 +38,7 @@ public sealed class PostgresLedgerReader(NpgsqlDataSource db) : ILedgerReader
 
     public async Task<bool> AccountUsedAsync(string tenantId, string account, CancellationToken ct = default)
     {
-        await using var cmd = db.CreateCommand("SELECT EXISTS (SELECT 1 FROM docframe_gl_entries WHERE tenant_id = $1 AND account_id = $2)");
+        await using var cmd = db.CreateCommand("SELECT EXISTS (SELECT 1 FROM frogframe_gl_entries WHERE tenant_id = $1 AND account_id = $2)");
         cmd.Parameters.AddWithValue(tenantId); cmd.Parameters.AddWithValue(account);
         return (bool)(await cmd.ExecuteScalarAsync(ct))!;
     }
@@ -46,7 +46,7 @@ public sealed class PostgresLedgerReader(NpgsqlDataSource db) : ILedgerReader
     /// <summary>Memeriksa seluruh rantai tenant secara berurutan (streaming), melaporkan baris pertama yang rusak.</summary>
     public async Task<ChainBreak?> VerifyChainAsync(string tenantId, CancellationToken ct = default)
     {
-        await using var cmd = db.CreateCommand($"SELECT {Cols} FROM docframe_gl_entries WHERE tenant_id = $1 ORDER BY seq");
+        await using var cmd = db.CreateCommand($"SELECT {Cols} FROM frogframe_gl_entries WHERE tenant_id = $1 ORDER BY seq");
         cmd.Parameters.AddWithValue(tenantId);
         await using var r = await cmd.ExecuteReaderAsync(ct);
         var prev = Ledger.Genesis; long expect = 1;

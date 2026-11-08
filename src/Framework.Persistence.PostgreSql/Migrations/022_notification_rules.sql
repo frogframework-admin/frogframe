@@ -1,5 +1,5 @@
--- DocFrame: Notification Rules (P1-6) - Aturan notifikasi tanpa koding
-CREATE TABLE IF NOT EXISTS docframe_notification_rules (
+-- FrogFrame: Notification Rules (P1-6) - Aturan notifikasi tanpa koding
+CREATE TABLE IF NOT EXISTS frogframe_notification_rules (
     id text PRIMARY KEY,
     tenant_id text NOT NULL,
     name text NOT NULL,
@@ -18,5 +18,5 @@ CREATE TABLE IF NOT EXISTS docframe_notification_rules (
     modified_at timestamptz NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS ix_notification_rules_tenant_doctype ON docframe_notification_rules (tenant_id, doctype, trigger);
+CREATE INDEX IF NOT EXISTS ix_notification_rules_tenant_doctype ON frogframe_notification_rules (tenant_id, doctype, trigger);
 

@@ -1,5 +1,5 @@
--- DocFrame: User Preferences (Grid customization, UI states per-user)
-CREATE TABLE IF NOT EXISTS docframe_user_preferences (
+-- FrogFrame: User Preferences (Grid customization, UI states per-user)
+CREATE TABLE IF NOT EXISTS frogframe_user_preferences (
     tenant_id text NOT NULL,
     user_id text NOT NULL,
     pref_key text NOT NULL,
@@ -8,5 +8,5 @@ CREATE TABLE IF NOT EXISTS docframe_user_preferences (
     PRIMARY KEY (tenant_id, user_id, pref_key)
 );
 
-CREATE INDEX IF NOT EXISTS ix_user_preferences_user ON docframe_user_preferences (tenant_id, user_id);
+CREATE INDEX IF NOT EXISTS ix_user_preferences_user ON frogframe_user_preferences (tenant_id, user_id);
 

@@ -17,7 +17,7 @@ public static class HttpHardeningExtensions
     /// <summary>
     /// Configures production HTTP security hardening services: ForwardedHeaders, HSTS, and security options.
     /// </summary>
-    public static IServiceCollection AddDocFrameHttpHardening(this IServiceCollection services, IConfiguration? config = null)
+    public static IServiceCollection AddFrogFrameHttpHardening(this IServiceCollection services, IConfiguration? config = null)
     {
         services.Configure<ForwardedHeadersOptions>(options =>
         {
@@ -40,13 +40,13 @@ public static class HttpHardeningExtensions
     /// <summary>
     /// Adds global security headers: X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy, and CSP.
     /// </summary>
-    public static IApplicationBuilder UseDocFrameSecurityHeaders(this IApplicationBuilder app) =>
-        app.UseMiddleware<DocFrameSecurityHeadersMiddleware>();
+    public static IApplicationBuilder UseFrogFrameSecurityHeaders(this IApplicationBuilder app) =>
+        app.UseMiddleware<FrogFrameSecurityHeadersMiddleware>();
 
     /// <summary>
     /// Standardized production exception handler: RFC 7807 problem+json for /api/*, user-friendly HTML for browser requests.
     /// </summary>
-    public static IApplicationBuilder UseDocFrameExceptionHandler(this IApplicationBuilder app)
+    public static IApplicationBuilder UseFrogFrameExceptionHandler(this IApplicationBuilder app)
     {
         return app.UseExceptionHandler(exceptionApp =>
         {
@@ -54,10 +54,10 @@ public static class HttpHardeningExtensions
             {
                 var feature = context.Features.Get<IExceptionHandlerPathFeature>();
                 var ex = feature?.Error;
-                var logger = context.RequestServices.GetService<ILoggerFactory>()?.CreateLogger("DocFrame.Http");
+                var logger = context.RequestServices.GetService<ILoggerFactory>()?.CreateLogger("FrogFrame.Http");
                 logger?.LogError(ex, "Unhandled exception on {Method} {Path}", context.Request.Method, context.Request.Path);
 
-                DocFrameTelemetry.HttpErrors.Add(1);
+                FrogFrameTelemetry.HttpErrors.Add(1);
 
                 if (ex is not null)
                 {
@@ -129,7 +129,7 @@ public static class HttpHardeningExtensions
     /// /health/ready: Readiness check validating database connectivity
     /// /health: Backward-compatible alias for readiness
     /// </summary>
-    public static IEndpointRouteBuilder MapDocFrameHealthChecks(this IEndpointRouteBuilder app)
+    public static IEndpointRouteBuilder MapFrogFrameHealthChecks(this IEndpointRouteBuilder app)
     {
         // Liveness probe: process is running
         app.MapGet("/health/live", () => Results.Ok(new { status = "live" }));
@@ -151,7 +151,7 @@ public static class HttpHardeningExtensions
             }
             catch (Exception ex)
             {
-                var logger = sp.GetService<ILoggerFactory>()?.CreateLogger("DocFrame.Health");
+                var logger = sp.GetService<ILoggerFactory>()?.CreateLogger("FrogFrame.Health");
                 logger?.LogWarning(ex, "Readiness check failed for provider {Provider}", checker.ProviderName);
                 return Results.Json(new { status = "unready", storage = checker.ProviderName }, statusCode: StatusCodes.Status503ServiceUnavailable);
             }
@@ -170,7 +170,7 @@ public static class HttpHardeningExtensions
     }
 }
 
-public sealed class DocFrameSecurityHeadersMiddleware(RequestDelegate next)
+public sealed class FrogFrameSecurityHeadersMiddleware(RequestDelegate next)
 {
     public async Task InvokeAsync(HttpContext context)
     {
@@ -188,7 +188,7 @@ public sealed class DocFrameSecurityHeadersMiddleware(RequestDelegate next)
         // Feature policies
         headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
 
-        // Content Security Policy for DocFrame (allows Blazor Server WebSocket + Google fonts)
+        // Content Security Policy for FrogFrame (allows Blazor Server WebSocket + Google fonts)
         if (!headers.ContainsKey("Content-Security-Policy"))
         {
             headers["Content-Security-Policy"] =

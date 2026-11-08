@@ -11,7 +11,7 @@ public sealed class PostgresErrorLogStore(NpgsqlDataSource db) : IErrorLogStore
     public async Task LogAsync(ErrorLogEntry entry, CancellationToken ct = default)
     {
         await using var cmd = db.CreateCommand(
-            "INSERT INTO docframe_error_logs (id, tenant_id, timestamp, method, path, user_id, error_type, message, stack_trace, seen) " +
+            "INSERT INTO frogframe_error_logs (id, tenant_id, timestamp, method, path, user_id, error_type, message, stack_trace, seen) " +
             "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)");
         cmd.Parameters.AddWithValue(entry.Id);
         cmd.Parameters.AddWithValue(entry.TenantId);
@@ -31,7 +31,7 @@ public sealed class PostgresErrorLogStore(NpgsqlDataSource db) : IErrorLogStore
     {
         await using var cmd = db.CreateCommand(
             "SELECT id, tenant_id, timestamp, method, path, user_id, error_type, message, stack_trace, seen " +
-            "FROM docframe_error_logs " +
+            "FROM frogframe_error_logs " +
             "WHERE ($1 IS NULL OR tenant_id = $1) " +
             "ORDER BY timestamp DESC LIMIT $2");
         cmd.Parameters.AddWithValue((object?)tenantId ?? DBNull.Value);
@@ -60,7 +60,7 @@ public sealed class PostgresErrorLogStore(NpgsqlDataSource db) : IErrorLogStore
 
     public async Task MarkSeenAsync(Guid id, string? tenantId = null, CancellationToken ct = default)
     {
-        await using var cmd = db.CreateCommand("UPDATE docframe_error_logs SET seen = true WHERE id = $1 AND ($2 IS NULL OR tenant_id = $2)");
+        await using var cmd = db.CreateCommand("UPDATE frogframe_error_logs SET seen = true WHERE id = $1 AND ($2 IS NULL OR tenant_id = $2)");
         cmd.Parameters.AddWithValue(id);
         cmd.Parameters.AddWithValue((object?)tenantId ?? DBNull.Value);
         await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
@@ -69,7 +69,7 @@ public sealed class PostgresErrorLogStore(NpgsqlDataSource db) : IErrorLogStore
     public async Task ClearAsync(string? tenantId = null, CancellationToken ct = default)
     {
         await using var cmd = db.CreateCommand(
-            "DELETE FROM docframe_error_logs WHERE ($1 IS NULL OR tenant_id = $1)");
+            "DELETE FROM frogframe_error_logs WHERE ($1 IS NULL OR tenant_id = $1)");
         cmd.Parameters.AddWithValue((object?)tenantId ?? DBNull.Value);
         await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
     }

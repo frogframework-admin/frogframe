@@ -1,6 +1,6 @@
 # API Integrations: API Keys & Custom Methods
 
-DocFrame provides secure external integration endpoints for automation, third-party services, and microservices.
+FrogFrame provides secure external integration endpoints for automation, third-party services, and microservices.
 
 ---
 

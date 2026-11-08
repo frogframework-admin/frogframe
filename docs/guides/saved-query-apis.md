@@ -1,6 +1,6 @@
 # Saved Query APIs Guide
 
-DocFrame enables publishing read-only SQL queries as secure, parameter-validated REST API endpoints without writing custom server code.
+FrogFrame enables publishing read-only SQL queries as secure, parameter-validated REST API endpoints without writing custom server code.
 
 ---
 
@@ -19,7 +19,7 @@ GET /api/query/{slug}?Parameter1=Value1&Parameter2=Value2
 
 ## 2. Parameter Binding & Security
 
-DocFrame enforces strict server-side parameter isolation:
+FrogFrame enforces strict server-side parameter isolation:
 
 | Binding Mode | Description | Overridable via URL? |
 |---|---|---|

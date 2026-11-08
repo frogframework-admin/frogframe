@@ -19,7 +19,7 @@ public sealed class PostgresReportTemplateStore(NpgsqlDataSource db) : IReportTe
 
     public async Task<IReadOnlyList<ReportTemplateDef>> ListAsync(string tenantId, CancellationToken ct = default)
     {
-        await using var cmd = db.CreateCommand($"SELECT {Cols} FROM docframe_report_templates WHERE tenant_id = $1 ORDER BY name");
+        await using var cmd = db.CreateCommand($"SELECT {Cols} FROM frogframe_report_templates WHERE tenant_id = $1 ORDER BY name");
         cmd.Parameters.AddWithValue(tenantId);
         var list = new List<ReportTemplateDef>();
         await using var r = await cmd.ExecuteReaderAsync(ct);
@@ -29,7 +29,7 @@ public sealed class PostgresReportTemplateStore(NpgsqlDataSource db) : IReportTe
 
     public async Task<ReportTemplateDef?> GetAsync(string tenantId, string id, CancellationToken ct = default)
     {
-        await using var cmd = db.CreateCommand($"SELECT {Cols} FROM docframe_report_templates WHERE tenant_id = $1 AND id = $2");
+        await using var cmd = db.CreateCommand($"SELECT {Cols} FROM frogframe_report_templates WHERE tenant_id = $1 AND id = $2");
         cmd.Parameters.AddWithValue(tenantId); cmd.Parameters.AddWithValue(id);
         await using var r = await cmd.ExecuteReaderAsync(ct);
         return await r.ReadAsync(ct) ? Read(r) : null;
@@ -37,7 +37,7 @@ public sealed class PostgresReportTemplateStore(NpgsqlDataSource db) : IReportTe
 
     public async Task<byte[]?> GetFileAsync(string tenantId, string id, CancellationToken ct = default)
     {
-        await using var cmd = db.CreateCommand("SELECT template FROM docframe_report_templates WHERE tenant_id = $1 AND id = $2");
+        await using var cmd = db.CreateCommand("SELECT template FROM frogframe_report_templates WHERE tenant_id = $1 AND id = $2");
         cmd.Parameters.AddWithValue(tenantId); cmd.Parameters.AddWithValue(id);
         return await cmd.ExecuteScalarAsync(ct) as byte[];
     }
@@ -45,8 +45,8 @@ public sealed class PostgresReportTemplateStore(NpgsqlDataSource db) : IReportTe
     public async Task SaveAsync(ReportTemplateDef d, byte[]? file, CancellationToken ct = default)
     {
         await using var cmd = db.CreateCommand(file is null
-            ? "UPDATE docframe_report_templates SET name=$3, description=$4, config=$5::jsonb, updated_at=$6, version=$7 WHERE tenant_id=$1 AND id=$2"
-            : "INSERT INTO docframe_report_templates (tenant_id, id, name, description, config, template_file_name, template, created_by, created_at, updated_at, version) " +
+            ? "UPDATE frogframe_report_templates SET name=$3, description=$4, config=$5::jsonb, updated_at=$6, version=$7 WHERE tenant_id=$1 AND id=$2"
+            : "INSERT INTO frogframe_report_templates (tenant_id, id, name, description, config, template_file_name, template, created_by, created_at, updated_at, version) " +
               "VALUES ($1,$2,$3,$4,$5::jsonb,$8,$9,$10,$11,$6,$7) ON CONFLICT (tenant_id, id) DO UPDATE SET name=$3, description=$4, config=$5::jsonb, " +
               "template_file_name=$8, template=$9, updated_at=$6, version=$7");
         cmd.Parameters.AddWithValue(d.TenantId); cmd.Parameters.AddWithValue(d.Id); cmd.Parameters.AddWithValue(d.Name);
@@ -63,7 +63,7 @@ public sealed class PostgresReportTemplateStore(NpgsqlDataSource db) : IReportTe
 
     public async Task DeleteAsync(string tenantId, string id, CancellationToken ct = default)
     {
-        await using var cmd = db.CreateCommand("DELETE FROM docframe_report_templates WHERE tenant_id = $1 AND id = $2");
+        await using var cmd = db.CreateCommand("DELETE FROM frogframe_report_templates WHERE tenant_id = $1 AND id = $2");
         cmd.Parameters.AddWithValue(tenantId); cmd.Parameters.AddWithValue(id);
         await cmd.ExecuteNonQueryAsync(ct);
     }

@@ -12,15 +12,15 @@ using Microsoft.Extensions.Options;
 
 namespace Framework.Web.Identity;
 
-/// <summary>Nama klaim DocFrame. Role memakai ClaimTypes.Role standar.</summary>
-public static class DocFrameClaims
+/// <summary>Nama klaim FrogFrame. Role memakai ClaimTypes.Role standar.</summary>
+public static class FrogFrameClaims
 {
-    public const string Tenant = "docframe:tenant";
-    public const string FullName = "docframe:full_name";
-    public const string Department = "docframe:department";
-    public const string Employee = "docframe:employee";
-    public const string Avatar = "docframe:avatar";
-    public const string Email = "docframe:email";
+    public const string Tenant = "frogframe:tenant";
+    public const string FullName = "frogframe:full_name";
+    public const string Department = "frogframe:department";
+    public const string Employee = "frogframe:employee";
+    public const string Avatar = "frogframe:avatar";
+    public const string Email = "frogframe:email";
 
     /// <summary>Atribut UserContext ↔ klaim. Tambah baris di sini untuk atribut baru (mis. cost center).</summary>
     public static readonly IReadOnlyDictionary<string, string> AttributeClaims = new Dictionary<string, string>
@@ -40,10 +40,10 @@ public static class ClaimsUserMapper
 {
     public static IEnumerable<Claim> ToClaims(UserAccount a)
     {
-        yield return new Claim(DocFrameClaims.Tenant, a.TenantId);
-        yield return new Claim(DocFrameClaims.FullName, a.FullName);
+        yield return new Claim(FrogFrameClaims.Tenant, a.TenantId);
+        yield return new Claim(FrogFrameClaims.FullName, a.FullName);
         foreach (var (attr, value) in a.Attributes())
-            if (DocFrameClaims.AttributeClaims.TryGetValue(attr, out var type)) yield return new Claim(type, value);
+            if (FrogFrameClaims.AttributeClaims.TryGetValue(attr, out var type)) yield return new Claim(type, value);
         foreach (var r in a.Roles.Distinct()) yield return new Claim(ClaimTypes.Role, r);
     }
 
@@ -52,15 +52,15 @@ public static class ClaimsUserMapper
     {
         if (principal?.Identity?.IsAuthenticated != true) return null;
         var id = principal.FindFirstValue(ClaimTypes.NameIdentifier);
-        var tenant = principal.FindFirstValue(DocFrameClaims.Tenant);
+        var tenant = principal.FindFirstValue(FrogFrameClaims.Tenant);
         if (string.IsNullOrEmpty(id) || string.IsNullOrEmpty(tenant)) return null;
-        var attributes = DocFrameClaims.AttributeClaims
+        var attributes = FrogFrameClaims.AttributeClaims
             .Select(kv => (kv.Key, Value: principal.FindFirstValue(kv.Value)))
             .Where(x => !string.IsNullOrEmpty(x.Value))
             .ToDictionary(x => x.Key, x => x.Value!);
         return new UserContext(
             id,
-            principal.FindFirstValue(DocFrameClaims.FullName) ?? principal.Identity!.Name ?? id,
+            principal.FindFirstValue(FrogFrameClaims.FullName) ?? principal.Identity!.Name ?? id,
             tenant,
             principal.FindAll(ClaimTypes.Role).Select(c => c.Value).ToHashSet(),
             attributes);
@@ -68,12 +68,12 @@ public static class ClaimsUserMapper
 
     public static UserContext FromAccount(UserAccount a)
     {
-        var identity = new ClaimsIdentity(ToClaims(a).Append(new Claim(ClaimTypes.NameIdentifier, a.Id)), "docframe");
+        var identity = new ClaimsIdentity(ToClaims(a).Append(new Claim(ClaimTypes.NameIdentifier, a.Id)), "frogframe");
         return ToUserContext(new ClaimsPrincipal(identity))!;
     }
 }
 
-public sealed class DocFrameClaimsFactory(IOptions<IdentityOptions> options) : IUserClaimsPrincipalFactory<UserAccount>
+public sealed class FrogFrameClaimsFactory(IOptions<IdentityOptions> options) : IUserClaimsPrincipalFactory<UserAccount>
 {
     public Task<ClaimsPrincipal> CreateAsync(UserAccount user)
     {
@@ -89,7 +89,7 @@ public sealed class DocFrameClaimsFactory(IOptions<IdentityOptions> options) : I
 }
 
 /// <summary>Adapter ASP.NET Core Identity → IUserAccountRepository (in-memory atau PostgreSQL).</summary>
-public sealed class DocFrameUserStore(IUserAccountRepository repo, TimeProvider clock) :
+public sealed class FrogFrameUserStore(IUserAccountRepository repo, TimeProvider clock) :
     IUserPasswordStore<UserAccount>, IUserSecurityStampStore<UserAccount>, IUserLockoutStore<UserAccount>, IUserEmailStore<UserAccount>
 {
     public Task<string> GetUserIdAsync(UserAccount user, CancellationToken ct) => Task.FromResult(user.Id);
@@ -185,22 +185,22 @@ public sealed class AccountUserDirectory(IUserAccountRepository repo) : IUserDir
 
 public static class IdentityServiceCollectionExtensions
 {
-    public const string AuthScheme = "DocFrame";
+    public const string AuthScheme = "FrogFrame";
 
     /// <summary>
-    /// ASP.NET Core Identity dengan penyimpanan akun DocFrame (tanpa EF Core): cookie untuk browser,
-    /// bearer token untuk API. Repository akun default in-memory; AddDocFrameworkPostgreSql menggantinya.
+    /// ASP.NET Core Identity dengan penyimpanan akun FrogFrame (tanpa EF Core): cookie untuk browser,
+    /// bearer token untuk API. Repository akun default in-memory; AddFrogFrameworkPostgreSql menggantinya.
     /// </summary>
-    public static IServiceCollection AddDocFrameworkIdentity(this IServiceCollection services, Action<IdentityOptions>? configure = null)
+    public static IServiceCollection AddFrogFrameworkIdentity(this IServiceCollection services, Action<IdentityOptions>? configure = null)
     {
         services.TryAddSingleton<IUserAccountRepository, InMemoryUserAccountRepository>();
-        services.AddScoped<IUserStore<UserAccount>, DocFrameUserStore>();
-        services.AddScoped<IUserClaimsPrincipalFactory<UserAccount>, DocFrameClaimsFactory>();
+        services.AddScoped<IUserStore<UserAccount>, FrogFrameUserStore>();
+        services.AddScoped<IUserClaimsPrincipalFactory<UserAccount>, FrogFrameClaimsFactory>();
         services.AddScoped<IUserConfirmation<UserAccount>, ActiveUserConfirmation>();
         services.AddSingleton<IUserDirectory, AccountUserDirectory>();
 
         services.AddDataProtection()
-            .SetApplicationName("DocFrame");
+            .SetApplicationName("FrogFrame");
 
         services.AddIdentityCore<UserAccount>(o =>
             {
@@ -239,7 +239,7 @@ public static class IdentityServiceCollectionExtensions
                 o.LoginPath = "/account/login";
                 o.LogoutPath = "/account/logout";
                 o.AccessDeniedPath = "/error/403";
-                o.Cookie.Name = "docframe.auth";
+                o.Cookie.Name = "frogframe.auth";
                 o.Cookie.HttpOnly = true;
                 o.Cookie.SameSite = Microsoft.AspNetCore.Http.SameSiteMode.Lax;
                 o.ExpireTimeSpan = TimeSpan.FromHours(8);

@@ -1,6 +1,6 @@
 # Backup & Disaster Recovery Runbook
 
-Operational guide for backing up and restoring DocFrame environments in production.
+Operational guide for backing up and restoring FrogFrame environments in production.
 
 ---
 
@@ -15,18 +15,18 @@ Operational guide for backing up and restoring DocFrame environments in producti
 
 ## 2. Backup Scope
 
-All persistent state in DocFrame resides in PostgreSQL. A single `pg_dump` covers:
-- **Documents & Audit**: `docframe_documents`, `docframe_audit`
-- **Uploaded Files / Images**: `docframe_files`
-- **Data Protection Keys (Session Cookies)**: `docframe_data_protection_keys`
-- **Metadata, Workflows, Menus, Roles, Users**: `docframe_metadata_versions`, `docframe_workflow_versions`, `docframe_navigation_*`, `docframe_roles`, `docframe_users`
-- **Outbox, Job History, Error Logs**: `docframe_outbox`, `docframe_scheduled_job_runs`, `docframe_error_logs`
+All persistent state in FrogFrame resides in PostgreSQL. A single `pg_dump` covers:
+- **Documents & Audit**: `frogframe_documents`, `FrogFrame_audit`
+- **Uploaded Files / Images**: `FrogFrame_files`
+- **Data Protection Keys (Session Cookies)**: `FrogFrame_data_protection_keys`
+- **Metadata, Workflows, Menus, Roles, Users**: `FrogFrame_metadata_versions`, `FrogFrame_workflow_versions`, `FrogFrame_navigation_*`, `frogframe_roles`, `frogframe_users`
+- **Outbox, Job History, Error Logs**: `FrogFrame_outbox`, `FrogFrame_scheduled_job_runs`, `FrogFrame_error_logs`
 
 > [!CAUTION]
 > Data Protection keys stored in the database are sensitive. Restrict backup file permissions and encrypt storage buckets (e.g., AWS S3 SSE, GCP Cloud Storage default encryption).
 
 > [!NOTE]
-> The `docframe_ro` role (read-only analytical user for dashboards) is excluded when restoring with `--no-owner --no-privileges`. Re-run `deploy/sql/reporting-readonly-user.sql` after restoration.
+> The `frogframe_ro` role (read-only analytical user for dashboards) is excluded when restoring with `--no-owner --no-privileges`. Re-run `deploy/sql/reporting-readonly-user.sql` after restoration.
 
 ---
 
@@ -35,7 +35,7 @@ All persistent state in DocFrame resides in PostgreSQL. A single `pg_dump` cover
 Execute the backup script via cron or scheduled task:
 
 ```bash
-pg_dump -Fc -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" -f "/backups/docframe_$(date +%Y%m%d_%H%M%S).dump"
+pg_dump -Fc -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" -f "/backups/FrogFrame_$(date +%Y%m%d_%H%M%S).dump"
 ```
 
 Retention policy:

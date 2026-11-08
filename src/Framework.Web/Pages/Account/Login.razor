@@ -14,15 +14,15 @@
 @inject IHostEnvironment Env
 @inject TimeProvider Clock
 
-<PageTitle>Log in · DocFrame</PageTitle>
+<PageTitle>Log in · FrogFrame</PageTitle>
 
 <div class="grid lg:grid-cols-2 min-h-screen login-split-layout">
     <!-- Left column - form -->
     <div class="relative flex flex-col items-center justify-center p-8 login-split-form">
         <div class="login-form-container">
             <div class="auth-brand">
-                <span class="brand-mark" aria-hidden="true">D</span>
-                <span>DocFrame</span>
+                <span class="brand-mark" aria-hidden="true">F</span>
+                <span>FrogFrame</span>
             </div>
 
             <h1 class="auth-title">Log in</h1>
@@ -77,7 +77,7 @@
     <!-- Right column - cover image -->
     <div class="relative hidden lg:block overflow-hidden login-split-cover"
          style="background-image: url('/_content/Framework.Web/img/login-cover.webp'); background-image: image-set(url('/_content/Framework.Web/img/login-cover.webp') type('image/webp'), url('/_content/Framework.Web/img/login-cover.jpg') type('image/jpeg'), url('/_content/Framework.Web/img/login-cover.png') type('image/png')); background-size: cover; background-position: center; background-repeat: no-repeat;"
-         role="img" aria-label="DocFrame Cover">
+         role="img" aria-label="FrogFrame Cover">
     </div>
 </div>
 
@@ -95,7 +95,7 @@
         Input ??= new()
         {
             UserName = isDev ? "admin" : "",
-            Password = isDev ? (Config["Demo:Password"] ?? "DocFrame#2026") : ""
+            Password = isDev ? (Config["Demo:Password"] ?? "FrogFrame#2026") : ""
         };
 
         if (HttpMethods.IsGet(HttpContext.Request.Method))
@@ -104,7 +104,7 @@
             if (isDev)
             {
                 if (string.IsNullOrEmpty(Input.UserName)) Input.UserName = "admin";
-                if (string.IsNullOrEmpty(Input.Password)) Input.Password = Config["Demo:Password"] ?? "DocFrame#2026";
+                if (string.IsNullOrEmpty(Input.Password)) Input.Password = Config["Demo:Password"] ?? "FrogFrame#2026";
             }
         }
     }

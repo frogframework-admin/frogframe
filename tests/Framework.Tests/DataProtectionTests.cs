@@ -38,7 +38,7 @@ sealed partial class Tests
         // Instance 1: menulis key dan mengenkripsi payload
         var services1 = new ServiceCollection();
         services1.AddDataProtection()
-            .SetApplicationName("DocFrame");
+            .SetApplicationName("FrogFrame");
         services1.AddSingleton<IXmlRepository>(new PostgresXmlRepository(db));
         using var sp1 = services1.BuildServiceProvider();
 
@@ -52,7 +52,7 @@ sealed partial class Tests
         // Instance 2: membaca key yang sama dari PostgreSQL dan mendekripsi
         var services2 = new ServiceCollection();
         services2.AddDataProtection()
-            .SetApplicationName("DocFrame");
+            .SetApplicationName("FrogFrame");
         services2.AddSingleton<IXmlRepository>(new PostgresXmlRepository(db));
         using var sp2 = services2.BuildServiceProvider();
 

@@ -18,11 +18,11 @@ public sealed class ReportingOptions
     /// <summary>Connection string user database yang HANYA boleh SELECT pada skema reporting.</summary>
     public string ReadOnlyConnectionString { get; set; } = "";
     /// <summary>Role database read-only yang diberi SELECT pada view reporting saat sinkronisasi.</summary>
-    public string ReadOnlyRole { get; set; } = "docframe_ro";
+    public string ReadOnlyRole { get; set; } = "frogframe_ro";
     public int StatementTimeoutSeconds { get; set; } = 5;
     /// <summary>
     /// Opsional: koneksi (bisa menulis) ke database ANALITIK tempat view reporting dan tabel sesi berada — mis. instance
-    /// replika LOGIS dari docframe_documents. Kosong = database aplikasi. Replika FISIK tidak didukung: read-only,
+    /// replika LOGIS dari frogframe_documents. Kosong = database aplikasi. Replika FISIK tidak didukung: read-only,
     /// sehingga tabel sesi (isolasi tenant) tidak bisa ditulis di sana.
     /// </summary>
     public string? AnalyticsConnectionString { get; set; }
@@ -46,7 +46,7 @@ public sealed class ReadOnlyDataSource(NpgsqlDataSource source) : IAsyncDisposab
 /// <summary>
 /// Membuat view reporting.&lt;doctype&gt; (dan reporting.&lt;doctype&gt;_&lt;tabel&gt; untuk child table) dari metadata aktif,
 /// berisi kolom standar + field dengan tipe SQL yang sesuai. Field berlevel izin &gt; 0 dan field gambar tidak diekspos.
-/// Setiap view memfilter tenant dari docframe_reporting_sessions → query user otomatis terbatas pada tenantnya.
+/// Setiap view memfilter tenant dari frogframe_reporting_sessions → query user otomatis terbatas pada tenantnya.
 /// </summary>
 public sealed class ReportingSchemaSync(AnalyticsDataSource analytics, IMetadataProvider metadata, ReportingOptions options, ILogger<ReportingSchemaSync> log)
 {
@@ -71,7 +71,7 @@ public sealed class ReportingSchemaSync(AnalyticsDataSource analytics, IMetadata
     }
 
     private const string TenantFilter =
-        "d.tenant_id = (SELECT s.tenant_id FROM public.docframe_reporting_sessions s WHERE s.pid = pg_backend_pid())";
+        "d.tenant_id = (SELECT s.tenant_id FROM public.frogframe_reporting_sessions s WHERE s.pid = pg_backend_pid())";
 
     public async Task SyncAsync(CancellationToken ct = default)
     {
@@ -84,7 +84,7 @@ public sealed class ReportingSchemaSync(AnalyticsDataSource analytics, IMetadata
             views.Add(view);
             var cols = new List<string> { "d.name", "d.owner", "d.docstatus", "d.workflow_state", "d.created", "d.modified" };
             cols.AddRange(meta.Fields.Where(ReportingCatalog.Exposed).Select(f => $"{Column("d.data", f)} AS {Ident(f.Name)}"));
-            ddl.AppendLine($"CREATE VIEW reporting.{Ident(view)} AS SELECT {string.Join(", ", cols)} FROM public.docframe_documents d " +
+            ddl.AppendLine($"CREATE VIEW reporting.{Ident(view)} AS SELECT {string.Join(", ", cols)} FROM public.frogframe_documents d " +
                            $"WHERE d.doctype = {Lit(meta.Name)} AND {TenantFilter};");
             ddl.AppendLine($"COMMENT ON VIEW reporting.{Ident(view)} IS {Lit($"{meta.Title} (DocType {meta.Name} v{meta.Version})")};");
             foreach (var t in meta.TableFields.Where(t => t.Def.PermLevel == 0))
@@ -95,7 +95,7 @@ public sealed class ReportingSchemaSync(AnalyticsDataSource analytics, IMetadata
                 var key = Lit(t.Name);
                 var ccols = new List<string> { "d.name AS parent", "r.ordinality::integer AS idx" };
                 ccols.AddRange(child.Fields.Where(ReportingCatalog.Exposed).Select(f => $"{Column("r.value", f)} AS {Ident(f.Name)}"));
-                ddl.AppendLine($"CREATE VIEW reporting.{Ident(cview)} AS SELECT {string.Join(", ", ccols)} FROM public.docframe_documents d " +
+                ddl.AppendLine($"CREATE VIEW reporting.{Ident(cview)} AS SELECT {string.Join(", ", ccols)} FROM public.frogframe_documents d " +
                                $"CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(d.data->{key}) = 'array' THEN d.data->{key} ELSE '[]'::jsonb END) WITH ORDINALITY AS r(value, ordinality) " +
                                $"WHERE d.doctype = {Lit(meta.Name)} AND {TenantFilter};");
             }
@@ -106,7 +106,7 @@ public sealed class ReportingSchemaSync(AnalyticsDataSource analytics, IMetadata
         await Exec(conn, tx, $"SELECT pg_advisory_xact_lock({LockKey})", ct);
         await Exec(conn, tx, "CREATE SCHEMA IF NOT EXISTS reporting", ct);
         // Di database aplikasi tabel ini dibuat migrasi 005; di instance analitik terpisah dibuat di sini.
-        await Exec(conn, tx, "CREATE TABLE IF NOT EXISTS public.docframe_reporting_sessions (pid integer PRIMARY KEY, tenant_id text NOT NULL, created_at timestamptz NOT NULL)", ct);
+        await Exec(conn, tx, "CREATE TABLE IF NOT EXISTS public.frogframe_reporting_sessions (pid integer PRIMARY KEY, tenant_id text NOT NULL, created_at timestamptz NOT NULL)", ct);
         var existing = new List<string>();
         await using (var cmd = new NpgsqlCommand("SELECT viewname FROM pg_views WHERE schemaname = 'reporting'", conn, tx))
         await using (var r = await cmd.ExecuteReaderAsync(ct))
@@ -164,15 +164,15 @@ public sealed class PostgresReportingQueryExecutor(AnalyticsDataSource analytics
         const string sql = """
             WITH t AS (
                 SELECT c.relname, c.oid FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-                WHERE n.nspname = 'public' AND c.relname IN ('docframe_documents', 'docframe_users', 'docframe_reporting_sessions')
+                WHERE n.nspname = 'public' AND c.relname IN ('frogframe_documents', 'frogframe_users', 'frogframe_reporting_sessions')
             )
             SELECT current_user,
                    r.rolsuper OR r.rolcreaterole OR r.rolcreatedb OR r.rolbypassrls,
                    EXISTS (SELECT 1 FROM information_schema.role_table_grants g
                            WHERE g.grantee = current_user AND g.privilege_type IN ('INSERT','UPDATE','DELETE','TRUNCATE')),
-                   COALESCE((SELECT has_table_privilege(current_user, t.oid, 'SELECT') FROM t WHERE t.relname = 'docframe_documents'), false),
-                   COALESCE((SELECT has_table_privilege(current_user, t.oid, 'SELECT') FROM t WHERE t.relname = 'docframe_users'), false),
-                   COALESCE((SELECT has_table_privilege(current_user, t.oid, 'SELECT,INSERT,UPDATE,DELETE') FROM t WHERE t.relname = 'docframe_reporting_sessions'), false),
+                   COALESCE((SELECT has_table_privilege(current_user, t.oid, 'SELECT') FROM t WHERE t.relname = 'frogframe_documents'), false),
+                   COALESCE((SELECT has_table_privilege(current_user, t.oid, 'SELECT') FROM t WHERE t.relname = 'frogframe_users'), false),
+                   COALESCE((SELECT has_table_privilege(current_user, t.oid, 'SELECT,INSERT,UPDATE,DELETE') FROM t WHERE t.relname = 'frogframe_reporting_sessions'), false),
                    COALESCE((SELECT has_schema_privilege(current_user, n.oid, 'CREATE') FROM pg_namespace n WHERE n.nspname = 'reporting'), false)
             FROM pg_roles r WHERE r.rolname = current_user
             """;
@@ -210,7 +210,7 @@ public sealed class PostgresReportingQueryExecutor(AnalyticsDataSource analytics
         catch (PostgresException ex) { throw new ReportingUnavailableException($"Gagal memverifikasi koneksi read-only: {ex.MessageText}"); }
         var pid = ro.ProcessID;
         await using (var reg = analytics.Source.CreateCommand(
-            "INSERT INTO docframe_reporting_sessions (pid, tenant_id, created_at) VALUES ($1, $2, now()) ON CONFLICT (pid) DO UPDATE SET tenant_id = $2, created_at = now()"))
+            "INSERT INTO frogframe_reporting_sessions (pid, tenant_id, created_at) VALUES ($1, $2, now()) ON CONFLICT (pid) DO UPDATE SET tenant_id = $2, created_at = now()"))
         {
             reg.Parameters.AddWithValue(pid); reg.Parameters.AddWithValue(tenantId);
             await reg.ExecuteNonQueryAsync(ct);
@@ -270,7 +270,7 @@ public sealed class PostgresReportingQueryExecutor(AnalyticsDataSource analytics
         }
         finally
         {
-            await using var del = analytics.Source.CreateCommand("DELETE FROM docframe_reporting_sessions WHERE pid = $1");
+            await using var del = analytics.Source.CreateCommand("DELETE FROM frogframe_reporting_sessions WHERE pid = $1");
             del.Parameters.AddWithValue(pid);
             await del.ExecuteNonQueryAsync(CancellationToken.None);
         }
@@ -284,8 +284,8 @@ public sealed class PostgresReportingQueryExecutor(AnalyticsDataSource analytics
         return ex is PostgresException pg ? pg.SqlState switch
         {
             "28P01" or "28000" => $"Login dashboard gagal untuk {who}. Pastikan role read-only sudah dibuat dengan deploy/sql/reporting-readonly-user.sql " +
-                                  "dan password-nya sama dengan ConnectionStrings:DocFrameReadOnly. (Docker compose hanya menjalankan script itu saat volume database baru.)",
-            "3D000" => $"Database untuk dashboard tidak ditemukan ({who}). Periksa ConnectionStrings:DocFrameReadOnly.",
+                                  "dan password-nya sama dengan ConnectionStrings:FrogFrameReadOnly. (Docker compose hanya menjalankan script itu saat volume database baru.)",
+            "3D000" => $"Database untuk dashboard tidak ditemukan ({who}). Periksa ConnectionStrings:FrogFrameReadOnly.",
             "42501" => $"{who} tidak punya izin CONNECT. Jalankan deploy/sql/reporting-readonly-user.sql (GRANT CONNECT).",
             _ => $"Tidak bisa terhubung sebagai {who}: {pg.MessageText}",
         } : $"Tidak bisa terhubung ke database dashboard sebagai {who}: {ex.Message}";
@@ -319,7 +319,7 @@ public sealed class PostgresWidgetStore(NpgsqlDataSource db) : IWidgetStore
 
     public async Task<IReadOnlyList<WidgetDef>> ListAsync(string tenantId, CancellationToken ct = default)
     {
-        await using var cmd = db.CreateCommand($"SELECT {Cols} FROM docframe_dashboard_widgets WHERE tenant_id = $1 ORDER BY name");
+        await using var cmd = db.CreateCommand($"SELECT {Cols} FROM frogframe_dashboard_widgets WHERE tenant_id = $1 ORDER BY name");
         cmd.Parameters.AddWithValue(tenantId);
         var list = new List<WidgetDef>();
         await using var r = await cmd.ExecuteReaderAsync(ct);
@@ -329,7 +329,7 @@ public sealed class PostgresWidgetStore(NpgsqlDataSource db) : IWidgetStore
 
     public async Task<WidgetDef?> GetAsync(string tenantId, string id, CancellationToken ct = default)
     {
-        await using var cmd = db.CreateCommand($"SELECT {Cols} FROM docframe_dashboard_widgets WHERE tenant_id = $1 AND id = $2");
+        await using var cmd = db.CreateCommand($"SELECT {Cols} FROM frogframe_dashboard_widgets WHERE tenant_id = $1 AND id = $2");
         cmd.Parameters.AddWithValue(tenantId); cmd.Parameters.AddWithValue(id);
         await using var r = await cmd.ExecuteReaderAsync(ct);
         return await r.ReadAsync(ct) ? Read(r) : null;
@@ -338,7 +338,7 @@ public sealed class PostgresWidgetStore(NpgsqlDataSource db) : IWidgetStore
     public async Task SaveAsync(WidgetDef w, CancellationToken ct = default)
     {
         await using var cmd = db.CreateCommand(
-            "INSERT INTO docframe_dashboard_widgets (tenant_id, id, name, description, config, created_by, created_at, updated_at, version) " +
+            "INSERT INTO frogframe_dashboard_widgets (tenant_id, id, name, description, config, created_by, created_at, updated_at, version) " +
             "VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$9) ON CONFLICT (tenant_id, id) DO UPDATE SET name=$3, description=$4, config=$5::jsonb, updated_at=$8, version=$9");
         cmd.Parameters.AddWithValue(w.TenantId); cmd.Parameters.AddWithValue(w.Id); cmd.Parameters.AddWithValue(w.Name);
         cmd.Parameters.AddWithValue((object?)w.Description ?? DBNull.Value);
@@ -349,14 +349,14 @@ public sealed class PostgresWidgetStore(NpgsqlDataSource db) : IWidgetStore
 
     public async Task DeleteAsync(string tenantId, string id, CancellationToken ct = default)
     {
-        await using var cmd = db.CreateCommand("DELETE FROM docframe_dashboard_widgets WHERE tenant_id = $1 AND id = $2");
+        await using var cmd = db.CreateCommand("DELETE FROM frogframe_dashboard_widgets WHERE tenant_id = $1 AND id = $2");
         cmd.Parameters.AddWithValue(tenantId); cmd.Parameters.AddWithValue(id);
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
     public async Task<DashboardLayout> GetLayoutAsync(string tenantId, CancellationToken ct = default)
     {
-        await using var cmd = db.CreateCommand("SELECT layout::text FROM docframe_dashboards WHERE tenant_id = $1");
+        await using var cmd = db.CreateCommand("SELECT layout::text FROM frogframe_dashboards WHERE tenant_id = $1");
         cmd.Parameters.AddWithValue(tenantId);
         return await cmd.ExecuteScalarAsync(ct) is string j ? JsonSerializer.Deserialize<DashboardLayout>(j, DashboardJson.Options) ?? new() : new();
     }
@@ -364,7 +364,7 @@ public sealed class PostgresWidgetStore(NpgsqlDataSource db) : IWidgetStore
     public async Task SaveLayoutAsync(string tenantId, DashboardLayout layout, CancellationToken ct = default)
     {
         await using var cmd = db.CreateCommand(
-            "INSERT INTO docframe_dashboards (tenant_id, layout, updated_at) VALUES ($1, $2::jsonb, now()) ON CONFLICT (tenant_id) DO UPDATE SET layout = $2::jsonb, updated_at = now()");
+            "INSERT INTO frogframe_dashboards (tenant_id, layout, updated_at) VALUES ($1, $2::jsonb, now()) ON CONFLICT (tenant_id) DO UPDATE SET layout = $2::jsonb, updated_at = now()");
         cmd.Parameters.AddWithValue(tenantId); cmd.Parameters.AddWithValue(JsonSerializer.Serialize(layout, DashboardJson.Options));
         await cmd.ExecuteNonQueryAsync(ct);
     }
@@ -373,10 +373,10 @@ public sealed class PostgresWidgetStore(NpgsqlDataSource db) : IWidgetStore
 public static class ReportingServiceCollectionExtensions
 {
     /// <summary>
-    /// Mengaktifkan dashboard SQL. Wajib bersama AddDocFrameworkPostgreSql. <paramref name="readOnlyConnectionString"/>
+    /// Mengaktifkan dashboard SQL. Wajib bersama AddFrogFrameworkPostgreSql. <paramref name="readOnlyConnectionString"/>
     /// harus user database yang hanya punya SELECT pada skema reporting (lihat deploy/sql/reporting-readonly-user.sql).
     /// </summary>
-    public static IServiceCollection AddDocFrameworkReporting(this IServiceCollection services, string readOnlyConnectionString, Action<ReportingOptions>? configure = null)
+    public static IServiceCollection AddFrogFrameworkReporting(this IServiceCollection services, string readOnlyConnectionString, Action<ReportingOptions>? configure = null)
     {
         var options = new ReportingOptions { ReadOnlyConnectionString = readOnlyConnectionString };
         configure?.Invoke(options);

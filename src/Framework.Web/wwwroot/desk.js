@@ -1,25 +1,25 @@
-// Global desk helpers for keyboard shortcuts and interactions in DocFrame
-window.docframe = window.docframe || {};
+// Global desk helpers for keyboard shortcuts and interactions in FrogFrame
+window.frogframe = window.frogframe || {};
 
 (function () {
     var globalDotNetHelper = null;
 
     // Apply saved theme preference as early as possible
     try {
-        var savedTheme = localStorage.getItem('docframe-theme');
+        var savedTheme = localStorage.getItem('frogframe-theme');
         if (savedTheme && savedTheme !== 'blue') {
             document.documentElement.setAttribute('data-theme', savedTheme);
         }
     } catch (e) {}
 
-    window.docframe.initGlobalShortcuts = function (dotNetHelper) {
+    window.frogframe.initGlobalShortcuts = function (dotNetHelper) {
         globalDotNetHelper = dotNetHelper;
 
-        if (window.docframe._shortcutHandler) {
-            window.removeEventListener('keydown', window.docframe._shortcutHandler);
+        if (window.frogframe._shortcutHandler) {
+            window.removeEventListener('keydown', window.frogframe._shortcutHandler);
         }
 
-        window.docframe._shortcutHandler = function (e) {
+        window.frogframe._shortcutHandler = function (e) {
             var isCtrlK = (e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K');
             var isAltQ = e.altKey && (e.key === 'q' || e.key === 'Q');
 
@@ -32,10 +32,10 @@ window.docframe = window.docframe || {};
             }
         };
 
-        window.addEventListener('keydown', window.docframe._shortcutHandler);
+        window.addEventListener('keydown', window.frogframe._shortcutHandler);
     };
 
-    window.docframe.focusInput = function (selector) {
+    window.frogframe.focusInput = function (selector) {
         setTimeout(function () {
             var el = document.querySelector(selector);
             if (el) {
@@ -47,7 +47,7 @@ window.docframe = window.docframe || {};
         }, 50);
     };
 
-    window.docframe.toggleTheme = function () {
+    window.frogframe.toggleTheme = function () {
         var toggleBtn = document.querySelector('.theme-toggle button');
         if (toggleBtn) {
             toggleBtn.click();
@@ -63,18 +63,18 @@ window.docframe = window.docframe || {};
         }
     };
 
-    window.docframe.setTheme = function (themeName) {
+    window.frogframe.setTheme = function (themeName) {
         var html = document.documentElement;
         if (themeName && themeName !== 'blue') {
             html.setAttribute('data-theme', themeName);
-            try { localStorage.setItem('docframe-theme', themeName); } catch (e) {}
+            try { localStorage.setItem('frogframe-theme', themeName); } catch (e) {}
         } else {
             html.removeAttribute('data-theme');
-            try { localStorage.setItem('docframe-theme', 'blue'); } catch (e) {}
+            try { localStorage.setItem('frogframe-theme', 'blue'); } catch (e) {}
         }
     };
 
-    window.docframe.getTheme = function () {
+    window.frogframe.getTheme = function () {
         return document.documentElement.getAttribute('data-theme') || 'blue';
     };
 
@@ -136,8 +136,8 @@ window.docframe = window.docframe || {};
         }
     }
 
-    if (!window.docframe._resizeCaptureInstalled) {
-        window.docframe._resizeCaptureInstalled = true;
+    if (!window.frogframe._resizeCaptureInstalled) {
+        window.frogframe._resizeCaptureInstalled = true;
 
         document.addEventListener('pointerdown', function (e) {
             var handle = e.target && e.target.closest ? e.target.closest('[data-resize-handle]') : null;

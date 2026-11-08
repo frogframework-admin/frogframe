@@ -235,7 +235,7 @@ public sealed class UnavailableReportingExecutor : IReportingQueryExecutor
 {
     public bool IsAvailable => false;
     public Task<QueryResultSet> ExecuteAsync(string tenantId, string sql, IReadOnlyList<SqlParam> parameters, int limit, CancellationToken ct = default, TimeSpan? timeout = null) =>
-        throw new ReportingUnavailableException("SQL dashboards require PostgreSQL mode and a read-only connection string (ConnectionStrings:DocFrameReadOnly).");
+        throw new ReportingUnavailableException("SQL dashboards require PostgreSQL mode and a read-only connection string (ConnectionStrings:FrogFrameReadOnly).");
 }
 
 // ============================================================================

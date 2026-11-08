@@ -16,7 +16,7 @@ public sealed class PostgresFileStore(NpgsqlDataSource db) : IFileStore
 
     public async Task SaveAsync(FileRecord f, byte[] content, CancellationToken ct = default)
     {
-        await using var cmd = db.CreateCommand($"INSERT INTO docframe_files ({InfoColumns}, content) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)");
+        await using var cmd = db.CreateCommand($"INSERT INTO frogframe_files ({InfoColumns}, content) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)");
         cmd.Parameters.AddWithValue(f.Id); cmd.Parameters.AddWithValue(f.TenantId); cmd.Parameters.AddWithValue(f.UploadedBy);
         cmd.Parameters.AddWithValue(f.ContentType); cmd.Parameters.AddWithValue(f.Size); cmd.Parameters.AddWithValue(f.Sha256);
         cmd.Parameters.AddWithValue(f.CreatedAt); cmd.Parameters.AddWithValue((object?)f.DocType ?? DBNull.Value);
@@ -27,7 +27,7 @@ public sealed class PostgresFileStore(NpgsqlDataSource db) : IFileStore
 
     public async Task<FileRecord?> GetInfoAsync(string tenantId, string id, CancellationToken ct = default)
     {
-        await using var cmd = db.CreateCommand($"SELECT {InfoColumns} FROM docframe_files WHERE tenant_id = $1 AND id = $2");
+        await using var cmd = db.CreateCommand($"SELECT {InfoColumns} FROM frogframe_files WHERE tenant_id = $1 AND id = $2");
         cmd.Parameters.AddWithValue(tenantId); cmd.Parameters.AddWithValue(id);
         await using var r = await cmd.ExecuteReaderAsync(ct);
         return await r.ReadAsync(ct) ? Read(r) : null;
@@ -35,7 +35,7 @@ public sealed class PostgresFileStore(NpgsqlDataSource db) : IFileStore
 
     public async Task<(FileRecord Record, byte[] Content)?> GetAsync(string tenantId, string id, CancellationToken ct = default)
     {
-        await using var cmd = db.CreateCommand($"SELECT {InfoColumns}, content FROM docframe_files WHERE tenant_id = $1 AND id = $2");
+        await using var cmd = db.CreateCommand($"SELECT {InfoColumns}, content FROM frogframe_files WHERE tenant_id = $1 AND id = $2");
         cmd.Parameters.AddWithValue(tenantId); cmd.Parameters.AddWithValue(id);
         await using var r = await cmd.ExecuteReaderAsync(ct);
         return await r.ReadAsync(ct) ? (Read(r), r.GetFieldValue<byte[]>(10)) : null;
@@ -45,14 +45,14 @@ public sealed class PostgresFileStore(NpgsqlDataSource db) : IFileStore
     {
         // Hanya file yang belum pernah ditautkan (doctype kosong) dan sudah lewat batas waktu.
         await using var cmd = db.CreateCommand(
-            "DELETE FROM docframe_files WHERE id IN (SELECT id FROM docframe_files WHERE doctype IS NULL AND created_at < $1 LIMIT 500)");
+            "DELETE FROM frogframe_files WHERE id IN (SELECT id FROM frogframe_files WHERE doctype IS NULL AND created_at < $1 LIMIT 500)");
         cmd.Parameters.AddWithValue(cutoff);
         return await cmd.ExecuteNonQueryAsync(ct);
     }
 
     public async Task AttachAsync(string tenantId, string id, string docType, string docName, string field, CancellationToken ct = default)
     {
-        await using var cmd = db.CreateCommand("UPDATE docframe_files SET doctype = $3, doc_name = $4, field = $5 WHERE tenant_id = $1 AND id = $2");
+        await using var cmd = db.CreateCommand("UPDATE frogframe_files SET doctype = $3, doc_name = $4, field = $5 WHERE tenant_id = $1 AND id = $2");
         cmd.Parameters.AddWithValue(tenantId); cmd.Parameters.AddWithValue(id); cmd.Parameters.AddWithValue(docType);
         cmd.Parameters.AddWithValue(docName); cmd.Parameters.AddWithValue(field);
         await cmd.ExecuteNonQueryAsync(ct);

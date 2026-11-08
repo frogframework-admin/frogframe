@@ -1,6 +1,6 @@
 # OpenXML Template Reporting Guide (Excel & Word)
 
-DocFrame includes a template-driven reporting engine that generates production-ready `.xlsx` spreadsheets and `.docx` Word documents directly from database queries.
+FrogFrame includes a template-driven reporting engine that generates production-ready `.xlsx` spreadsheets and `.docx` Word documents directly from database queries.
 
 ---
 

@@ -24,7 +24,7 @@ namespace Framework.Web;
 
 public static class DocApi
 {
-    public static IEndpointRouteBuilder MapDocFrameworkApi(this IEndpointRouteBuilder app)
+    public static IEndpointRouteBuilder MapFrogFrameworkApi(this IEndpointRouteBuilder app)
     {
         // ---------- File (gambar) ----------
         // Cookie browser diterima (dipakai <img>). Tertaut ke dokumen → hanya yang boleh membaca dokumen itu dan
@@ -198,7 +198,7 @@ public static class DocApi
                 var emailMsg = new EmailMessage
                 {
                     To = [user.Email],
-                    Subject = "Reset Your DocFrame Password",
+                    Subject = "Reset Your FrogFrame Password",
                     BodyHtml = $"<p>Hello <b>{WebUtility.HtmlEncode(user.FullName)}</b>,</p><p>A password reset was requested for your account (<code>{WebUtility.HtmlEncode(user.UserName)}</code>).</p><p><a href=\"{WebUtility.HtmlEncode(resetLink)}\" style=\"display:inline-block;padding:10px 16px;background:#2563eb;color:#ffffff;text-decoration:none;border-radius:6px;\">Reset Password</a></p><p>Or copy this URL into your browser:<br/><a href=\"{WebUtility.HtmlEncode(resetLink)}\">{WebUtility.HtmlEncode(resetLink)}</a></p><p><small>This single-use link is valid for 24 hours. If you did not request this, please ignore this email.</small></p>",
                     BodyText = bodyText
                 };
@@ -487,7 +487,7 @@ public static class DocApi
 
     private static async Task<IResult> Run(HttpContext http, string? scope, Func<UserContext, IServiceProvider, Task<IResult>> action)
     {
-        DocFrameTelemetry.HttpRequests.Add(1,
+        FrogFrameTelemetry.HttpRequests.Add(1,
             new KeyValuePair<string, object?>("method", http.Request.Method),
             new KeyValuePair<string, object?>("scope", scope ?? "none"));
         // Kunci API: hanya endpoint yang mendeklarasikan cakupan, dan cakupan itu harus diberikan pada kunci.
@@ -525,7 +525,7 @@ public static class DocApi
         {
             // Jangan bocorkan detail internal (stack, SQL) ke klien API; detail ada di log server.
             http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("Framework.Api").LogError(ex, "API {Method} {Path} failed", http.Request.Method, http.Request.Path);
-            DocFrameTelemetry.HttpErrors.Add(1);
+            FrogFrameTelemetry.HttpErrors.Add(1);
             try
             {
                 if (http.RequestServices.GetService<IErrorLogStore>() is { } errorStore)

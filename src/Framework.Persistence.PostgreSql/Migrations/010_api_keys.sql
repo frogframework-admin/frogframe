@@ -1,5 +1,5 @@
--- DocFrame: kunci API integrasi. Hanya hash secret yang disimpan (secret ditampilkan sekali saat dibuat).
-CREATE TABLE docframe_api_keys (
+-- FrogFrame: kunci API integrasi. Hanya hash secret yang disimpan (secret ditampilkan sekali saat dibuat).
+CREATE TABLE frogframe_api_keys (
     id           text        PRIMARY KEY,
     tenant_id    text        NOT NULL,
     user_id      text        NOT NULL,
@@ -14,4 +14,4 @@ CREATE TABLE docframe_api_keys (
     last_used_at timestamptz,
     last_used_ip text
 );
-CREATE INDEX ix_api_keys_tenant ON docframe_api_keys (tenant_id, created_at DESC);
+CREATE INDEX ix_api_keys_tenant ON frogframe_api_keys (tenant_id, created_at DESC);

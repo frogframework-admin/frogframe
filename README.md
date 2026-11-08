@@ -1,13 +1,13 @@
-# DocFrame — Metadata-Driven .NET Business Application Framework
+# FrogFrame — Metadata-Driven .NET Business Application Framework
 
 [![.NET 10](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL_3.0-blue.svg)](LICENSE)
 [![Build & Test](https://img.shields.io/badge/Tests-152%20Passing-brightgreen.svg)]()
 [![Documentation](https://img.shields.io/badge/Docs-DocFX-informational.svg)](docs/index.md)
 
-**DocFrame** is an extensible, metadata-driven business application framework built on **.NET 10**, **ASP.NET Core**, **Blazor Server (Interactive)**, and **[Blazor Blueprint UI](https://blazorblueprintui.com)** (shadcn/ui-styled components for Blazor).
+**FrogFrame** is an extensible, metadata-driven business application framework built on **.NET 10**, **ASP.NET Core**, **Blazor Server (Interactive)**, and **[Blazor Blueprint UI](https://blazorblueprintui.com)** (shadcn/ui-styled components for Blazor).
 
-Inspired by modern, metadata-oriented architectures (such as Frappe Framework), DocFrame provides a cohesive set of foundational primitives for rapid enterprise software development: **DocType metadata modeling**, **document lifecycle & validation pipeline**, **declarative role-based permissions**, **workflow state machines**, **generic UI views and REST APIs**, and an **extensible plugin/hook architecture**.
+Inspired by modern, metadata-oriented architectures (such as Frappe Framework), FrogFrame provides a cohesive set of foundational primitives for rapid enterprise software development: **DocType metadata modeling**, **document lifecycle & validation pipeline**, **declarative role-based permissions**, **workflow state machines**, **generic UI views and REST APIs**, and an **extensible plugin/hook architecture**.
 
 Storage can be seamlessly toggled via configuration: **in-memory** (for development, demos, and testing) or **PostgreSQL** (production-grade persistence with advisory locks and analytical read replicas). Both backends pass the same test suites.
 
@@ -64,10 +64,10 @@ dotnet run --project src/Apps.Sample --Persistence:Provider=PostgreSql
 
 ## Architecture & Subsystems
 
-DocFrame is divided into four cleanly decoupled projects:
+FrogFrame is divided into four cleanly decoupled projects:
 
 ```text
-DocFrame/
+FrogFrame/
 ├── src/
 │   ├── Framework.Core/               # Pure domain & metadata compiler (no web dependencies)
 │   ├── Framework.Persistence.PostgreSql/ # Production storage, index sync & analytics
@@ -92,7 +92,7 @@ Built using Blazor Blueprint components styled with OKLCH theme variables:
 - Generic organizational tree visualizations (`OrgTree`).
 
 ### 3. PostgreSQL Persistence & Analytics (`Framework.Persistence.PostgreSql`)
-- **JSONB Document Store**: Unified `docframe_documents` table with GIN index acceleration and optimistic concurrency checks (`version = @expected`).
+- **JSONB Document Store**: Unified `frogframe_documents` table with GIN index acceleration and optimistic concurrency checks (`version = @expected`).
 - **Metadata Index Synchronizer**: Automatically creates and drops B-tree and GIN trigram indexes based on `listView` configurations concurrently.
 - **Reporting Schema Views**: Dynamic `reporting.<doctype>` views populated for fast analytical queries and SQL dashboards.
 - **Transactional Outbox**: Guaranteed event delivery with worker lease locks (`FOR UPDATE SKIP LOCKED`).
@@ -106,11 +106,11 @@ Authentication is powered by **ASP.NET Core Identity** (cookie-based for browser
 | Claim Type | Content | `UserContext` Property |
 |---|---|---|
 | `nameidentifier` | Unique Account ID | `Id` (Document owner) |
-| `docframe:tenant` | Tenant ID | `TenantId` |
-| `docframe:full_name` | Full Name | `FullName` |
+| `frogframe:tenant` | Tenant ID | `TenantId` |
+| `frogframe:full_name` | Full Name | `FullName` |
 | `role` | Assigned Roles | `Roles` |
-| `docframe:department` | Department Code | `Attributes["department"]` |
-| `docframe:employee` | Linked Employee ID | `Attributes["employee"]` |
+| `frogframe:department` | Department Code | `Attributes["department"]` |
+| `frogframe:employee` | Linked Employee ID | `Attributes["employee"]` |
 
 Claims missing a tenant are rejected immediately (fail-closed). Accounts lock automatically for 15 minutes after 5 consecutive failed attempts.
 
@@ -118,9 +118,9 @@ Claims missing a tenant are rejected immediately (fail-closed). Accounts lock au
 
 ## SQL Dashboards & Saved Query APIs
 
-DocFrame allows administrators to build live dashboards and publish read-only SQL queries as secure REST endpoints:
+FrogFrame allows administrators to build live dashboards and publish read-only SQL queries as secure REST endpoints:
 
-- **Isolated Read-Only User**: Analytical queries execute under a dedicated `docframe_ro` role with restricted privileges and per-connection session isolation.
+- **Isolated Read-Only User**: Analytical queries execute under a dedicated `frogframe_ro` role with restricted privileges and per-connection session isolation.
 - **Visual Chart Widgets**: Bar, Line, Pie, Doughnut, Single Value KPI, and Data Grid widgets rendered using lightweight, pure SVG.
 - **Saved Query APIs**: Published at `/api/query/{slug}` with strict parameter allowlists, CSV/JSON outputs, and response caching.
 
@@ -154,12 +154,12 @@ For detailed architecture and code examples, see [Architecture Guide: Hooks, Act
 
 ## REST API Overview
 
-DocFrame provides auto-generated REST endpoints for every API-enabled DocType:
+FrogFrame provides auto-generated REST endpoints for every API-enabled DocType:
 
 ```bash
 # 1. Obtain an access token
 TOKEN=$(curl -s -X POST -H "Content-Type: application/json" \
-  -d '{"userName":"andi","password":"DocFrame#2026"}' \
+  -d '{"userName":"andi","password":"FrogFrame#2026"}' \
   http://localhost:5080/api/auth/login | jq -r .accessToken)
 
 # 2. Query documents with filters and sorting

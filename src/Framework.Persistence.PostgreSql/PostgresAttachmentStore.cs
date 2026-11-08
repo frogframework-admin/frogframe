@@ -25,7 +25,7 @@ public sealed class PostgresAttachmentStore(NpgsqlDataSource db) : IAttachmentSt
     public async Task SaveAsync(AttachmentRecord record, byte[] content, CancellationToken ct = default)
     {
         await using var cmd = db.CreateCommand(
-            $"INSERT INTO docframe_attachments ({InfoColumns}, content) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)");
+            $"INSERT INTO frogframe_attachments ({InfoColumns}, content) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)");
         cmd.Parameters.AddWithValue(record.Id);
         cmd.Parameters.AddWithValue(record.TenantId);
         cmd.Parameters.AddWithValue(record.DocType);
@@ -43,7 +43,7 @@ public sealed class PostgresAttachmentStore(NpgsqlDataSource db) : IAttachmentSt
 
     public async Task<AttachmentRecord?> GetInfoAsync(string tenantId, string id, CancellationToken ct = default)
     {
-        await using var cmd = db.CreateCommand($"SELECT {InfoColumns} FROM docframe_attachments WHERE tenant_id = $1 AND id = $2");
+        await using var cmd = db.CreateCommand($"SELECT {InfoColumns} FROM frogframe_attachments WHERE tenant_id = $1 AND id = $2");
         cmd.Parameters.AddWithValue(tenantId);
         cmd.Parameters.AddWithValue(id);
         await using var r = await cmd.ExecuteReaderAsync(ct);
@@ -52,7 +52,7 @@ public sealed class PostgresAttachmentStore(NpgsqlDataSource db) : IAttachmentSt
 
     public async Task<(AttachmentRecord Record, byte[] Content)?> GetContentAsync(string tenantId, string id, CancellationToken ct = default)
     {
-        await using var cmd = db.CreateCommand($"SELECT {InfoColumns}, content FROM docframe_attachments WHERE tenant_id = $1 AND id = $2");
+        await using var cmd = db.CreateCommand($"SELECT {InfoColumns}, content FROM frogframe_attachments WHERE tenant_id = $1 AND id = $2");
         cmd.Parameters.AddWithValue(tenantId);
         cmd.Parameters.AddWithValue(id);
         await using var r = await cmd.ExecuteReaderAsync(ct);
@@ -62,7 +62,7 @@ public sealed class PostgresAttachmentStore(NpgsqlDataSource db) : IAttachmentSt
     public async Task<IReadOnlyList<AttachmentRecord>> ListAsync(string tenantId, string docType, string docName, CancellationToken ct = default)
     {
         await using var cmd = db.CreateCommand(
-            $"SELECT {InfoColumns} FROM docframe_attachments WHERE tenant_id = $1 AND doctype = $2 AND doc_name = $3 ORDER BY created_at DESC");
+            $"SELECT {InfoColumns} FROM frogframe_attachments WHERE tenant_id = $1 AND doctype = $2 AND doc_name = $3 ORDER BY created_at DESC");
         cmd.Parameters.AddWithValue(tenantId);
         cmd.Parameters.AddWithValue(docType);
         cmd.Parameters.AddWithValue(docName);
@@ -75,7 +75,7 @@ public sealed class PostgresAttachmentStore(NpgsqlDataSource db) : IAttachmentSt
 
     public async Task DeleteAsync(string tenantId, string id, CancellationToken ct = default)
     {
-        await using var cmd = db.CreateCommand("DELETE FROM docframe_attachments WHERE tenant_id = $1 AND id = $2");
+        await using var cmd = db.CreateCommand("DELETE FROM frogframe_attachments WHERE tenant_id = $1 AND id = $2");
         cmd.Parameters.AddWithValue(tenantId);
         cmd.Parameters.AddWithValue(id);
         await cmd.ExecuteNonQueryAsync(ct);

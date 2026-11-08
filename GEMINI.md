@@ -6,6 +6,6 @@
 - **UI Elements**: Ensure UI text is clean, professional, and grammatically correct English.
 
 ## Build & Deployment Workflow
-- **Automatic Redeploy**: After building and verifying changes successfully, run `./redeploy.ps1` to rebuild and update the local Docker application container (`docframe-app`).
+- **Automatic Redeploy**: After building and verifying changes successfully, run `./redeploy.ps1` to rebuild and update the local Docker application container (`frogframe-app`).
 
 

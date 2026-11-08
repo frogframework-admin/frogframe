@@ -1,22 +1,22 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# DocFrame Production PostgreSQL Backup Script
+# FrogFrame Production PostgreSQL Backup Script
 # Creates a compressed, custom-format (-Fc) dump with automated retention.
 # ==============================================================================
 set -euo pipefail
 
-BACKUP_DIR="${BACKUP_DIR:-/var/backups/docframe}"
+BACKUP_DIR="${BACKUP_DIR:-/var/backups/FrogFrame}"
 PGHOST="${PGHOST:-localhost}"
 PGPORT="${PGPORT:-5432}"
-PGDATABASE="${PGDATABASE:-docframe}"
-PGUSER="${PGUSER:-docframe}"
+PGDATABASE="${PGDATABASE:-FrogFrame}"
+PGUSER="${PGUSER:-FrogFrame}"
 RETENTION_DAYS="${RETENTION_DAYS:-14}"
 
 mkdir -p "${BACKUP_DIR}"
 
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 BACKUP_FILE="${BACKUP_DIR}/${PGDATABASE}_${TIMESTAMP}.dump"
-LOG_PREFIX="[$(date +'%Y-%m-%d %H:%M:%S')] [DocFrame Backup]"
+LOG_PREFIX="[$(date +'%Y-%m-%d %H:%M:%S')] [FrogFrame Backup]"
 
 echo "${LOG_PREFIX} Starting backup of '${PGDATABASE}' from ${PGHOST}:${PGPORT}..."
 

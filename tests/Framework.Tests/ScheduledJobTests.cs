@@ -116,7 +116,7 @@ sealed partial class Tests
         // If lock is held externally, job is skipped
         var nextHour = topOfHour.AddHours(1);
         var distLock = sp.GetRequiredService<IDistributedLock>();
-        using (await distLock.TryAcquireAsync("docframe:scheduler:stale-cleanup:acme", TimeSpan.Zero))
+        using (await distLock.TryAcquireAsync("frogframe:scheduler:stale-cleanup:acme", TimeSpan.Zero))
         {
             var lockedResult = await runner.RunDueJobsAsync(nextHour);
             Assert.Equal(1, lockedResult.SkippedLocked, "acme dilewati karena lock sedang aktif");

@@ -1,23 +1,26 @@
+name: frogframe
+
 services:
   app:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: docframe-app
+    image: frogframe-app:latest
+    container_name: frogframe-app
     ports:
       - "5080:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - Persistence__Provider=PostgreSql
-      - ConnectionStrings__DocFrame=Host=postgres;Port=5432;Database=docframe;Username=docframe;Password=docframe
-      - ConnectionStrings__DocFrameReadOnly=Host=postgres;Port=5432;Database=docframe;Username=docframe_ro;Password=ganti-password-ini
+      - ConnectionStrings__FrogFrame=Host=postgres;Port=5432;Database=frogframe;Username=frogframe;Password=frogframe
+      - ConnectionStrings__FrogFrameReadOnly=Host=postgres;Port=5432;Database=frogframe;Username=frogframe_ro;Password=ganti-password-ini
       # Mode Demo: otomatis membuat akun demo + data awal + menampilkan akun di halaman login
       - Demo__SeedData=true
-      - Demo__Password=DocFrame#2026
+      - Demo__Password=FrogFrame#2026
       - Demo__ShowAccounts=true
       # Akun bootstrap admin (opsional jika tanpa data demo):
       - Bootstrap__AdminUserName=admin
-      - Bootstrap__AdminPassword=DocFrame#2026
+      - Bootstrap__AdminPassword=FrogFrame#2026
       # Batas laju API untuk beban produksi / load testing
       - Api__RateLimitPerMinute=10000
     depends_on:
@@ -27,24 +30,24 @@ services:
 
   postgres:
     image: postgres:17-alpine
-    container_name: docframe-postgres
+    container_name: frogframe-postgres
     environment:
-      POSTGRES_DB: docframe
-      POSTGRES_USER: docframe
-      POSTGRES_PASSWORD: docframe
+      POSTGRES_DB: frogframe
+      POSTGRES_USER: frogframe
+      POSTGRES_PASSWORD: frogframe
       TZ: Asia/Jakarta
     ports:
       - "5432:5432"
     volumes:
-      - docframe-pg:/var/lib/postgresql/data
+      - frogframe-pg:/var/lib/postgresql/data
       # Membuat user read-only untuk Dashboard SQL saat database pertama kali dibuat.
       - ./deploy/sql/reporting-readonly-user.sql:/docker-entrypoint-initdb.d/10-reporting-readonly-user.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U docframe -d docframe"]
+      test: ["CMD-SHELL", "pg_isready -U frogframe -d frogframe"]
       interval: 5s
       timeout: 3s
       retries: 10
     restart: unless-stopped
 
 volumes:
-  docframe-pg:
+  frogframe-pg:

@@ -21,31 +21,31 @@ builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 builder.Services.AddBlazorBlueprintComponents(configureLocalizer: BbIndonesian.Apply);
 
 // 1) Framework: metadata dimuat dari folder, dikompilasi & divalidasi saat startup (gagal cepat bila tidak valid).
-builder.Services.AddDocFramework(o => o.LoadFrom(Path.Combine(builder.Environment.ContentRootPath, "Metadata")));
-builder.Services.AddDocFrameOpenTelemetry(builder.Configuration);
+builder.Services.AddFrogFramework(o => o.LoadFrom(Path.Combine(builder.Environment.ContentRootPath, "Metadata")));
+builder.Services.AddFrogFrameOpenTelemetry(builder.Configuration);
 
 // Penyimpanan: "InMemory" (default, data hilang saat restart) atau "PostgreSql" (permanen, siap pilot).
 var usePostgres = string.Equals(builder.Configuration["Persistence:Provider"], "PostgreSql", StringComparison.OrdinalIgnoreCase);
 if (usePostgres)
-    // DocFrame = peran app (operasi data). DocFrameSchema (opsional) = pemilik skema untuk migrasi & indeks;
+    // FrogFrame = peran app (operasi data). FrogFrameSchema (opsional) = pemilik skema untuk migrasi & indeks;
     // dengan pemisahan ini peran app tidak bisa mengubah/menghapus buku besar (lihat deploy/sql/gl-roles.sql).
-    builder.Services.AddDocFrameworkPostgreSql(builder.Configuration.GetConnectionString("DocFrame")
-        ?? throw new InvalidOperationException("ConnectionStrings:DocFrame wajib diisi bila Persistence:Provider = PostgreSql"),
-        builder.Configuration.GetConnectionString("DocFrameSchema"));
+    builder.Services.AddFrogFrameworkPostgreSql(builder.Configuration.GetConnectionString("FrogFrame")
+        ?? throw new InvalidOperationException("ConnectionStrings:FrogFrame wajib diisi bila Persistence:Provider = PostgreSql"),
+        builder.Configuration.GetConnectionString("FrogFrameSchema"));
 
 // Login: ASP.NET Core Identity (cookie untuk browser, bearer token untuk API). Klaim → UserContext.
-builder.Services.AddDocFrameworkIdentity();
+builder.Services.AddFrogFrameworkIdentity();
 
 // Dashboard SQL: butuh PostgreSQL + user database read-only (deploy/sql/reporting-readonly-user.sql).
-var readOnlyConnection = builder.Configuration.GetConnectionString("DocFrameReadOnly");
+var readOnlyConnection = builder.Configuration.GetConnectionString("FrogFrameReadOnly");
 var useReporting = usePostgres && !string.IsNullOrWhiteSpace(readOnlyConnection);
 if (useReporting)
-    builder.Services.AddDocFrameworkReporting(readOnlyConnection!, o =>
+    builder.Services.AddFrogFrameworkReporting(readOnlyConnection!, o =>
     {
-        o.ReadOnlyRole = builder.Configuration["Dashboard:ReadOnlyRole"] ?? "docframe_ro";
+        o.ReadOnlyRole = builder.Configuration["Dashboard:ReadOnlyRole"] ?? "frogframe_ro";
         o.StatementTimeoutSeconds = builder.Configuration.GetValue("Dashboard:StatementTimeoutSeconds", 5);
         // Instance analitik terpisah (replika logis). Kosong = database aplikasi.
-        o.AnalyticsConnectionString = builder.Configuration.GetConnectionString("DocFrameAnalytics");
+        o.AnalyticsConnectionString = builder.Configuration.GetConnectionString("FrogFrameAnalytics");
     });
 
 // 2) Extension point eksplisit (RFC §2.5): handler, validator, event handler, report — semuanya C# terdaftar via DI.
@@ -91,7 +91,7 @@ builder.Services.AddDeskMenuItem(new DeskMenuItem("HR", "Struktur Organisasi", "
 builder.Services.AddScheduledJob<NotificationRuleDateJob>();
 
 // Hardening HTTP production: ForwardedHeaders & HSTS
-builder.Services.AddDocFrameHttpHardening(builder.Configuration);
+builder.Services.AddFrogFrameHttpHardening(builder.Configuration);
 
 var app = builder.Build();
 
@@ -101,7 +101,7 @@ app.UseForwardedHeaders();
 // 2. Exception handling & HSTS
 if (!app.Environment.IsDevelopment())
 {
-    app.UseDocFrameExceptionHandler();
+    app.UseFrogFrameExceptionHandler();
     app.UseHsts();
 }
 else
@@ -113,7 +113,7 @@ else
 app.UseStatusCodePagesWithReExecute("/error/{0}");
 
 // 3. Global security headers (nosniff, SAMEORIGIN, CSP, Referrer, Permissions)
-app.UseDocFrameSecurityHeaders();
+app.UseFrogFrameSecurityHeaders();
 
 // Bahasa & format Indonesia untuk UI (nama bulan di date picker, dsb.).
 // Penyimpanan dan API tetap memakai format invarian (yyyy-MM-dd, titik desimal).
@@ -127,15 +127,15 @@ app.UseAntiforgery();
 app.MapStaticAssets();
 
 // Health checks liveness & readiness
-app.MapDocFrameHealthChecks();
-app.MapDocFrameworkApi();
+app.MapFrogFrameHealthChecks();
+app.MapFrogFrameworkApi();
 app.MapRazorComponents<App>()
    .AddInteractiveServerRenderMode()
    .AddAdditionalAssemblies(typeof(DeskLayout).Assembly);
 
 if (usePostgres)
 {
-    await app.Services.MigrateDocFrameworkDatabaseAsync();
+    await app.Services.MigrateFrogFrameworkDatabaseAsync();
     // Indeks dari metadata dibangun di latar belakang (CONCURRENTLY): startup tidak menunggu pembangunan indeks
     // pada tabel besar, dan tabel tetap bisa ditulis selama proses. Diperbarui otomatis setiap metadata dipublikasikan.
     _ = Task.Run(async () =>

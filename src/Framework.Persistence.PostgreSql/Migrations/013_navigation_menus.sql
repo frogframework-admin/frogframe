@@ -1,5 +1,5 @@
--- DocFrame: master navigasi menu sidebar.
-CREATE TABLE docframe_navigation_menus (
+-- FrogFrame: master navigasi menu sidebar.
+CREATE TABLE frogframe_navigation_menus (
     id            text        PRIMARY KEY,
     tenant_id     text        NOT NULL,
     title         text        NOT NULL,
@@ -14,5 +14,5 @@ CREATE TABLE docframe_navigation_menus (
     created_at    timestamptz NOT NULL,
     updated_at    timestamptz NOT NULL
 );
-CREATE INDEX ix_nav_menus_tenant ON docframe_navigation_menus (tenant_id, is_active, sort_order);
+CREATE INDEX ix_nav_menus_tenant ON frogframe_navigation_menus (tenant_id, is_active, sort_order);
 

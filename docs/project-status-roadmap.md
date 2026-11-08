@@ -1,6 +1,6 @@
-# DocFrame: Project Status Report & Feature Roadmap
+# FrogFrame: Project Status Report & Feature Roadmap
 
-This document summarizes the current development status of DocFrame, including completed features, testing coverage, backlog items (gap analysis against platform capabilities such as Frappe Framework), and the upcoming development roadmap.
+This document summarizes the current development status of FrogFrame, including completed features, testing coverage, backlog items (gap analysis against platform capabilities such as Frappe Framework), and the upcoming development roadmap.
 
 *Last updated: November 2026*
 

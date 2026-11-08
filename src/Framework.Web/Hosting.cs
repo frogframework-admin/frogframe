@@ -81,13 +81,13 @@ public sealed class CurrentUser
 /// <param name="RequiresReadOf">Opsional: hanya tampil bila pengguna boleh membaca DocType ini.</param>
 public sealed record DeskMenuItem(string Group, string Title, string Href, string Icon = "file-text", string? RequiresReadOf = null, int Order = 100);
 
-public sealed class DocFrameworkOptions
+public sealed class FrogFrameworkOptions
 {
     public List<DocTypeDef> DocTypes { get; } = [];
     public List<WorkflowDef> Workflows { get; } = [];
 
     /// <summary>Memuat *.doctype.json dan *.workflow.json dari folder.</summary>
-    public DocFrameworkOptions LoadFrom(string directory)
+    public FrogFrameworkOptions LoadFrom(string directory)
     {
         foreach (var f in Directory.GetFiles(directory, "*.doctype.json").Order())
             DocTypes.Add(MetadataJson.ParseDocType(File.ReadAllText(f)));
@@ -99,9 +99,9 @@ public sealed class DocFrameworkOptions
 
 public static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddDocFramework(this IServiceCollection services, Action<DocFrameworkOptions> configure)
+    public static IServiceCollection AddFrogFramework(this IServiceCollection services, Action<FrogFrameworkOptions> configure)
     {
-        var options = new DocFrameworkOptions();
+        var options = new FrogFrameworkOptions();
         configure(options);
 
         services.TryAddSingleton(TimeProvider.System);
@@ -114,7 +114,7 @@ public static class ServiceCollectionExtensions
             sp.GetRequiredService<TimeProvider>(), sp.GetService<IMetadataVersionStore>()));
         services.AddSingleton<IMetadataProvider>(sp => sp.GetRequiredService<MetadataRegistry>());
 
-        // Penyimpanan default in-memory. TryAdd → provider lain (mis. AddDocFrameworkPostgreSql) bisa menggantinya
+        // Penyimpanan default in-memory. TryAdd → provider lain (mis. AddFrogFrameworkPostgreSql) bisa menggantinya
         // tanpa bergantung urutan pemanggilan.
         services.TryAddSingleton<InMemoryDocumentStore>();
         services.TryAddSingleton<IDocumentStore>(sp => sp.GetRequiredService<InMemoryDocumentStore>());
@@ -145,8 +145,8 @@ public static class ServiceCollectionExtensions
                     EnableSsl = cfg.GetValue("Email:EnableSsl", false),
                     UserName = cfg["Email:SmtpUser"],
                     Password = cfg["Email:SmtpPassword"],
-                    FromAddress = cfg["Email:FromAddress"] ?? "noreply@docframe.local",
-                    FromDisplayName = cfg["Email:FromDisplayName"] ?? "DocFrame"
+                    FromAddress = cfg["Email:FromAddress"] ?? "noreply@frogframe.local",
+                    FromDisplayName = cfg["Email:FromDisplayName"] ?? "FrogFrame"
                 };
                 return new SmtpEmailSender(opts);
             }
@@ -154,7 +154,7 @@ public static class ServiceCollectionExtensions
         });
         services.TryAddSingleton<IEmailQueue, OutboxEmailQueue>();
         services.AddSingleton<IEventHandler, OutboxEmailHandler>();
-        // Dashboard SQL: default tidak tersedia (butuh PostgreSQL + koneksi read-only; lihat AddDocFrameworkReporting).
+        // Dashboard SQL: default tidak tersedia (butuh PostgreSQL + koneksi read-only; lihat AddFrogFrameworkReporting).
         services.TryAddSingleton<IWidgetStore, InMemoryWidgetStore>();
         services.TryAddSingleton<IReportingQueryExecutor, UnavailableReportingExecutor>();
         // Template laporan Excel/Word: memakai eksekutor read-only yang sama dengan dashboard.
@@ -275,10 +275,10 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Configures OpenTelemetry metrics and activity tracing for DocFrame.
+    /// Configures OpenTelemetry metrics and activity tracing for FrogFrame.
     /// If OpenTelemetry:OtlpEndpoint or OTEL_EXPORTER_OTLP_ENDPOINT is configured, exports to that collector.
     /// </summary>
-    public static IServiceCollection AddDocFrameOpenTelemetry(this IServiceCollection services, IConfiguration? config = null)
+    public static IServiceCollection AddFrogFrameOpenTelemetry(this IServiceCollection services, IConfiguration? config = null)
     {
         var otlpEndpoint = config?["OpenTelemetry:OtlpEndpoint"] 
             ?? Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT");
@@ -287,7 +287,7 @@ public static class ServiceCollectionExtensions
 
         otel.WithTracing(tracing =>
         {
-            tracing.AddSource(DocFrameTelemetry.SourceName);
+            tracing.AddSource(FrogFrameTelemetry.SourceName);
             if (!string.IsNullOrEmpty(otlpEndpoint))
             {
                 tracing.AddOtlpExporter(opt => opt.Endpoint = new Uri(otlpEndpoint));
@@ -296,7 +296,7 @@ public static class ServiceCollectionExtensions
 
         otel.WithMetrics(metrics =>
         {
-            metrics.AddMeter(DocFrameTelemetry.SourceName);
+            metrics.AddMeter(FrogFrameTelemetry.SourceName);
             if (!string.IsNullOrEmpty(otlpEndpoint))
             {
                 metrics.AddOtlpExporter(opt => opt.Endpoint = new Uri(otlpEndpoint));
@@ -305,7 +305,7 @@ public static class ServiceCollectionExtensions
 
         return services;
     }
-    public const string ApiRateLimit = "docframe-api";
+    public const string ApiRateLimit = "frogframe-api";
 }
 
 public sealed class OutboxWorker(OutboxProcessor processor, ILogger<OutboxWorker> log, IConfiguration? config = null) : BackgroundService

@@ -12,8 +12,8 @@ namespace Framework.Web.Identity;
 public static class ApiKeyDefaults
 {
     public const string Scheme = "ApiKey";
-    public const string KeyIdClaim = "docframe:api_key";
-    public const string ScopeClaim = "docframe:api_scope";
+    public const string KeyIdClaim = "frogframe:api_key";
+    public const string ScopeClaim = "frogframe:api_scope";
 }
 
 /// <summary>

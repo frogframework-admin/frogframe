@@ -177,7 +177,7 @@
             }
             try
             {
-                currentTheme = await JS.InvokeAsync<string>("docframe.getTheme");
+                currentTheme = await JS.InvokeAsync<string>("frogframe.getTheme");
                 if (string.IsNullOrEmpty(currentTheme)) currentTheme = "blue";
             }
             catch
@@ -194,7 +194,7 @@
     private async Task SetThemeAsync(string theme)
     {
         currentTheme = theme;
-        await JS.InvokeVoidAsync("docframe.setTheme", theme);
+        await JS.InvokeVoidAsync("frogframe.setTheme", theme);
         Toasts.Success($"Theme updated to {char.ToUpper(theme[0]) + theme[1..]}.", "Theme Changed");
     }
 

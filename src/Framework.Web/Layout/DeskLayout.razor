@@ -18,7 +18,7 @@
             <BbSidebarMenu>
                 <BbSidebarMenuItem>
                     <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="" Size="SidebarMenuButtonSize.Large">
-                        <span class="brand"><span class="brand-mark" aria-hidden="true">D</span><span>DocFrame</span></span>
+                        <span class="brand"><span class="brand-mark" aria-hidden="true">F</span><span>FrogFrame</span></span>
                     </BbSidebarMenuButton>
                 </BbSidebarMenuItem>
             </BbSidebarMenu>
@@ -319,7 +319,7 @@
 
     private async Task ToggleTheme()
     {
-        await JS.InvokeVoidAsync("docframe.toggleTheme");
+        await JS.InvokeVoidAsync("frogframe.toggleTheme");
     }
 
     private void SwitchModuleFromAwesomebar(string modId)
@@ -339,7 +339,7 @@
             dotNetRef = DotNetObjectReference.Create(this);
             try
             {
-                await JS.InvokeVoidAsync("docframe.initGlobalShortcuts", dotNetRef);
+                await JS.InvokeVoidAsync("frogframe.initGlobalShortcuts", dotNetRef);
             }
             catch
             {

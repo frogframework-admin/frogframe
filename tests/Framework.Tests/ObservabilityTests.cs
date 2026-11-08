@@ -160,38 +160,38 @@ sealed partial class Tests
     }
 
     [Test]
-    public Task DocFrameTelemetry_MetersAndActivities_RecordWithoutExceptions()
+    public Task FrogFrameTelemetry_MetersAndActivities_RecordWithoutExceptions()
     {
-        Assert.Equal("DocFrame", DocFrameTelemetry.SourceName, "Source name should be DocFrame");
-        Assert.Equal("1.0.0", DocFrameTelemetry.Version, "Version should be 1.0.0");
+        Assert.Equal("FrogFrame", FrogFrameTelemetry.SourceName, "Source name should be FrogFrame");
+        Assert.Equal("1.0.0", FrogFrameTelemetry.Version, "Version should be 1.0.0");
 
         // Record metrics
-        DocFrameTelemetry.HttpErrors.Add(1, new KeyValuePair<string, object?>("error.type", "NullReferenceException"));
-        DocFrameTelemetry.DocumentOperations.Add(1,
-            new KeyValuePair<string, object?>("docframe.doctype", "User"),
-            new KeyValuePair<string, object?>("docframe.action", "create"));
-        DocFrameTelemetry.OutboxEventsProcessed.Add(1);
-        DocFrameTelemetry.OutboxEventsFailed.Add(1);
-        DocFrameTelemetry.ScheduledJobRuns.Add(1,
-            new KeyValuePair<string, object?>("docframe.job_name", "observability-test-job"),
-            new KeyValuePair<string, object?>("docframe.status", "Success"));
+        FrogFrameTelemetry.HttpErrors.Add(1, new KeyValuePair<string, object?>("error.type", "NullReferenceException"));
+        FrogFrameTelemetry.DocumentOperations.Add(1,
+            new KeyValuePair<string, object?>("frogframe.doctype", "User"),
+            new KeyValuePair<string, object?>("frogframe.action", "create"));
+        FrogFrameTelemetry.OutboxEventsProcessed.Add(1);
+        FrogFrameTelemetry.OutboxEventsFailed.Add(1);
+        FrogFrameTelemetry.ScheduledJobRuns.Add(1,
+            new KeyValuePair<string, object?>("frogframe.job_name", "observability-test-job"),
+            new KeyValuePair<string, object?>("frogframe.status", "Success"));
 
         // Activity source listener verification
         var activities = new List<Activity>();
         using var listener = new ActivityListener
         {
-            ShouldListenTo = s => s.Name == DocFrameTelemetry.SourceName,
+            ShouldListenTo = s => s.Name == FrogFrameTelemetry.SourceName,
             Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
             ActivityStarted = a => activities.Add(a)
         };
         ActivitySource.AddActivityListener(listener);
 
-        using (var span = DocFrameTelemetry.ActivitySource.StartActivity("docframe.test.operation"))
+        using (var span = FrogFrameTelemetry.ActivitySource.StartActivity("frogframe.test.operation"))
         {
-            span?.SetTag("docframe.tag", "sample");
+            span?.SetTag("frogframe.tag", "sample");
         }
 
-        Assert.True(activities.Any(a => a.OperationName == "docframe.test.operation"), "ActivitySource produced test activity");
+        Assert.True(activities.Any(a => a.OperationName == "frogframe.test.operation"), "ActivitySource produced test activity");
 
         return Task.CompletedTask;
     }
