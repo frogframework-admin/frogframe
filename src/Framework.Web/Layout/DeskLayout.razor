@@ -50,7 +50,7 @@
                         @if (activeMod is not null)
                         {
                             <BbSidebarMenuItem>
-                                <BbSidebarMenuButton OnClick="() => isModulePickerOpen = true" Tooltip="@($"Active module: {activeMod.Name} (Click to switch module)")" Class="module-switch-btn">
+                                <BbSidebarMenuButton OnClick="OpenModulePicker" Tooltip="@($"Active module: {activeMod.Name} (Click to switch module)")" Class="module-switch-btn">
                                     <LucideIcon Name="@(string.IsNullOrWhiteSpace(activeMod.Icon) ? "layout-grid" : activeMod.Icon)" Size="18" />
                                     <span>@activeMod.Name</span>
                                 </BbSidebarMenuButton>
@@ -265,28 +265,58 @@
 {
     var modalModules = navModules.Where(m => m.IsVisibleFor(modalUser)).OrderBy(m => m.SortOrder).ThenBy(m => m.Name).ToList();
     var currentMod = ResolveActiveModule(modalModules);
-    <BbDialog Open="@isModulePickerOpen" OpenChanged="v => isModulePickerOpen = v">
+    var filteredModules = string.IsNullOrWhiteSpace(moduleSearchQuery)
+        ? modalModules
+        : modalModules.Where(m => m.Name.Contains(moduleSearchQuery, StringComparison.OrdinalIgnoreCase)).ToList();
+
+    <BbDialog Open="@isModulePickerOpen" OpenChanged="OnModulePickerOpenChanged">
         <BbDialogContent Class="sm:max-w-xl">
             <BbDialogHeader>
                 <BbDialogTitle>Select Workspace Module</BbDialogTitle>
                 <BbDialogDescription>Choose a module to show its menu groups and menus in the sidebar.</BbDialogDescription>
             </BbDialogHeader>
-            <div class="module-launcher-grid compact">
-                @foreach (var mod in modalModules)
-                {
-                    var isCurrent = currentMod?.Id == mod.Id;
-                    <button type="button" class="module-tile @(isCurrent ? "active" : "")" @onclick="() => SelectModuleFromModal(mod)">
-                        <div class="module-tile-icon">
-                            <LucideIcon Name="@(string.IsNullOrWhiteSpace(mod.Icon) ? "layout-grid" : mod.Icon)" Size="28" />
-                        </div>
-                        <div class="module-tile-title">@mod.Name</div>
-                        @if (!string.IsNullOrWhiteSpace(mod.Description))
-                        {
-                            <div class="module-tile-desc">@mod.Description</div>
-                        }
-                    </button>
-                }
+            <div class="module-picker-search" style="margin: .75rem 0 .5rem;">
+                <BbInputGroup>
+                    <BbInputGroupAddon Align="InputGroupAlign.InlineStart">
+                        <LucideIcon Name="search" Size="16" />
+                    </BbInputGroupAddon>
+                    <BbInputGroupInput Value="@moduleSearchQuery" ValueChanged="v => moduleSearchQuery = v"
+                                       UpdateTiming="UpdateTiming.Debounced" DebounceInterval="100"
+                                       Placeholder="Search modules..." AriaLabel="Search modules" />
+                    @if (!string.IsNullOrWhiteSpace(moduleSearchQuery))
+                    {
+                        <BbInputGroupAddon Align="InputGroupAlign.InlineEnd">
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" Class="search-clear-btn"
+                                      OnClick="() => moduleSearchQuery = string.Empty" AriaLabel="Clear search">
+                                <LucideIcon Name="x" Size="14" />
+                            </BbButton>
+                        </BbInputGroupAddon>
+                    }
+                </BbInputGroup>
             </div>
+            @if (filteredModules.Count == 0)
+            {
+                <div style="padding: 2.25rem 1rem; text-align: center; color: var(--muted-foreground);">
+                    <LucideIcon Name="search-x" Size="32" style="margin: 0 auto .5rem; display: block; opacity: .5;" />
+                    <div style="font-weight: 600; font-size: .95rem; color: var(--foreground);">No modules found</div>
+                    <div style="font-size: .85rem; margin-top: .25rem;">No module matches "@moduleSearchQuery"</div>
+                </div>
+            }
+            else
+            {
+                <div class="module-launcher-grid compact">
+                    @foreach (var mod in filteredModules)
+                    {
+                        var isCurrent = currentMod?.Id == mod.Id;
+                        <button type="button" class="module-tile @(isCurrent ? "active" : "")" @onclick="() => SelectModuleFromModal(mod)">
+                            <div class="module-tile-icon">
+                                <LucideIcon Name="@(string.IsNullOrWhiteSpace(mod.Icon) ? "layout-grid" : mod.Icon)" Size="28" />
+                            </div>
+                            <div class="module-tile-title">@mod.Name</div>
+                        </button>
+                    }
+                </div>
+            }
         </BbDialogContent>
     </BbDialog>
 }
@@ -302,6 +332,7 @@
     private IReadOnlyList<NavigationMenuGroup> navGroups = [];
     private IReadOnlyList<NavigationMenuItem> navMenus = [];
     private bool isModulePickerOpen;
+    private string? moduleSearchQuery;
     private bool isProfileOpen;
     private bool isAwesomebarOpen;
     private DotNetObjectReference<DeskLayout>? dotNetRef;
@@ -404,10 +435,26 @@
         return visibleModules.FirstOrDefault(m => m.Id == Current.ActiveModuleId) ?? visibleModules[0];
     }
 
+    private void OpenModulePicker()
+    {
+        moduleSearchQuery = string.Empty;
+        isModulePickerOpen = true;
+    }
+
+    private void OnModulePickerOpenChanged(bool open)
+    {
+        isModulePickerOpen = open;
+        if (!open)
+        {
+            moduleSearchQuery = string.Empty;
+        }
+    }
+
     private void SelectModuleFromModal(NavigationModule mod)
     {
         Current.SetActiveModule(mod.Id);
         isModulePickerOpen = false;
+        moduleSearchQuery = string.Empty;
         Toasts.Success($"Sidebar switched to {mod.Name} module.", "Active Module");
     }
 
