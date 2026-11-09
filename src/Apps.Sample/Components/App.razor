@@ -22,6 +22,19 @@
                 if (t && t !== 'blue') {
                     document.documentElement.setAttribute('data-theme', t);
                 }
+                var raw = localStorage.getItem('bb-theme');
+                if (raw) {
+                    var saved = JSON.parse(raw);
+                    if (saved && typeof saved.isDarkMode === 'boolean') {
+                        if (saved.isDarkMode) {
+                            document.documentElement.classList.add('dark');
+                        } else {
+                            document.documentElement.classList.remove('dark');
+                        }
+                    }
+                } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                    document.documentElement.classList.add('dark');
+                }
             } catch (e) {}
         })();
     </script>

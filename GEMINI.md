@@ -8,5 +8,6 @@
 
 ## Build & Deployment Workflow
 - **Automatic Redeploy**: After building and verifying changes successfully, run `./redeploy.ps1` to rebuild and update the local Docker application container (`frogframe-app`).
+- **Git Commit Policy**: Do **NOT** commit or push changes automatically (`git commit` / `git push`). Always wait for explicit instruction or confirmation from the user before committing. Automatic redeployment via `./redeploy.ps1` is allowed and encouraged.
 
 
