@@ -902,6 +902,32 @@ aside[data-state][data-collapsible] [data-sidebar="header"] {
   box-shadow: 0 12px 26px -6px rgba(0, 0, 0, 0.45) !important;
 }
 
+.dark .module-tile.active {
+  background: linear-gradient(145deg, #1d4ed8 0%, #2563eb 100%) !important;
+  border-color: #3b82f6 !important;
+  color: #ffffff !important;
+  box-shadow: 0 12px 28px -6px rgba(37, 99, 235, 0.45) !important;
+}
+
+.dark .module-tile.active:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 32px -6px rgba(37, 99, 235, 0.55) !important;
+}
+
+.dark .module-tile.active .module-tile-icon {
+  background: rgba(255, 255, 255, 0.2) !important;
+  border-color: rgba(255, 255, 255, 0.35) !important;
+  color: #ffffff !important;
+}
+
+.dark .module-tile.active .module-tile-title {
+  color: #ffffff !important;
+}
+
+.dark .module-tile.active .module-tile-desc {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
 .dark .section-link {
   color: var(--dk-accent) !important;
 }

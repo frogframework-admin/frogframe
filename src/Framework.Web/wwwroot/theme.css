@@ -117,10 +117,11 @@
    Default: biru (Blue Sapphire).
    ========================================================================== */
 
-/* ── Tema 1: Biru (Default / Sapphire Blue) ──────────────────────────────── */
+/* ── Tema 1: Biru (Default / Sapphire Blue) — Light Mode ─────────────────── */
 :root,
-:root[data-theme="blue"],
-[data-theme="blue"] {
+:root:not(.dark)[data-theme="blue"],
+html:not(.dark)[data-theme="blue"],
+[data-theme="blue"]:not(.dark) {
   --primary: oklch(0.546 0.245 262.88);
   --primary-foreground: oklch(0.985 0 0);
   --ring: oklch(0.546 0.245 262.88);
@@ -149,39 +150,12 @@
   --sidebar-border: #dbeafe;
   --sidebar-ring: #3b82f6;
   --wave-image: url('/_content/Framework.Web/img/bottom-wave-blue.png');
-
-  /* dark tokens */
-  --topbar-bg-dark: linear-gradient(90deg, #0b1120 0%, #111a2e 45%, #16223d 75%, #10182b 100%);
-  --brand-strong-dark: #0b1120;
-  --dk-accent: #60a5fa;
-  --dk-accent-text: #93c5fd;
-  --dk-focus: #3b82f6;
-  --dk-solid: #2563eb;
-  --wave-image-dark: url('/_content/Framework.Web/img/bottom-wave-dark.png');
 }
 
-.dark,
-.dark[data-theme="blue"],
-[data-theme="blue"].dark,
-.dark [data-theme="blue"] {
-  --primary: oklch(0.623 0.214 259.82);
-  --primary-foreground: oklch(0.15 0 0);
-  --ring: oklch(0.623 0.214 259.82);
-  --accent: oklch(0.28 0.05 260);
-  --accent-foreground: oklch(0.92 0.04 260);
-  --sidebar: oklch(0.19 0.013 265);
-  --sidebar-foreground: oklch(0.9 0.006 260);
-  --sidebar-primary: oklch(0.623 0.214 259.82);
-  --sidebar-primary-foreground: oklch(0.15 0 0);
-  --sidebar-accent: oklch(0.27 0.04 260);
-  --sidebar-accent-foreground: oklch(0.93 0.03 260);
-  --sidebar-border: oklch(0.28 0.012 265);
-  --sidebar-ring: oklch(0.623 0.214 259.82);
-}
-
-/* ── Tema 2: Maroon (Wine Red) ───────────────────────────────────────────── */
-:root[data-theme="maroon"],
-[data-theme="maroon"] {
+/* ── Tema 2: Maroon (Wine Red) — Light Mode Only ─────────────────────────── */
+:root:not(.dark)[data-theme="maroon"],
+html:not(.dark)[data-theme="maroon"],
+[data-theme="maroon"]:not(.dark) {
   --primary: oklch(0.48 0.20 25);
   --primary-foreground: oklch(0.985 0 0);
   --ring: oklch(0.58 0.16 25);
@@ -209,37 +183,13 @@
   --table-header-bg: #fdecec;
   --brand-border: #fbcaca;
   --brand-name: #5b1212;
-  --topbar-bg-dark: linear-gradient(90deg, #1a0b0b 0%, #2a1111 45%, #3a1515 75%, #241010 100%);
-  --brand-strong-dark: #1a0b0b;
-  --dk-accent: #f87171;
-  --dk-accent-text: #fca5a5;
-  --dk-focus: #ef4444;
-  --dk-solid: #b91c1c;
   --wave-image: url('/_content/Framework.Web/img/bottom-wave-maroon.png');
-  --wave-image-dark: url('/_content/Framework.Web/img/bottom-wave-dark.png');
 }
 
-.dark[data-theme="maroon"],
-[data-theme="maroon"].dark,
-.dark [data-theme="maroon"] {
-  --primary: oklch(0.68 0.18 25);
-  --primary-foreground: oklch(0.15 0 0);
-  --ring: oklch(0.65 0.16 25);
-  --accent: oklch(0.28 0.05 25);
-  --accent-foreground: oklch(0.92 0.04 25);
-  --sidebar: oklch(0.19 0.015 25);
-  --sidebar-foreground: oklch(0.9 0.006 25);
-  --sidebar-primary: oklch(0.68 0.18 25);
-  --sidebar-primary-foreground: oklch(0.15 0 0);
-  --sidebar-accent: oklch(0.27 0.04 25);
-  --sidebar-accent-foreground: oklch(0.93 0.03 25);
-  --sidebar-border: oklch(0.28 0.015 25);
-  --sidebar-ring: oklch(0.65 0.16 25);
-}
-
-/* ── Tema 3: Green (Forest / Emerald) ────────────────────────────────────── */
-:root[data-theme="green"],
-[data-theme="green"] {
+/* ── Tema 3: Green (Forest / Emerald) — Light Mode Only ─────────────────── */
+:root:not(.dark)[data-theme="green"],
+html:not(.dark)[data-theme="green"],
+[data-theme="green"]:not(.dark) {
   --primary: oklch(0.52 0.16 155);
   --primary-foreground: oklch(0.985 0 0);
   --ring: oklch(0.58 0.14 155);
@@ -267,37 +217,13 @@
   --table-header-bg: #e8f8ee;
   --brand-border: #bbf7d0;
   --brand-name: #0f3d22;
-  --topbar-bg-dark: linear-gradient(90deg, #07150c 0%, #0e2316 45%, #123220 75%, #0b1c12 100%);
-  --brand-strong-dark: #07150c;
-  --dk-accent: #4ade80;
-  --dk-accent-text: #86efac;
-  --dk-focus: #22c55e;
-  --dk-solid: #15803d;
   --wave-image: url('/_content/Framework.Web/img/bottom-wave-green.png');
-  --wave-image-dark: url('/_content/Framework.Web/img/bottom-wave-dark.png');
 }
 
-.dark[data-theme="green"],
-[data-theme="green"].dark,
-.dark [data-theme="green"] {
-  --primary: oklch(0.68 0.16 155);
-  --primary-foreground: oklch(0.15 0 0);
-  --ring: oklch(0.65 0.14 155);
-  --accent: oklch(0.28 0.05 155);
-  --accent-foreground: oklch(0.92 0.04 155);
-  --sidebar: oklch(0.19 0.015 155);
-  --sidebar-foreground: oklch(0.9 0.006 155);
-  --sidebar-primary: oklch(0.68 0.16 155);
-  --sidebar-primary-foreground: oklch(0.15 0 0);
-  --sidebar-accent: oklch(0.27 0.04 155);
-  --sidebar-accent-foreground: oklch(0.93 0.03 155);
-  --sidebar-border: oklch(0.28 0.015 155);
-  --sidebar-ring: oklch(0.65 0.14 155);
-}
-
-/* ── Tema 4: Purple (Royal Indigo / Violet) ──────────────────────────────── */
-:root[data-theme="purple"],
-[data-theme="purple"] {
+/* ── Tema 4: Purple (Royal Indigo / Violet) — Light Mode Only ───────────── */
+:root:not(.dark)[data-theme="purple"],
+html:not(.dark)[data-theme="purple"],
+[data-theme="purple"]:not(.dark) {
   --primary: oklch(0.50 0.22 280);
   --primary-foreground: oklch(0.985 0 0);
   --ring: oklch(0.58 0.18 280);
@@ -325,30 +251,61 @@
   --table-header-bg: #f3f0ff;
   --brand-border: #ddd6fe;
   --brand-name: #2e1065;
-  --topbar-bg-dark: linear-gradient(90deg, #140b20 0%, #1c102e 45%, #24143d 75%, #180b2b 100%);
-  --brand-strong-dark: #140b20;
-  --dk-accent: #a78bfa;
-  --dk-accent-text: #c4b5fd;
-  --dk-focus: #8b5cf6;
-  --dk-solid: #7c3aed;
   --wave-image: url('/_content/Framework.Web/img/bottom-wave-purple.png');
-  --wave-image-dark: url('/_content/Framework.Web/img/bottom-wave-dark.png');
 }
 
-.dark[data-theme="purple"],
-[data-theme="purple"].dark,
-.dark [data-theme="purple"] {
-  --primary: oklch(0.68 0.18 280);
+/* ==========================================================================
+   TEMA GELAP INDEPENDEN (INDEPENDENT DARK MODE)
+   Berlaku saat class 'dark' aktif pada html / root, bebas dari interferensi
+   pilihan warna mode terang (blue, maroon, green, purple).
+   ========================================================================== */
+:root.dark,
+html.dark,
+.dark,
+:root.dark[data-theme],
+html.dark[data-theme],
+.dark[data-theme] {
+  --primary: oklch(0.623 0.214 259.82);
   --primary-foreground: oklch(0.15 0 0);
-  --ring: oklch(0.65 0.16 280);
-  --accent: oklch(0.28 0.05 280);
-  --accent-foreground: oklch(0.92 0.04 280);
-  --sidebar: oklch(0.19 0.015 280);
-  --sidebar-foreground: oklch(0.9 0.006 280);
-  --sidebar-primary: oklch(0.68 0.18 280);
+  --ring: oklch(0.623 0.214 259.82);
+  --accent: oklch(0.28 0.05 260);
+  --accent-foreground: oklch(0.92 0.04 260);
+
+  /* Sidebar Dark */
+  --sidebar: oklch(0.19 0.013 265);
+  --sidebar-foreground: oklch(0.9 0.006 260);
+  --sidebar-primary: oklch(0.623 0.214 259.82);
   --sidebar-primary-foreground: oklch(0.15 0 0);
-  --sidebar-accent: oklch(0.27 0.04 280);
-  --sidebar-accent-foreground: oklch(0.93 0.03 280);
-  --sidebar-border: oklch(0.28 0.015 280);
-  --sidebar-ring: oklch(0.65 0.16 280);
+  --sidebar-accent: oklch(0.27 0.04 260);
+  --sidebar-accent-foreground: oklch(0.93 0.03 260);
+  --sidebar-border: oklch(0.28 0.012 265);
+  --sidebar-ring: oklch(0.623 0.214 259.82);
+
+  /* Topbar & Headers Dark */
+  --topbar-bg: linear-gradient(90deg, #0b1120 0%, #111a2e 45%, #16223d 75%, #10182b 100%);
+  --topbar-bg-dark: linear-gradient(90deg, #0b1120 0%, #111a2e 45%, #16223d 75%, #10182b 100%);
+  --topbar-fg: #ffffff;
+  --brand-strong-dark: #0b1120;
+
+  /* Brand Tokens in Dark Mode (Clean Sapphire / Indigo Blue) */
+  --brand-strong: #1d4ed8;
+  --brand: #2563eb;
+  --brand-link: #60a5fa;
+  --brand-ink: #f1f5f9;
+  --brand-ink-hover: #93c5fd;
+  --brand-icon: #60a5fa;
+  --brand-label: #60a5fa;
+  --brand-soft: rgba(37, 99, 235, 0.24);
+  --brand-softer: rgba(37, 99, 235, 0.12);
+  --brand-border: rgba(59, 130, 246, 0.35);
+  --brand-name: #ffffff;
+  --table-header-bg: #1e293b;
+
+  /* Dark Functional Tokens */
+  --dk-accent: #60a5fa;
+  --dk-accent-text: #93c5fd;
+  --dk-focus: #3b82f6;
+  --dk-solid: #2563eb;
+  --wave-image: url('/_content/Framework.Web/img/bottom-wave-dark.png');
+  --wave-image-dark: url('/_content/Framework.Web/img/bottom-wave-dark.png');
 }

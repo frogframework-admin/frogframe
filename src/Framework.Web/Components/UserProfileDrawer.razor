@@ -109,7 +109,15 @@
             </BbField>
 
             <BbField>
-                <BbFieldLabel>Color Theme</BbFieldLabel>
+                <BbFieldLabel>Appearance Mode</BbFieldLabel>
+                <div class="row" style="gap:.5rem;align-items:center;padding-top:.15rem">
+                    <span class="theme-toggle"><BbDarkModeToggle Variant="ButtonVariant.Outline" Size="ButtonSize.Default" /></span>
+                </div>
+                <BbFieldDescription>Switch between Light Mode and Dark Mode.</BbFieldDescription>
+            </BbField>
+
+            <BbField>
+                <BbFieldLabel>Color Theme (Light Mode)</BbFieldLabel>
                 <div class="row" style="gap:.5rem;flex-wrap:wrap;padding-top:.25rem">
                     <button type="button" class="theme-choice-btn @(currentTheme == "blue" ? "active" : "")" @onclick="@(() => SetThemeAsync("blue"))">
                         <span class="theme-dot" style="background:#1c64d8;"></span> Blue (Default)
@@ -124,6 +132,7 @@
                         <span class="theme-dot" style="background:#6d28d9;"></span> Purple
                     </button>
                 </div>
+                <BbFieldDescription>Accent color for Light Mode. Dark Mode uses an independent high-contrast theme.</BbFieldDescription>
             </BbField>
 
             <BbField>
