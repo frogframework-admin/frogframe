@@ -179,13 +179,9 @@ else
 
                 <div class="form-cols cols-2">
                     <BbField>
-                        <BbFieldLabel For="grp-icon">Lucide Icon</BbFieldLabel>
-                        <div class="row" style="gap:.5rem;align-items:center;flex-wrap:nowrap">
-                            <FormTextInput Id="grp-icon" Immediate="true" @bind-Value="edit.Icon" Placeholder="e.g. folder, users, shopping-cart, database" />
-                            <div style="display:flex;align-items:center;justify-content:center;width:2.5rem;height:2.5rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--muted);flex-shrink:0">
-                                <LucideIcon Name="@(string.IsNullOrWhiteSpace(edit.Icon) ? "folder" : edit.Icon)" Size="18" />
-                            </div>
-                        </div>
+                        <BbFieldLabel For="grp-icon">Icon</BbFieldLabel>
+                        <IconPicker Id="grp-icon" @bind-Value="edit.Icon" Placeholder="Select an icon..." />
+                        <BbFieldDescription>Select an icon from the list or type in the search box to use any Lucide icon.</BbFieldDescription>
                     </BbField>
 
                     <BbField>

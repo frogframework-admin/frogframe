@@ -1,7 +1,13 @@
-﻿#logo {
-  height: 2rem;
-  max-height: 32px;
-  width: auto;
+/* FrogFramework DocFX custom styles */
+
+.navbar-brand img,
+#logo,
+header .navbar img {
+  height: 32px !important;
+  max-height: 32px !important;
+  width: auto !important;
+  max-width: 48px !important;
+  object-fit: contain;
   margin-right: 0.5rem;
   vertical-align: middle;
 }
