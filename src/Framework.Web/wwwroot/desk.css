@@ -5411,3 +5411,13 @@ aside[data-state="collapsed"] .sidebar-user-chevron {
   font-size: 0.85rem;
   line-height: 1.4;
 }
+
+/* Toast Notification Theme Enhancements */
+.bb\:bg-alert-success-bg {
+  border-radius: 0.625rem;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.08);
+}
+
+.dark .bb\:bg-alert-success-bg {
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
+}

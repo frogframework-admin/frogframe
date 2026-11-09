@@ -80,3 +80,55 @@ For full architectural context and runbooks, refer to [Production Readiness Guid
 - [ ] **Test Badge & Documentation Alignment**:
   - Synchronize README test badges with latest CI test counts (142 In-Memory + 34 PostgreSQL = 176 total).
 
+---
+
+## 🚀 Application Feature Backlog & Operational Pilot Roadmap
+
+### Priority 1: Pilot Daily Operations & Essential Workflows (P1)
+
+- [ ] **P1-5 — Export List & Bulk Actions** (High Urgency):
+  - Add Export to Excel (`.xlsx`) and CSV on the `ListPage.razor` toolbar respecting permissions and active filters.
+  - Implement bulk operations: Bulk Submit, Bulk Cancel, and Bulk Edit Field (extending existing Bulk Delete).
+- [ ] **P1-4 — Comments & @mention Timeline** (High Urgency):
+  - Embed internal collaboration thread below `FormPage.razor` interleaved with audit trail history.
+  - Deliver automated in-app notifications when a user is tagged with `@username`.
+- [ ] **P1-8 — Saved Filters / Custom Views** (Medium Urgency):
+  - Persist and load user-defined named search filter combinations per DocType via `IUserPreferenceStore`.
+- [ ] **P1-7 — Assign To / ToDo & "My Tasks" Widget** (Medium Urgency):
+  - Implement document delegation to users, due date tracking, and a "My Tasks" dashboard widget for pending assignments.
+
+### Priority 2: Platform Scalability & Extensibility (P2)
+
+- [ ] **Custom Fields / Customize Form per Tenant**:
+  - Add or reorder DocType fields dynamically from web UI per tenant without modifying base JSON schemas.
+- [ ] **Webhooks Dispatcher**:
+  - Outbox-driven document event payload dispatcher to external webhook URLs with HMAC signatures and auto-retries.
+- [ ] **Ad-Hoc Report Builder**:
+  - Self-service builder for non-technical users to select columns, sort, filter, and group data into custom saved reports.
+- [ ] **Dynamic Row-Level Security (User Permissions per Record)**:
+  - Granular per-document access sharing to specific users or roles directly from the interface.
+- [ ] **Advanced Authentication (SSO & 2FA)**:
+  - Google and Microsoft Entra ID (OIDC) SSO integration, plus TOTP app-based two-factor authentication.
+- [ ] **Generic Document Rename**:
+  - Rename document keys with automated cascading updates across all foreign Link references in parent and child tables.
+- [ ] **Ad-Hoc Background Jobs (`frappe.enqueue`)**:
+  - Asynchronous heavy task queue with live progress bar feedback in the web UI.
+- [ ] **Dynamic Visual Workflows**:
+  - Visual state machine transition editor with conditional approval branches.
+- [ ] **Database Role Segregation**:
+  - Separation of migration owner role from runtime application connection role.
+
+### Priority 3: Specialized Views & Value-Add Enhancements (P3)
+
+- [ ] **Alternate Views**:
+  - Kanban board (workflow state columns with drag-and-drop progression).
+  - Calendar view (date-based document schedules and due dates).
+  - Tree view (hierarchical structure navigation for Chart of Accounts and Cost Centers).
+- [ ] **Visual Print Format Builder & Letterhead UI**:
+  - Interactive corporate letterhead manager and visual print template layout editor.
+- [ ] **Social Features**:
+  - Color-coded document tags, personal bookmarks/favorites, and Follow Document subscriptions.
+- [ ] **Dynamic Multi-Language (i18n)**:
+  - Runtime UI localization toggle between English and Indonesian.
+
+

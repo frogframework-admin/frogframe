@@ -50,20 +50,54 @@ This document summarizes the current development status of FrogFramework, includ
 
 ---
 
-## 3. Backlog & Gap Analysis (Enterprise Platform Parity)
+## 3. Feature Backlog & Roadmap (Unfinished Items)
 
-| Feature / Capability | Priority | Current Status | Description |
+### Priority 1: Pilot Daily Operations & Essential Workflows (P1)
+
+| Code | Module / Feature | Description | Urgency |
 |---|---|---|---|
-| **Single DocType** | P1 | Completed | Singleton document per tenant for system/module global settings (`GetSingleAsync`/`SetSingleAsync`). |
-| **Static Link Filters** | P1 | Completed | Metadata-driven query filter for Link fields (e.g., leaf accounts only in General Ledger). |
-| **Import: Update & Upsert Modes** | P1 | Completed | Excel/CSV import supporting updating existing records by key or adding new records. |
-| **Database Role Segregation** | P2 | Planned | Separation of database migration owner role from runtime application role for append-only audit enforcement. |
-| **Dynamic Workflows** | P2 | Planned | Visual state machine transition editor with conditional approvals. |
+| **P1-4** | **Comments & @mention Timeline** | Internal collaboration thread directly beneath the document form (interleaved discussion and audit trail) with `@username` tagging and notification triggers. | High |
+| **P1-5** | **Export List & Bulk Actions** | Export tabular data to Excel (`.xlsx`) and `.csv` files (respecting user permissions and active filter scopes), plus bulk operations: **Bulk Submit**, **Bulk Cancel**, and **Bulk Edit Field** (extending existing Bulk Delete). | High |
+| **P1-7** | **Assign To / ToDo & "My Tasks" Widget** | Document delegation to specific staff/users, due date tracking, and a dedicated "My Tasks" dashboard widget for monitoring pending assignments. | Medium |
+| **P1-8** | **Saved Filters / Custom Views** | User-defined saved search filter combinations per DocType, persisting named presets via the established `IUserPreferenceStore` foundation. | Medium |
+
+### Priority 2: Platform Scalability & Extensibility (P2)
+
+- **Custom Fields / Customize Form per Tenant:** Add or reorder DocType fields dynamically from the web interface per tenant without altering underlying JSON metadata files.
+- **Webhooks:** Outbox-driven document event payload dispatcher to external webhook URLs, featuring HMAC signatures and automated exponential backoff retries.
+- **Ad-Hoc Report Builder:** Non-technical user interface to build, sort, filter, and group document data into customizable and savable reports.
+- **Dynamic Row-Level Security (User Permissions per Record):** Granular document-level access permissions that can be shared with specific users or roles directly from the UI.
+- **Advanced Authentication (SSO & 2FA):** Google and Microsoft Entra ID (OIDC) single sign-on integration, combined with TOTP app-based two-factor authentication (2FA).
+- **Generic Document Rename:** Document identifier renaming engine that automatically cascades updates to all Link foreign keys in child tables and related documents.
+- **Ad-Hoc Background Jobs (`frappe.enqueue`):** Asynchronous heavy task queue with live progress bar feedback in the web interface.
+- **Database Role Segregation:** Separation of database migration owner role from runtime application connection role for append-only audit enforcement.
+- **Dynamic Workflows:** Visual state machine transition editor with conditional approvals.
+
+### Priority 3: Specialized Views & Value-Add Enhancements (P3)
+
+- **Alternate Views:**
+  - **Kanban Board:** Workflow stage column cards with drag-and-drop state progression.
+  - **Calendar View:** Date-based document tracking (due dates, delivery schedules, event appointments).
+  - **Tree View:** Hierarchical nested structure navigation (Chart of Accounts, Cost Centers, Department trees).
+- **Visual Print Format Builder & Letter Head UI:** Interactive letterhead designer and visual print format template layout editor.
+- **Social Features:** Color-coded document tags, personal bookmarks/favorites, and Follow Document subscriptions with automated update notifications.
+- **Dynamic Multi-Language (i18n):** Runtime UI localization switching between English and Indonesian.
 
 ---
 
-## 4. Next Steps & Development Roadmap
+## 4. Recommended Implementation Sequence
 
-1. **Production Readiness Hardening (P0/P1):** Complete the items identified in the [Production Readiness Checklist](production-readiness.md) (secret isolation, demo decoupling, automated backup verification, migration runner isolation).
-2. **Database Role Segregation (P2):** Separation of database migration owner role from runtime application role for append-only audit enforcement.
-3. **Dynamic Workflows (P2):** Visual state machine transition editor with conditional approvals.
+Recommended execution sequence for the upcoming development cycles:
+
+1. **P1-5 — Export List to Excel/CSV & Bulk Actions:**
+   - Provide **Export to Excel (`.xlsx`)** and **Export to CSV** actions on the `ListPage.razor` toolbar.
+   - Expand list bulk actions: Bulk Submit, Bulk Cancel, and Bulk Edit Field.
+2. **P1-4 — Comments & @mention Timeline:**
+   - Embed an activity and discussion panel directly below `FormPage.razor`.
+   - Deliver automated in-app notifications when a user is tagged with `@username`.
+3. **P1-8 — Saved Filters / Custom Views:**
+   - Utilize `IUserPreferenceStore` to persist and quickly load named search filter presets per DocType.
+4. **P1-7 — Assign To / ToDo & "My Tasks" Widget:**
+   - Enable user task assignment, due dates, and a "My Tasks" dashboard widget for pending assignments.
+5. **Platform Scalability (P2) & Specialized Views (P3):**
+   - Progress into Tenant Custom Fields, Webhooks, SSO/2FA, and Alternate Views (Kanban, Calendar, Tree).

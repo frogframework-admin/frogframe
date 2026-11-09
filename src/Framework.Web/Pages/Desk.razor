@@ -24,31 +24,6 @@
         </div>
     </header>
 
-    @if (visibleModules.Count == 0)
-    {
-        <BbEmpty Title="No modules yet" Description="Your account does not have access to any modules yet." Size="EmptySize.Small" />
-    }
-    else
-    {
-        <section class="module-launcher-grid" style="@($"--launcher-cols:{GridColumns};grid-template-columns:repeat({GridColumns}, minmax(0, 1fr))")" aria-label="Module List">
-            @foreach (var mod in visibleModules)
-            {
-                var isActive = activeModuleId == mod.Id;
-                <button type="button" class="module-tile @(isActive ? "active" : "")" @onclick="() => SelectModule(mod)">
-                    <div class="module-tile-icon">
-                        <LucideIcon Name="@(string.IsNullOrWhiteSpace(mod.Icon) ? "layout-grid" : mod.Icon)" Size="20" />
-                    </div>
-                    <div class="module-tile-title">@mod.Name</div>
-                    @if (!string.IsNullOrWhiteSpace(mod.Description))
-                    {
-                        <div class="module-tile-desc">@mod.Description</div>
-                    }
-                    
-                </button>
-            }
-        </section>
-    }
-
     <section class="workspace-summary" aria-label="My workspace">
         <div class="section-head-row">
             <h2>My workspace</h2>
@@ -128,9 +103,6 @@
 </div>
 
 @code {
-    /// <summary>Number of module cards per row on the launcher grid (default 4).</summary>
-    [Parameter] public int GridColumns { get; set; } = 4;
-
     private IReadOnlyList<(CompiledDocType Meta, Document Doc, IReadOnlyList<string> Actions)>? pending;
     private IReadOnlyList<(CompiledDocType Meta, Document Doc, IReadOnlyList<string> Actions)>? recentDocs;
     private IReadOnlyList<NavigationModule> visibleModules = [];
@@ -178,13 +150,6 @@
             .Take(6)
             .ToList();
         recentDocs = combined;
-    }
-
-    private void SelectModule(NavigationModule mod)
-    {
-        Current.SetActiveModule(mod.Id);
-        activeModuleId = mod.Id;
-        Toasts.Success($"Module \"{mod.Name}\" is now active in the sidebar.", "Module Selected");
     }
 
     private void OnModuleChanged()
