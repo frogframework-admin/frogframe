@@ -1,4 +1,4 @@
-﻿# FrogFramework Project TODO & Production Readiness Tracking
+# FrogFramework Project TODO & Production Readiness Tracking
 
 Master TODO list tracking completed foundations, pre-production requirements, scaling enhancements, and operational items.
 

@@ -1,4 +1,4 @@
-﻿# FrogFramework: Project Status Report & Feature Roadmap
+# FrogFramework: Project Status Report & Feature Roadmap
 
 This document summarizes the current development status of FrogFramework, including completed features, testing coverage, backlog items (gap analysis against modern enterprise platform capabilities), and the upcoming development roadmap.
 
@@ -69,7 +69,7 @@ This document summarizes the current development status of FrogFramework, includ
 - **Dynamic Row-Level Security (User Permissions per Record):** Granular document-level access permissions that can be shared with specific users or roles directly from the UI.
 - **Advanced Authentication (SSO & 2FA):** Google and Microsoft Entra ID (OIDC) single sign-on integration, combined with TOTP app-based two-factor authentication (2FA).
 - **Generic Document Rename:** Document identifier renaming engine that automatically cascades updates to all Link foreign keys in child tables and related documents.
-- **Ad-Hoc Background Jobs (`frappe.enqueue`):** Asynchronous heavy task queue with live progress bar feedback in the web interface.
+- **Ad-Hoc Background Jobs (`FrogFrame.enqueue`):** Asynchronous heavy task queue with live progress bar feedback in the web interface.
 - **Database Role Segregation:** Separation of database migration owner role from runtime application connection role for append-only audit enforcement.
 - **Dynamic Workflows:** Visual state machine transition editor with conditional approvals.
 
