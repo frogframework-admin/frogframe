@@ -1,7 +1,7 @@
 # FrogFramework — Metadata-Driven .NET Business Application Framework
 
 <p align="center">
-  <img src="docs/images/logo.png" alt="FrogFramework Logo" width="140" />
+  <img src="docs/images/widget-builder-preview.jpg" alt="FrogFramework UI & Analytics Widget Builder" width="100%" />
 </p>
 
 [![.NET 10](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)

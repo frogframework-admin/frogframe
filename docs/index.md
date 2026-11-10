@@ -1,7 +1,7 @@
 # Documentation & Guides
 
 <p align="center">
-  <img src="images/widget-builder-preview.jpg" alt="FrogFramework UI Preview" style="max-width: 100%; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 4px 12px rgba(0,0,0,0.08);" />
+  <img src="images/logo.png" alt="FrogFramework Logo" width="120" />
 </p>
 
 Welcome to the **FrogFramework** developer guides, architectural blueprints, and technical specifications.
