@@ -2,6 +2,8 @@
   items:
     - name: Introduction
       href: index.md
+    - name: Frequently Asked Questions (FAQ)
+      href: faq.md
     - name: Project Structure
       href: PROJECT_STRUCTURE.md
     - name: Roadmap & Status

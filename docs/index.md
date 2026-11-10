@@ -39,6 +39,7 @@ dotnet test
 - **[Analytics Engine (World 2 OLAP)](guides/analytics-engine.md)**: The "Two Worlds" architecture, automatic metadata index synchronization, and performance benchmarks.
 
 ### Architecture & Production Operations
+- **[Frequently Asked Questions (FAQ)](faq.md)**: Architectural philosophy, why Blazor, EF Core vs. ADO.NET, lean infrastructure, and roadmap vision.
 - **[Project Structure Reference](PROJECT_STRUCTURE.md)**: Complete 4-project solution layout, dependency graphs, and subsystem designs.
 - **[Roadmap & Feature Gap Analysis](project-status-roadmap.md)**: Current completion status and enterprise platform feature gap analysis.
 - **[Production Readiness Checklist](production-readiness.md)**: Pre-production hardening (P0), scale-up readiness (P1), and Day-2 operations checklist (P2).

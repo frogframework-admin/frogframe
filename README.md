@@ -240,6 +240,7 @@ The complete technical documentation, architecture specifications, and .NET API 
   ```
   Visit `http://localhost:8080` to browse guides, architecture blueprints, and API documentation.
 - **Guides Index**: [docs/index.md](docs/index.md)
+- **Frequently Asked Questions (FAQ)**: [docs/faq.md](docs/faq.md)
 - **Project Structure Blueprint**: [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md)
 - **Security Baseline (OWASP Top 10)**: [docs/security-baseline.md](docs/security-baseline.md)
 - **Observability Guide**: [docs/observability.md](docs/observability.md)
