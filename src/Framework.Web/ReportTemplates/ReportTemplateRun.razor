@@ -8,14 +8,6 @@
 
 <PageTitle>@(def?.Name ?? "Report") · FrogFrame</PageTitle>
 
-<BbBreadcrumb Class="crumbs">
-    <BbBreadcrumbList>
-        <BbBreadcrumbItem><BbBreadcrumbLink Href="/admin/report-templates">Excel/Word Reports</BbBreadcrumbLink></BbBreadcrumbItem>
-        <BbBreadcrumbSeparator />
-        <BbBreadcrumbItem><BbBreadcrumbPage>@(def?.Name ?? "…")</BbBreadcrumbPage></BbBreadcrumbItem>
-    </BbBreadcrumbList>
-</BbBreadcrumb>
-
 @if (!Reports.IsAvailable)
 {
     <UnavailableNotice />

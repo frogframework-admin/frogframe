@@ -28,21 +28,6 @@
 }
 else if (meta is not null && doc is not null)
 {
-    <BbBreadcrumb Class="crumbs">
-        <BbBreadcrumbList>
-            @if (meta.Def.IsSingle)
-            {
-                <BbBreadcrumbItem><BbBreadcrumbPage>@meta.Title</BbBreadcrumbPage></BbBreadcrumbItem>
-            }
-            else
-            {
-                <BbBreadcrumbItem><BbBreadcrumbLink Href="@($"/app/{meta.Name}")">@meta.Title</BbBreadcrumbLink></BbBreadcrumbItem>
-                <BbBreadcrumbSeparator />
-                <BbBreadcrumbItem><BbBreadcrumbPage>@(IsNew ? "New" : doc.Name)</BbBreadcrumbPage></BbBreadcrumbItem>
-            }
-        </BbBreadcrumbList>
-    </BbBreadcrumb>
-
     <header class="doc-head">
         <div>
             <h1>@(meta.Def.IsSingle ? meta.Title : IsNew ? $"New {meta.Title}" : doc.Name)</h1>

@@ -20,19 +20,6 @@ else if (wf is null)
 }
 else
 {
-    <BbBreadcrumb Class="crumbs">
-        <BbBreadcrumbList>
-            <BbBreadcrumbItem><BbBreadcrumbLink Href="/admin/workflows">Workflows</BbBreadcrumbLink></BbBreadcrumbItem>
-            @if (!string.IsNullOrWhiteSpace(wf.DocType))
-            {
-                <BbBreadcrumbSeparator />
-                <BbBreadcrumbItem><BbBreadcrumbLink Href="@($"/admin/metadata/{wf.DocType}")">@wf.DocType</BbBreadcrumbLink></BbBreadcrumbItem>
-            }
-            <BbBreadcrumbSeparator />
-            <BbBreadcrumbItem><BbBreadcrumbPage>Workflow</BbBreadcrumbPage></BbBreadcrumbItem>
-        </BbBreadcrumbList>
-    </BbBreadcrumb>
-
     <header class="page-head">
         <div>
             <h1>@(isNew ? "New workflow" : wf.Name) <span class="muted" style="font-weight:500">· @(isNew ? "v1" : $"draft v{wf.Version}")</span></h1>

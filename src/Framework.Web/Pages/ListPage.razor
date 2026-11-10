@@ -1,566 +1,563 @@
-@page "/app/{DocType}"
-@inject DocumentService Docs
-@inject CurrentUser Current
-@inject IMetadataProvider Metadata
-@inject IPermissionService Perms
-@inject NavigationManager Nav
-@inject Framework.Imports.DataImportService Importer
-@inject DialogService Dialogs
-@inject ToastService Toasts
-@inject Framework.Preferences.IUserPreferenceStore UserPrefs
-@implements IDisposable
-
-<PageTitle>@(meta?.Title ?? DocType) · FrogFrame</PageTitle>
-
-@if (fatal is not null)
-{
-    <ErrorState StatusCode="@fatalStatus" Title="@(fatalStatus == 403 ? "Access Denied" : "DocType Not Found")" Description="@fatal" />
-}
-else if (meta is not null)
-{
-    <header class="page-head list-header-custom">
-        <div class="list-title-box">
-            <div class="list-title-icon-badge">
-                <LucideIcon Name="layout-grid" Size="26" />
-            </div>
-            <div>
-                <h1 class="list-page-title">@meta.Title</h1>
-                <p class="list-page-sub">@(result is null ? "Loading…" : $"{TotalText} documents within your access scope")</p>
-            </div>
-        </div>
-        @if (Perms.Can(Current.Required, meta, DocActions.Create) || Perms.Can(Current.Required, meta, DocActions.Delete))
-        {
-            <div class="row list-action-buttons">
-                @if (Perms.Can(Current.Required, meta, DocActions.Delete))
-                {
-                    <BbButton Variant="ButtonVariant.Destructive"
-                              Class="btn-action-delete"
-                              Disabled="@(selectedItems.Count == 0 || busy)"
-                              OnClick="DeleteSelected">
-                        <LucideIcon Name="trash-2" Size="16" /> Delete @(selectedItems.Count > 0 ? $"({selectedItems.Count})" : "")
-                    </BbButton>
-                }
-                @if (Importer.CanImport(Current.Required, meta.Name))
-                {
-                    <BbButton Variant="ButtonVariant.Outline" Class="btn-action-import" Href="@($"/app/{meta.Name}/import")">
-                        <LucideIcon Name="file-up" Size="16" /> Import
-                    </BbButton>
-                }
-                @if (Perms.Can(Current.Required, meta, DocActions.Create))
-                {
-                    <BbButton Class="btn-action-new" Href="@($"/app/{meta.Name}/new")">
-                        <LucideIcon Name="plus" Size="16" /> New @meta.Title.ToLower()
-                    </BbButton>
-                }
-            </div>
-        }
-    </header>
-
-    @if (error is not null)
-    {
-        <BbAlert Variant="AlertVariant.Danger" Class="crumbs"><BbAlertDescription>@error</BbAlertDescription></BbAlert>
-    }
-
-    @if (result is null)
-    {
-        <div class="stack"><BbSkeleton Height="2.5rem" /><BbSkeleton Height="2.5rem" /><BbSkeleton Height="2.5rem" /></div>
-    }
-    else
-    {
-        var groupedFields = meta.Fields.Where(f => f.Def.Type != "Table" && f.Def.RowGrouping).ToList();
-        var groupCollapsed = groupedFields.Any(f => f.Def.GroupCollapsedByDefault);
-        var visibleColSet = result.Columns.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        <BbDataGrid @key="gridRenderKey"
-                    TData="Dictionary<string, object?>"
-                    Items="@result.Items"
-                    ItemKey="@(r => (string)r["name"]!)"
-                    OnRowClick="@(row => Go((string)row["name"]!))"
-                    RowClass="@(row => selectedItems.Contains((string)row["name"]!) ? "clickable selected" : "clickable")"
-                    State="@gridState"
-                    Resizable="true"
-                    OnColumnResize="HandleColumnResize"
-                    StateChanged="OnGridStateChanged"
-                    GroupsCollapsedByDefault="@groupCollapsed"
-                    ShowPagination="true"
-                    InitialPageSize="10"
-                    PageSizes="@([10, 20, 50, 100])"
-                    TableContainerClass="table-wrap">
-            <Toolbar>
-                <div class="filters" role="search" style="margin-bottom:.75rem;width:100%">
-                    <div class="filter search">
-                        <span>Search</span>
-                        <BbInput Value="@search" ValueChanged="OnSearch" UpdateTiming="UpdateTiming.Debounced" DebounceInterval="300"
-                                 Placeholder="@($"{string.Join(" / ", meta.Def.ListView.SearchFields.Select(LabelOf))}…")" AriaLabel="Search" />
-                    </div>
-                    <div style="margin-left:auto;align-self:flex-end;display:flex;align-items:center;gap:.5rem">
-                        @if (hasCustomLayout)
-                        {
-                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ResetColumnsLayout" Title="Reset column layout to default">
-                                <LucideIcon Name="rotate-ccw" Size="14" />
-                                <span>Reset Columns</span>
-                            </BbButton>
-                        }
-                        <BbDataGridColumnVisibility TData="Dictionary<string, object?>" />
-                    </div>
-                </div>
-            </Toolbar>
-            <EmptyTemplate>
-                <div style="padding:2.5rem 1rem">
-                    <BbEmpty Title="@($"No matching {meta.Title.ToLower()} found")"
-                             Description="@(!string.IsNullOrEmpty(search) ? "Modify or clear search to view other documents." : "Documents you create or that are shared with your role will appear here.")">
-                        <Icon><LucideIcon Name="search" Size="28" /></Icon>
-                    </BbEmpty>
-                </div>
-            </EmptyTemplate>
-            <Columns>
-                @foreach (var gf in groupedFields.Where(f => !visibleColSet.Contains(f.Name)))
-                {
-                    var gKey = gf.Name;
-                    <BbDataGridPropertyColumn @key="@($"_grp_{gKey}")"
-                                              TData="Dictionary<string, object?>" TProp="object?"
-                                              Id="@gKey"
-                                              Title="@gf.Label"
-                                              Property="@GetColAccessor(gKey)"
-                                              SortAndFilterBy="@GetColAccessor(gKey)"
-                                              Groupable="true"
-                                              Visible="false"
-                                              Hideable="false"
-                                              Resizable="false" />
-                }
-
-                <BbDataGridTemplateColumn TData="Dictionary<string, object?>" Id="_select" Title="" Width="@GetColWidth("_select", "3rem")" Hideable="false" Resizable="false">
-                    <HeaderTemplate>
-                        <div @onclick:stopPropagation="true">
-                            <BbCheckbox Checked="@IsAllSelected"
-                                        Indeterminate="@IsSomeSelected"
-                                        CheckedChanged="ToggleSelectAll"
-                                        AriaLabel="Select all" />
-                        </div>
-                    </HeaderTemplate>
-                    <ChildContent Context="row">
-                        @{
-                            var rowName = (string)row["name"]!;
-                            var isSelected = selectedItems.Contains(rowName);
-                        }
-                        <div @onclick:stopPropagation="true">
-                            <BbCheckbox Checked="@isSelected"
-                                        CheckedChanged="v => ToggleSelect(rowName, v)"
-                                        AriaLabel="@($"Select {rowName}")" />
-                        </div>
-                    </ChildContent>
-                </BbDataGridTemplateColumn>
-
-                <BbDataGridPropertyColumn TData="Dictionary<string, object?>" TProp="object?"
-                                          Id="name" Title="Number" Hideable="false" Resizable="true" Sortable="true"
-                                          Property="@nameAccessor" SortAndFilterBy="@nameAccessor" Filterable="true" FilterType="BlazorBlueprint.Primitives.Filtering.FilterFieldType.Text"
-                                          Width="@GetColWidth("name")">
-                    <CellTemplate Context="row">
-                        <a class="doc-link" href="/app/@meta.Name/@((string)row["name"]!)">@((string)row["name"]!)</a>
-                    </CellTemplate>
-                </BbDataGridPropertyColumn>
-
-                @foreach (var c in result.Columns)
-                {
-                    var colKey = c;
-                    var cf = meta.ByName.GetValueOrDefault(colKey);
-                    var colFilterable = cf?.Def.Filterable ?? true;
-                    var colPinned = MapPinning(cf?.Def.Pinned);
-                    var colAccessor = GetColAccessor(colKey);
-                    <BbDataGridPropertyColumn @key="colKey"
-                                              TData="Dictionary<string, object?>" TProp="object?"
-                                              Id="@colKey" Title="@LabelOf(colKey)" Resizable="true" Sortable="true"
-                                              Property="@colAccessor" SortAndFilterBy="@colAccessor"
-                                              Filterable="@colFilterable" FilterType="@MapFilterType(cf)"
-                                              Pinned="@colPinned" Groupable="true"
-                                              Width="@GetColWidth(colKey)"
-                                              Visible="@IsColVisible(colKey)">
-                        <CellTemplate Context="row">
-                            @if (cf?.Type.Editor == "image")
-                            {
-                                @if (row.GetValueOrDefault(colKey) is string img)
-                                {
-                                    <img class="thumb" src="@($"/files/{img}")" alt="" loading="lazy" />
-                                }
-                                else
-                                {
-                                    <span class="thumb thumb-empty"></span>
-                                }
-                            }
-                            else
-                            {
-                                <span class="@(cf?.Type.Editor == "number" ? "num" : "")">@Fmt.Value(cf, row.GetValueOrDefault(colKey))</span>
-                            }
-                        </CellTemplate>
-                    </BbDataGridPropertyColumn>
-                }
-
-                @if (HasStatus)
-                {
-                    <BbDataGridPropertyColumn TData="Dictionary<string, object?>" TProp="object?"
-                                              Id="status" Title="Status" Resizable="true" Sortable="true"
-                                              Property="@statusAccessor" SortAndFilterBy="@statusAccessor" Filterable="true"
-                                              Width="@GetColWidth("status")"
-                                              Visible="@IsColVisible("status")">
-                        <CellTemplate Context="row">
-                            @{
-                                var st = row.GetValueOrDefault("workflow_state") as string;
-                                var ds = row.TryGetValue("docstatus", out var dsv) && dsv is int dsi ? dsi : 0;
-                            }
-                            <StatusBadge Label="@Fmt.StateLabel(st, ds)" Tone="@Fmt.Tone(meta, st, ds)" />
-                        </CellTemplate>
-                    </BbDataGridPropertyColumn>
-                }
-
-                <BbDataGridPropertyColumn TData="Dictionary<string, object?>" TProp="object?"
-                                          Id="modified" Title="Modified" Resizable="true" Sortable="true"
-                                          Property="@modifiedAccessor" SortAndFilterBy="@modifiedAccessor" Filterable="true" FilterType="BlazorBlueprint.Primitives.Filtering.FilterFieldType.DateTime"
-                                          Width="@GetColWidth("modified")"
-                                          Visible="@IsColVisible("modified")">
-                    <CellTemplate Context="row">
-                        <span class="muted nowrap">@Fmt.When((DateTimeOffset)row["modified"]!)</span>
-                    </CellTemplate>
-                </BbDataGridPropertyColumn>
-            </Columns>
-        </BbDataGrid>
-
-        @if (TotalPages > 1)
-        {
-            <div class="list-foot">
-                <span class="muted small">Page @result.Page of @TotalPages (@TotalText documents)</span>
-                <BbPagination TotalPages="TotalPages" CurrentPage="result.Page" CurrentPageChanged="Reload" />
-            </div>
-        }
-    }
-}
-
-@code {
-    [Parameter] public string DocType { get; set; } = "";
-
-    private CompiledDocType? meta;
-    private ListResponse? result;
-    private string? search, sortField, error, fatal; private int fatalStatus = 404;
-    private readonly HashSet<string> selectedItems = [];
-    private bool busy;
-
-    private Framework.Preferences.DataGridPreference gridPref = new();
-    private BlazorBlueprint.Primitives.DataGrid.DataGridState<Dictionary<string, object?>> gridState = new();
-    private readonly Dictionary<string, System.Linq.Expressions.Expression<Func<Dictionary<string, object?>, object?>>> colAccessors = new(StringComparer.OrdinalIgnoreCase);
-    private static readonly System.Linq.Expressions.Expression<Func<Dictionary<string, object?>, object?>> nameAccessor = r => r.GetValueOrDefault("name");
-    private static readonly System.Linq.Expressions.Expression<Func<Dictionary<string, object?>, object?>> statusAccessor = r => r.GetValueOrDefault("workflow_state") ?? "";
-    private static readonly System.Linq.Expressions.Expression<Func<Dictionary<string, object?>, object?>> modifiedAccessor = r => r.GetValueOrDefault("modified");
-    private bool hasCustomLayout;
-    private int gridRenderKey;
-    private System.Threading.Timer? saveDebounceTimer;
-
-    private System.Linq.Expressions.Expression<Func<Dictionary<string, object?>, object?>> GetColAccessor(string colKey)
-    {
-        if (!colAccessors.TryGetValue(colKey, out var expr))
-        {
-            var key = colKey;
-            var cf = meta?.ByName.GetValueOrDefault(key);
-            expr = r => GetColRawOrGroupValue(cf, r.GetValueOrDefault(key));
-            colAccessors[key] = expr;
-        }
-        return expr;
-    }
-
-    private static object? GetColRawOrGroupValue(CompiledField? cf, object? val)
-    {
-        if (val is null || (val is string s && string.IsNullOrWhiteSpace(s)))
-            return cf?.Def.RowGrouping == true ? "—" : null;
-        if (cf is not null && cf.Def.RowGrouping)
-            return Fmt.Value(cf, val);
-        return val;
-    }
-
-    private static BlazorBlueprint.Primitives.Filtering.FilterFieldType MapFilterType(CompiledField? cf) => cf?.Type.Editor switch
-    {
-        "number" or "currency" or "percent" or "int" => BlazorBlueprint.Primitives.Filtering.FilterFieldType.Number,
-        "date" => BlazorBlueprint.Primitives.Filtering.FilterFieldType.Date,
-        "datetime" => BlazorBlueprint.Primitives.Filtering.FilterFieldType.DateTime,
-        "check" => BlazorBlueprint.Primitives.Filtering.FilterFieldType.Boolean,
-        _ => BlazorBlueprint.Primitives.Filtering.FilterFieldType.Text
-    };
-
-    private void ApplyDefaultGrouping()
-    {
-        gridState = new();
-        if (meta is null) return;
-        bool first = true;
-        foreach (var gf in meta.Fields.Where(f => f.Def.Type != "Table" && f.Def.RowGrouping))
-        {
-            var def = new BlazorBlueprint.Primitives.DataGrid.GroupDefinition
-            {
-                ColumnId = gf.Name,
-                GroupSortDirection = BlazorBlueprint.Primitives.SortDirection.Ascending
-            };
-            if (first)
-            {
-                gridState.Grouping.SetGroup(def);
-                first = false;
-            }
-            else
-            {
-                gridState.Grouping.AddGroup(def);
-            }
-        }
-    }
-
-    private bool IsAllSelected => result?.Items.Count > 0 && result.Items.All(r => selectedItems.Contains((string)r["name"]!));
-    private bool IsSomeSelected => !IsAllSelected && result?.Items.Any(r => selectedItems.Contains((string)r["name"]!)) == true;
-
-    private void ToggleSelectAll(bool check)
-    {
-        if (result is null) return;
-        if (check)
-        {
-            foreach (var r in result.Items)
-                selectedItems.Add((string)r["name"]!);
-        }
-        else
-        {
-            foreach (var r in result.Items)
-                selectedItems.Remove((string)r["name"]!);
-        }
-    }
-
-    private void ToggleSelect(string name, bool check)
-    {
-        if (check) selectedItems.Add(name);
-        else selectedItems.Remove(name);
-    }
-
-    private bool HasStatus => meta!.Workflow is not null || meta.Def.Document.AllowSubmit;
-    private string TotalText => result is null ? "" : result.TotalCapped ? $"{result.Total:N0}+" : $"{result.Total:N0}";
-    private int TotalPages => result is null ? 0 : (int)Math.Ceiling(result.Total / (double)result.PageSize);
-
-    // Blazor memanggil OnParametersSet setiap kali layout induk dirender ulang (mis. jumlah notifikasi berubah).
-    // Muat ulang hanya bila parameter rute benar-benar berubah, agar isian/draft pengguna tidak hilang.
-    private string? loadedKey;
-    protected override async Task OnParametersSetAsync()
-    {
-        if (DocType == loadedKey) return;
-        loadedKey = DocType;
-        fatal = null; error = null; search = null; sortField = null; result = null;
-        selectedItems.Clear();
-        if (!Metadata.Current.TryGet(DocType, out var m) || m.Def.IsChild) { fatalStatus = 404; fatal = $"DocType '{DocType}' was not found."; return; }
-        meta = m;
-        colAccessors.Clear();
-        ApplyDefaultGrouping();
-        if (!Perms.Can(Current.Required, meta, DocActions.Read)) { fatalStatus = 403; fatal = $"You do not have permission to view {meta.Title}."; return; }
-        // Single DocType: tidak ada daftar; langsung buka dokumen tunggalnya (atau form baru bila belum ada).
-        if (meta.Def.IsSingle)
-        {
-            var exists = true;
-            try { await Docs.GetAsync(Current.Required, DocType, DocType); }
-            catch (DocumentNotFoundException) { exists = false; }
-            Nav.NavigateTo($"/app/{DocType}/{(exists ? DocType : "new")}", replace: true);
-            return;
-        }
-
-        if (Current.User is { } u)
-        {
-            var saved = await UserPrefs.GetAsync<Framework.Preferences.DataGridPreference>(u.TenantId, u.Id, $"grid:{DocType}");
-            if (saved is not null && saved.Columns.Count > 0)
-            {
-                gridPref = saved;
-                hasCustomLayout = true;
-            }
-            else
-            {
-                gridPref = new();
-                hasCustomLayout = false;
-            }
-        }
-
-        await Reload(1);
-    }
-
-    private void Go(string name) => Nav.NavigateTo($"/app/{DocType}/{name}");
-
-    private string LabelOf(string field) => field switch
-    {
-        "name" => "Number",
-        StandardFields.WorkflowState => "Status",
-        StandardFields.Modified => "Modified",
-        _ => meta!.ByName.TryGetValue(field, out var f) ? f.Label : field
-    };
-
-    private Task OnSearch(string? v) { search = v; return Reload(1); }
-
-    private async Task DeleteSelected()
-    {
-        if (selectedItems.Count == 0 || busy) return;
-
-        var count = selectedItems.Count;
-        var confirm = await Dialogs.ConfirmAsync(
-            $"Delete {count} {meta!.Title.ToLower()} document(s)?",
-            "Selected draft documents will be permanently deleted. This action cannot be undone.",
-            new ConfirmDialogOptions { Destructive = true, ConfirmText = $"Delete ({count})", CancelText = "Cancel" });
-
-        if (!confirm.Confirmed) return;
-
-        busy = true;
-        int success = 0;
-        var failed = new List<string>();
-
-        try
-        {
-            var namesToDelete = selectedItems.ToList();
-            foreach (var name in namesToDelete)
-            {
-                try
-                {
-                    var doc = await Docs.GetAsync(Current.Required, DocType, name);
-                    await Docs.DeleteAsync(Current.Required, DocType, name, doc.Version);
-                    success++;
-                    selectedItems.Remove(name);
-                }
-                catch (Exception ex)
-                {
-                    failed.Add($"{name}: {ex.Message}");
-                }
-            }
-
-            if (success > 0)
-            {
-                Toasts.Success($"{success} {meta!.Title.ToLower()} document(s) deleted successfully.", "Deleted");
-            }
-
-            if (failed.Count > 0)
-            {
-                Toasts.Error(string.Join("; ", failed), "Failed to Delete Some Documents");
-            }
-        }
-        finally
-        {
-            busy = false;
-            await Reload(result?.Page ?? 1);
-        }
-    }
-
-    private async Task Reload(int page)
-    {
-        try
-        {
-            error = null;
-            selectedItems.Clear();
-            result = await Docs.ListAsync(Current.Required, DocType, new ListRequest(null, search, sortField, null, page));
-        }
-        catch (Exception ex) when (ex is InvalidPayloadException or PermissionDeniedException)
-        {
-            error = ex.Message;
-        }
-    }
-
-    private static BlazorBlueprint.Primitives.DataGrid.ColumnPinning MapPinning(string? pinned) => pinned switch
-    {
-        "Left" => BlazorBlueprint.Primitives.DataGrid.ColumnPinning.Left,
-        "Right" => BlazorBlueprint.Primitives.DataGrid.ColumnPinning.Right,
-        _ => BlazorBlueprint.Primitives.DataGrid.ColumnPinning.None
-    };
-
-    private bool GetDefaultColVisible(string colId) =>
-        meta?.ByName.TryGetValue(colId, out var cf) == true ? cf.Def.Visible : true;
-
-    private string? GetColWidth(string colId, string? defaultWidth = null) =>
-        gridPref.Columns.TryGetValue(colId, out var pref) && !string.IsNullOrWhiteSpace(pref.Width)
-            ? pref.Width
-            : defaultWidth;
-
-    private bool IsColVisible(string colId) =>
-        gridPref.Columns.TryGetValue(colId, out var pref) ? pref.Visible : GetDefaultColVisible(colId);
-
-    private void HandleColumnResize((string ColumnId, string Width) args)
-    {
-        if (string.IsNullOrWhiteSpace(args.ColumnId)) return;
-        if (!gridPref.Columns.TryGetValue(args.ColumnId, out var pref))
-        {
-            pref = new Framework.Preferences.GridColumnPreference { Visible = GetDefaultColVisible(args.ColumnId) };
-        }
-        gridPref.Columns[args.ColumnId] = pref with { Width = args.Width };
-        hasCustomLayout = true;
-        ScheduleSavePreference();
-    }
-
-    private void OnGridStateChanged(BlazorBlueprint.Primitives.DataGrid.DataGridState<Dictionary<string, object?>> state)
-    {
-        if (state?.Columns?.Entries is null) return;
-        bool changed = false;
-        foreach (var entry in state.Columns.Entries)
-        {
-            if (string.IsNullOrEmpty(entry.ColumnId)) continue;
-            var defaultVisible = GetDefaultColVisible(entry.ColumnId);
-            if (!gridPref.Columns.TryGetValue(entry.ColumnId, out var pref))
-            {
-                if (entry.Visible != defaultVisible || !string.IsNullOrWhiteSpace(entry.Width))
-                {
-                    gridPref.Columns[entry.ColumnId] = new Framework.Preferences.GridColumnPreference
-                    {
-                        Visible = entry.Visible,
-                        Width = entry.Width
-                    };
-                    changed = true;
-                }
-            }
-            else
-            {
-                var widthToSave = !string.IsNullOrWhiteSpace(entry.Width) ? entry.Width : pref.Width;
-                if (pref.Visible != entry.Visible || pref.Width != widthToSave)
-                {
-                    gridPref.Columns[entry.ColumnId] = pref with { Visible = entry.Visible, Width = widthToSave };
-                    changed = true;
-                }
-            }
-        }
-
-        if (changed)
-        {
-            hasCustomLayout = true;
-            ScheduleSavePreference();
-        }
-    }
-
-    private void ScheduleSavePreference()
-    {
-        saveDebounceTimer?.Dispose();
-        saveDebounceTimer = new System.Threading.Timer(async _ =>
-        {
-            await SavePreferenceAsync();
-        }, null, 500, System.Threading.Timeout.Infinite);
-    }
-
-    private async Task SavePreferenceAsync()
-    {
-        try
-        {
-            if (Current.User is { } u && !string.IsNullOrEmpty(DocType))
-            {
-                await UserPrefs.SetAsync(u.TenantId, u.Id, $"grid:{DocType}", gridPref);
-            }
-        }
-        catch
-        {
-            // Background save error shouldn't crash the UI
-        }
-    }
-
-    private async Task ResetColumnsLayout()
-    {
-        if (Current.User is { } u && !string.IsNullOrEmpty(DocType))
-        {
-            await UserPrefs.DeleteAsync(u.TenantId, u.Id, $"grid:{DocType}");
-        }
-        gridPref = new();
-        hasCustomLayout = false;
-        ApplyDefaultGrouping();
-        gridRenderKey++;
-        Toasts.Success("Column layout has been reset to default.", "Reset Columns");
-        await Reload(result?.Page ?? 1);
-    }
-
-    public void Dispose()
-    {
-        saveDebounceTimer?.Dispose();
-    }
-}
+@page "/app/{DocType}"
+@inject DocumentService Docs
+@inject CurrentUser Current
+@inject IMetadataProvider Metadata
+@inject IPermissionService Perms
+@inject NavigationManager Nav
+@inject Framework.Imports.DataImportService Importer
+@inject DialogService Dialogs
+@inject ToastService Toasts
+@inject Framework.Preferences.IUserPreferenceStore UserPrefs
+@implements IDisposable
+
+<PageTitle>@(meta?.Title ?? DocType) · FrogFrame</PageTitle>
+
+@if (fatal is not null)
+{
+    <ErrorState StatusCode="@fatalStatus" Title="@(fatalStatus == 403 ? "Access Denied" : "DocType Not Found")" Description="@fatal" />
+}
+else if (meta is not null)
+{
+    <header class="page-head list-header-custom">
+        <div class="list-title-box">
+            <div>
+                <h1 class="list-page-title">@meta.Title</h1>
+                <p class="list-page-sub">@(result is null ? "Loading…" : $"{TotalText} documents within your access scope")</p>
+            </div>
+        </div>
+        @if (Perms.Can(Current.Required, meta, DocActions.Create) || Perms.Can(Current.Required, meta, DocActions.Delete))
+        {
+            <div class="row list-action-buttons">
+                @if (Perms.Can(Current.Required, meta, DocActions.Delete))
+                {
+                    <BbButton Variant="ButtonVariant.Destructive"
+                              Class="btn-action-delete"
+                              Disabled="@(selectedItems.Count == 0 || busy)"
+                              OnClick="DeleteSelected">
+                        <LucideIcon Name="trash-2" Size="16" /> Delete @(selectedItems.Count > 0 ? $"({selectedItems.Count})" : "")
+                    </BbButton>
+                }
+                @if (Importer.CanImport(Current.Required, meta.Name))
+                {
+                    <BbButton Variant="ButtonVariant.Outline" Class="btn-action-import" Href="@($"/app/{meta.Name}/import")">
+                        <LucideIcon Name="file-up" Size="16" /> Import
+                    </BbButton>
+                }
+                @if (Perms.Can(Current.Required, meta, DocActions.Create))
+                {
+                    <BbButton Class="btn-action-new" Href="@($"/app/{meta.Name}/new")">
+                        <LucideIcon Name="plus" Size="16" /> New @meta.Title.ToLower()
+                    </BbButton>
+                }
+            </div>
+        }
+    </header>
+
+    @if (error is not null)
+    {
+        <BbAlert Variant="AlertVariant.Danger" Class="crumbs"><BbAlertDescription>@error</BbAlertDescription></BbAlert>
+    }
+
+    @if (result is null)
+    {
+        <div class="stack"><BbSkeleton Height="2.5rem" /><BbSkeleton Height="2.5rem" /><BbSkeleton Height="2.5rem" /></div>
+    }
+    else
+    {
+        var groupedFields = meta.Fields.Where(f => f.Def.Type != "Table" && f.Def.RowGrouping).ToList();
+        var groupCollapsed = groupedFields.Any(f => f.Def.GroupCollapsedByDefault);
+        var visibleColSet = result.Columns.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        <BbDataGrid @key="gridRenderKey"
+                    TData="Dictionary<string, object?>"
+                    Items="@result.Items"
+                    ItemKey="@(r => (string)r["name"]!)"
+                    OnRowClick="@(row => Go((string)row["name"]!))"
+                    RowClass="@(row => selectedItems.Contains((string)row["name"]!) ? "clickable selected" : "clickable")"
+                    State="@gridState"
+                    Resizable="true"
+                    OnColumnResize="HandleColumnResize"
+                    StateChanged="OnGridStateChanged"
+                    GroupsCollapsedByDefault="@groupCollapsed"
+                    ShowPagination="true"
+                    InitialPageSize="10"
+                    PageSizes="@([10, 20, 50, 100])"
+                    TableContainerClass="table-wrap">
+            <Toolbar>
+                <div class="filters" role="search" style="margin-bottom:.75rem;width:100%">
+                    <div class="filter search">
+                        <span>Search</span>
+                        <BbInput Value="@search" ValueChanged="OnSearch" UpdateTiming="UpdateTiming.Debounced" DebounceInterval="300"
+                                 Placeholder="@($"{string.Join(" / ", meta.Def.ListView.SearchFields.Select(LabelOf))}…")" AriaLabel="Search" />
+                    </div>
+                    <div style="margin-left:auto;align-self:flex-end;display:flex;align-items:center;gap:.5rem">
+                        @if (hasCustomLayout)
+                        {
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ResetColumnsLayout" Title="Reset column layout to default">
+                                <LucideIcon Name="rotate-ccw" Size="14" />
+                                <span>Reset Columns</span>
+                            </BbButton>
+                        }
+                        <BbDataGridColumnVisibility TData="Dictionary<string, object?>" />
+                    </div>
+                </div>
+            </Toolbar>
+            <EmptyTemplate>
+                <div style="padding:2.5rem 1rem">
+                    <BbEmpty Title="@($"No matching {meta.Title.ToLower()} found")"
+                             Description="@(!string.IsNullOrEmpty(search) ? "Modify or clear search to view other documents." : "Documents you create or that are shared with your role will appear here.")">
+                        <Icon><LucideIcon Name="search" Size="28" /></Icon>
+                    </BbEmpty>
+                </div>
+            </EmptyTemplate>
+            <Columns>
+                @foreach (var gf in groupedFields.Where(f => !visibleColSet.Contains(f.Name)))
+                {
+                    var gKey = gf.Name;
+                    <BbDataGridPropertyColumn @key="@($"_grp_{gKey}")"
+                                              TData="Dictionary<string, object?>" TProp="object?"
+                                              Id="@gKey"
+                                              Title="@gf.Label"
+                                              Property="@GetColAccessor(gKey)"
+                                              SortAndFilterBy="@GetColAccessor(gKey)"
+                                              Groupable="true"
+                                              Visible="false"
+                                              Hideable="false"
+                                              Resizable="false" />
+                }
+
+                <BbDataGridTemplateColumn TData="Dictionary<string, object?>" Id="_select" Title="" Width="@GetColWidth("_select", "3rem")" Hideable="false" Resizable="false">
+                    <HeaderTemplate>
+                        <div @onclick:stopPropagation="true">
+                            <BbCheckbox Checked="@IsAllSelected"
+                                        Indeterminate="@IsSomeSelected"
+                                        CheckedChanged="ToggleSelectAll"
+                                        AriaLabel="Select all" />
+                        </div>
+                    </HeaderTemplate>
+                    <ChildContent Context="row">
+                        @{
+                            var rowName = (string)row["name"]!;
+                            var isSelected = selectedItems.Contains(rowName);
+                        }
+                        <div @onclick:stopPropagation="true">
+                            <BbCheckbox Checked="@isSelected"
+                                        CheckedChanged="v => ToggleSelect(rowName, v)"
+                                        AriaLabel="@($"Select {rowName}")" />
+                        </div>
+                    </ChildContent>
+                </BbDataGridTemplateColumn>
+
+                <BbDataGridPropertyColumn TData="Dictionary<string, object?>" TProp="object?"
+                                          Id="name" Title="Number" Hideable="false" Resizable="true" Sortable="true"
+                                          Property="@nameAccessor" SortAndFilterBy="@nameAccessor" Filterable="true" FilterType="BlazorBlueprint.Primitives.Filtering.FilterFieldType.Text"
+                                          Width="@GetColWidth("name")">
+                    <CellTemplate Context="row">
+                        <a class="doc-link" href="/app/@meta.Name/@((string)row["name"]!)">@((string)row["name"]!)</a>
+                    </CellTemplate>
+                </BbDataGridPropertyColumn>
+
+                @foreach (var c in result.Columns)
+                {
+                    var colKey = c;
+                    var cf = meta.ByName.GetValueOrDefault(colKey);
+                    var colFilterable = cf?.Def.Filterable ?? true;
+                    var colPinned = MapPinning(cf?.Def.Pinned);
+                    var colAccessor = GetColAccessor(colKey);
+                    <BbDataGridPropertyColumn @key="colKey"
+                                              TData="Dictionary<string, object?>" TProp="object?"
+                                              Id="@colKey" Title="@LabelOf(colKey)" Resizable="true" Sortable="true"
+                                              Property="@colAccessor" SortAndFilterBy="@colAccessor"
+                                              Filterable="@colFilterable" FilterType="@MapFilterType(cf)"
+                                              Pinned="@colPinned" Groupable="true"
+                                              Width="@GetColWidth(colKey)"
+                                              Visible="@IsColVisible(colKey)">
+                        <CellTemplate Context="row">
+                            @if (cf?.Type.Editor == "image")
+                            {
+                                @if (row.GetValueOrDefault(colKey) is string img)
+                                {
+                                    <img class="thumb" src="@($"/files/{img}")" alt="" loading="lazy" />
+                                }
+                                else
+                                {
+                                    <span class="thumb thumb-empty"></span>
+                                }
+                            }
+                            else
+                            {
+                                <span class="@(cf?.Type.Editor == "number" ? "num" : "")">@Fmt.Value(cf, row.GetValueOrDefault(colKey))</span>
+                            }
+                        </CellTemplate>
+                    </BbDataGridPropertyColumn>
+                }
+
+                @if (HasStatus)
+                {
+                    <BbDataGridPropertyColumn TData="Dictionary<string, object?>" TProp="object?"
+                                              Id="status" Title="Status" Resizable="true" Sortable="true"
+                                              Property="@statusAccessor" SortAndFilterBy="@statusAccessor" Filterable="true"
+                                              Width="@GetColWidth("status")"
+                                              Visible="@IsColVisible("status")">
+                        <CellTemplate Context="row">
+                            @{
+                                var st = row.GetValueOrDefault("workflow_state") as string;
+                                var ds = row.TryGetValue("docstatus", out var dsv) && dsv is int dsi ? dsi : 0;
+                            }
+                            <StatusBadge Label="@Fmt.StateLabel(st, ds)" Tone="@Fmt.Tone(meta, st, ds)" />
+                        </CellTemplate>
+                    </BbDataGridPropertyColumn>
+                }
+
+                <BbDataGridPropertyColumn TData="Dictionary<string, object?>" TProp="object?"
+                                          Id="modified" Title="Modified" Resizable="true" Sortable="true"
+                                          Property="@modifiedAccessor" SortAndFilterBy="@modifiedAccessor" Filterable="true" FilterType="BlazorBlueprint.Primitives.Filtering.FilterFieldType.DateTime"
+                                          Width="@GetColWidth("modified")"
+                                          Visible="@IsColVisible("modified")">
+                    <CellTemplate Context="row">
+                        <span class="muted nowrap">@Fmt.When((DateTimeOffset)row["modified"]!)</span>
+                    </CellTemplate>
+                </BbDataGridPropertyColumn>
+            </Columns>
+        </BbDataGrid>
+
+        @if (TotalPages > 1)
+        {
+            <div class="list-foot">
+                <span class="muted small">Page @result.Page of @TotalPages (@TotalText documents)</span>
+                <BbPagination TotalPages="TotalPages" CurrentPage="result.Page" CurrentPageChanged="Reload" />
+            </div>
+        }
+    }
+}
+
+@code {
+    [Parameter] public string DocType { get; set; } = "";
+
+    private CompiledDocType? meta;
+    private ListResponse? result;
+    private string? search, sortField, error, fatal; private int fatalStatus = 404;
+    private readonly HashSet<string> selectedItems = [];
+    private bool busy;
+
+    private Framework.Preferences.DataGridPreference gridPref = new();
+    private BlazorBlueprint.Primitives.DataGrid.DataGridState<Dictionary<string, object?>> gridState = new();
+    private readonly Dictionary<string, System.Linq.Expressions.Expression<Func<Dictionary<string, object?>, object?>>> colAccessors = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly System.Linq.Expressions.Expression<Func<Dictionary<string, object?>, object?>> nameAccessor = r => r.GetValueOrDefault("name");
+    private static readonly System.Linq.Expressions.Expression<Func<Dictionary<string, object?>, object?>> statusAccessor = r => r.GetValueOrDefault("workflow_state") ?? "";
+    private static readonly System.Linq.Expressions.Expression<Func<Dictionary<string, object?>, object?>> modifiedAccessor = r => r.GetValueOrDefault("modified");
+    private bool hasCustomLayout;
+    private int gridRenderKey;
+    private System.Threading.Timer? saveDebounceTimer;
+
+    private System.Linq.Expressions.Expression<Func<Dictionary<string, object?>, object?>> GetColAccessor(string colKey)
+    {
+        if (!colAccessors.TryGetValue(colKey, out var expr))
+        {
+            var key = colKey;
+            var cf = meta?.ByName.GetValueOrDefault(key);
+            expr = r => GetColRawOrGroupValue(cf, r.GetValueOrDefault(key));
+            colAccessors[key] = expr;
+        }
+        return expr;
+    }
+
+    private static object? GetColRawOrGroupValue(CompiledField? cf, object? val)
+    {
+        if (val is null || (val is string s && string.IsNullOrWhiteSpace(s)))
+            return cf?.Def.RowGrouping == true ? "—" : null;
+        if (cf is not null && cf.Def.RowGrouping)
+            return Fmt.Value(cf, val);
+        return val;
+    }
+
+    private static BlazorBlueprint.Primitives.Filtering.FilterFieldType MapFilterType(CompiledField? cf) => cf?.Type.Editor switch
+    {
+        "number" or "currency" or "percent" or "int" => BlazorBlueprint.Primitives.Filtering.FilterFieldType.Number,
+        "date" => BlazorBlueprint.Primitives.Filtering.FilterFieldType.Date,
+        "datetime" => BlazorBlueprint.Primitives.Filtering.FilterFieldType.DateTime,
+        "check" => BlazorBlueprint.Primitives.Filtering.FilterFieldType.Boolean,
+        _ => BlazorBlueprint.Primitives.Filtering.FilterFieldType.Text
+    };
+
+    private void ApplyDefaultGrouping()
+    {
+        gridState = new();
+        if (meta is null) return;
+        bool first = true;
+        foreach (var gf in meta.Fields.Where(f => f.Def.Type != "Table" && f.Def.RowGrouping))
+        {
+            var def = new BlazorBlueprint.Primitives.DataGrid.GroupDefinition
+            {
+                ColumnId = gf.Name,
+                GroupSortDirection = BlazorBlueprint.Primitives.SortDirection.Ascending
+            };
+            if (first)
+            {
+                gridState.Grouping.SetGroup(def);
+                first = false;
+            }
+            else
+            {
+                gridState.Grouping.AddGroup(def);
+            }
+        }
+    }
+
+    private bool IsAllSelected => result?.Items.Count > 0 && result.Items.All(r => selectedItems.Contains((string)r["name"]!));
+    private bool IsSomeSelected => !IsAllSelected && result?.Items.Any(r => selectedItems.Contains((string)r["name"]!)) == true;
+
+    private void ToggleSelectAll(bool check)
+    {
+        if (result is null) return;
+        if (check)
+        {
+            foreach (var r in result.Items)
+                selectedItems.Add((string)r["name"]!);
+        }
+        else
+        {
+            foreach (var r in result.Items)
+                selectedItems.Remove((string)r["name"]!);
+        }
+    }
+
+    private void ToggleSelect(string name, bool check)
+    {
+        if (check) selectedItems.Add(name);
+        else selectedItems.Remove(name);
+    }
+
+    private bool HasStatus => meta!.Workflow is not null || meta.Def.Document.AllowSubmit;
+    private string TotalText => result is null ? "" : result.TotalCapped ? $"{result.Total:N0}+" : $"{result.Total:N0}";
+    private int TotalPages => result is null ? 0 : (int)Math.Ceiling(result.Total / (double)result.PageSize);
+
+    // Blazor memanggil OnParametersSet setiap kali layout induk dirender ulang (mis. jumlah notifikasi berubah).
+    // Muat ulang hanya bila parameter rute benar-benar berubah, agar isian/draft pengguna tidak hilang.
+    private string? loadedKey;
+    protected override async Task OnParametersSetAsync()
+    {
+        if (DocType == loadedKey) return;
+        loadedKey = DocType;
+        fatal = null; error = null; search = null; sortField = null; result = null;
+        selectedItems.Clear();
+        if (!Metadata.Current.TryGet(DocType, out var m) || m.Def.IsChild) { fatalStatus = 404; fatal = $"DocType '{DocType}' was not found."; return; }
+        meta = m;
+        colAccessors.Clear();
+        ApplyDefaultGrouping();
+        if (!Perms.Can(Current.Required, meta, DocActions.Read)) { fatalStatus = 403; fatal = $"You do not have permission to view {meta.Title}."; return; }
+        // Single DocType: tidak ada daftar; langsung buka dokumen tunggalnya (atau form baru bila belum ada).
+        if (meta.Def.IsSingle)
+        {
+            var exists = true;
+            try { await Docs.GetAsync(Current.Required, DocType, DocType); }
+            catch (DocumentNotFoundException) { exists = false; }
+            Nav.NavigateTo($"/app/{DocType}/{(exists ? DocType : "new")}", replace: true);
+            return;
+        }
+
+        if (Current.User is { } u)
+        {
+            var saved = await UserPrefs.GetAsync<Framework.Preferences.DataGridPreference>(u.TenantId, u.Id, $"grid:{DocType}");
+            if (saved is not null && saved.Columns.Count > 0)
+            {
+                gridPref = saved;
+                hasCustomLayout = true;
+            }
+            else
+            {
+                gridPref = new();
+                hasCustomLayout = false;
+            }
+        }
+
+        await Reload(1);
+    }
+
+    private void Go(string name) => Nav.NavigateTo($"/app/{DocType}/{name}");
+
+    private string LabelOf(string field) => field switch
+    {
+        "name" => "Number",
+        StandardFields.WorkflowState => "Status",
+        StandardFields.Modified => "Modified",
+        _ => meta!.ByName.TryGetValue(field, out var f) ? f.Label : field
+    };
+
+    private Task OnSearch(string? v) { search = v; return Reload(1); }
+
+    private async Task DeleteSelected()
+    {
+        if (selectedItems.Count == 0 || busy) return;
+
+        var count = selectedItems.Count;
+        var confirm = await Dialogs.ConfirmAsync(
+            $"Delete {count} {meta!.Title.ToLower()} document(s)?",
+            "Selected draft documents will be permanently deleted. This action cannot be undone.",
+            new ConfirmDialogOptions { Destructive = true, ConfirmText = $"Delete ({count})", CancelText = "Cancel" });
+
+        if (!confirm.Confirmed) return;
+
+        busy = true;
+        int success = 0;
+        var failed = new List<string>();
+
+        try
+        {
+            var namesToDelete = selectedItems.ToList();
+            foreach (var name in namesToDelete)
+            {
+                try
+                {
+                    var doc = await Docs.GetAsync(Current.Required, DocType, name);
+                    await Docs.DeleteAsync(Current.Required, DocType, name, doc.Version);
+                    success++;
+                    selectedItems.Remove(name);
+                }
+                catch (Exception ex)
+                {
+                    failed.Add($"{name}: {ex.Message}");
+                }
+            }
+
+            if (success > 0)
+            {
+                Toasts.Success($"{success} {meta!.Title.ToLower()} document(s) deleted successfully.", "Deleted");
+            }
+
+            if (failed.Count > 0)
+            {
+                Toasts.Error(string.Join("; ", failed), "Failed to Delete Some Documents");
+            }
+        }
+        finally
+        {
+            busy = false;
+            await Reload(result?.Page ?? 1);
+        }
+    }
+
+    private async Task Reload(int page)
+    {
+        try
+        {
+            error = null;
+            selectedItems.Clear();
+            result = await Docs.ListAsync(Current.Required, DocType, new ListRequest(null, search, sortField, null, page));
+        }
+        catch (Exception ex) when (ex is InvalidPayloadException or PermissionDeniedException)
+        {
+            error = ex.Message;
+        }
+    }
+
+    private static BlazorBlueprint.Primitives.DataGrid.ColumnPinning MapPinning(string? pinned) => pinned switch
+    {
+        "Left" => BlazorBlueprint.Primitives.DataGrid.ColumnPinning.Left,
+        "Right" => BlazorBlueprint.Primitives.DataGrid.ColumnPinning.Right,
+        _ => BlazorBlueprint.Primitives.DataGrid.ColumnPinning.None
+    };
+
+    private bool GetDefaultColVisible(string colId) =>
+        meta?.ByName.TryGetValue(colId, out var cf) == true ? cf.Def.Visible : true;
+
+    private string? GetColWidth(string colId, string? defaultWidth = null) =>
+        gridPref.Columns.TryGetValue(colId, out var pref) && !string.IsNullOrWhiteSpace(pref.Width)
+            ? pref.Width
+            : defaultWidth;
+
+    private bool IsColVisible(string colId) =>
+        gridPref.Columns.TryGetValue(colId, out var pref) ? pref.Visible : GetDefaultColVisible(colId);
+
+    private void HandleColumnResize((string ColumnId, string Width) args)
+    {
+        if (string.IsNullOrWhiteSpace(args.ColumnId)) return;
+        if (!gridPref.Columns.TryGetValue(args.ColumnId, out var pref))
+        {
+            pref = new Framework.Preferences.GridColumnPreference { Visible = GetDefaultColVisible(args.ColumnId) };
+        }
+        gridPref.Columns[args.ColumnId] = pref with { Width = args.Width };
+        hasCustomLayout = true;
+        ScheduleSavePreference();
+    }
+
+    private void OnGridStateChanged(BlazorBlueprint.Primitives.DataGrid.DataGridState<Dictionary<string, object?>> state)
+    {
+        if (state?.Columns?.Entries is null) return;
+        bool changed = false;
+        foreach (var entry in state.Columns.Entries)
+        {
+            if (string.IsNullOrEmpty(entry.ColumnId)) continue;
+            var defaultVisible = GetDefaultColVisible(entry.ColumnId);
+            if (!gridPref.Columns.TryGetValue(entry.ColumnId, out var pref))
+            {
+                if (entry.Visible != defaultVisible || !string.IsNullOrWhiteSpace(entry.Width))
+                {
+                    gridPref.Columns[entry.ColumnId] = new Framework.Preferences.GridColumnPreference
+                    {
+                        Visible = entry.Visible,
+                        Width = entry.Width
+                    };
+                    changed = true;
+                }
+            }
+            else
+            {
+                var widthToSave = !string.IsNullOrWhiteSpace(entry.Width) ? entry.Width : pref.Width;
+                if (pref.Visible != entry.Visible || pref.Width != widthToSave)
+                {
+                    gridPref.Columns[entry.ColumnId] = pref with { Visible = entry.Visible, Width = widthToSave };
+                    changed = true;
+                }
+            }
+        }
+
+        if (changed)
+        {
+            hasCustomLayout = true;
+            ScheduleSavePreference();
+        }
+    }
+
+    private void ScheduleSavePreference()
+    {
+        saveDebounceTimer?.Dispose();
+        saveDebounceTimer = new System.Threading.Timer(async _ =>
+        {
+            await SavePreferenceAsync();
+        }, null, 500, System.Threading.Timeout.Infinite);
+    }
+
+    private async Task SavePreferenceAsync()
+    {
+        try
+        {
+            if (Current.User is { } u && !string.IsNullOrEmpty(DocType))
+            {
+                await UserPrefs.SetAsync(u.TenantId, u.Id, $"grid:{DocType}", gridPref);
+            }
+        }
+        catch
+        {
+            // Background save error shouldn't crash the UI
+        }
+    }
+
+    private async Task ResetColumnsLayout()
+    {
+        if (Current.User is { } u && !string.IsNullOrEmpty(DocType))
+        {
+            await UserPrefs.DeleteAsync(u.TenantId, u.Id, $"grid:{DocType}");
+        }
+        gridPref = new();
+        hasCustomLayout = false;
+        ApplyDefaultGrouping();
+        gridRenderKey++;
+        Toasts.Success("Column layout has been reset to default.", "Reset Columns");
+        await Reload(result?.Page ?? 1);
+    }
+
+    public void Dispose()
+    {
+        saveDebounceTimer?.Dispose();
+    }
+}

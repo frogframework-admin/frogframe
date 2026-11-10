@@ -22,13 +22,6 @@
 }
 else if (report is not null)
 {
-    <BbBreadcrumb Class="crumbs">
-        <BbBreadcrumbList>
-            <BbBreadcrumbItem><BbBreadcrumbLink Href="/reports">Reports</BbBreadcrumbLink></BbBreadcrumbItem>
-            <BbBreadcrumbSeparator />
-            <BbBreadcrumbItem><BbBreadcrumbPage>@report.Title</BbBreadcrumbPage></BbBreadcrumbItem>
-        </BbBreadcrumbList>
-    </BbBreadcrumb>
     <header class="page-head">
         <div><h1>@report.Title</h1><p>@report.Description</p></div>
         @if (canExport)

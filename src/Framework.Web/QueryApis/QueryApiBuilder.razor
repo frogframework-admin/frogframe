@@ -12,14 +12,6 @@
 
 <PageTitle>@(isEdit ? "Edit query API" : "New query API") · FrogFrame</PageTitle>
 
-<BbBreadcrumb Class="crumbs">
-    <BbBreadcrumbList>
-        <BbBreadcrumbItem><BbBreadcrumbLink Href="/query-apis">Query APIs</BbBreadcrumbLink></BbBreadcrumbItem>
-        <BbBreadcrumbSeparator />
-        <BbBreadcrumbItem><BbBreadcrumbPage>@(isEdit ? def.Name : "New")</BbBreadcrumbPage></BbBreadcrumbItem>
-    </BbBreadcrumbList>
-</BbBreadcrumb>
-
 @if (!QueryApiService.CanDesign(Current.Required))
 {
     <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>Publishing query APIs is only available to System Managers.</BbAlertDescription></BbAlert>

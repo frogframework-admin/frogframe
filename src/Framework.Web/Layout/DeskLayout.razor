@@ -226,21 +226,31 @@
         </header>
         <div class="page-top-bar">
             <div class="crumbs-trail">
-                <a href="" class="crumb-item crumb-home" title="Home"><LucideIcon Name="house" Size="14" /></a>
-                @if (Current.User is { } cuCurrent)
-                {
-                    var visibleMods = navModules.Where(m => m.IsVisibleFor(cuCurrent)).OrderBy(m => m.SortOrder).ThenBy(m => m.Name).ToList();
-                    var active = ResolveActiveModule(visibleMods);
-                    @if (active is not null)
-                    {
-                        <LucideIcon Name="chevron-right" Size="13" Class="crumb-sep" />
-                        <button type="button" class="crumb-link" @onclick="() => isModulePickerOpen = true">@active.Name</button>
-                    }
+                @{
+                    var crumbs = GetBreadcrumbs();
                 }
-                @if (CurrentDocTypeTitle() is { } docTitle)
+                <a href="" class="@(crumbs.Count == 0 ? "crumb-item crumb-home crumb-active" : "crumb-item crumb-home")" title="Home">
+                    <LucideIcon Name="house" Size="14" />
+                </a>
+                @foreach (var crumb in crumbs)
                 {
                     <LucideIcon Name="chevron-right" Size="13" Class="crumb-sep" />
-                    <span class="crumb-item crumb-active">@docTitle</span>
+                    @if (crumb.OnClick is not null)
+                    {
+                        <button type="button" class="crumb-link" @onclick="crumb.OnClick">@crumb.Label</button>
+                    }
+                    else if (!string.IsNullOrEmpty(crumb.Href))
+                    {
+                        <a href="@crumb.Href" class="crumb-link">@crumb.Label</a>
+                    }
+                    else if (crumb.IsActive)
+                    {
+                        <span class="crumb-item crumb-active">@crumb.Label</span>
+                    }
+                    else
+                    {
+                        <span class="crumb-item">@crumb.Label</span>
+                    }
                 }
             </div>
         </div>
@@ -395,11 +405,21 @@
         Current.Changed += OnUserChanged;
         Current.ModuleChanged += OnModuleChanged;
         MenuStore.Changed += OnMenusChanged;
+        Nav.LocationChanged += OnLocationChanged;
         if (Current.User is null) { RedirectToLogin(); return; }
         RefreshUnread();
         _ = LoadMenusAsync();
         timer = new PeriodicTimer(TimeSpan.FromSeconds(2));
         _ = Poll();
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        if (Current.User is { } u)
+        {
+            SyncModuleWithRoute(u);
+        }
+        InvokeAsync(StateHasChanged);
     }
 
     private async Task LoadMenusAsync()
@@ -418,26 +438,51 @@
     {
         var visible = navModules.Where(m => m.IsVisibleFor(u)).OrderBy(m => m.SortOrder).ThenBy(m => m.Name).ToList();
         if (visible.Count == 0) return;
-        if (!string.IsNullOrWhiteSpace(Current.ActiveModuleId) && visible.Any(m => m.Id == Current.ActiveModuleId))
-            return;
 
-        // Try matching the current relative URL to a module so deep links select the right module automatically.
-        var rel = Nav.ToBaseRelativePath(Nav.Uri).Trim('/');
-        if (!string.IsNullOrEmpty(rel))
+        SyncModuleWithRoute(u);
+
+        if (string.IsNullOrWhiteSpace(Current.ActiveModuleId) || !visible.Any(m => m.Id == Current.ActiveModuleId))
         {
-            var matchedMenu = navMenus.FirstOrDefault(m => !string.IsNullOrEmpty(m.Href) && rel.StartsWith(m.Href.Trim('/'), StringComparison.OrdinalIgnoreCase));
-            if (matchedMenu is not null)
+            Current.SetActiveModule(visible[0].Id);
+        }
+    }
+
+    private void SyncModuleWithRoute(UserContext u)
+    {
+        var visible = navModules.Where(m => m.IsVisibleFor(u)).OrderBy(m => m.SortOrder).ThenBy(m => m.Name).ToList();
+        if (visible.Count == 0) return;
+
+        var rel = Nav.ToBaseRelativePath(Nav.Uri).Trim('/');
+        if (string.IsNullOrEmpty(rel)) return;
+
+        var parts = rel.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length >= 2 && parts[0].Equals("app", StringComparison.OrdinalIgnoreCase))
+        {
+            var dtName = parts[1];
+            if (Metadata.Current.TryGet(dtName, out var dt) && !string.IsNullOrWhiteSpace(dt.Def.Module))
             {
-                var grp = navGroups.FirstOrDefault(g => g.Id == matchedMenu.GroupId || string.Equals(g.Name, matchedMenu.GroupName, StringComparison.OrdinalIgnoreCase));
-                if (grp is not null && visible.Any(m => m.Id == grp.ModuleId))
+                var mod = NavigationMenuDefaults.ResolveModule(visible, dt.Def.Module)
+                    ?? visible.FirstOrDefault(m => string.Equals(m.Name, dt.Def.Module, StringComparison.OrdinalIgnoreCase));
+                if (mod is not null && Current.ActiveModuleId != mod.Id)
                 {
-                    Current.SetActiveModule(grp.ModuleId);
+                    Current.SetActiveModule(mod.Id);
                     return;
                 }
             }
         }
 
-        Current.SetActiveModule(visible[0].Id);
+        var matchedMenu = navMenus.FirstOrDefault(m => !string.IsNullOrEmpty(m.Href) && rel.StartsWith(m.Href.Trim('/'), StringComparison.OrdinalIgnoreCase));
+        if (matchedMenu is not null)
+        {
+            var grp = navGroups.FirstOrDefault(g => g.Id == matchedMenu.GroupId || string.Equals(g.Name, matchedMenu.GroupName, StringComparison.OrdinalIgnoreCase));
+            if (grp is not null && visible.Any(m => m.Id == grp.ModuleId))
+            {
+                if (Current.ActiveModuleId != grp.ModuleId)
+                {
+                    Current.SetActiveModule(grp.ModuleId);
+                }
+            }
+        }
     }
 
     private NavigationModule? ResolveActiveModule(IReadOnlyList<NavigationModule> visibleModules)
@@ -546,27 +591,237 @@
         .Where(i => i.RequiresReadOf is null || (Metadata.Current.TryGet(i.RequiresReadOf, out var m) && Perms.Can(u, m, DocActions.Read)))
         .OrderBy(i => i.Order);
 
-    private string? CurrentDocTypeTitle()
+    private sealed record Crumb(string Label, string? Href = null, bool IsActive = false, Action? OnClick = null);
+
+    private IReadOnlyList<Crumb> GetBreadcrumbs()
     {
+        var crumbs = new List<Crumb>();
         var rel = Nav.ToBaseRelativePath(Nav.Uri).Trim('/');
-        if (rel.StartsWith("app/", StringComparison.OrdinalIgnoreCase))
+        if (string.IsNullOrEmpty(rel)) return crumbs;
+
+        var parts = rel.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        var first = parts[0].ToLowerInvariant();
+
+        if (first == "app" && parts.Length >= 2)
         {
-            var parts = rel.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            var dtName = parts[1];
+            CompiledDocType? dt = null;
+            Metadata.Current.TryGet(dtName, out dt);
+            var dtTitle = dt?.Title ?? dtName;
+
+            NavigationModule? docModule = null;
+            if (!string.IsNullOrWhiteSpace(dt?.Def.Module))
+            {
+                docModule = NavigationMenuDefaults.ResolveModule(navModules, dt.Def.Module)
+                    ?? navModules.FirstOrDefault(m => string.Equals(m.Name, dt.Def.Module, StringComparison.OrdinalIgnoreCase));
+            }
+
+            if (docModule is null && Current.User is { } u)
+            {
+                var visibleMods = navModules.Where(m => m.IsVisibleFor(u)).OrderBy(m => m.SortOrder).ThenBy(m => m.Name).ToList();
+                docModule = ResolveActiveModule(visibleMods);
+            }
+
+            if (docModule is not null)
+            {
+                crumbs.Add(new Crumb(docModule.Name, OnClick: () => isModulePickerOpen = true));
+            }
+
+            if (parts.Length == 2)
+            {
+                crumbs.Add(new Crumb(dtTitle, IsActive: true));
+            }
+            else
+            {
+                crumbs.Add(new Crumb(dtTitle, Href: $"/app/{dtName}"));
+
+                var actionOrId = parts[2];
+                if (actionOrId.Equals("new", StringComparison.OrdinalIgnoreCase))
+                {
+                    crumbs.Add(new Crumb("New", IsActive: true));
+                }
+                else if (actionOrId.Equals("import", StringComparison.OrdinalIgnoreCase))
+                {
+                    crumbs.Add(new Crumb("Import", IsActive: true));
+                }
+                else
+                {
+                    crumbs.Add(new Crumb(Uri.UnescapeDataString(actionOrId), IsActive: true));
+                }
+            }
+            return crumbs;
+        }
+
+        if (first == "inbox")
+        {
+            crumbs.Add(new Crumb("Inbox", IsActive: true));
+            return crumbs;
+        }
+
+        if (first == "admin")
+        {
+            if (parts.Length == 1)
+            {
+                crumbs.Add(new Crumb("Administration", IsActive: true));
+                return crumbs;
+            }
+
+            var sub = parts[1].ToLowerInvariant();
+            switch (sub)
+            {
+                case "metadata":
+                    crumbs.Add(new Crumb("Metadata", Href: "/admin/metadata"));
+                    if (parts.Length >= 4 && parts[3].Equals("editor", StringComparison.OrdinalIgnoreCase))
+                    {
+                        crumbs.Add(new Crumb(Uri.UnescapeDataString(parts[2]), Href: $"/admin/metadata/{parts[2]}"));
+                        crumbs.Add(new Crumb("Visual Editor", IsActive: true));
+                    }
+                    else if (parts.Length >= 3)
+                    {
+                        var dt = parts[2];
+                        if (dt.Equals("new", StringComparison.OrdinalIgnoreCase))
+                        {
+                            crumbs.Add(new Crumb("New DocType", IsActive: true));
+                        }
+                        else
+                        {
+                            crumbs.Add(new Crumb(Uri.UnescapeDataString(dt), IsActive: true));
+                        }
+                    }
+                    else
+                    {
+                        crumbs[^1] = crumbs[^1] with { Href = null, IsActive = true };
+                    }
+                    break;
+
+                case "dashboards":
+                    crumbs.Add(new Crumb("Dashboards", Href: "/admin/dashboards"));
+                    if (parts.Length >= 3)
+                    {
+                        crumbs.Add(new Crumb(parts[2].Equals("new", StringComparison.OrdinalIgnoreCase) ? "New" : "Editor", IsActive: true));
+                    }
+                    else
+                    {
+                        crumbs[^1] = crumbs[^1] with { Href = null, IsActive = true };
+                    }
+                    break;
+
+                case "widgets":
+                    crumbs.Add(new Crumb("Widgets", Href: "/admin/widgets"));
+                    if (parts.Length >= 3)
+                    {
+                        crumbs.Add(new Crumb(parts[2].Equals("new", StringComparison.OrdinalIgnoreCase) ? "New" : "Builder", IsActive: true));
+                    }
+                    else
+                    {
+                        crumbs[^1] = crumbs[^1] with { Href = null, IsActive = true };
+                    }
+                    break;
+
+                case "workflows":
+                    crumbs.Add(new Crumb("Workflows", Href: "/admin/workflows"));
+                    if (parts.Length >= 4 && parts[3].Equals("editor", StringComparison.OrdinalIgnoreCase))
+                    {
+                        crumbs.Add(new Crumb(Uri.UnescapeDataString(parts[2]), Href: "/admin/workflows"));
+                        crumbs.Add(new Crumb("Editor", IsActive: true));
+                    }
+                    else if (parts.Length >= 3)
+                    {
+                        crumbs.Add(new Crumb(parts[2].Equals("new", StringComparison.OrdinalIgnoreCase) ? "New" : Uri.UnescapeDataString(parts[2]), IsActive: true));
+                    }
+                    else
+                    {
+                        crumbs[^1] = crumbs[^1] with { Href = null, IsActive = true };
+                    }
+                    break;
+
+                case "users":
+                    crumbs.Add(new Crumb("Users", IsActive: true));
+                    break;
+
+                case "roles":
+                    crumbs.Add(new Crumb("Roles", IsActive: true));
+                    break;
+
+                case "modules":
+                    crumbs.Add(new Crumb("Modules", IsActive: true));
+                    break;
+
+                case "jobs":
+                    crumbs.Add(new Crumb("Background Jobs", IsActive: true));
+                    break;
+
+                case "error-logs":
+                    crumbs.Add(new Crumb("Error Logs", IsActive: true));
+                    break;
+
+                case "report-templates":
+                    crumbs.Add(new Crumb("Report Templates", Href: "/admin/report-templates"));
+                    if (parts.Length >= 4 && parts[3].Equals("edit", StringComparison.OrdinalIgnoreCase))
+                    {
+                        crumbs.Add(new Crumb(Uri.UnescapeDataString(parts[2]), Href: $"/admin/report-templates/{parts[2]}"));
+                        crumbs.Add(new Crumb("Editor", IsActive: true));
+                    }
+                    else if (parts.Length >= 3)
+                    {
+                        crumbs.Add(new Crumb(parts[2].Equals("new", StringComparison.OrdinalIgnoreCase) ? "New" : Uri.UnescapeDataString(parts[2]), IsActive: true));
+                    }
+                    else
+                    {
+                        crumbs[^1] = crumbs[^1] with { Href = null, IsActive = true };
+                    }
+                    break;
+
+                default:
+                    crumbs.Add(new Crumb(ToTitleCase(sub), IsActive: true));
+                    break;
+            }
+            return crumbs;
+        }
+
+        if (first == "reports")
+        {
             if (parts.Length >= 2)
             {
-                var dtName = parts[1];
-                if (Metadata.Current.TryGet(dtName, out var dt))
-                {
-                    return dt.Title;
-                }
-                return dtName;
+                crumbs.Add(new Crumb("Reports", Href: "/reports"));
+                crumbs.Add(new Crumb(Uri.UnescapeDataString(parts[1]), IsActive: true));
             }
+            else
+            {
+                crumbs.Add(new Crumb("Reports", IsActive: true));
+            }
+            return crumbs;
         }
-        else if (rel.Equals("inbox", StringComparison.OrdinalIgnoreCase))
+
+        if (first == "query-apis")
         {
-            return "Inbox";
+            if (parts.Length >= 2)
+            {
+                crumbs.Add(new Crumb("Query APIs", Href: "/query-apis"));
+                crumbs.Add(new Crumb(parts[1].Equals("new", StringComparison.OrdinalIgnoreCase) ? "New" : "Builder", IsActive: true));
+            }
+            else
+            {
+                crumbs.Add(new Crumb("Query APIs", IsActive: true));
+            }
+            return crumbs;
         }
-        return null;
+
+        for (var i = 0; i < parts.Length; i++)
+        {
+            var isLast = i == parts.Length - 1;
+            var path = string.Join('/', parts.Take(i + 1));
+            crumbs.Add(new Crumb(ToTitleCase(parts[i]), isLast ? null : $"/{path}", IsActive: isLast));
+        }
+
+        return crumbs;
+    }
+
+    private static string ToTitleCase(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return text;
+        var words = text.Replace('-', ' ').Replace('_', ' ').Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return string.Join(' ', words.Select(w => char.ToUpperInvariant(w[0]) + (w.Length > 1 ? w[1..].ToLowerInvariant() : "")));
     }
 
     private static string Initials(string name) => string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(p => p[0]));
@@ -576,6 +831,7 @@
         Current.Changed -= OnUserChanged;
         Current.ModuleChanged -= OnModuleChanged;
         MenuStore.Changed -= OnMenusChanged;
+        Nav.LocationChanged -= OnLocationChanged;
         timer?.Dispose();
         dotNetRef?.Dispose();
     }

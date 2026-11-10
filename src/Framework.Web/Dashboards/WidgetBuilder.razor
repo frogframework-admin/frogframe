@@ -12,14 +12,6 @@
 
 <PageTitle>@(isEdit ? "Edit widget" : "New widget") · FrogFrame</PageTitle>
 
-<BbBreadcrumb Class="crumbs">
-    <BbBreadcrumbList>
-        <BbBreadcrumbItem><BbBreadcrumbLink Href="/admin/widgets">Widgets</BbBreadcrumbLink></BbBreadcrumbItem>
-        <BbBreadcrumbSeparator />
-        <BbBreadcrumbItem><BbBreadcrumbPage>@(isEdit ? widget.Name : "New")</BbBreadcrumbPage></BbBreadcrumbItem>
-    </BbBreadcrumbList>
-</BbBreadcrumb>
-
 @if (!DashboardService.CanDesign(Current.Required))
 {
     <ErrorState StatusCode="403" Description="Designing widgets is only available to System Managers." BackHref="/admin/widgets" BackLabel="Back to Widgets" />

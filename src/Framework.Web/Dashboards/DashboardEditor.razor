@@ -15,14 +15,6 @@
 
 <PageTitle>@(isEdit ? $"Edit {dashboard.Name}" : "New Dashboard") · FrogFrame</PageTitle>
 
-<BbBreadcrumb Class="crumbs">
-    <BbBreadcrumbList>
-        <BbBreadcrumbItem><BbBreadcrumbLink Href="/admin/dashboards">Dashboards</BbBreadcrumbLink></BbBreadcrumbItem>
-        <BbBreadcrumbSeparator />
-        <BbBreadcrumbItem><BbBreadcrumbPage>@(isEdit ? dashboard.Name : "New")</BbBreadcrumbPage></BbBreadcrumbItem>
-    </BbBreadcrumbList>
-</BbBreadcrumb>
-
 @if (!Dashboards.IsAvailable)
 {
     <UnavailableNotice />

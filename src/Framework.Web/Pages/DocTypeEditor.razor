@@ -19,16 +19,6 @@ else if (design is null)
 }
 else
 {
-    <BbBreadcrumb Class="crumbs">
-        <BbBreadcrumbList>
-            <BbBreadcrumbItem><BbBreadcrumbLink Href="/admin/metadata">Metadata</BbBreadcrumbLink></BbBreadcrumbItem>
-            <BbBreadcrumbSeparator />
-            <BbBreadcrumbItem><BbBreadcrumbLink Href="@($"/admin/metadata/{DocTypeName}")">@DocTypeName</BbBreadcrumbLink></BbBreadcrumbItem>
-            <BbBreadcrumbSeparator />
-            <BbBreadcrumbItem><BbBreadcrumbPage>Visual Editor</BbBreadcrumbPage></BbBreadcrumbItem>
-        </BbBreadcrumbList>
-    </BbBreadcrumb>
-
     <header class="page-head">
         <div>
             <h1>@design.Def.Title <span class="muted" style="font-weight:500">· draft v@(version)</span></h1>

@@ -9,14 +9,6 @@
 
 <PageTitle>Import @(meta?.Title ?? DocType) · FrogFrame</PageTitle>
 
-<BbBreadcrumb Class="crumbs">
-    <BbBreadcrumbList>
-        <BbBreadcrumbItem><BbBreadcrumbLink Href="@($"/app/{DocType}")">@(meta?.Title ?? DocType)</BbBreadcrumbLink></BbBreadcrumbItem>
-        <BbBreadcrumbSeparator />
-        <BbBreadcrumbItem><BbBreadcrumbPage>Import</BbBreadcrumbPage></BbBreadcrumbItem>
-    </BbBreadcrumbList>
-</BbBreadcrumb>
-
 @if (meta is null || !Importer.CanImport(Current.Required, DocType))
 {
     <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>Import is not available for this DocType, or you do not have permission to create its documents.</BbAlertDescription></BbAlert>

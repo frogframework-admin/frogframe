@@ -14,14 +14,6 @@
 
 <PageTitle>@(isEdit ? "Edit report template" : "New report template") · FrogFrame</PageTitle>
 
-<BbBreadcrumb Class="crumbs">
-    <BbBreadcrumbList>
-        <BbBreadcrumbItem><BbBreadcrumbLink Href="/admin/report-templates">Excel/Word Reports</BbBreadcrumbLink></BbBreadcrumbItem>
-        <BbBreadcrumbSeparator />
-        <BbBreadcrumbItem><BbBreadcrumbPage>@(isEdit ? def.Name : "New")</BbBreadcrumbPage></BbBreadcrumbItem>
-    </BbBreadcrumbList>
-</BbBreadcrumb>
-
 @if (!ReportTemplateService.CanDesign(Current.Required))
 {
     <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>Designing report templates is restricted to System Managers / Administrators.</BbAlertDescription></BbAlert>
