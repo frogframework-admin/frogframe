@@ -42,17 +42,20 @@ public sealed class DataGridPreferenceManager<TData> : IDisposable where TData :
         }
     }
 
-    public string? GetWidth(string colId, string? defaultWidth = null) =>
-        Preference.Columns.TryGetValue(colId, out var pref) && !string.IsNullOrWhiteSpace(pref.Width)
+    public string? GetWidth(string colId, string? defaultWidth = null)
+    {
+        if (colId == "actions" && defaultWidth is not null) return defaultWidth;
+        return Preference.Columns.TryGetValue(colId, out var pref) && !string.IsNullOrWhiteSpace(pref.Width)
             ? pref.Width
             : defaultWidth;
+    }
 
     public bool IsVisible(string colId) =>
         !Preference.Columns.TryGetValue(colId, out var pref) || pref.Visible;
 
     public void HandleResize((string ColumnId, string Width) args)
     {
-        if (string.IsNullOrWhiteSpace(args.ColumnId)) return;
+        if (string.IsNullOrWhiteSpace(args.ColumnId) || args.ColumnId == "actions") return;
         if (!Preference.Columns.TryGetValue(args.ColumnId, out var pref))
         {
             pref = new GridColumnPreference { Visible = true };
@@ -68,7 +71,7 @@ public sealed class DataGridPreferenceManager<TData> : IDisposable where TData :
         bool changed = false;
         foreach (var entry in state.Columns.Entries)
         {
-            if (string.IsNullOrEmpty(entry.ColumnId)) continue;
+            if (string.IsNullOrEmpty(entry.ColumnId) || entry.ColumnId == "actions") continue;
             if (!Preference.Columns.TryGetValue(entry.ColumnId, out var pref))
             {
                 if (!entry.Visible || !string.IsNullOrWhiteSpace(entry.Width))

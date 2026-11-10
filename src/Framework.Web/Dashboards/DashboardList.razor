@@ -1,0 +1,214 @@
+@page "/admin/dashboards"
+@page "/dashboards"
+@using Framework.Dashboards
+@using Framework.Preferences
+@using Framework.Security
+@inject DashboardService Dashboards
+@inject CurrentUser Current
+@inject ToastService Toasts
+@inject DialogService Dialogs
+@inject IUserPreferenceStore UserPrefs
+@implements IDisposable
+
+<PageTitle>Dashboards · FrogFrame</PageTitle>
+
+@if (!Dashboards.IsAvailable)
+{
+    <UnavailableNotice />
+}
+else
+{
+    <header class="page-head">
+        <div>
+            <h1>Dashboards</h1>
+            <p>Overview of shared and personal dashboards in this tenant. Add, edit, delete, and view dashboards.</p>
+        </div>
+        <div class="row" style="gap:.5rem;flex-wrap:wrap">
+            <BbButton Href="/admin/dashboards/new">
+                <LucideIcon Name="plus" Size="16" /> New Dashboard
+            </BbButton>
+        </div>
+    </header>
+
+    <BbDataGrid @key="gridMgr.RenderKey"
+                TData="DashboardDef"
+                Items="@dashboards"
+                ShowSearch="true"
+                SearchPlaceholder="Search dashboards..."
+                ShowPagination="true"
+                InitialPageSize="15"
+                TableContainerClass="table-wrap"
+                Resizable="true"
+                OnColumnResize="gridMgr.HandleResize"
+                StateChanged="gridMgr.HandleStateChanged">
+        <Toolbar>
+            <div style="display:flex;align-items:center;gap:.5rem;margin-left:auto">
+                @if (gridMgr.HasCustomLayout)
+                {
+                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ResetColumnsLayout" Title="Reset column layout to default">
+                        <LucideIcon Name="rotate-ccw" Size="14" />
+                        <span>Reset Columns</span>
+                    </BbButton>
+                }
+                <BbDataGridColumnVisibility TData="DashboardDef" />
+            </div>
+        </Toolbar>
+        <Columns>
+            <BbDataGridPropertyColumn TData="DashboardDef" TProp="string" Property="d => d.Name" Id="name" Title="Dashboard"
+                                      Width="@gridMgr.GetWidth("name", "16rem")" Visible="@gridMgr.IsVisible("name")" Resizable="true" Sortable="true" Filterable="true">
+                <CellTemplate Context="item">
+                    <div>
+                        <a href="@($"/dashboard/{item.Id}")" style="font-weight:600;color:var(--primary);text-decoration:none">
+                            @item.Name
+                        </a>
+                        @if (!string.IsNullOrWhiteSpace(item.Description))
+                        {
+                            <div class="muted small">@item.Description</div>
+                        }
+                    </div>
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridTemplateColumn TData="DashboardDef" Id="type" Title="Type / Scope"
+                                      Width="@gridMgr.GetWidth("type", "11rem")" Visible="@gridMgr.IsVisible("type")" Resizable="true" Sortable="true" SortBy="d => d.IsShared">
+                <ChildContent Context="item">
+                    <div class="row" style="gap:.35rem;align-items:center;flex-wrap:nowrap">
+                        <BbBadge Variant="@(item.IsShared ? BadgeVariant.Secondary : BadgeVariant.Outline)">
+                            @(item.IsShared ? "Shared" : "Personal")
+                        </BbBadge>
+                        @if (item.IsDefault && item.IsShared)
+                        {
+                            <BbBadge Variant="BadgeVariant.Default">Default</BbBadge>
+                        }
+                    </div>
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+
+            <BbDataGridPropertyColumn TData="DashboardDef" TProp="string" Property="d => d.OwnerId" Id="owner" Title="Owner"
+                                      Width="@gridMgr.GetWidth("owner", "9rem")" Visible="@gridMgr.IsVisible("owner")" Resizable="true" Sortable="true" Filterable="true">
+                <CellTemplate Context="item">
+                    <span class="muted small">@item.OwnerId</span>
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridTemplateColumn TData="DashboardDef" Id="widgets" Title="Widgets"
+                                      Width="@gridMgr.GetWidth("widgets", "9rem")" Visible="@gridMgr.IsVisible("widgets")" Resizable="true" Sortable="true" SortBy="d => d.Layout.Items.Count">
+                <ChildContent Context="item">
+                    <span class="nowrap">@(item.Layout.Items.Count == 0 ? "Empty" : $"{item.Layout.Items.Count} widget{(item.Layout.Items.Count == 1 ? "" : "s")}")</span>
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+
+            <BbDataGridTemplateColumn TData="DashboardDef" Id="roles" Title="Viewable by"
+                                      Width="@gridMgr.GetWidth("roles", "11rem")" Visible="@gridMgr.IsVisible("roles")" Resizable="true">
+                <ChildContent Context="item">
+                    @if (!item.IsShared)
+                    {
+                        <span class="muted small">Owner only</span>
+                    }
+                    else if (item.Roles.Count == 0)
+                    {
+                        <BbBadge Variant="BadgeVariant.SoftSuccess">All Roles</BbBadge>
+                    }
+                    else
+                    {
+                        <div class="row" style="gap:.25rem;flex-wrap:wrap">
+                            @foreach (var r in item.Roles)
+                            {
+                                <BbBadge Variant="BadgeVariant.Soft">@r</BbBadge>
+                            }
+                        </div>
+                    }
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+
+            <BbDataGridTemplateColumn TData="DashboardDef" Id="modified" Title="Modified"
+                                      Width="@gridMgr.GetWidth("modified", "11rem")" Visible="@gridMgr.IsVisible("modified")" Resizable="true" Sortable="true" SortBy="d => d.UpdatedAt">
+                <ChildContent Context="item">
+                    <span class="muted nowrap">@Fmt.When(item.UpdatedAt)</span>
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+
+            <BbDataGridTemplateColumn TData="DashboardDef" Id="actions" Title="Actions"
+                                      Width="@gridMgr.GetWidth("actions", "11rem")" Hideable="false" Resizable="false">
+                <ChildContent Context="item">
+                    <div style="display:inline-flex;align-items:center;gap:.35rem;flex-wrap:nowrap">
+                        <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Href="@($"/dashboard/{item.Id}")" Title="View dashboard results">
+                            <LucideIcon Name="eye" Size="14" />
+                            <span>View</span>
+                        </BbButton>
+                        @if (DashboardService.CanEditDashboard(Current.Required, item))
+                        {
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" Href="@($"/admin/dashboards/{item.Id}")" Title="Edit dashboard layout and settings">
+                                <LucideIcon Name="pencil" Size="14" />
+                                <span>Edit</span>
+                            </BbButton>
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@($"Delete {item.Name}")" Title="Delete dashboard" OnClick="() => Delete(item)">
+                                <LucideIcon Name="trash-2" Size="14" />
+                            </BbButton>
+                        }
+                    </div>
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+        </Columns>
+        <EmptyTemplate>
+            <div style="padding:2.5rem 1rem;text-align:center">
+                <BbEmpty Title="No dashboards found" Description="Create a shared dashboard or your own personal dashboard to get started." />
+            </div>
+        </EmptyTemplate>
+    </BbDataGrid>
+}
+
+@code {
+    private IReadOnlyList<DashboardDef> dashboards = [];
+    private bool designer;
+    private Framework.Web.Services.DataGridPreferenceManager<DashboardDef> gridMgr = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        gridMgr = new(UserPrefs, Current, "grid:admin:dashboards", StateHasChanged);
+        if (Current.User is not null)
+        {
+            await gridMgr.InitializeAsync();
+        }
+
+        designer = DashboardService.CanDesign(Current.Required);
+        await Reload();
+    }
+
+    private async Task ResetColumnsLayout()
+    {
+        await gridMgr.ResetAsync();
+        Toasts.Success("Column layout has been reset to default.", "Reset Columns");
+    }
+
+    public void Dispose()
+    {
+        gridMgr?.Dispose();
+    }
+
+    private async Task Reload()
+    {
+        dashboards = await Dashboards.ListDashboardsAsync(Current.Required);
+    }
+
+    private async Task Delete(DashboardDef d)
+    {
+        var ok = await Dialogs.ConfirmAsync(
+            $"Delete dashboard '{d.Name}'?",
+            "Widgets configured in this dashboard will remain safe in the widget catalog. This action cannot be undone.",
+            new ConfirmDialogOptions { Destructive = true, ConfirmText = "Delete", CancelText = "Cancel" });
+        if (!ok.Confirmed) return;
+
+        try
+        {
+            await Dashboards.DeleteDashboardAsync(Current.Required, d.Id);
+            Toasts.Success("Dashboard deleted.", d.Name);
+            await Reload();
+        }
+        catch (PermissionDeniedException ex)
+        {
+            Toasts.Error(ex.Message, "Failed");
+        }
+    }
+}
+

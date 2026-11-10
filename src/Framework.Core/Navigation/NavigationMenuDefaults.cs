@@ -400,6 +400,22 @@ public static class NavigationMenuDefaults
         },
         new()
         {
+            Id = $"menu_{tenantId}_dashboards_admin",
+            TenantId = tenantId,
+            Title = "Dashboards",
+            Href = "admin/dashboards",
+            Icon = "layout-dashboard",
+            GroupId = GroupSistemId(tenantId),
+            GroupName = "System",
+            SortOrder = 119,
+            AllowedRoles = [UserContext.SystemManager, UserContext.Administrator],
+            IsSystem = true,
+            IsActive = true,
+            CreatedAt = now,
+            UpdatedAt = now
+        },
+        new()
+        {
             Id = $"menu_{tenantId}_module_admin",
             TenantId = tenantId,
             Title = "Master Modules",

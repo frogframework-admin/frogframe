@@ -37,7 +37,7 @@ else
     <header class="page-head">
         <div>
             <h1>@(isEdit ? $"Edit widget: {widget.Name}" : "New widget")</h1>
-            <p>SQL query against reporting views (read-only, tenant-isolated) → parameters → visual → pin to dashboard.</p>
+            <p>SQL query against reporting views (read-only, tenant-isolated) → parameters → visual → save to widget catalog.</p>
         </div>
     </header>
 
@@ -198,15 +198,30 @@ else
                         @if (Visual.Type is not (ChartTypes.Table or ChartTypes.Number))
                         {
                             <BbField Style="margin-top:1rem">
-                                <BbFieldLabel>X Axis (category)</BbFieldLabel>
+                                <BbFieldLabel>@(Visual.Type == ChartTypes.Sankey ? "Source Node (X Axis)" : Visual.Type == ChartTypes.Map ? "Country (X Axis)" : "X Axis (category)")</BbFieldLabel>
                                 <BbSelect TValue="string" Value="@Visual.XColumn" ValueChanged="v => Visual.XColumn = v" AriaLabel="X Axis"
+                                          Options="@(preview!.Columns.Select(c => new SelectOption<string>(c.Name, $"{c.Name} ({KindLabel(c.Kind)})")))" />
+                            </BbField>
+                        }
+                        @if (ChartTypes.UsesGroupColumn(Visual.Type))
+                        {
+                            <BbField Style="margin-top:0.75rem">
+                                <BbFieldLabel>@(Visual.Type == ChartTypes.Sankey ? "Target Node (Group Column)" : "Y Axis Category (Group Column)")</BbFieldLabel>
+                                <BbSelect TValue="string" Value="@Visual.GroupColumn" ValueChanged="v => Visual.GroupColumn = v" AriaLabel="Group Column"
                                           Options="@(preview!.Columns.Select(c => new SelectOption<string>(c.Name, $"{c.Name} ({KindLabel(c.Kind)})")))" />
                             </BbField>
                         }
                         @if (Visual.Type != ChartTypes.Table)
                         {
+                            var (minY, maxY) = ChartTypes.YColumnRange(Visual.Type);
                             <div style="margin-top:1rem">
-                                <div class="props-sub" style="margin-bottom:.4rem">Y Axis (value)@(Visual.Type is ChartTypes.Bar or ChartTypes.Line ? " — multiple allowed" : " — single column")</div>
+                                <div class="props-sub" style="margin-bottom:.4rem">
+                                    Y Axis (value) @(ChartTypes.AllowsMultipleY(Visual.Type) ? $"— multiple allowed (max {maxY})" : "— single column")
+                                    @if (!string.IsNullOrEmpty(ChartTypes.MappingHint(Visual.Type)))
+                                    {
+                                        <div class="muted small" style="margin-top:.2rem">@ChartTypes.MappingHint(Visual.Type)</div>
+                                    }
+                                </div>
                                 <div class="wf-roles">
                                     @foreach (var col in preview!.Columns)
                                     {
@@ -218,6 +233,14 @@ else
                                     }
                                 </div>
                             </div>
+                        }
+                        @if (ChartTypes.UsesMax(Visual.Type))
+                        {
+                            <BbField Style="margin-top:0.75rem">
+                                <BbFieldLabel>Gauge Maximum (optional, leave empty for 100 or auto-scale)</BbFieldLabel>
+                                <FormTextInput Id="gauge-max" Type="number" Value="@(Visual.Max?.ToString(System.Globalization.CultureInfo.InvariantCulture))"
+                                               ValueChanged="v => Visual.Max = decimal.TryParse(v, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var m) ? m : null" />
+                            </BbField>
                         }
                         @if (VisualErrors.Count > 0)
                         {
@@ -267,10 +290,6 @@ else
                                 </div>
                                 <p class="muted small" style="margin-top:.4rem">Widgets display tenant-wide data ("own records" restriction does not apply in SQL). Restrict roles for sensitive data.</p>
                             </div>
-                            @if (!isEdit)
-                            {
-                                <div class="label-row"><BbCheckbox Id="w-pin" @bind-Checked="pin" /><BbLabel For="w-pin">Pin to main dashboard</BbLabel></div>
-                            }
                             <Framework.Web.QueryApis.PublishAsApiOption Option="apiOption" DefaultName="@widget.Name" />
                         </div>
                     </BbCardContent>
@@ -302,7 +321,7 @@ else
     [Inject] private Framework.Api.QueryApiService QueryApis { get; set; } = default!;
     private VisualConfig Visual => widget.Config.Visual;
     private int step = 1, maxStep = 1;
-    private bool isEdit, notFound, busy, pin = true;
+    private bool isEdit, notFound, busy;
     private string? error, errorTitle, viewSearch;
     private QueryResultSet? preview;
     private string? loadedKey;
@@ -408,14 +427,21 @@ else
     private void SetChart(string type)
     {
         Visual.Type = type;
-        if (type is ChartTypes.Pie or ChartTypes.Doughnut or ChartTypes.Number && Visual.YColumns.Count > 1) Visual.YColumns = [Visual.YColumns[0]];
+        if (!ChartTypes.AllowsMultipleY(type) && Visual.YColumns.Count > 1)
+        {
+            Visual.YColumns = [Visual.YColumns[0]];
+        }
+        if (ChartTypes.UsesGroupColumn(type) && string.IsNullOrEmpty(Visual.GroupColumn) && preview is not null)
+        {
+            Visual.GroupColumn = preview.Columns.FirstOrDefault(c => c.Name != Visual.XColumn && c.Kind is "text" or "date")?.Name;
+        }
     }
 
     private void ToggleY(string col, bool on)
     {
         if (on)
         {
-            if (Visual.Type is ChartTypes.Pie or ChartTypes.Doughnut or ChartTypes.Number) Visual.YColumns.Clear();
+            if (!ChartTypes.AllowsMultipleY(Visual.Type)) Visual.YColumns.Clear();
             if (!Visual.YColumns.Contains(col)) Visual.YColumns.Add(col);
         }
         else Visual.YColumns.Remove(col);
@@ -432,12 +458,12 @@ else
         error = null; busy = true;
         try
         {
-            var saved = await Dashboards.SaveAsync(Current.Required, widget, pin && !isEdit);
+            var saved = await Dashboards.SaveAsync(Current.Required, widget, pin: false);
             // Option: same query published as API (or deleted if unchecked).
             var apiNote = await apiOption.ApplyAsync(QueryApis, Current.Required, $"widget:{saved.Id}", saved.Name, saved.Description,
                 saved.Config.Sql, saved.Config.Parameters, saved.Config.Roles);
-            Toasts.Success((pin && !isEdit ? "Widget pinned to dashboard." : "Widget saved.") + (apiNote is null ? "" : " " + apiNote), $"{saved.Name} v{saved.Version}");
-            Nav.NavigateTo(pin || isEdit ? "/dashboard" : "/admin/widgets");
+            Toasts.Success("Widget saved to catalog." + (apiNote is null ? "" : " " + apiNote), $"{saved.Name} v{saved.Version}");
+            Nav.NavigateTo("/admin/widgets");
         }
         catch (Exception ex) when (ex is QueryRejectedException or ReportingUnavailableException or PermissionDeniedException or Framework.Api.ApiMethodException)
         {
@@ -450,7 +476,23 @@ else
     private static string KindLabel(string k) => k switch { "number" => "number", "date" => "date", "boolean" => "yes/no", _ => "text" };
     public static string ChartLabel(string t) => t switch
     {
-        ChartTypes.Bar => "Bar", ChartTypes.Line => "Line", ChartTypes.Pie => "Pie", ChartTypes.Doughnut => "Doughnut",
-        ChartTypes.Number => "Single number", _ => "Data table"
+        ChartTypes.Bar => "Bar",
+        ChartTypes.Line => "Line",
+        ChartTypes.Pie => "Pie",
+        ChartTypes.Doughnut => "Doughnut",
+        ChartTypes.Number => "Single number",
+        ChartTypes.Area => "Area",
+        ChartTypes.Composed => "Composed",
+        ChartTypes.Scatter => "Scatter",
+        ChartTypes.Radar => "Radar",
+        ChartTypes.RadialBar => "Radial Bar",
+        ChartTypes.Rose => "Rose",
+        ChartTypes.Funnel => "Funnel",
+        ChartTypes.Gauge => "Gauge",
+        ChartTypes.Heatmap => "Heatmap",
+        ChartTypes.Candlestick => "Candlestick",
+        ChartTypes.Sankey => "Sankey",
+        ChartTypes.Map => "World Map",
+        _ => "Data table"
     };
 }

@@ -32,8 +32,54 @@ public static class ParamBindings
 
 public static class ChartTypes
 {
+    // Built-in SVG renderers (no JavaScript).
     public const string Bar = "bar", Line = "line", Pie = "pie", Doughnut = "doughnut", Number = "number", Table = "table";
-    public static readonly IReadOnlyList<string> All = [Bar, Line, Pie, Doughnut, Number, Table];
+
+    // BlazorBlueprint chart components (Apache ECharts): https://blazorblueprintui.com/charts
+    public const string Area = "area", Composed = "composed", Scatter = "scatter", Radar = "radar", RadialBar = "radial-bar",
+        Rose = "rose", Funnel = "funnel", Gauge = "gauge", Heatmap = "heatmap", Candlestick = "candlestick", Sankey = "sankey", Map = "map";
+
+    public static readonly IReadOnlyList<string> All =
+        [Bar, Line, Pie, Doughnut, Number, Table, Area, Composed, Scatter, Radar, RadialBar, Rose, Funnel, Gauge, Heatmap, Candlestick, Sankey, Map];
+
+    /// <summary>Maximum number of value columns for multi-series charts.</summary>
+    public const int MaxSeries = 8;
+
+    /// <summary>Chart needs a category/label column (XColumn).</summary>
+    public static bool UsesXColumn(string type) => type is not (Number or Table or Gauge);
+
+    /// <summary>Chart needs a second category column (GroupColumn): heatmap Y axis or sankey target node.</summary>
+    public static bool UsesGroupColumn(string type) => type is Heatmap or Sankey;
+
+    /// <summary>Chart accepts more than one value column.</summary>
+    public static bool AllowsMultipleY(string type) => type is Bar or Line or Area or Composed or Scatter or Radar or Candlestick;
+
+    /// <summary>Chart uses an explicit maximum value (gauge scale).</summary>
+    public static bool UsesMax(string type) => type is Gauge;
+
+    /// <summary>Exact / minimum number of value columns for charts with a fixed shape.</summary>
+    public static (int Min, int Max) YColumnRange(string type) => type switch
+    {
+        Table => (0, 0),
+        Candlestick => (4, 4),
+        Composed => (2, MaxSeries),
+        _ when AllowsMultipleY(type) => (1, MaxSeries),
+        _ => (1, 1),
+    };
+
+    /// <summary>Short hint shown in the widget builder for the selected chart type.</summary>
+    public static string MappingHint(string type) => type switch
+    {
+        Composed => "First value column is drawn as bars, the remaining columns as lines.",
+        Scatter => "X column may be numeric (value axis) or text/date (category axis).",
+        Radar => "Each X value becomes a radar axis; each value column becomes one series.",
+        Candlestick => "Select exactly 4 value columns in this order: open, high, low, close.",
+        Heatmap => "X column = horizontal category, Group column = vertical category, value = cell intensity.",
+        Sankey => "X column = source node, Group column = target node, value = flow size.",
+        Map => "X column must contain country names in English (e.g. Indonesia, Japan).",
+        Gauge => "Shows the first row's value on a gauge; set a maximum or leave empty for automatic scale.",
+        _ => "",
+    };
 }
 
 public sealed class WidgetParameter
@@ -53,6 +99,10 @@ public sealed class VisualConfig
     public string? XColumn { get; set; }
     /// <summary>Kolom nilai (sumbu Y), wajib numerik. Pie/Doughnut/Number memakai satu kolom.</summary>
     public List<string> YColumns { get; set; } = [];
+    /// <summary>Second category column: heatmap vertical axis or sankey target node.</summary>
+    public string? GroupColumn { get; set; }
+    /// <summary>Gauge maximum. Null = automatic scale from the value.</summary>
+    public decimal? Max { get; set; }
 }
 
 public sealed class WidgetConfig
@@ -88,6 +138,24 @@ public sealed class DashboardItem
 public sealed class DashboardLayout
 {
     public List<DashboardItem> Items { get; set; } = [];
+}
+
+public sealed class DashboardDef
+{
+    public const string DefaultDashboardId = "d_default";
+
+    public string Id { get; set; } = "";
+    public string TenantId { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string? Description { get; set; }
+    public string OwnerId { get; set; } = "";
+    public bool IsShared { get; set; }
+    public bool IsDefault { get; set; }
+    /// <summary>Roles allowed to view a shared dashboard. Empty = all users in the tenant.</summary>
+    public List<string> Roles { get; set; } = [];
+    public DashboardLayout Layout { get; set; } = new();
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
 }
 
 public static class DashboardJson
@@ -250,14 +318,20 @@ public interface IWidgetStore
     Task DeleteAsync(string tenantId, string id, CancellationToken ct = default);
     Task<DashboardLayout> GetLayoutAsync(string tenantId, CancellationToken ct = default);
     Task SaveLayoutAsync(string tenantId, DashboardLayout layout, CancellationToken ct = default);
+
+    Task<IReadOnlyList<DashboardDef>> ListDashboardsAsync(string tenantId, CancellationToken ct = default);
+    Task<DashboardDef?> GetDashboardAsync(string tenantId, string id, CancellationToken ct = default);
+    Task SaveDashboardAsync(DashboardDef dashboard, CancellationToken ct = default);
+    Task DeleteDashboardAsync(string tenantId, string id, CancellationToken ct = default);
 }
 
 public sealed class InMemoryWidgetStore : IWidgetStore
 {
     private readonly ConcurrentDictionary<(string, string), string> _widgets = new();
-    private readonly ConcurrentDictionary<string, string> _layouts = new();
+    private readonly ConcurrentDictionary<(string, string), string> _dashboards = new();
 
     private static WidgetDef Clone(WidgetDef w) => JsonSerializer.Deserialize<WidgetDef>(JsonSerializer.Serialize(w, DashboardJson.Options), DashboardJson.Options)!;
+    private static DashboardDef Clone(DashboardDef d) => JsonSerializer.Deserialize<DashboardDef>(JsonSerializer.Serialize(d, DashboardJson.Options), DashboardJson.Options)!;
 
     public Task<IReadOnlyList<WidgetDef>> ListAsync(string tenantId, CancellationToken ct = default) =>
         Task.FromResult<IReadOnlyList<WidgetDef>>(_widgets.Where(kv => kv.Key.Item1 == tenantId)
@@ -274,12 +348,51 @@ public sealed class InMemoryWidgetStore : IWidgetStore
 
     public Task DeleteAsync(string tenantId, string id, CancellationToken ct = default) { _widgets.TryRemove((tenantId, id), out _); return Task.CompletedTask; }
 
-    public Task<DashboardLayout> GetLayoutAsync(string tenantId, CancellationToken ct = default) =>
-        Task.FromResult(_layouts.TryGetValue(tenantId, out var j) ? JsonSerializer.Deserialize<DashboardLayout>(j, DashboardJson.Options)! : new DashboardLayout());
-
-    public Task SaveLayoutAsync(string tenantId, DashboardLayout layout, CancellationToken ct = default)
+    public async Task<DashboardLayout> GetLayoutAsync(string tenantId, CancellationToken ct = default)
     {
-        _layouts[tenantId] = JsonSerializer.Serialize(layout, DashboardJson.Options);
+        var d = await GetDashboardAsync(tenantId, DashboardDef.DefaultDashboardId, ct);
+        return d?.Layout ?? new DashboardLayout();
+    }
+
+    public async Task SaveLayoutAsync(string tenantId, DashboardLayout layout, CancellationToken ct = default)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var existing = await GetDashboardAsync(tenantId, DashboardDef.DefaultDashboardId, ct) ?? new DashboardDef
+        {
+            Id = DashboardDef.DefaultDashboardId,
+            TenantId = tenantId,
+            Name = "Main Dashboard",
+            Description = "Default shared tenant dashboard",
+            OwnerId = "admin",
+            IsShared = true,
+            IsDefault = true,
+            CreatedAt = now
+        };
+        existing.Layout = layout;
+        existing.UpdatedAt = now;
+        await SaveDashboardAsync(existing, ct);
+    }
+
+    public Task<IReadOnlyList<DashboardDef>> ListDashboardsAsync(string tenantId, CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<DashboardDef>>(_dashboards.Where(kv => kv.Key.Item1 == tenantId)
+            .Select(kv => JsonSerializer.Deserialize<DashboardDef>(kv.Value, DashboardJson.Options)!)
+            .OrderByDescending(d => d.IsDefault)
+            .ThenByDescending(d => d.IsShared)
+            .ThenBy(d => d.Name)
+            .ToList());
+
+    public Task<DashboardDef?> GetDashboardAsync(string tenantId, string id, CancellationToken ct = default) =>
+        Task.FromResult(_dashboards.TryGetValue((tenantId, id), out var j) ? JsonSerializer.Deserialize<DashboardDef>(j, DashboardJson.Options) : null);
+
+    public Task SaveDashboardAsync(DashboardDef dashboard, CancellationToken ct = default)
+    {
+        _dashboards[(dashboard.TenantId, dashboard.Id)] = JsonSerializer.Serialize(Clone(dashboard), DashboardJson.Options);
+        return Task.CompletedTask;
+    }
+
+    public Task DeleteDashboardAsync(string tenantId, string id, CancellationToken ct = default)
+    {
+        _dashboards.TryRemove((tenantId, id), out _);
         return Task.CompletedTask;
     }
 }
@@ -379,18 +492,35 @@ public sealed class DashboardService(IWidgetStore store, IReportingQueryExecutor
         var errors = new List<string>();
         if (!ChartTypes.All.Contains(v.Type)) { errors.Add("Jenis grafik tidak dikenal"); return errors; }
         if (v.Type == ChartTypes.Table) return errors;
+
         var byName = columns.ToDictionary(c => c.Name, StringComparer.OrdinalIgnoreCase);
-        if (v.Type is not ChartTypes.Number && (v.XColumn is null || !byName.ContainsKey(v.XColumn))) errors.Add("Pilih kolom sumbu X (kategori)");
-        if (v.YColumns.Count == 0) errors.Add("Pilih minimal satu kolom nilai (sumbu Y)");
+
+        if (ChartTypes.UsesXColumn(v.Type) && (v.XColumn is null || !byName.ContainsKey(v.XColumn)))
+            errors.Add("Pilih kolom sumbu X (kategori)");
+
+        if (ChartTypes.UsesGroupColumn(v.Type) && (v.GroupColumn is null || !byName.ContainsKey(v.GroupColumn)))
+            errors.Add(v.Type == ChartTypes.Sankey ? "Pilih kolom target node (Group Column)" : "Pilih kolom sumbu Y kategori (Group Column)");
+
+        var (minY, maxY) = ChartTypes.YColumnRange(v.Type);
+        if (minY > 0 && v.YColumns.Count < minY)
+            errors.Add(minY == maxY ? $"Grafik ini memerlukan tepat {minY} kolom nilai" : $"Pilih minimal {minY} kolom nilai (sumbu Y)");
+
+        if (maxY > 0 && v.YColumns.Count > maxY)
+            errors.Add(minY == maxY ? $"Grafik ini memerlukan tepat {maxY} kolom nilai" : $"Maksimal {maxY} kolom nilai untuk grafik ini");
+
         foreach (var y in v.YColumns)
-            if (!byName.TryGetValue(y, out var c)) errors.Add($"Kolom '{y}' tidak ada di hasil query");
-            else if (c.Kind != "number") errors.Add($"Kolom '{y}' bukan angka — sumbu Y wajib numerik");
-        if (v.Type is ChartTypes.Pie or ChartTypes.Doughnut or ChartTypes.Number && v.YColumns.Count > 1) errors.Add("Grafik ini hanya memakai satu kolom nilai");
+        {
+            if (!byName.TryGetValue(y, out var c))
+                errors.Add($"Kolom '{y}' tidak ada di hasil query");
+            else if (c.Kind != "number")
+                errors.Add($"Kolom '{y}' bukan angka — sumbu Y wajib numerik");
+        }
+
         return errors;
     }
 
     /// <summary>Langkah 4: simpan. Query divalidasi ulang dan dijalankan sekali (dengan nilai default) agar konfigurasi pasti cocok dengan kolom.</summary>
-    public async Task<WidgetDef> SaveAsync(UserContext user, WidgetDef widget, bool pin, CancellationToken ct = default)
+    public async Task<WidgetDef> SaveAsync(UserContext user, WidgetDef widget, bool pin = false, CancellationToken ct = default)
     {
         DemandDesigner(user);
         if (string.IsNullOrWhiteSpace(widget.Name)) throw new QueryRejectedException("Widget name is required.");
@@ -431,8 +561,159 @@ public sealed class DashboardService(IWidgetStore store, IReportingQueryExecutor
     {
         DemandDesigner(user);
         await store.DeleteAsync(user.TenantId, id, ct);
-        var layout = await store.GetLayoutAsync(user.TenantId, ct);
-        if (layout.Items.RemoveAll(i => i.WidgetId == id) > 0) await store.SaveLayoutAsync(user.TenantId, layout, ct);
+        var dashboards = await store.ListDashboardsAsync(user.TenantId, ct);
+        foreach (var d in dashboards)
+        {
+            if (d.Layout.Items.RemoveAll(i => i.WidgetId == id) > 0)
+            {
+                d.UpdatedAt = clock.GetUtcNow();
+                await store.SaveDashboardAsync(d, ct);
+            }
+        }
+    }
+
+    // ---------------- Standalone Dashboards (Shared & Personal) ----------------
+
+    public static bool CanViewDashboard(UserContext user, DashboardDef d) =>
+        string.Equals(d.OwnerId, user.Id, StringComparison.OrdinalIgnoreCase) ||
+        (d.IsShared && (CanDesign(user) || d.Roles.Count == 0 || d.Roles.Any(user.Roles.Contains)));
+
+    public static bool CanEditDashboard(UserContext user, DashboardDef d) =>
+        d.IsShared ? CanDesign(user) : (string.Equals(d.OwnerId, user.Id, StringComparison.OrdinalIgnoreCase) || CanDesign(user));
+
+    public async Task<IReadOnlyList<DashboardDef>> ListDashboardsAsync(UserContext user, CancellationToken ct = default) =>
+        (await store.ListDashboardsAsync(user.TenantId, ct))
+            .Where(d => CanViewDashboard(user, d))
+            .OrderByDescending(d => d.IsDefault && d.IsShared)
+            .ThenByDescending(d => string.Equals(d.OwnerId, user.Id, StringComparison.OrdinalIgnoreCase) && !d.IsShared)
+            .ThenByDescending(d => d.IsShared)
+            .ThenBy(d => d.Name)
+            .ToList();
+
+    public async Task<DashboardDef?> GetDashboardAsync(UserContext user, string id, CancellationToken ct = default) =>
+        await store.GetDashboardAsync(user.TenantId, id, ct) is { } d && CanViewDashboard(user, d) ? d : null;
+
+    public async Task<DashboardDef> SaveDashboardAsync(UserContext user, DashboardDef dashboard, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(dashboard.Name))
+            throw new QueryRejectedException("Dashboard name is required.");
+
+        var isDesigner = CanDesign(user);
+        var existing = string.IsNullOrEmpty(dashboard.Id) ? null : await store.GetDashboardAsync(user.TenantId, dashboard.Id, ct);
+        if (existing is not null && !CanEditDashboard(user, existing))
+            throw new PermissionDeniedException("You do not have permission to edit this dashboard.");
+
+        if (!isDesigner)
+        {
+            if (dashboard.IsShared || dashboard.IsDefault)
+                throw new PermissionDeniedException("Only System Managers can create or modify shared/default dashboards.");
+            dashboard.IsShared = false;
+            dashboard.IsDefault = false;
+            dashboard.Roles = [];
+        }
+
+        // Validate and sanitize layout items
+        var existingWidgetIds = existing?.Layout.Items.Select(i => i.WidgetId).ToHashSet(StringComparer.Ordinal) ?? [];
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var validItems = new List<DashboardItem>();
+        foreach (var item in dashboard.Layout.Items)
+        {
+            if (string.IsNullOrWhiteSpace(item.WidgetId) || !seen.Add(item.WidgetId)) continue;
+            item.Span = Math.Clamp(item.Span, 1, 3);
+            if (!existingWidgetIds.Contains(item.WidgetId))
+            {
+                var w = await store.GetAsync(user.TenantId, item.WidgetId, ct)
+                    ?? throw new QueryRejectedException($"Widget '{item.WidgetId}' does not exist.");
+                if (!CanSee(user, w))
+                    throw new PermissionDeniedException($"You do not have permission to add widget '{w.Name}'.");
+            }
+            validItems.Add(item);
+        }
+        dashboard.Layout.Items = validItems;
+
+        var now = clock.GetUtcNow();
+        dashboard.Name = dashboard.Name.Trim();
+        dashboard.Description = string.IsNullOrWhiteSpace(dashboard.Description) ? null : dashboard.Description.Trim();
+        dashboard.TenantId = user.TenantId;
+
+        if (existing is null)
+        {
+            if (string.IsNullOrEmpty(dashboard.Id))
+                dashboard.Id = "d_" + Guid.NewGuid().ToString("N")[..12];
+            dashboard.OwnerId = user.Id;
+            dashboard.CreatedAt = now;
+        }
+        else
+        {
+            dashboard.OwnerId = existing.OwnerId;
+            dashboard.CreatedAt = existing.CreatedAt;
+        }
+        dashboard.UpdatedAt = now;
+
+        if (!dashboard.IsShared)
+        {
+            dashboard.IsDefault = false;
+            dashboard.Roles = [];
+        }
+
+        if (dashboard.IsShared && dashboard.IsDefault)
+        {
+            var all = await store.ListDashboardsAsync(user.TenantId, ct);
+            foreach (var other in all.Where(o => o.Id != dashboard.Id && o.IsDefault))
+            {
+                other.IsDefault = false;
+                other.UpdatedAt = now;
+                await store.SaveDashboardAsync(other, ct);
+            }
+        }
+
+        await store.SaveDashboardAsync(dashboard, ct);
+        return dashboard;
+    }
+
+    public async Task DeleteDashboardAsync(UserContext user, string id, CancellationToken ct = default)
+    {
+        var existing = await store.GetDashboardAsync(user.TenantId, id, ct);
+        if (existing is null) return;
+        if (!CanEditDashboard(user, existing))
+            throw new PermissionDeniedException("You do not have permission to delete this dashboard.");
+        await store.DeleteDashboardAsync(user.TenantId, id, ct);
+    }
+
+    public async Task<DashboardDef> AddWidgetToDashboardAsync(UserContext user, string dashboardId, string widgetId, int span = 1, CancellationToken ct = default)
+    {
+        var d = await store.GetDashboardAsync(user.TenantId, dashboardId, ct)
+            ?? throw new QueryRejectedException("Dashboard not found.");
+        if (!CanEditDashboard(user, d))
+            throw new PermissionDeniedException("You do not have permission to edit this dashboard.");
+
+        var w = await store.GetAsync(user.TenantId, widgetId, ct)
+            ?? throw new QueryRejectedException("Widget not found.");
+        if (!CanSee(user, w))
+            throw new PermissionDeniedException($"You do not have permission to add widget '{w.Name}'.");
+
+        if (d.Layout.Items.All(i => i.WidgetId != widgetId))
+        {
+            d.Layout.Items.Add(new DashboardItem { WidgetId = widgetId, Span = Math.Clamp(span, 1, 3) });
+            d.UpdatedAt = clock.GetUtcNow();
+            await store.SaveDashboardAsync(d, ct);
+        }
+        return d;
+    }
+
+    public async Task<DashboardDef> RemoveWidgetFromDashboardAsync(UserContext user, string dashboardId, string widgetId, CancellationToken ct = default)
+    {
+        var d = await store.GetDashboardAsync(user.TenantId, dashboardId, ct)
+            ?? throw new QueryRejectedException("Dashboard not found.");
+        if (!CanEditDashboard(user, d))
+            throw new PermissionDeniedException("You do not have permission to edit this dashboard.");
+
+        if (d.Layout.Items.RemoveAll(i => i.WidgetId == widgetId) > 0)
+        {
+            d.UpdatedAt = clock.GetUtcNow();
+            await store.SaveDashboardAsync(d, ct);
+        }
+        return d;
     }
 
     public Task<DashboardLayout> GetLayoutAsync(UserContext user, CancellationToken ct = default) => store.GetLayoutAsync(user.TenantId, ct);

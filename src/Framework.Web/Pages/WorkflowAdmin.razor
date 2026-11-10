@@ -89,10 +89,11 @@ else
             </BbDataGridTemplateColumn>
 
             <BbDataGridTemplateColumn TData="WorkflowDef" Id="actions" Title="Actions"
-                                      Width="@gridMgr.GetWidth("actions", "8rem")" Hideable="false" Resizable="false">
+                                      Width="@gridMgr.GetWidth("actions", "10rem")" Hideable="false" Resizable="false">
                 <ChildContent Context="workflow">
-                    <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Href="@($"/admin/workflows/{workflow.Name}/editor")">
-                        <LucideIcon Name="pencil" Size="14" /> Edit / link
+                    <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Href="@($"/admin/workflows/{workflow.Name}/editor")" Style="white-space:nowrap">
+                        <LucideIcon Name="pencil" Size="14" />
+                        <span style="white-space:nowrap">Edit / link</span>
                     </BbButton>
                 </ChildContent>
             </BbDataGridTemplateColumn>

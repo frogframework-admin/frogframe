@@ -443,6 +443,18 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
             if (delCount > 0) added = true;
         }
 
+        // 7. Ensure menu item for dashboards has title 'Dashboards'
+        await using (var updateDashboardsCmd = db.CreateCommand(
+            "UPDATE frogframe_navigation_menus " +
+            "SET title = 'Dashboards' " +
+            "WHERE tenant_id = $1 AND (id = $2 OR href = 'admin/dashboards') AND title <> 'Dashboards'"))
+        {
+            updateDashboardsCmd.Parameters.AddWithValue(tenantId);
+            updateDashboardsCmd.Parameters.AddWithValue($"menu_{tenantId}_dashboards_admin");
+            var renamed = await updateDashboardsCmd.ExecuteNonQueryAsync(ct);
+            if (renamed > 0) added = true;
+        }
+
         seededTenants[tenantId] = true;
         if (added) Changed?.Invoke();
     }

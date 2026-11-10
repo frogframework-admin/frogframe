@@ -21,8 +21,13 @@ else if (!Dashboards.IsAvailable)
 else
 {
     <header class="page-head">
-        <div><h1>Widgets</h1><p>All widgets in this tenant. Pin to dashboard or unpin without deleting.</p></div>
-        @if (designer) { <BbButton Href="/admin/widgets/new"><LucideIcon Name="plus" Size="16" /> New widget</BbButton> }
+        <div><h1>Widgets</h1><p>Reusable SQL widgets created by administrators. Users and admins can add these widgets to their dashboards.</p></div>
+        @if (designer)
+        {
+            <div class="row" style="gap:.5rem;flex-wrap:wrap">
+                <BbButton Href="/admin/widgets/new"><LucideIcon Name="plus" Size="16" /> New widget</BbButton>
+            </div>
+        }
     </header>
 
     <BbDataGrid @key="gridMgr.RenderKey"
@@ -86,6 +91,16 @@ else
                 </ChildContent>
             </BbDataGridTemplateColumn>
 
+            <BbDataGridTemplateColumn TData="WidgetDef" Id="usage" Title="Used in"
+                                      Width="@gridMgr.GetWidth("usage", "9rem")" Visible="@gridMgr.IsVisible("usage")" Resizable="true">
+                <ChildContent Context="widget">
+                    @{
+                        var count = dashboards.Count(d => d.Layout.Items.Any(i => i.WidgetId == widget.Id));
+                    }
+                    <span class="muted nowrap">@(count == 0 ? "Unused" : $"{count} dashboard{(count == 1 ? "" : "s")}")</span>
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+
             <BbDataGridTemplateColumn TData="WidgetDef" Id="modified" Title="Modified"
                                       Width="@gridMgr.GetWidth("modified", "12rem")" Visible="@gridMgr.IsVisible("modified")" Resizable="true" Sortable="true" SortBy="w => w.UpdatedAt">
                 <ChildContent Context="widget">
@@ -94,15 +109,11 @@ else
             </BbDataGridTemplateColumn>
 
             <BbDataGridTemplateColumn TData="WidgetDef" Id="actions" Title="Actions"
-                                      Width="@gridMgr.GetWidth("actions", "11rem")" Hideable="false" Resizable="false">
+                                      Width="@gridMgr.GetWidth("actions", "8rem")" Hideable="false" Resizable="false">
                 <ChildContent Context="widget">
                     @if (designer)
                     {
-                        var pinned = layout.Items.Any(i => i.WidgetId == widget.Id);
                         <div style="display:flex;align-items:center;gap:.35rem">
-                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="() => TogglePin(widget, pinned)">
-                                <LucideIcon Name="@(pinned ? "pin-off" : "pin")" Size="15" /> @(pinned ? "Unpin" : "Pin")
-                            </BbButton>
                             <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" Href="@($"/admin/widgets/{widget.Id}")">
                                 <LucideIcon Name="pencil" Size="15" /> Edit
                             </BbButton>
@@ -116,7 +127,7 @@ else
         </Columns>
         <EmptyTemplate>
             <div style="padding:2.5rem 1rem;text-align:center">
-                <BbEmpty Title="No widgets found" Description="All widgets in this tenant will appear here. Pin to dashboard or create a new widget." />
+                <BbEmpty Title="No widgets found" Description="Create reusable SQL widgets here so users and administrators can add them to dashboards." />
             </div>
         </EmptyTemplate>
     </BbDataGrid>
@@ -124,7 +135,7 @@ else
 
 @code {
     private IReadOnlyList<WidgetDef> widgets = [];
-    private DashboardLayout layout = new();
+    private IReadOnlyList<DashboardDef> dashboards = [];
     private bool designer;
     private Framework.Web.Services.DataGridPreferenceManager<WidgetDef> gridMgr = default!;
 
@@ -154,19 +165,12 @@ else
     private async Task Reload()
     {
         widgets = await Dashboards.ListAsync(Current.Required);
-        layout = await Dashboards.GetLayoutAsync(Current.Required);
-    }
-
-    private async Task TogglePin(WidgetDef w, bool pinned)
-    {
-        if (pinned) await Dashboards.UnpinAsync(Current.Required, w.Id); else await Dashboards.PinAsync(Current.Required, w.Id);
-        Toasts.Success(pinned ? "Unpinned from dashboard." : "Pinned to dashboard.", w.Name);
-        await Reload();
+        dashboards = await Dashboards.ListDashboardsAsync(Current.Required);
     }
 
     private async Task Delete(WidgetDef w)
     {
-        var ok = await Dialogs.ConfirmAsync($"Delete widget {w.Name}?", "The widget will also be removed from the dashboard. This action cannot be undone.",
+        var ok = await Dialogs.ConfirmAsync($"Delete widget {w.Name}?", "The widget will also be removed from any dashboards that use it. This action cannot be undone.",
             new ConfirmDialogOptions { Destructive = true, ConfirmText = "Delete", CancelText = "Cancel" });
         if (!ok.Confirmed) return;
         await Dashboards.DeleteAsync(Current.Required, w.Id);

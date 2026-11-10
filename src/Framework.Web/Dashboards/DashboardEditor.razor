@@ -1,0 +1,442 @@
+@page "/admin/dashboards/new"
+@page "/admin/dashboards/{DashboardId}"
+@page "/dashboards/new"
+@page "/dashboards/{DashboardId}/edit"
+@using Framework.Dashboards
+@using Framework.Security
+@using Framework.Web.Admin
+@inject DashboardService Dashboards
+@inject RoleCatalog RoleCatalogSvc
+@inject IRoleStore RoleStore
+@inject IMetadataProvider Metadata
+@inject CurrentUser Current
+@inject ToastService Toasts
+@inject NavigationManager Nav
+
+<PageTitle>@(isEdit ? $"Edit {dashboard.Name}" : "New Dashboard") · FrogFrame</PageTitle>
+
+<BbBreadcrumb Class="crumbs">
+    <BbBreadcrumbList>
+        <BbBreadcrumbItem><BbBreadcrumbLink Href="/admin/dashboards">Dashboards</BbBreadcrumbLink></BbBreadcrumbItem>
+        <BbBreadcrumbSeparator />
+        <BbBreadcrumbItem><BbBreadcrumbPage>@(isEdit ? dashboard.Name : "New")</BbBreadcrumbPage></BbBreadcrumbItem>
+    </BbBreadcrumbList>
+</BbBreadcrumb>
+
+@if (!Dashboards.IsAvailable)
+{
+    <UnavailableNotice />
+}
+else if (notFound)
+{
+    <ErrorState StatusCode="404" Title="Dashboard Not Found" Description="The requested dashboard was not found or you do not have permission to access it." BackHref="/admin/dashboards" BackLabel="Back to Dashboards" />
+}
+else
+{
+    <header class="page-head">
+        <div>
+            <h1>@(isEdit ? $"Edit dashboard: {dashboard.Name}" : "New dashboard")</h1>
+            <p>Configure dashboard metadata, access scope, and choose widgets from the catalog.</p>
+        </div>
+        <div class="row" style="gap:.5rem">
+            @if (isEdit)
+            {
+                <BbButton Variant="ButtonVariant.Outline" Href="@($"/dashboard/{dashboard.Id}")">
+                    <LucideIcon Name="eye" Size="16" /> View Dashboard
+                </BbButton>
+            }
+        </div>
+    </header>
+
+    @if (error is not null)
+    {
+        <BbAlert Variant="AlertVariant.Danger" Class="props-block">
+            <BbAlertTitle>@(errorTitle ?? "Error")</BbAlertTitle>
+            <BbAlertDescription><span class="pre">@error</span></BbAlertDescription>
+        </BbAlert>
+    }
+
+    <div class="stack" style="gap:1.5rem">
+        @* Section 1: Information & Permissions *@
+        <BbCard>
+            <BbCardHeader>
+                <BbCardTitle Class="card-title">1. Dashboard Details</BbCardTitle>
+                <BbCardDescription>Basic information and visibility scope.</BbCardDescription>
+            </BbCardHeader>
+            <BbCardContent Class="stack" Style="gap:1rem">
+                <BbField>
+                    <BbFieldLabel For="d-name">Dashboard Name</BbFieldLabel>
+                    <FormTextInput Id="d-name" Value="@dashboard.Name" ValueChanged="v => dashboard.Name = v ?? string.Empty" Placeholder="e.g. Executive Procurement Overview" />
+                </BbField>
+
+                <BbField>
+                    <BbFieldLabel For="d-desc">Description (optional)</BbFieldLabel>
+                    <FormTextArea Id="d-desc" Value="@dashboard.Description" ValueChanged="v => dashboard.Description = string.IsNullOrWhiteSpace(v) ? null : v" Rows="2" Placeholder="Brief summary of what this dashboard covers" />
+                </BbField>
+
+                @if (designer)
+                {
+                    <div class="label-row" style="margin-top:.25rem">
+                        <BbCheckbox Id="d-shared" @bind-Checked="dashboard.IsShared" />
+                        <BbLabel For="d-shared">Shared dashboard (visible to other users in this tenant)</BbLabel>
+                    </div>
+
+                    @if (dashboard.IsShared)
+                    {
+                        <div class="label-row">
+                            <BbCheckbox Id="d-default" @bind-Checked="dashboard.IsDefault" />
+                            <BbLabel For="d-default">Set as default landing dashboard for this tenant</BbLabel>
+                        </div>
+
+                        <div style="margin-top:.25rem">
+                            <div class="props-sub" style="margin-bottom:.4rem">Viewable by roles (empty = all tenant users)</div>
+                            <div class="wf-roles">
+                                @foreach (var role in AvailableRoles)
+                                {
+                                    var r = role;
+                                    <div class="label-row">
+                                        <BbCheckbox Id="@($"dr-{r}")" Checked="dashboard.Roles.Contains(r)" CheckedChanged="v => ToggleRole(r, v)" />
+                                        <BbLabel For="@($"dr-{r}")">@r</BbLabel>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+                }
+            </BbCardContent>
+        </BbCard>
+
+        @* Section 2: Widgets & Layout *@
+        <BbCard>
+            <BbCardHeader style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap">
+                <div>
+                    <BbCardTitle Class="card-title">2. Widgets &amp; Grid Layout</BbCardTitle>
+                    <BbCardDescription>Choose widgets from the catalog and set their display width and order.</BbCardDescription>
+                </div>
+                <BbButton OnClick="OpenWidgetPicker">
+                    <LucideIcon Name="plus" Size="16" /> Add Widget
+                </BbButton>
+            </BbCardHeader>
+            <BbCardContent>
+                @if (dashboard.Layout.Items.Count == 0)
+                {
+                    <div style="padding:2rem 1rem;text-align:center">
+                        <BbEmpty Title="No widgets added yet" Description="Click 'Add Widget' to select existing widgets from the catalog.">
+                            <div style="margin-top:.75rem">
+                                <BbButton OnClick="OpenWidgetPicker"><LucideIcon Name="plus" Size="16" /> Add Widget</BbButton>
+                            </div>
+                        </BbEmpty>
+                    </div>
+                }
+                else
+                {
+                    <div class="stack" style="gap:.65rem">
+                        @for (var idx = 0; idx < dashboard.Layout.Items.Count; idx++)
+                        {
+                            var itemIndex = idx;
+                            var item = dashboard.Layout.Items[idx];
+                            var w = widgetLookup.GetValueOrDefault(item.WidgetId);
+                            <div class="card" style="padding:.75rem 1rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap">
+                                <div class="row" style="gap:.75rem;align-items:center;min-width:0;flex:1">
+                                    <span class="muted small" style="width:1.5rem;font-weight:600">#@(itemIndex + 1)</span>
+                                    @if (w is not null)
+                                    {
+                                        <ChartThumb Type="@w.Config.Visual.Type" />
+                                        <div style="min-width:0">
+                                            <div class="row" style="gap:.4rem;align-items:center">
+                                                <strong>@w.Name</strong>
+                                                <span class="muted small">(@WidgetBuilder.ChartLabel(w.Config.Visual.Type))</span>
+                                            </div>
+                                            @if (!string.IsNullOrWhiteSpace(w.Description))
+                                            {
+                                                <div class="muted small" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">@w.Description</div>
+                                            }
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="muted small">Widget ID: <code>@item.WidgetId</code></div>
+                                    }
+                                </div>
+
+                                <div class="row" style="gap:.75rem;align-items:center;flex-shrink:0">
+                                    <div class="row" style="gap:.35rem;align-items:center">
+                                        <span class="muted small">Width:</span>
+                                        <BbSelect TValue="int" Value="@item.Span" ValueChanged="v => SetSpan(item, v)" AriaLabel="Widget width"
+                                                  Options="@SpanOptions" Style="width:8rem" />
+                                    </div>
+
+                                    <div class="row" style="gap:.25rem">
+                                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Move up" Title="Move up"
+                                                  Disabled="@(itemIndex == 0)" OnClick="() => MoveWidget(itemIndex, -1)">
+                                            <LucideIcon Name="arrow-up" Size="15" />
+                                        </BbButton>
+                                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Move down" Title="Move down"
+                                                  Disabled="@(itemIndex == dashboard.Layout.Items.Count - 1)" OnClick="() => MoveWidget(itemIndex, 1)">
+                                            <LucideIcon Name="arrow-down" Size="15" />
+                                        </BbButton>
+                                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Remove widget" Title="Remove widget from dashboard"
+                                                  OnClick="() => RemoveWidget(item)">
+                                            <LucideIcon Name="trash-2" Size="15" />
+                                        </BbButton>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </BbCardContent>
+            <BbCardFooter style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap">
+                <BbButton Variant="ButtonVariant.Ghost" Href="/admin/dashboards">Cancel</BbButton>
+                <div class="row" style="gap:.5rem">
+                    <BbButton Disabled="@(busy || string.IsNullOrWhiteSpace(dashboard.Name))" OnClick="() => Save(andView: false)">
+                        <LucideIcon Name="save" Size="16" /> @(busy ? "Saving…" : "Save Dashboard")
+                    </BbButton>
+                    <BbButton Variant="ButtonVariant.Secondary" Disabled="@(busy || string.IsNullOrWhiteSpace(dashboard.Name))" OnClick="() => Save(andView: true)">
+                        <LucideIcon Name="eye" Size="16" /> Save &amp; View
+                    </BbButton>
+                </div>
+            </BbCardFooter>
+        </BbCard>
+    </div>
+}
+
+@* ---------------- Add Widget Picker Dialog ---------------- *@
+<BbDialog Open="@isWidgetPickerOpen" OpenChanged="v => isWidgetPickerOpen = v">
+    <BbDialogContent Class="sm:max-w-xl">
+        <BbDialogHeader>
+            <BbDialogTitle>Add Widget to Dashboard</BbDialogTitle>
+            <BbDialogDescription>Select existing widgets from the catalog.</BbDialogDescription>
+        </BbDialogHeader>
+
+        <div style="margin:.5rem 0">
+            <BbInputGroup>
+                <BbInputGroupAddon Align="InputGroupAlign.InlineStart">
+                    <LucideIcon Name="search" Size="15" />
+                </BbInputGroupAddon>
+                <BbInputGroupInput Value="@widgetSearch" ValueChanged="v => widgetSearch = v"
+                                   UpdateTiming="UpdateTiming.Debounced" DebounceInterval="150"
+                                   Placeholder="Search widgets by name, description, or type…" AriaLabel="Search widgets" />
+            </BbInputGroup>
+        </div>
+
+        <div class="stack" style="max-height:22rem;overflow-y:auto;gap:.6rem;padding-right:.25rem">
+            @if (!FilteredCatalogWidgets.Any())
+            {
+                <div style="padding:1.5rem 0;text-align:center">
+                    <p class="muted">No matching widgets found in the catalog.</p>
+                </div>
+            }
+            else
+            {
+                @foreach (var w in FilteredCatalogWidgets)
+                {
+                    var widgetItem = w;
+                    var alreadyAdded = dashboard.Layout.Items.Any(i => i.WidgetId == widgetItem.Id);
+                    <div class="card" style="padding:.75rem 1rem;display:flex;align-items:center;justify-content:space-between;gap:1rem">
+                        <div style="min-width:0;flex:1">
+                            <div class="row" style="gap:.45rem;align-items:center">
+                                <ChartThumb Type="@widgetItem.Config.Visual.Type" />
+                                <strong>@widgetItem.Name</strong>
+                                <span class="muted small">(@WidgetBuilder.ChartLabel(widgetItem.Config.Visual.Type))</span>
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(widgetItem.Description))
+                            {
+                                <div class="muted small" style="margin-top:.2rem">@widgetItem.Description</div>
+                            }
+                        </div>
+                        <div style="flex-shrink:0">
+                            @if (alreadyAdded)
+                            {
+                                <BbBadge Variant="BadgeVariant.Secondary">Added</BbBadge>
+                            }
+                            else
+                            {
+                                <div class="row" style="gap:.35rem">
+                                    <BbButton Size="ButtonSize.Small" Variant="ButtonVariant.Outline" OnClick="() => AddWidgetFromPicker(widgetItem, 1)" Title="Add (1 column width)">
+                                        <LucideIcon Name="plus" Size="14" /> 1x
+                                    </BbButton>
+                                    <BbButton Size="ButtonSize.Small" Variant="ButtonVariant.Outline" OnClick="() => AddWidgetFromPicker(widgetItem, 2)" Title="Add (2 columns width)">
+                                        <LucideIcon Name="plus" Size="14" /> 2x
+                                    </BbButton>
+                                    <BbButton Size="ButtonSize.Small" Variant="ButtonVariant.Outline" OnClick="() => AddWidgetFromPicker(widgetItem, 3)" Title="Add (3 columns / full width)">
+                                        <LucideIcon Name="plus" Size="14" /> 3x
+                                    </BbButton>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+
+        <BbDialogFooter>
+            <BbButton Variant="ButtonVariant.Outline" OnClick="() => isWidgetPickerOpen = false">Done</BbButton>
+        </BbDialogFooter>
+    </BbDialogContent>
+</BbDialog>
+
+@code {
+    [Parameter] public string? DashboardId { get; set; }
+
+    private DashboardDef dashboard = new();
+    private Dictionary<string, WidgetDef> widgetLookup = new();
+    private IReadOnlyList<WidgetDef> catalogWidgets = [];
+    private IReadOnlyList<RoleDef> storedRoles = [];
+    private bool isEdit, notFound, busy, designer;
+    private string? error, errorTitle, loadedId;
+
+    private IEnumerable<string> AvailableRoles =>
+        MetadataRoles.Known(Metadata.Current, dashboard.Roles, RoleCatalogSvc.Names(Current.Required.TenantId))
+            .Concat(storedRoles.Select(r => r.Name))
+            .Distinct()
+            .OrderBy(r => r, StringComparer.OrdinalIgnoreCase);
+
+    // Widget picker modal
+    private bool isWidgetPickerOpen;
+    private string? widgetSearch;
+
+    private static readonly IReadOnlyList<SelectOption<int>> SpanOptions =
+    [
+        new(1, "1 Col (33%)"),
+        new(2, "2 Cols (66%)"),
+        new(3, "3 Cols (100%)")
+    ];
+
+    private IEnumerable<WidgetDef> FilteredCatalogWidgets
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(widgetSearch)) return catalogWidgets;
+            var q = widgetSearch.Trim();
+            return catalogWidgets.Where(w =>
+                w.Name.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                (w.Description?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                WidgetBuilder.ChartLabel(w.Config.Visual.Type).Contains(q, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (DashboardId == loadedId && loadedId is not null) return;
+        loadedId = DashboardId ?? "";
+        designer = DashboardService.CanDesign(Current.Required);
+
+        storedRoles = await RoleStore.ListAsync(Current.Required.TenantId);
+        catalogWidgets = await Dashboards.ListAsync(Current.Required);
+        widgetLookup = catalogWidgets.ToDictionary(w => w.Id, StringComparer.Ordinal);
+
+        if (string.IsNullOrWhiteSpace(DashboardId) || DashboardId == "new")
+        {
+            isEdit = false;
+            dashboard = new DashboardDef
+            {
+                Name = "",
+                Description = "",
+                IsShared = false,
+                IsDefault = false,
+                Roles = []
+            };
+        }
+        else
+        {
+            var existing = await Dashboards.GetDashboardAsync(Current.Required, DashboardId);
+            if (existing is null)
+            {
+                notFound = true;
+                return;
+            }
+            if (!DashboardService.CanEditDashboard(Current.Required, existing))
+            {
+                notFound = true;
+                return;
+            }
+            dashboard = new DashboardDef
+            {
+                Id = existing.Id,
+                TenantId = existing.TenantId,
+                Name = existing.Name,
+                Description = existing.Description,
+                OwnerId = existing.OwnerId,
+                IsShared = existing.IsShared,
+                IsDefault = existing.IsDefault,
+                Roles = [.. existing.Roles],
+                Layout = new DashboardLayout
+                {
+                    Items = existing.Layout.Items.Select(i => new DashboardItem { WidgetId = i.WidgetId, Span = i.Span }).ToList()
+                },
+                CreatedAt = existing.CreatedAt,
+                UpdatedAt = existing.UpdatedAt
+            };
+            isEdit = true;
+        }
+    }
+
+    private void ToggleRole(string role, bool on)
+    {
+        if (on && !dashboard.Roles.Contains(role)) dashboard.Roles.Add(role);
+        if (!on) dashboard.Roles.Remove(role);
+    }
+
+    private void SetSpan(DashboardItem item, int span)
+    {
+        item.Span = Math.Clamp(span, 1, 3);
+    }
+
+    private void MoveWidget(int index, int delta)
+    {
+        var target = index + delta;
+        if (index < 0 || target < 0 || target >= dashboard.Layout.Items.Count) return;
+        (dashboard.Layout.Items[index], dashboard.Layout.Items[target]) = (dashboard.Layout.Items[target], dashboard.Layout.Items[index]);
+    }
+
+    private void RemoveWidget(DashboardItem item)
+    {
+        dashboard.Layout.Items.Remove(item);
+    }
+
+    private void OpenWidgetPicker()
+    {
+        widgetSearch = null;
+        isWidgetPickerOpen = true;
+    }
+
+    private void AddWidgetFromPicker(WidgetDef w, int span)
+    {
+        if (dashboard.Layout.Items.All(i => i.WidgetId != w.Id))
+        {
+            dashboard.Layout.Items.Add(new DashboardItem { WidgetId = w.Id, Span = Math.Clamp(span, 1, 3) });
+            if (!widgetLookup.ContainsKey(w.Id)) widgetLookup[w.Id] = w;
+            Toasts.Success("Widget added to dashboard.", w.Name);
+        }
+    }
+
+    private async Task Save(bool andView)
+    {
+        error = null;
+        busy = true;
+        try
+        {
+            var saved = await Dashboards.SaveDashboardAsync(Current.Required, dashboard);
+            Toasts.Success(isEdit ? "Dashboard updated." : "Dashboard created.", saved.Name);
+            if (andView)
+            {
+                Nav.NavigateTo($"/dashboard/{saved.Id}");
+            }
+            else
+            {
+                Nav.NavigateTo("/admin/dashboards");
+            }
+        }
+        catch (Exception ex) when (ex is QueryRejectedException or PermissionDeniedException)
+        {
+            errorTitle = "Dashboard could not be saved";
+            error = ex.Message;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+}
+

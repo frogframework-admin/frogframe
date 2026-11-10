@@ -1,23 +1,79 @@
 @page "/dashboard"
+@page "/dashboard/{DashboardId}"
 @using Framework.Dashboards
+@using Framework.Web.Admin
 @inject DashboardService Dashboards
 @inject DocumentService Docs
 @inject IMetadataProvider Metadata
+@inject RoleCatalog RoleCatalogSvc
 @inject CurrentUser Current
 @inject ToastService Toasts
+@inject DialogService Dialogs
 @inject NavigationManager Nav
 
-<PageTitle>Dashboard · FrogFrame</PageTitle>
+<PageTitle>@(activeDashboard?.Name ?? "Dashboard") · FrogFrame</PageTitle>
 
-<header class="page-head">
-    <div><h1>Dashboard</h1><p>Widgets from reporting queries. The filters below apply to widgets bound to dashboard filters.</p></div>
+<header class="page-head" style="flex-wrap:wrap;gap:1rem">
+    <div>
+        <div class="row" style="gap:.5rem;align-items:center">
+            <h1>@(activeDashboard?.Name ?? "Dashboard")</h1>
+            @if (activeDashboard is not null)
+            {
+                <BbBadge Variant="@(activeDashboard.IsShared ? BadgeVariant.Secondary : BadgeVariant.Outline)">
+                    @(activeDashboard.IsShared ? "Shared" : "Personal")
+                </BbBadge>
+                @if (activeDashboard.IsDefault && activeDashboard.IsShared)
+                {
+                    <BbBadge Variant="BadgeVariant.Default">Default</BbBadge>
+                }
+            }
+        </div>
+        <p>@(activeDashboard?.Description ?? "Build and customize dashboards by adding existing widgets from the catalog.")</p>
+    </div>
+
+    @if (Dashboards.IsAvailable)
+    {
+        <div class="row" style="gap:.5rem;flex-wrap:wrap;align-items:center">
+            @if (dashboards.Count > 0)
+            {
+                <div style="min-width:14rem">
+                    <BbSelect TValue="string"
+                              Value="@(activeDashboard?.Id ?? "")"
+                              ValueChanged="OnSelectDashboard"
+                              AriaLabel="Select dashboard"
+                              Options="@DashboardOptions" />
+                </div>
+            }
+            @if (activeDashboard is not null && canEditActive)
+            {
+                <BbButton Variant="ButtonVariant.Outline" Href="@($"/admin/dashboards/{activeDashboard.Id}")">
+                    <LucideIcon Name="pencil" Size="16" /> Edit Layout &amp; Settings
+                </BbButton>
+                <BbButton OnClick="OpenWidgetPicker">
+                    <LucideIcon Name="layout-grid" Size="16" /> Add Widget
+                </BbButton>
+            }
+        </div>
+    }
 </header>
 
 @if (!Dashboards.IsAvailable)
 {
     <UnavailableNotice />
 }
-else
+else if (dashboards.Count == 0 && !loading)
+{
+    <div style="padding:2rem 0">
+        <BbEmpty Title="No dashboards yet"
+                 Description="Create your own personal dashboard (or a shared tenant dashboard if you are an administrator) and add widgets from the catalog.">
+            <div style="margin-top:1rem;display:flex;gap:.5rem;justify-content:center">
+                <BbButton Href="/admin/dashboards/new"><LucideIcon Name="plus" Size="16" /> Create Dashboard</BbButton>
+                <BbButton Variant="ButtonVariant.Outline" Href="/admin/dashboards"><LucideIcon Name="table" Size="16" /> Dashboards</BbButton>
+            </div>
+        </BbEmpty>
+    </div>
+}
+else if (activeDashboard is not null)
 {
     <div class="dash-filters">
         <BbField><BbFieldLabel For="f-start">From date</BbFieldLabel><FormTextInput Id="f-start" Type="date" Value="@startText" ValueChanged="v => startText = v" /></BbField>
@@ -30,13 +86,24 @@ else
                           Options="@(departments.Prepend(new SelectOption<string>("", "All departments")))" />
             </BbField>
         }
-        <BbButton Disabled="loading" OnClick="Load"><LucideIcon Name="refresh-cw" Size="16" /> @(loading ? "Loading…" : "Apply")</BbButton>
+        <BbButton Disabled="loading" OnClick="LoadCards"><LucideIcon Name="refresh-cw" Size="16" /> @(loading ? "Loading…" : "Apply")</BbButton>
     </div>
 
     @if (cards.Count == 0 && !loading)
     {
-        <BbEmpty Title="No widgets on dashboard yet" Description="@(designer ? "Configure widgets in Administration > Widgets and pin them to the dashboard." : "Contact an administrator to add widgets.")" />
+        <div style="padding:2rem 0">
+            <BbEmpty Title="No widgets on this dashboard yet"
+                     Description="@(canEditActive ? "Click 'Add Widget' to choose widgets from the catalog and place them on this dashboard." : "No widgets have been added to this dashboard yet.")">
+                @if (canEditActive)
+                {
+                    <div style="margin-top:1rem">
+                        <BbButton OnClick="OpenWidgetPicker"><LucideIcon Name="layout-grid" Size="16" /> Add Widget</BbButton>
+                    </div>
+                }
+            </BbEmpty>
+        </div>
     }
+
     <div class="dash-grid">
         @foreach (var card in cards)
         {
@@ -47,14 +114,23 @@ else
                         <h2>@c.Widget.Name</h2>
                         @if (c.Widget.Description is not null) { <p>@c.Widget.Description</p> }
                     </div>
-                    @if (designer)
+                    @if (canEditActive || designer)
                     {
                         <div class="dash-card-actions">
-                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Move left" OnClick="() => Move(c, -1)"><LucideIcon Name="arrow-left" Size="15" /></BbButton>
-                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Move right" OnClick="() => Move(c, 1)"><LucideIcon Name="arrow-right" Size="15" /></BbButton>
-                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@(c.Item.Span < 3 ? "Expand" : "Narrow")" OnClick="() => Resize(c)"><LucideIcon Name="@(c.Item.Span < 3 ? "maximize-2" : "minimize-2")" Size="15" /></BbButton>
-                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Edit widget" OnClick="@(() => Nav.NavigateTo($"/admin/widgets/{c.Widget.Id}"))"><LucideIcon Name="pencil" Size="15" /></BbButton>
-                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Unpin from dashboard" OnClick="() => Unpin(c)"><LucideIcon Name="pin-off" Size="15" /></BbButton>
+                            @if (canEditActive)
+                            {
+                                <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Move left" Title="Move left" OnClick="() => Move(c, -1)"><LucideIcon Name="arrow-left" Size="15" /></BbButton>
+                                <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Move right" Title="Move right" OnClick="() => Move(c, 1)"><LucideIcon Name="arrow-right" Size="15" /></BbButton>
+                                <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@(c.Item.Span < 3 ? "Expand width" : "Narrow width")" Title="@(c.Item.Span < 3 ? "Expand width" : "Narrow width")" OnClick="() => Resize(c)"><LucideIcon Name="@(c.Item.Span < 3 ? "maximize-2" : "minimize-2")" Size="15" /></BbButton>
+                            }
+                            @if (designer)
+                            {
+                                <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Edit widget SQL" Title="Edit widget definition (Admin)" OnClick="@(() => Nav.NavigateTo($"/admin/widgets/{c.Widget.Id}"))"><LucideIcon Name="pencil" Size="15" /></BbButton>
+                            }
+                            @if (canEditActive)
+                            {
+                                <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Remove from dashboard" Title="Remove widget from this dashboard" OnClick="() => RemoveWidget(c)"><LucideIcon Name="x" Size="15" /></BbButton>
+                            }
                         </div>
                     }
                 </div>
@@ -76,7 +152,150 @@ else
     </div>
 }
 
+@* ---------------- Create / Edit Dashboard Dialog ---------------- *@
+<BbDialog Open="@isDashboardDialogOpen" OpenChanged="v => isDashboardDialogOpen = v">
+    <BbDialogContent Class="sm:max-w-lg">
+        <BbDialogHeader>
+            <BbDialogTitle>@(isEditingDashboard ? "Edit Dashboard" : "New Dashboard")</BbDialogTitle>
+            <BbDialogDescription>
+                @(designer ? "Create a personal dashboard for yourself or a shared dashboard for your tenant." : "Create a personal dashboard and populate it with widgets from the catalog.")
+            </BbDialogDescription>
+        </BbDialogHeader>
+
+        @if (dialogError is not null)
+        {
+            <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@dialogError</BbAlertDescription></BbAlert>
+        }
+
+        <div class="stack" style="gap:.85rem;margin:.5rem 0">
+            <BbField>
+                <BbFieldLabel For="dash-name">Dashboard name</BbFieldLabel>
+                <FormTextInput Id="dash-name" Value="@editForm.Name" ValueChanged="v => editForm.Name = v ?? string.Empty" Placeholder="e.g. My Procurement Overview" />
+            </BbField>
+
+            <BbField>
+                <BbFieldLabel For="dash-desc">Description (optional)</BbFieldLabel>
+                <FormTextArea Id="dash-desc" Value="@editForm.Description" ValueChanged="v => editForm.Description = v" Rows="2" />
+            </BbField>
+
+            @if (designer)
+            {
+                <div class="label-row">
+                    <BbCheckbox Id="dash-shared" @bind-Checked="editForm.IsShared" />
+                    <BbLabel For="dash-shared">Shared dashboard (visible to other users in this tenant)</BbLabel>
+                </div>
+
+                @if (editForm.IsShared)
+                {
+                    <div class="label-row">
+                        <BbCheckbox Id="dash-default" @bind-Checked="editForm.IsDefault" />
+                        <BbLabel For="dash-default">Set as default landing dashboard</BbLabel>
+                    </div>
+
+                    <div>
+                        <div class="props-sub" style="margin-bottom:.4rem">Viewable by roles (empty = all tenant users)</div>
+                        <div class="wf-roles">
+                            @foreach (var role in MetadataRoles.Known(Metadata.Current, editForm.Roles, RoleCatalogSvc.Names(Current.Required.TenantId)))
+                            {
+                                var r = role;
+                                <div class="label-row">
+                                    <BbCheckbox Id="@($"dr-{r}")" Checked="editForm.Roles.Contains(r)" CheckedChanged="v => ToggleDashboardRole(r, v)" />
+                                    <BbLabel For="@($"dr-{r}")">@r</BbLabel>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+
+        <BbDialogFooter>
+            <BbButton Variant="ButtonVariant.Outline" OnClick="() => isDashboardDialogOpen = false">Cancel</BbButton>
+            <BbButton Disabled="@(savingDashboard || string.IsNullOrWhiteSpace(editForm.Name))" OnClick="SaveDashboardModal">
+                <LucideIcon Name="save" Size="16" /> @(savingDashboard ? "Saving…" : "Save Dashboard")
+            </BbButton>
+        </BbDialogFooter>
+    </BbDialogContent>
+</BbDialog>
+
+@* ---------------- Add Widget Picker Dialog ---------------- *@
+<BbDialog Open="@isWidgetPickerOpen" OpenChanged="v => isWidgetPickerOpen = v">
+    <BbDialogContent Class="sm:max-w-xl">
+        <BbDialogHeader>
+            <BbDialogTitle>Add Widget to @(activeDashboard?.Name ?? "Dashboard")</BbDialogTitle>
+            <BbDialogDescription>Select from available widgets created by your administrator.</BbDialogDescription>
+        </BbDialogHeader>
+
+        <div style="margin:.5rem 0">
+            <BbInputGroup>
+                <BbInputGroupAddon Align="InputGroupAlign.InlineStart">
+                    <LucideIcon Name="search" Size="15" />
+                </BbInputGroupAddon>
+                <BbInputGroupInput Value="@widgetSearch" ValueChanged="v => widgetSearch = v"
+                                   UpdateTiming="UpdateTiming.Debounced" DebounceInterval="150"
+                                   Placeholder="Search widgets by name or description…" AriaLabel="Search widgets" />
+            </BbInputGroup>
+        </div>
+
+        <div class="stack" style="max-height:24rem;overflow-y:auto;gap:.6rem;padding-right:.25rem">
+            @if (!FilteredCatalogWidgets.Any())
+            {
+                <div style="padding:1.5rem 0;text-align:center">
+                    <p class="muted">No matching widgets found in the catalog.</p>
+                </div>
+            }
+            else
+            {
+                @foreach (var w in FilteredCatalogWidgets)
+                {
+                    var widgetItem = w;
+                    var alreadyOnDash = activeDashboard?.Layout.Items.Any(i => i.WidgetId == widgetItem.Id) == true;
+                    <div class="card" style="padding:.75rem 1rem;display:flex;align-items:center;justify-content:space-between;gap:1rem">
+                        <div style="min-width:0;flex:1">
+                            <div class="row" style="gap:.45rem;align-items:center">
+                                <ChartThumb Type="@widgetItem.Config.Visual.Type" />
+                                <strong>@widgetItem.Name</strong>
+                                <span class="muted small">(@WidgetBuilder.ChartLabel(widgetItem.Config.Visual.Type))</span>
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(widgetItem.Description))
+                            {
+                                <div class="muted small" style="margin-top:.2rem">@widgetItem.Description</div>
+                            }
+                        </div>
+                        <div style="flex-shrink:0">
+                            @if (alreadyOnDash)
+                            {
+                                <BbBadge Variant="BadgeVariant.Secondary">Added</BbBadge>
+                            }
+                            else
+                            {
+                                <div class="row" style="gap:.35rem">
+                                    <BbButton Size="ButtonSize.Small" Variant="ButtonVariant.Outline" OnClick="() => AddWidgetFromPicker(widgetItem, 1)" Title="Add (1 column width)">
+                                        <LucideIcon Name="plus" Size="14" /> 1x
+                                    </BbButton>
+                                    <BbButton Size="ButtonSize.Small" Variant="ButtonVariant.Outline" OnClick="() => AddWidgetFromPicker(widgetItem, 2)" Title="Add (2 columns width)">
+                                        <LucideIcon Name="plus" Size="14" /> 2x
+                                    </BbButton>
+                                    <BbButton Size="ButtonSize.Small" Variant="ButtonVariant.Outline" OnClick="() => AddWidgetFromPicker(widgetItem, 3)" Title="Add (Full 3 columns width)">
+                                        <LucideIcon Name="plus" Size="14" /> 3x
+                                    </BbButton>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+
+        <BbDialogFooter>
+            <BbButton Variant="ButtonVariant.Outline" OnClick="() => isWidgetPickerOpen = false">Done</BbButton>
+        </BbDialogFooter>
+    </BbDialogContent>
+</BbDialog>
+
 @code {
+    [Parameter] public string? DashboardId { get; set; }
+
     private sealed class Card(DashboardItem item, WidgetDef widget)
     {
         public DashboardItem Item { get; } = item;
@@ -84,13 +303,45 @@ else
         public WidgetRun? Run { get; set; }
     }
 
+    private IReadOnlyList<DashboardDef> dashboards = [];
+    private DashboardDef? activeDashboard;
+    private IReadOnlyList<WidgetDef> catalogWidgets = [];
     private List<Card> cards = [];
-    private DashboardLayout layout = new();
     private List<SelectOption<string>> departments = [];
     private bool loading, designer;
     private string? startText = new DateOnly(DateTime.Today.Year, 1, 1).ToString("yyyy-MM-dd");
     private string? endText = DateTime.Today.ToString("yyyy-MM-dd");
     private string department = "";
+    private string? loadedDashboardParam;
+
+    // Create / Edit Dashboard modal state
+    private bool isDashboardDialogOpen, isEditingDashboard, savingDashboard;
+    private DashboardDef editForm = new();
+    private string? dialogError;
+
+    // Add Widget Picker modal state
+    private bool isWidgetPickerOpen;
+    private string? widgetSearch;
+
+    private bool canEditActive => activeDashboard is not null && DashboardService.CanEditDashboard(Current.Required, activeDashboard);
+
+    private IEnumerable<SelectOption<string>> DashboardOptions =>
+        dashboards.Select(d => new SelectOption<string>(
+            d.Id,
+            $"{d.Name} ({(d.IsShared ? (d.IsDefault ? "Default · Shared" : "Shared") : "Personal")})"));
+
+    private IEnumerable<WidgetDef> FilteredCatalogWidgets
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(widgetSearch)) return catalogWidgets;
+            var q = widgetSearch.Trim();
+            return catalogWidgets.Where(w =>
+                w.Name.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                (w.Description?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                WidgetBuilder.ChartLabel(w.Config.Visual.Type).Contains(q, StringComparison.OrdinalIgnoreCase));
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -105,7 +356,14 @@ else
             }
             catch (PermissionDeniedException) { }
         }
-        await Load();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!Dashboards.IsAvailable) return;
+        if (loadedDashboardParam == (DashboardId ?? "") && dashboards.Count > 0) return;
+        loadedDashboardParam = DashboardId ?? "";
+        await ReloadDashboards(DashboardId);
     }
 
     private DashboardFilters Filters => new(
@@ -113,55 +371,202 @@ else
         DateOnly.TryParse(endText, out var e) ? e : null,
         string.IsNullOrEmpty(department) ? null : department);
 
-    private async Task Load()
+    private async Task ReloadDashboards(string? preferredId = null)
     {
         loading = true;
         try
         {
-            layout = await Dashboards.GetLayoutAsync(Current.Required);
+            dashboards = await Dashboards.ListDashboardsAsync(Current.Required);
+            activeDashboard = (!string.IsNullOrWhiteSpace(preferredId)
+                ? dashboards.FirstOrDefault(d => d.Id == preferredId)
+                : null) ?? dashboards.FirstOrDefault();
+
+            if (activeDashboard is not null)
+            {
+                await LoadCards();
+            }
+            else
+            {
+                cards = [];
+            }
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task OnSelectDashboard(string? id)
+    {
+        if (string.IsNullOrWhiteSpace(id) || id == activeDashboard?.Id) return;
+        loadedDashboardParam = id;
+        Nav.NavigateTo($"/dashboard/{id}");
+        await ReloadDashboards(id);
+    }
+
+    private async Task LoadCards()
+    {
+        if (activeDashboard is null) { cards = []; return; }
+        loading = true;
+        try
+        {
+            // Refresh active dashboard definition from store
+            var refreshed = await Dashboards.GetDashboardAsync(Current.Required, activeDashboard.Id);
+            if (refreshed is not null) activeDashboard = refreshed;
+
             var list = new List<Card>();
-            foreach (var item in layout.Items)
-                if (await Dashboards.GetAsync(Current.Required, item.WidgetId) is { } w) list.Add(new Card(item, w));
+            foreach (var item in activeDashboard.Layout.Items)
+            {
+                if (await Dashboards.GetAsync(Current.Required, item.WidgetId) is { } w)
+                    list.Add(new Card(item, w));
+            }
             cards = list;
             StateHasChanged();
+
             var filters = Filters;
-            // Widgets run in parallel; each uses its own connection limited by statement_timeout.
-            // Failure of one widget shows as an alert inside its card, without stopping other cards.
             await Task.WhenAll(cards.Select(async c =>
             {
                 try { c.Run = await Dashboards.RunWidgetAsync(Current.Required, c.Widget, filters); }
                 catch (Exception ex) when (ex is not OperationCanceledException) { c.Run = new WidgetRun(c.Widget, null, ex.Message); }
             }));
         }
-        finally { loading = false; }
+        finally
+        {
+            loading = false;
+        }
     }
 
-    private async Task SaveLayout()
+    private void OpenNewDashboard()
     {
-        try { await Dashboards.SaveLayoutAsync(Current.Required, layout); }
-        catch (PermissionDeniedException ex) { Toasts.Error(ex.Message, "Failed"); }
+        dialogError = null;
+        isEditingDashboard = false;
+        editForm = new DashboardDef
+        {
+            Name = "",
+            Description = "",
+            IsShared = false,
+            IsDefault = false,
+            Roles = []
+        };
+        isDashboardDialogOpen = true;
+    }
+
+    private void OpenEditDashboard()
+    {
+        if (activeDashboard is null) return;
+        dialogError = null;
+        isEditingDashboard = true;
+        editForm = new DashboardDef
+        {
+            Id = activeDashboard.Id,
+            Name = activeDashboard.Name,
+            Description = activeDashboard.Description,
+            IsShared = activeDashboard.IsShared,
+            IsDefault = activeDashboard.IsDefault,
+            Roles = [.. activeDashboard.Roles],
+            Layout = activeDashboard.Layout
+        };
+        isDashboardDialogOpen = true;
+    }
+
+    private void ToggleDashboardRole(string role, bool on)
+    {
+        if (on && !editForm.Roles.Contains(role)) editForm.Roles.Add(role);
+        if (!on) editForm.Roles.Remove(role);
+    }
+
+    private async Task SaveDashboardModal()
+    {
+        dialogError = null;
+        savingDashboard = true;
+        try
+        {
+            var saved = await Dashboards.SaveDashboardAsync(Current.Required, editForm);
+            isDashboardDialogOpen = false;
+            Toasts.Success(isEditingDashboard ? "Dashboard updated." : "Dashboard created.", saved.Name);
+            loadedDashboardParam = saved.Id;
+            await ReloadDashboards(saved.Id);
+            Nav.NavigateTo($"/dashboard/{saved.Id}");
+        }
+        catch (Exception ex) when (ex is QueryRejectedException or PermissionDeniedException)
+        {
+            dialogError = ex.Message;
+        }
+        finally
+        {
+            savingDashboard = false;
+        }
+    }
+
+    private async Task OpenWidgetPicker()
+    {
+        if (activeDashboard is null) return;
+        widgetSearch = null;
+        catalogWidgets = await Dashboards.ListAsync(Current.Required);
+        isWidgetPickerOpen = true;
+    }
+
+    private async Task AddWidgetFromPicker(WidgetDef w, int span)
+    {
+        if (activeDashboard is null) return;
+        try
+        {
+            activeDashboard = await Dashboards.AddWidgetToDashboardAsync(Current.Required, activeDashboard.Id, w.Id, span);
+            Toasts.Success("Added to dashboard.", w.Name);
+            await LoadCards();
+        }
+        catch (Exception ex) when (ex is QueryRejectedException or PermissionDeniedException)
+        {
+            Toasts.Error(ex.Message, "Cannot add widget");
+        }
+    }
+
+    private async Task SaveActiveLayout()
+    {
+        if (activeDashboard is null) return;
+        try
+        {
+            activeDashboard = await Dashboards.SaveDashboardAsync(Current.Required, activeDashboard);
+        }
+        catch (PermissionDeniedException ex)
+        {
+            Toasts.Error(ex.Message, "Failed");
+        }
     }
 
     private async Task Move(Card c, int delta)
     {
-        var i = layout.Items.IndexOf(c.Item); var j = i + delta;
-        if (i < 0 || j < 0 || j >= layout.Items.Count) return;
-        (layout.Items[i], layout.Items[j]) = (layout.Items[j], layout.Items[i]);
-        var ci = cards.IndexOf(c); var cj = ci + delta;
+        if (activeDashboard is null) return;
+        var items = activeDashboard.Layout.Items;
+        var i = items.IndexOf(c.Item);
+        var j = i + delta;
+        if (i < 0 || j < 0 || j >= items.Count) return;
+        (items[i], items[j]) = (items[j], items[i]);
+        var ci = cards.IndexOf(c);
+        var cj = ci + delta;
         if (cj >= 0 && cj < cards.Count) (cards[ci], cards[cj]) = (cards[cj], cards[ci]);
-        await SaveLayout();
+        await SaveActiveLayout();
     }
 
     private async Task Resize(Card c)
     {
+        if (activeDashboard is null) return;
         c.Item.Span = c.Item.Span >= 3 ? 1 : c.Item.Span + 1;
-        await SaveLayout();
+        await SaveActiveLayout();
     }
 
-    private async Task Unpin(Card c)
+    private async Task RemoveWidget(Card c)
     {
-        await Dashboards.UnpinAsync(Current.Required, c.Widget.Id);
-        layout.Items.Remove(c.Item); cards.Remove(c);
-        Toasts.Success("Widget is still available in Manage widgets.", $"{c.Widget.Name} unpinned");
+        if (activeDashboard is null) return;
+        try
+        {
+            activeDashboard = await Dashboards.RemoveWidgetFromDashboardAsync(Current.Required, activeDashboard.Id, c.Widget.Id);
+            cards.Remove(c);
+            Toasts.Success("Widget removed from this dashboard.", c.Widget.Name);
+        }
+        catch (PermissionDeniedException ex)
+        {
+            Toasts.Error(ex.Message, "Failed");
+        }
     }
 }

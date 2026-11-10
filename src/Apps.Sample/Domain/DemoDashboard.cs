@@ -21,16 +21,17 @@ public static class DemoDashboard
         };
         var dept = new WidgetParameter { Name = "Dept", Label = "Departemen", Type = ParamTypes.Text, Binding = ParamBindings.GlobalDepartment };
 
+        var items = new List<DashboardItem>();
+
         async Task Add(string name, string desc, string sql, List<WidgetParameter> ps, VisualConfig v, int span, List<string>? roles = null)
         {
-            var w = await dash.SaveAsync(admin, new WidgetDef { Name = name, Description = desc,
-                Config = new WidgetConfig { Sql = sql, Parameters = ps, Visual = v, Roles = roles ?? [] } }, pin: true);
-            if (span > 1)
+            var w = await dash.SaveAsync(admin, new WidgetDef
             {
-                var layout = await dash.GetLayoutAsync(admin);
-                layout.Items.First(i => i.WidgetId == w.Id).Span = span;
-                await dash.SaveLayoutAsync(admin, layout);
-            }
+                Name = name,
+                Description = desc,
+                Config = new WidgetConfig { Sql = sql, Parameters = ps, Visual = v, Roles = roles ?? [] }
+            }, pin: false);
+            items.Add(new DashboardItem { WidgetId = w.Id, Span = span });
         }
 
         await Add("Total pengajuan disetujui", "Nilai pengajuan berstatus Disetujui pada periode filter",
@@ -88,5 +89,15 @@ public static class DemoDashboard
             GROUP BY i.item_name ORDER BY nilai DESC
             """,
             [.. range], new VisualConfig { Type = ChartTypes.Table }, 3);
+
+        await dash.SaveDashboardAsync(admin, new DashboardDef
+        {
+            Id = DashboardDef.DefaultDashboardId,
+            Name = "Main Dashboard",
+            Description = "Default shared overview of procurement requests, approvals, and HR headcount",
+            IsShared = true,
+            IsDefault = true,
+            Layout = new DashboardLayout { Items = items }
+        });
     }
 }

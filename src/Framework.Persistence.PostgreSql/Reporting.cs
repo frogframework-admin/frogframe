@@ -356,16 +356,91 @@ public sealed class PostgresWidgetStore(NpgsqlDataSource db) : IWidgetStore
 
     public async Task<DashboardLayout> GetLayoutAsync(string tenantId, CancellationToken ct = default)
     {
-        await using var cmd = db.CreateCommand("SELECT layout::text FROM frogframe_dashboards WHERE tenant_id = $1");
-        cmd.Parameters.AddWithValue(tenantId);
-        return await cmd.ExecuteScalarAsync(ct) is string j ? JsonSerializer.Deserialize<DashboardLayout>(j, DashboardJson.Options) ?? new() : new();
+        var d = await GetDashboardAsync(tenantId, DashboardDef.DefaultDashboardId, ct);
+        return d?.Layout ?? new();
     }
 
     public async Task SaveLayoutAsync(string tenantId, DashboardLayout layout, CancellationToken ct = default)
     {
+        var now = DateTimeOffset.UtcNow;
+        var existing = await GetDashboardAsync(tenantId, DashboardDef.DefaultDashboardId, ct) ?? new DashboardDef
+        {
+            Id = DashboardDef.DefaultDashboardId,
+            TenantId = tenantId,
+            Name = "Main Dashboard",
+            Description = "Default shared tenant dashboard",
+            OwnerId = "admin",
+            IsShared = true,
+            IsDefault = true,
+            CreatedAt = now
+        };
+        existing.Layout = layout;
+        existing.UpdatedAt = now;
+        await SaveDashboardAsync(existing, ct);
+    }
+
+    private const string DashCols = "tenant_id, id, name, description, owner_id, is_shared, is_default, roles::text, layout::text, created_at, updated_at";
+
+    private static DashboardDef ReadDashboard(NpgsqlDataReader r) => new()
+    {
+        TenantId = r.GetString(0),
+        Id = r.GetString(1),
+        Name = r.GetString(2),
+        Description = r.IsDBNull(3) ? null : r.GetString(3),
+        OwnerId = r.GetString(4),
+        IsShared = r.GetBoolean(5),
+        IsDefault = r.GetBoolean(6),
+        Roles = JsonSerializer.Deserialize<List<string>>(r.GetString(7), DashboardJson.Options) ?? [],
+        Layout = JsonSerializer.Deserialize<DashboardLayout>(r.GetString(8), DashboardJson.Options) ?? new(),
+        CreatedAt = r.GetFieldValue<DateTimeOffset>(9),
+        UpdatedAt = r.GetFieldValue<DateTimeOffset>(10),
+    };
+
+    public async Task<IReadOnlyList<DashboardDef>> ListDashboardsAsync(string tenantId, CancellationToken ct = default)
+    {
+        await using var cmd = db.CreateCommand($"SELECT {DashCols} FROM frogframe_dashboards WHERE tenant_id = $1 ORDER BY is_default DESC, is_shared DESC, name");
+        cmd.Parameters.AddWithValue(tenantId);
+        var list = new List<DashboardDef>();
+        await using var r = await cmd.ExecuteReaderAsync(ct);
+        while (await r.ReadAsync(ct)) list.Add(ReadDashboard(r));
+        return list;
+    }
+
+    public async Task<DashboardDef?> GetDashboardAsync(string tenantId, string id, CancellationToken ct = default)
+    {
+        await using var cmd = db.CreateCommand($"SELECT {DashCols} FROM frogframe_dashboards WHERE tenant_id = $1 AND id = $2");
+        cmd.Parameters.AddWithValue(tenantId);
+        cmd.Parameters.AddWithValue(id);
+        await using var r = await cmd.ExecuteReaderAsync(ct);
+        return await r.ReadAsync(ct) ? ReadDashboard(r) : null;
+    }
+
+    public async Task SaveDashboardAsync(DashboardDef d, CancellationToken ct = default)
+    {
         await using var cmd = db.CreateCommand(
-            "INSERT INTO frogframe_dashboards (tenant_id, layout, updated_at) VALUES ($1, $2::jsonb, now()) ON CONFLICT (tenant_id) DO UPDATE SET layout = $2::jsonb, updated_at = now()");
-        cmd.Parameters.AddWithValue(tenantId); cmd.Parameters.AddWithValue(JsonSerializer.Serialize(layout, DashboardJson.Options));
+            "INSERT INTO frogframe_dashboards (tenant_id, id, name, description, owner_id, is_shared, is_default, roles, layout, created_at, updated_at) " +
+            "VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10, $11) " +
+            "ON CONFLICT (tenant_id, id) DO UPDATE SET " +
+            "name = $3, description = $4, owner_id = $5, is_shared = $6, is_default = $7, roles = $8::jsonb, layout = $9::jsonb, updated_at = $11");
+        cmd.Parameters.AddWithValue(d.TenantId);
+        cmd.Parameters.AddWithValue(d.Id);
+        cmd.Parameters.AddWithValue(d.Name);
+        cmd.Parameters.AddWithValue((object?)d.Description ?? DBNull.Value);
+        cmd.Parameters.AddWithValue(d.OwnerId);
+        cmd.Parameters.AddWithValue(d.IsShared);
+        cmd.Parameters.AddWithValue(d.IsDefault);
+        cmd.Parameters.AddWithValue(JsonSerializer.Serialize(d.Roles, DashboardJson.Options));
+        cmd.Parameters.AddWithValue(JsonSerializer.Serialize(d.Layout, DashboardJson.Options));
+        cmd.Parameters.AddWithValue(d.CreatedAt);
+        cmd.Parameters.AddWithValue(d.UpdatedAt);
+        await cmd.ExecuteNonQueryAsync(ct);
+    }
+
+    public async Task DeleteDashboardAsync(string tenantId, string id, CancellationToken ct = default)
+    {
+        await using var cmd = db.CreateCommand("DELETE FROM frogframe_dashboards WHERE tenant_id = $1 AND id = $2");
+        cmd.Parameters.AddWithValue(tenantId);
+        cmd.Parameters.AddWithValue(id);
         await cmd.ExecuteNonQueryAsync(ct);
     }
 }

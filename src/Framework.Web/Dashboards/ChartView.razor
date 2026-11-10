@@ -1,6 +1,7 @@
-@* SVG chart from widget query results (no JavaScript, follows light/dark theme). *@
+@* Blazor Blueprint ECharts and SVG chart renderer *@
 @using System.Globalization
 @using Framework.Dashboards
+@using BlazorBlueprint.Components
 
 @if (Result is null || Result.Rows.Count == 0)
 {
@@ -61,7 +62,7 @@ else if (Visual.Type is ChartTypes.Pie or ChartTypes.Doughnut)
         </ul>
     </div>
 }
-else
+else if (Visual.Type == ChartTypes.Bar)
 {
     var cats = Categories();
     var series = Visual.YColumns.Select((c, i) => (Name: c, Index: i, Col: ColIndex(c))).Where(s => s.Col >= 0).ToList();
@@ -70,14 +71,14 @@ else
     var min = Math.Min(0, values.SelectMany(v => v).DefaultIfEmpty(0).Min());
     var (top, step) = NiceScale(max, min);
     double W = Width, padL = 52, padR = 10, padT = 12;
-    // Labels are tilted if there are many categories or the text does not fit the column width.
     var rotate = cats.Count > 6 || cats.Select(c => Math.Min(c.Length, 16)).DefaultIfEmpty(0).Max() * 6.2 > (Width - 62.0) / Math.Max(cats.Count, 1);
     var padB = rotate ? 62.0 : 34.0;
     var H = (double)Height;
     var plotW = W - padL - padR; var plotH = H - padT - padB;
     double Y(decimal v) => padT + plotH - (double)((v - min) / (top - min == 0 ? 1 : top - min)) * plotH;
     var band = plotW / Math.Max(cats.Count, 1);
-    <svg viewBox="0 0 @F(W) @F(H)" class="chart-svg" role="img" aria-label="@($"{(Visual.Type == ChartTypes.Bar ? "Bar" : "Line")} chart of {string.Join(", ", Visual.YColumns)} by {Visual.XColumn}")">
+
+    <svg viewBox="0 0 @F(W) @F(H)" class="chart-svg" role="img" aria-label="Bar chart">
         @for (var t = min; t <= top + step / 1000; t += step)
         {
             var y = Y(t);
@@ -100,37 +101,19 @@ else
                 }
             }
         }
-        @if (Visual.Type == ChartTypes.Bar)
-        {
+        @{
             var groupW = band * 0.72; var barW = groupW / Math.Max(series.Count, 1);
-            @for (var s = 0; s < series.Count; s++)
-            {
-                @for (var i = 0; i < cats.Count; i++)
-                {
-                    var v = values[s][i];
-                    var x = padL + band * i + (band - groupW) / 2 + barW * s;
-                    var y0 = Y(0); var y1 = Y(v);
-                    <rect x="@F(x + 1)" y="@F(Math.Min(y0, y1))" width="@F(Math.Max(barW - 2, 1))" height="@F(Math.Max(Math.Abs(y0 - y1), 0.5))" rx="3" style="fill:@Color(s)" class="chart-bar">
-                        <title>@cats[i] · @series[s].Name: @Full(v)</title>
-                    </rect>
-                }
-            }
         }
-        else
+        @for (var s = 0; s < series.Count; s++)
         {
-            @for (var s = 0; s < series.Count; s++)
+            @for (var i = 0; i < cats.Count; i++)
             {
-                var pts = Enumerable.Range(0, cats.Count).Select(i => (X: padL + band * i + band / 2, Y: Y(values[s][i]), V: values[s][i], C: cats[i])).ToList();
-                var line = string.Join(" ", pts.Select(p => $"{F(p.X)},{F(p.Y)}"));
-                if (series.Count == 1 && pts.Count > 1)
-                {
-                    <polygon points="@($"{F(pts[0].X)},{F(Y(0))} {line} {F(pts[^1].X)},{F(Y(0))}")" style="fill:@Color(s)" class="chart-area" />
-                }
-                <polyline points="@line" style="stroke:@Color(s)" class="chart-line" />
-                @foreach (var p in pts)
-                {
-                    <circle cx="@F(p.X)" cy="@F(p.Y)" r="3.5" style="fill:@Color(s)" class="chart-point"><title>@p.C · @series[s].Name: @Full(p.V)</title></circle>
-                }
+                var v = values[s][i];
+                var x = padL + band * i + (band - groupW) / 2 + barW * s;
+                var y0 = Y(0); var y1 = Y(v);
+                <rect x="@F(x + 1)" y="@F(Math.Min(y0, y1))" width="@F(Math.Max(barW - 2, 1))" height="@F(Math.Max(Math.Abs(y0 - y1), 0.5))" rx="3" style="fill:@Color(s)" class="chart-bar">
+                    <title>@cats[i] · @series[s].Name: @Full(v)</title>
+                </rect>
             }
         }
     </svg>
@@ -141,11 +124,218 @@ else
         </ul>
     }
 }
+else if (Visual.Type == ChartTypes.Line)
+{
+    var cats = Categories();
+    var series = Visual.YColumns.Select((c, i) => (Name: c, Index: i, Col: ColIndex(c))).Where(s => s.Col >= 0).ToList();
+    var values = series.Select(s => Result.Rows.Select(r => Num(r[s.Col]) ?? 0m).ToList()).ToList();
+    var max = values.SelectMany(v => v).DefaultIfEmpty(0).Max();
+    var min = Math.Min(0, values.SelectMany(v => v).DefaultIfEmpty(0).Min());
+    var (top, step) = NiceScale(max, min);
+    double W = Width, padL = 52, padR = 10, padT = 12;
+    var rotate = cats.Count > 6 || cats.Select(c => Math.Min(c.Length, 16)).DefaultIfEmpty(0).Max() * 6.2 > (Width - 62.0) / Math.Max(cats.Count, 1);
+    var padB = rotate ? 62.0 : 34.0;
+    var H = (double)Height;
+    var plotW = W - padL - padR; var plotH = H - padT - padB;
+    double Y(decimal v) => padT + plotH - (double)((v - min) / (top - min == 0 ? 1 : top - min)) * plotH;
+    var band = plotW / Math.Max(cats.Count, 1);
+
+    <svg viewBox="0 0 @F(W) @F(H)" class="chart-svg" role="img" aria-label="Line chart">
+        @for (var t = min; t <= top + step / 1000; t += step)
+        {
+            var y = Y(t);
+            <line x1="@F(padL)" x2="@F(W - padR)" y1="@F(y)" y2="@F(y)" class="@(t == 0 ? "chart-axis" : "chart-grid")" />
+            <g><text x="@F(padL - 6)" y="@F(y + 3.5)" text-anchor="end" class="chart-tick">@Short(t)</text></g>
+        }
+        @for (var i = 0; i < cats.Count; i++)
+        {
+            var cx = padL + band * i + band / 2;
+            var every = (int)Math.Ceiling(cats.Count / Math.Max(Width / 40.0, 4));
+            if (i % every == 0)
+            {
+                @if (rotate)
+                {
+                    <g><text transform="@($"translate({F(cx)},{F(padT + plotH + 10)}) rotate(-35)")" text-anchor="end" class="chart-tick">@Trim(cats[i], 14)</text></g>
+                }
+                else
+                {
+                    <g><text x="@F(cx)" y="@F(padT + plotH + 18)" text-anchor="middle" class="chart-tick">@Trim(cats[i], 16)</text></g>
+                }
+            }
+        }
+        @for (var s = 0; s < series.Count; s++)
+        {
+            var pts = Enumerable.Range(0, cats.Count).Select(i => (X: padL + band * i + band / 2, Y: Y(values[s][i]), V: values[s][i], C: cats[i])).ToList();
+            var line = string.Join(" ", pts.Select(p => $"{F(p.X)},{F(p.Y)}"));
+            if (series.Count == 1 && pts.Count > 1)
+            {
+                <polygon points="@($"{F(pts[0].X)},{F(Y(0))} {line} {F(pts[^1].X)},{F(Y(0))}")" style="fill:@Color(s)" class="chart-area" />
+            }
+            <polyline points="@line" style="stroke:@Color(s)" class="chart-line" />
+            @foreach (var p in pts)
+            {
+                <circle cx="@F(p.X)" cy="@F(p.Y)" r="3.5" style="fill:@Color(s)" class="chart-point"><title>@p.C · @series[s].Name: @Full(p.V)</title></circle>
+            }
+        }
+    </svg>
+    @if (series.Count > 1)
+    {
+        <ul class="chart-legend">
+            @foreach (var s in series) { <li><span class="dot" style="background:@Color(s.Index)"></span>@s.Name</li> }
+        </ul>
+    }
+}
+else
+{
+    @* Rich BlazorBlueprint / Apache ECharts Chart Components *@
+    var boundData = GetBoundData();
+    var xKey = Visual.XColumn ?? Result.Columns.FirstOrDefault()?.Name ?? "x";
+    var yKeys = Visual.YColumns.Count > 0 ? Visual.YColumns : [Result.Columns.Skip(1).FirstOrDefault()?.Name ?? "y"];
+    var hStr = $"{Height}px";
+
+    <div style="width:100%;min-height:@hStr">
+        @switch (Visual.Type)
+        {
+            case ChartTypes.Area:
+                <BbAreaChart Data="@boundData" Height="@hStr" EnableAnimations="true">
+                    <BbChartTooltip Indicator="TooltipIndicator.Line" />
+                    <BbChartLegend Position="LegendPosition.Bottom" />
+                    <BbXAxis DataKey="@xKey" Show="true" ShowTicks="true" />
+                    <BbYAxis Show="true" ShowGrid="true" />
+                    @foreach (var y in yKeys)
+                    {
+                        <BbArea DataKey="@y" Name="@y" Curve="CurveType.Smooth" />
+                    }
+                </BbAreaChart>
+                break;
+
+            case ChartTypes.Composed:
+                <BbChart Data="@boundData" Height="@hStr" EnableAnimations="true">
+                    <BbChartTooltip Indicator="TooltipIndicator.Line" />
+                    <BbChartLegend Position="LegendPosition.Bottom" />
+                    <BbXAxis DataKey="@xKey" Show="true" ShowTicks="true" />
+                    <BbYAxis Show="true" ShowGrid="true" />
+                    @if (yKeys.Count > 0)
+                    {
+                        <BbBar DataKey="@yKeys[0]" Name="@yKeys[0]" />
+                    }
+                    @for (var i = 1; i < yKeys.Count; i++)
+                    {
+                        var y = yKeys[i];
+                        <BbLine DataKey="@y" Name="@y" Curve="CurveType.Smooth" />
+                    }
+                </BbChart>
+                break;
+
+            case ChartTypes.Scatter:
+                <BbScatterChart Data="@boundData" Height="@hStr" EnableAnimations="true">
+                    <BbChartTooltip Indicator="TooltipIndicator.Dot" />
+                    <BbChartLegend Position="LegendPosition.Bottom" />
+                    <BbXAxis DataKey="@xKey" Show="true" ShowGrid="true" />
+                    <BbYAxis Show="true" ShowGrid="true" />
+                    @foreach (var y in yKeys)
+                    {
+                        <BbScatter DataKey="@y" Name="@y" XDataKey="@xKey" SymbolSize="10" />
+                    }
+                </BbScatterChart>
+                break;
+
+            case ChartTypes.Radar:
+                <BbRadarChart Data="@boundData" Height="@hStr" IndicatorKey="@xKey" EnableAnimations="true" Shape="RadarShape.Polygon">
+                    <BbChartTooltip Indicator="TooltipIndicator.Dot" />
+                    <BbChartLegend Position="LegendPosition.Bottom" />
+                    @foreach (var y in yKeys)
+                    {
+                        <BbRadar DataKey="@y" Name="@y" FillOpacity="0.3" ShowDots="true" />
+                    }
+                </BbRadarChart>
+                break;
+
+            case ChartTypes.RadialBar:
+                <BbRadialBarChart Data="@boundData" Height="@hStr" EnableAnimations="true">
+                    <BbChartTooltip Indicator="TooltipIndicator.Dot" />
+                    <BbChartLegend Position="LegendPosition.Bottom" />
+                    @foreach (var y in yKeys)
+                    {
+                        <BbRadialBar DataKey="@y" NameKey="@xKey" Name="@y" RoundCap="true" />
+                    }
+                </BbRadialBarChart>
+                break;
+
+            case ChartTypes.Rose:
+                <BbRoseChart Data="@boundData" Height="@hStr" EnableAnimations="true">
+                    <BbChartTooltip Indicator="TooltipIndicator.Dot" />
+                    <BbChartLegend Position="LegendPosition.Bottom" />
+                    <BbRose DataKey="@yKeys.FirstOrDefault()" NameKey="@xKey" Mode="RoseMode.Radius" ShowLabels="true" />
+                </BbRoseChart>
+                break;
+
+            case ChartTypes.Funnel:
+                <BbFunnelChart Data="@boundData" Height="@hStr" EnableAnimations="true">
+                    <BbChartTooltip Indicator="TooltipIndicator.Dot" />
+                    <BbChartLegend Position="LegendPosition.Bottom" />
+                    <BbFunnel DataKey="@yKeys.FirstOrDefault()" NameKey="@xKey" ShowLabels="true" Sort="FunnelSort.Descending" />
+                </BbFunnelChart>
+                break;
+
+            case ChartTypes.Gauge:
+                var gMax = Visual.Max is { } gm && gm > 0 ? (double)gm : 100.0;
+                <BbGaugeChart Data="@boundData" Height="@hStr" EnableAnimations="true">
+                    <BbGauge DataKey="@yKeys.FirstOrDefault()" Name="@(Visual.XColumn ?? yKeys.FirstOrDefault())"
+                             Max="@gMax" ShowProgress="true" ShowPointer="true" ShowDetail="true" />
+                </BbGaugeChart>
+                break;
+
+            case ChartTypes.Heatmap:
+                var yCat = Visual.GroupColumn ?? Result.Columns.Skip(1).FirstOrDefault()?.Name ?? "yCat";
+                <BbHeatmapChart Data="@boundData" Height="@hStr" EnableAnimations="true">
+                    <BbChartTooltip Indicator="TooltipIndicator.None" />
+                    <BbXAxis DataKey="@xKey" Show="true" />
+                    <BbYAxis DataKey="@yCat" Show="true" />
+                    <BbHeatmap XKey="@xKey" YKey="@yCat" ValueKey="@yKeys.FirstOrDefault()" ShowLabel="true" />
+                </BbHeatmapChart>
+                break;
+
+            case ChartTypes.Candlestick:
+                var openKey = yKeys.Count > 0 ? yKeys[0] : "open";
+                var closeKey = yKeys.Count > 1 ? yKeys[1] : "close";
+                var lowKey = yKeys.Count > 2 ? yKeys[2] : "low";
+                var highKey = yKeys.Count > 3 ? yKeys[3] : "high";
+                <BbCandlestickChart Data="@boundData" Height="@hStr" EnableAnimations="true">
+                    <BbChartTooltip Indicator="TooltipIndicator.Line" />
+                    <BbXAxis DataKey="@xKey" Show="true" />
+                    <BbYAxis Show="true" ShowGrid="true" />
+                    <BbCandlestick OpenKey="@openKey" CloseKey="@closeKey" LowKey="@lowKey" HighKey="@highKey" />
+                </BbCandlestickChart>
+                break;
+
+            case ChartTypes.Sankey:
+                var targetKey = Visual.GroupColumn ?? Result.Columns.Skip(1).FirstOrDefault()?.Name ?? "target";
+                <BbSankeyChart Data="@boundData" Height="@hStr" EnableAnimations="true">
+                    <BbChartTooltip Indicator="TooltipIndicator.None" />
+                    <BbSankey SourceKey="@xKey" TargetKey="@targetKey" DataKey="@yKeys.FirstOrDefault()" ShowLabels="true" />
+                </BbSankeyChart>
+                break;
+
+            case ChartTypes.Map:
+                <BbMapChart Data="@boundData" Height="@hStr" EnableAnimations="true">
+                    <BbChartTooltip Indicator="TooltipIndicator.None" />
+                    <BbVisualMap Show="true" />
+                    <BbMap CountryKey="@xKey" DataKey="@yKeys.FirstOrDefault()" />
+                </BbMapChart>
+                break;
+
+            default:
+                <ResultGrid Result="Result" MaxHeight="@hStr" />
+                break;
+        }
+    </div>
+}
 
 @code {
     [Parameter, EditorRequired] public QueryResultSet? Result { get; set; }
     [Parameter, EditorRequired] public VisualConfig Visual { get; set; } = new();
-    [Parameter] public int Height { get; set; } = 260;
+    [Parameter] public int Height { get; set; } = 280;
     /// <summary>Image width (SVG units). Roughly match card width so text size remains legible.</summary>
     [Parameter] public int Width { get; set; } = 640;
 
@@ -154,6 +344,13 @@ else
         : Result.Columns.Select((c, i) => (c, i)).FirstOrDefault(x => x.c.Name.Equals(name, StringComparison.OrdinalIgnoreCase), (null!, -1)).Item2;
 
     private static decimal? Num(object? v) => v switch { decimal d => d, int i => i, long l => l, double d => (decimal)d, string s when decimal.TryParse(s, NumberStyles.Number, CultureInfo.InvariantCulture, out var x) => x, _ => null };
+
+    private object GetBoundData()
+    {
+        if (Result is null || Result.Rows.Count == 0) return Array.Empty<object>();
+        var colNames = Result.Columns.Select(c => c.Name).ToList();
+        return ChartDataBinder.BindRows(colNames, Result.Rows);
+    }
 
     private List<string> Categories()
     {

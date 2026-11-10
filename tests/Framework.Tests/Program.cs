@@ -1164,6 +1164,97 @@ sealed partial class Tests
         return Task.CompletedTask;
     }
 
+    private sealed class StubReportingExecutor : IReportingQueryExecutor
+    {
+        public bool IsAvailable => true;
+        public Task<QueryResultSet> ExecuteAsync(string tenantId, string parameterizedSql, IReadOnlyList<SqlParam> parameters, int limit, CancellationToken ct = default, TimeSpan? timeout = null) =>
+            Task.FromResult(new QueryResultSet([new ResultColumn("status", "text"), new ResultColumn("nilai", "number")], [["Disetujui", 100m]], false, 1));
+    }
+
+    [Test]
+    public async Task Dashboard_mandiri_dibuat_admin_dan_user_dengan_widget_katalog()
+    {
+        var store = new InMemoryWidgetStore();
+        var dash = new DashboardService(store, new StubReportingExecutor(), TimeProvider.System);
+        var admin = U("admin");
+        var andi = U("andi");   // Employee
+        var dewi = U("dewi");   // Manager
+
+        // 1. Admin creates 2 standalone widgets: one public to all, one restricted to Manager/Finance
+        var wPublic = await dash.SaveAsync(admin, new WidgetDef
+        {
+            Name = "Public Widget",
+            Config = new WidgetConfig
+            {
+                Sql = "SELECT status, nilai FROM reporting.purchase_request",
+                Visual = new VisualConfig { Type = ChartTypes.Bar, XColumn = "status", YColumns = ["nilai"] },
+                Roles = []
+            }
+        });
+        var wManager = await dash.SaveAsync(admin, new WidgetDef
+        {
+            Name = "Manager Widget",
+            Config = new WidgetConfig
+            {
+                Sql = "SELECT status, nilai FROM reporting.purchase_request",
+                Visual = new VisualConfig { Type = ChartTypes.Number, YColumns = ["nilai"] },
+                Roles = ["Manager", "Finance"]
+            }
+        });
+
+        // Regular user cannot create widgets
+        await Assert.Throws<PermissionDeniedException>(() => dash.SaveAsync(andi, new WidgetDef { Name = "Hack" }), "user biasa tidak boleh membuat widget");
+
+        // 2. Admin creates a shared default dashboard and adds both widgets
+        var sharedDash = await dash.SaveDashboardAsync(admin, new DashboardDef
+        {
+            Name = "Company Overview",
+            Description = "Shared dashboard for all employees",
+            IsShared = true,
+            IsDefault = true
+        });
+        sharedDash = await dash.AddWidgetToDashboardAsync(admin, sharedDash.Id, wPublic.Id, span: 2);
+        sharedDash = await dash.AddWidgetToDashboardAsync(admin, sharedDash.Id, wManager.Id, span: 1);
+        Assert.Equal(2, sharedDash.Layout.Items.Count, "shared dashboard memiliki 2 widget");
+
+        // Regular user can view the shared dashboard, but cannot edit or delete it
+        var andiVisible = await dash.ListDashboardsAsync(andi);
+        Assert.Equal(1, andiVisible.Count, "andi bisa melihat shared dashboard");
+        await Assert.Throws<PermissionDeniedException>(() => dash.AddWidgetToDashboardAsync(andi, sharedDash.Id, wPublic.Id), "user biasa tidak boleh mengubah shared dashboard");
+        await Assert.Throws<PermissionDeniedException>(() => dash.DeleteDashboardAsync(andi, sharedDash.Id), "user biasa tidak boleh menghapus shared dashboard");
+
+        // Regular user cannot create a shared dashboard
+        await Assert.Throws<PermissionDeniedException>(() => dash.SaveDashboardAsync(andi, new DashboardDef { Name = "Fake Shared", IsShared = true }), "user biasa tidak boleh membuat shared dashboard");
+
+        // 3. Regular user (Andi) creates his own personal dashboard and adds allowed widgets
+        var andiDash = await dash.SaveDashboardAsync(andi, new DashboardDef
+        {
+            Name = "Andi Personal Dashboard",
+            Description = "My daily metrics"
+        });
+        Assert.True(!andiDash.IsShared && andiDash.OwnerId == andi.Id, "dashboard personal milik andi");
+        andiDash = await dash.AddWidgetToDashboardAsync(andi, andiDash.Id, wPublic.Id, span: 3);
+        Assert.Equal(1, andiDash.Layout.Items.Count, "andi menambahkan public widget ke dashboard pribadinya");
+        Assert.Equal(3, andiDash.Layout.Items[0].Span, "span tersimpan");
+
+        // Andi cannot add Manager-only widget to his personal dashboard
+        await Assert.Throws<PermissionDeniedException>(() => dash.AddWidgetToDashboardAsync(andi, andiDash.Id, wManager.Id), "andi ditolak menambahkan widget khusus Manager");
+
+        // Dewi (Manager) can create her own personal dashboard and add the Manager widget
+        var dewiDash = await dash.SaveDashboardAsync(dewi, new DashboardDef { Name = "Dewi Manager Board" });
+        dewiDash = await dash.AddWidgetToDashboardAsync(dewi, dewiDash.Id, wManager.Id, span: 2);
+        Assert.Equal(1, dewiDash.Layout.Items.Count, "dewi berhasil menambahkan widget Manager");
+
+        // Isolation between personal dashboards: Dewi cannot see or edit Andi's personal dashboard
+        Assert.True(await dash.GetDashboardAsync(dewi, andiDash.Id) is null, "dewi tidak bisa melihat dashboard pribadi andi");
+        await Assert.Throws<PermissionDeniedException>(() => dash.DeleteDashboardAsync(dewi, andiDash.Id), "dewi tidak bisa menghapus dashboard pribadi andi");
+
+        // Deleting a widget from the catalog automatically cleans it up from all dashboards
+        await dash.DeleteAsync(admin, wPublic.Id);
+        var refreshedAndi = (await dash.GetDashboardAsync(andi, andiDash.Id))!;
+        Assert.Equal(0, refreshedAndi.Layout.Items.Count, "widget yang dihapus admin otomatis hilang dari dashboard user");
+    }
+
     private IReportingQueryExecutor Exec => sp.GetRequiredService<IReportingQueryExecutor>();
     private async Task<QueryResultSet> Sql(string tenant, string sql, params object?[] args)
     {
