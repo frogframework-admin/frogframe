@@ -166,6 +166,9 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton(sp => new PublicUrlResolver(
             sp.GetService<IConfiguration>()?[PublicUrlOptions.ConfigKey],
             allowRequestFallback: sp.GetService<IHostEnvironment>()?.IsDevelopment() ?? false));
+        // Automation identity & secret protection (Phase 3 foundations).
+        services.TryAddSingleton<IAutomationIdentity, AutomationIdentity>();
+        services.TryAddSingleton<ISecretProtector, DataProtectionSecretProtector>();
         services.AddSingleton<ApiMethodRegistry>();
         services.TryAddSingleton<IQueryApiStore, InMemoryQueryApiStore>();
         services.AddSingleton<QueryApiService>();

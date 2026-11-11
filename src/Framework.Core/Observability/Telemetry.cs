@@ -33,5 +33,18 @@ public static class FrogFrameTelemetry
 
     public static readonly Counter<long> HttpErrors =
         Meter.CreateCounter<long>("frogframe.http.errors", "errors", "Count of unhandled HTTP server exceptions captured");
+
+    // Automation & Integration Metrics (Phase 3)
+    public static readonly Counter<long> WebhooksDispatched =
+        Meter.CreateCounter<long>("frogframe.webhooks.dispatched", "deliveries", "Count of outgoing webhook deliveries attempted");
+
+    public static readonly Counter<long> WebhooksFailed =
+        Meter.CreateCounter<long>("frogframe.webhooks.failed", "failures", "Count of outgoing webhook delivery failures");
+
+    public static readonly Counter<long> AutoRepeatRuns =
+        Meter.CreateCounter<long>("frogframe.autorepeat.runs", "runs", "Count of recurring document auto-repeat executions");
+
+    public static readonly Counter<long> ServerScriptRuns =
+        Meter.CreateCounter<long>("frogframe.scripts.runs", "runs", "Count of dynamic C# server scripts executed");
 }
 

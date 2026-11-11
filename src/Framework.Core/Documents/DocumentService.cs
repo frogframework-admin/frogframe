@@ -2,6 +2,7 @@ using System.Globalization;
 using Framework.Expressions;
 using Framework.Files;
 using Framework.Hooks;
+using Framework.Jobs;
 using Framework.Metadata;
 using Framework.Observability;
 using Framework.Persistence;
@@ -408,7 +409,7 @@ public sealed class DocumentService(
         using var finalNameScope = hooks.EnterDocument(docType, p.Doc.Name);
         var uow = new UnitOfWork();
         uow.Upserts.Add((p.Doc, null));
-        p.Ctx.Events.Add(Event(p.Doc, "document.inserted", user));
+        p.Ctx.Events.Add(Event(p.Doc, EventTypes.DocumentInserted, user));
         await FinishAsync(p.Ctx, p.Doc, uow, Audit(p.Doc, user, auditAction, Diff(p.Meta, null, p.Doc)), ct);
         return RedactForRead(user, p.Meta, p.Doc);
     }
@@ -489,7 +490,7 @@ public sealed class DocumentService(
                 ThrowIfErrors(p.Ctx);
                 uow.Upserts.Add((p.Doc, null));
                 if (p.Meta.Def.Document.TrackChanges) uow.Audits.Add(Audit(p.Doc, user, auditAction, Diff(p.Meta, null, p.Doc)));
-                p.Ctx.Events.Add(Event(p.Doc, "document.inserted", user));
+                p.Ctx.Events.Add(Event(p.Doc, EventTypes.DocumentInserted, user));
                 uow.Outbox.AddRange(p.Ctx.Events);
                 if (p.Ctx.Ledger.Count > 0)
                 {
@@ -545,7 +546,7 @@ public sealed class DocumentService(
         var changes = Diff(meta, current, doc);
         var uow = new UnitOfWork();
         uow.Upserts.Add((doc, expectedVersion));
-        if (changes.Count > 0) ctx.Events.Add(Event(doc, "document.updated", user));
+        if (changes.Count > 0) ctx.Events.Add(Event(doc, EventTypes.DocumentUpdated, user));
         await FinishAsync(ctx, doc, uow, changes.Count > 0 ? Audit(doc, user, "Diubah", changes) : null, ct);
         return RedactForRead(user, meta, doc);
     }
@@ -583,7 +584,7 @@ public sealed class DocumentService(
         var uow = new UnitOfWork();
         uow.Deletes.Add((user.TenantId, docType, name, expectedVersion));
         uow.Audits.Add(Audit(current, user, "Dihapus", []));
-        uow.Outbox.Add(Event(current, "document.deleted", user));
+        uow.Outbox.Add(Event(current, EventTypes.DocumentDeleted, user));
         uow.Outbox.AddRange(deleteEvents);
         await store.CommitAsync(uow, ct);
         FrogFrameTelemetry.DocumentOperations.Add(1, new KeyValuePair<string, object?>("doctype", docType), new KeyValuePair<string, object?>("operation", "Delete"));
@@ -670,7 +671,7 @@ public sealed class DocumentService(
 
         var uow = new UnitOfWork();
         uow.Upserts.Add((doc, expectedVersion));
-        var evt = Event(doc, meta.Workflow is not null ? "workflow.transitioned" : $"document.{action}", user);
+        var evt = Event(doc, meta.Workflow is not null ? EventTypes.WorkflowTransitioned : EventTypes.DocumentAction(action), user);
         evt.Payload["from"] = fromState; evt.Payload["to"] = toState; evt.Payload["action"] = action; evt.Payload["comment"] = comment;
         ctx.Events.Add(evt);
         var audit = Audit(doc, user, action, Diff(meta, current, doc)) with
@@ -703,7 +704,7 @@ public sealed class DocumentService(
         await hooks.RunAsync(DocHookStage.OnAmend, amendContext, ct, amendedDraft: doc);
         var uow = new UnitOfWork();
         uow.Upserts.Add((doc, null));
-        ctx.Events.Add(Event(doc, "document.amended", user));
+        ctx.Events.Add(Event(doc, EventTypes.DocumentAmended, user));
         await FinishAsync(ctx, doc, uow, Audit(doc, user, "Amend", []) with { Comment = $"Amend dari {source.Name}" }, ct);
         return RedactForRead(user, meta, doc);
     }

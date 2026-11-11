@@ -12,7 +12,7 @@ public sealed class NotificationRuleEventHandler(
     IMetadataProvider metadata) : IEventHandler
 {
     public bool CanHandle(string eventType) =>
-        eventType is "document.inserted" or "document.updated" or "workflow.transitioned" or "document.submit";
+        eventType is EventTypes.DocumentInserted or EventTypes.DocumentUpdated or EventTypes.WorkflowTransitioned or EventTypes.DocumentSubmit;
 
     public async Task HandleAsync(OutboxMessage m, CancellationToken ct)
     {
@@ -26,11 +26,11 @@ public sealed class NotificationRuleEventHandler(
 
         var actor = p.GetValueOrDefault("actor");
 
-        if (m.Type == "document.inserted")
+        if (m.Type == EventTypes.DocumentInserted)
         {
             await engine.EvaluateAndDispatchRulesAsync(m.TenantId, docType, doc, previous: null, NotificationTrigger.OnCreate, actor, ct);
         }
-        else if (m.Type == "document.updated")
+        else if (m.Type == EventTypes.DocumentUpdated)
         {
             var audits = await store.GetAuditAsync(m.TenantId, docType, name, ct);
             var latestAudit = audits.FirstOrDefault();
@@ -50,9 +50,9 @@ public sealed class NotificationRuleEventHandler(
             }
             await engine.EvaluateAndDispatchRulesAsync(m.TenantId, docType, doc, previous, NotificationTrigger.OnValueChange, actor, ct);
         }
-        else if (m.Type is "workflow.transitioned" or "document.submit")
+        else if (m.Type is EventTypes.WorkflowTransitioned or EventTypes.DocumentSubmit)
         {
-            var isSubmit = m.Type == "document.submit"
+            var isSubmit = m.Type == EventTypes.DocumentSubmit
                 || p.GetValueOrDefault("from") == "Draft"
                 || string.Equals(p.GetValueOrDefault("action"), "Submit", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(p.GetValueOrDefault("action"), "Ajukan", StringComparison.OrdinalIgnoreCase)
