@@ -1,6 +1,7 @@
 name: frogframe
 
-# PRODUCTION baseline. No demo data, no demo accounts, no built-in passwords.
+# Baseline configuration. Defaults to Development with demo data and demo accounts listed on the login page.
+# For Production set ASPNETCORE_ENVIRONMENT=Production and FROGFRAME_DEMO_*=false in .env.
 # All secrets come from a .env file (not tracked by git): copy .env.example to .env and fill it in.
 #
 #   cp .env.example .env
@@ -19,7 +20,7 @@ services:
     ports:
       - "${FROGFRAME_HTTP_PORT:-5080}:8080"
     environment:
-      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Development}
       # Public URL accessed by end users; used for password reset links in emails.
       - App__PublicBaseUrl=${FROGFRAME_PUBLIC_BASE_URL:?Set FROGFRAME_PUBLIC_BASE_URL in .env}
       # Host names allowed in the Host header (separated by ';'). "*" is rejected in Production.
@@ -29,9 +30,11 @@ services:
       - Persistence__Provider=PostgreSql
       - ConnectionStrings__FrogFrame=Host=postgres;Port=5432;Database=frogframe;Username=frogframe;Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       - ConnectionStrings__FrogFrameReadOnly=Host=postgres;Port=5432;Database=frogframe;Username=frogframe_ro;Password=${FROGFRAME_RO_PASSWORD:?Set FROGFRAME_RO_PASSWORD in .env}
-      # Demo data and demo accounts are always off in this baseline.
-      - Demo__SeedData=false
-      - Demo__ShowAccounts=false
+      # Demo mode (default for Development): creates demo accounts + sample data and lists the accounts on the login page.
+      # For Production set FROGFRAME_DEMO_SEED_DATA=false and FROGFRAME_DEMO_SHOW_ACCOUNTS=false in .env.
+      - Demo__SeedData=${FROGFRAME_DEMO_SEED_DATA:-true}
+      - Demo__ShowAccounts=${FROGFRAME_DEMO_SHOW_ACCOUNTS:-true}
+      - Demo__Password=${FROGFRAME_DEMO_PASSWORD:-FrogFrame#2026}
       # Initial admin. Only created when the account does not exist yet; change the password after first login.
       - Bootstrap__AdminUserName=${FROGFRAME_ADMIN_USER:-admin}
       - Bootstrap__AdminPassword=${FROGFRAME_ADMIN_PASSWORD:?Set FROGFRAME_ADMIN_PASSWORD in .env}

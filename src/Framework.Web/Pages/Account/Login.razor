@@ -63,11 +63,11 @@
                 <button type="submit" class="auth-button">Log in</button>
             </EditForm>
 
-            @if (Config.GetValue<bool>("Demo:ShowAccounts"))
+            @if (Env.IsDevelopment() || Config.GetValue<bool>("Demo:ShowAccounts"))
             {
-                <details class="auth-demo">
-                    <summary>Demo accounts (development environment only)</summary>
-                    <p>Password for all accounts: <code>@Config["Demo:Password"]</code></p>
+                <details class="auth-demo" open>
+                    <summary>Demo accounts (development / demo environment only)</summary>
+                    <p>Password for all accounts: <code>@(Config["Demo:Password"] ?? "FrogFrame#2026")</code></p>
                     <p><code>andi</code> · <code>sari</code> requester · <code>budi</code> · <code>maya</code> manager · <code>dewi</code> finance · <code>rina</code> procurement · <code>admin</code> System Manager · <code>tono</code> globex tenant</p>
                 </details>
             }

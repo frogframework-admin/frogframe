@@ -10,7 +10,7 @@ services:
     environment:
       - Demo__SeedData=true
       - Demo__ShowAccounts=true
-      - Demo__Password=${FROGFRAME_DEMO_PASSWORD:?Set FROGFRAME_DEMO_PASSWORD in .env}
+      - Demo__Password=${FROGFRAME_DEMO_PASSWORD:-FrogFrame#2026}
       - Api__RateLimitPerMinute=10000
 
   postgres:

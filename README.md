@@ -123,12 +123,14 @@ dotnet run --project src/Apps.Sample --Persistence:Provider=PostgreSql
 ```bash
 cp .env.example .env   # fill in passwords, FROGFRAME_PUBLIC_BASE_URL and FROGFRAME_ALLOWED_HOSTS
 
-# Production baseline: no demo data, no demo accounts, PostgreSQL not exposed to the host
+# Default (Development): demo data + demo accounts listed on the login page, PostgreSQL not exposed to the host
 docker compose up -d
 
-# Demo: adds sample data, demo accounts on the login page, and PostgreSQL on 127.0.0.1:5432
+# Demo override: same as above plus PostgreSQL on 127.0.0.1:5432
 docker compose -f docker-compose.yml -f docker-compose.demo.yml up -d
 ```
+
+For Production, set `ASPNETCORE_ENVIRONMENT=Production`, `FROGFRAME_DEMO_SEED_DATA=false`, and `FROGFRAME_DEMO_SHOW_ACCOUNTS=false` in `.env`. The demo account list is shown on the login page only in Development or when `Demo:ShowAccounts` is `true`.
 
 Outside the Development environment the application refuses to start unless `App:PublicBaseUrl` is an absolute URL and `AllowedHosts` lists explicit host names (not `*`).
 
