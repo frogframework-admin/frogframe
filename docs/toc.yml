@@ -8,6 +8,8 @@
       href: PROJECT_STRUCTURE.md
     - name: Roadmap & Status
       href: project-status-roadmap.md
+    - name: High-Priority Gaps (Frappe Parity)
+      href: high-priority-gaps.md
     - name: Production Readiness
       href: production-readiness.md
 - name: Core Guides & Features

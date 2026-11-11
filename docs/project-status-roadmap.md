@@ -52,6 +52,9 @@ This document summarizes the current development status of FrogFramework, includ
 
 ## 3. Feature Backlog & Roadmap (Unfinished Items)
 
+> [!IMPORTANT]
+> A detailed architectural gap analysis and engineering blueprint comparing FrogFrame to Frappe Framework is available in [High-Priority Platform Gaps: Frappe Parity & Enterprise Extensibility](high-priority-gaps.md). It details solutions for Customization Overlays (Custom Field / Property Setter), Roslyn C# Server & Client Scripting, Document Collaboration, Record Sharing, Webhooks, and Enterprise 2FA/SSO.
+
 ### Priority 1: Pilot Daily Operations & Essential Workflows (P1)
 
 | Code | Module / Feature | Description | Urgency |
