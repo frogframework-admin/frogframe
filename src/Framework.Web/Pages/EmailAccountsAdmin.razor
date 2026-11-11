@@ -1,0 +1,668 @@
+@page "/admin/email-accounts"
+@using Framework.Communication
+@using Framework.Metadata
+@using Framework.Security
+@using Framework.Web.Services
+@inject IEmailAccountStore AccountStore
+@inject ICommunicationStore CommStore
+@inject CommunicationService CommService
+@inject IMailboxReader MailboxReader
+@inject ISecretProtector SecretProtector
+@inject IMetadataProvider Metadata
+@inject CurrentUser Current
+@inject ToastService Toasts
+@inject DialogService Dialogs
+@inject TimeProvider Clock
+@inject Framework.Preferences.IUserPreferenceStore UserPrefs
+@implements IDisposable
+
+<PageTitle>Email Accounts · FrogFrame</PageTitle>
+
+@if (!Current.Required.IsAdmin)
+{
+    <ErrorState StatusCode="403" Description="This administration page is restricted to System Managers / Administrators." />
+}
+else
+{
+    <header class="page-head">
+        <div>
+            <h1>Email Accounts</h1>
+            <p>Configure incoming IMAP email accounts for automatic ticket creation, document append, and communication threading.</p>
+        </div>
+        <div class="row" style="gap:.5rem">
+            <BbButton Variant="ButtonVariant.Outline" OnClick="OpenUnlinkedDrawer">
+                <LucideIcon Name="link-2" Size="16" /> Unlinked Emails (@unlinkedEmails.Count)
+            </BbButton>
+            <BbButton OnClick="StartCreate">
+                <LucideIcon Name="plus" Size="16" /> New Email Account
+            </BbButton>
+        </div>
+    </header>
+
+    @if (errorMessage is not null)
+    {
+        <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@errorMessage</BbAlertDescription></BbAlert>
+    }
+
+    <BbDataGrid @key="gridMgr.RenderKey"
+                TData="EmailAccount"
+                Items="accounts"
+                AriaLabel="Email Accounts"
+                OnColumnResize="gridMgr.HandleResize"
+                StateChanged="gridMgr.HandleStateChanged">
+        <Toolbar>
+            <div class="row" style="gap:.5rem;width:100%;justify-content:flex-end">
+                @if (gridMgr.HasCustomLayout)
+                {
+                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ResetColumnsLayout" Title="Reset column layout to default">
+                        <LucideIcon Name="rotate-ccw" Size="14" />
+                        <span>Reset Columns</span>
+                    </BbButton>
+                }
+                <BbDataGridColumnVisibility TData="EmailAccount" />
+            </div>
+        </Toolbar>
+        <Columns>
+            <BbDataGridPropertyColumn TData="EmailAccount" TProp="string" Property="a => a.Name" Id="name" Title="Account Name"
+                                      Width="@gridMgr.GetWidth("name", "14rem")" Visible="@gridMgr.IsVisible("name")" Resizable="true" Sortable="true">
+                <CellTemplate Context="r">
+                    <div style="font-weight:600">@r.Name</div>
+                    <div style="font-size:.75rem;color:var(--bb-muted-foreground)">@r.EmailAddress</div>
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridPropertyColumn TData="EmailAccount" TProp="string" Property="a => a.ImapHost" Id="server" Title="IMAP Server"
+                                      Width="@gridMgr.GetWidth("server", "14rem")" Visible="@gridMgr.IsVisible("server")" Resizable="true" Sortable="true">
+                <CellTemplate Context="r">
+                    <div>@r.ImapHost:@r.ImapPort</div>
+                    <div style="font-size:.75rem;color:var(--bb-muted-foreground)">
+                        @(r.UseSsl ? "SSL/TLS" : "Plain/STARTTLS") · Folder: @r.Folder
+                    </div>
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridPropertyColumn TData="EmailAccount" TProp="string" Property='@(a => a.AppendToDocType ?? "")' Id="append" Title="Append To"
+                                      Width="@gridMgr.GetWidth("append", "11rem")" Visible="@gridMgr.IsVisible("append")" Resizable="true" Sortable="true">
+                <CellTemplate Context="r">
+                    @if (!string.IsNullOrEmpty(r.AppendToDocType))
+                    {
+                        <BbBadge Variant="BadgeVariant.Outline">@r.AppendToDocType</BbBadge>
+                    }
+                    else
+                    {
+                        <span style="color:var(--bb-muted-foreground);font-size:.875rem">Threading Only</span>
+                    }
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridPropertyColumn TData="EmailAccount" TProp="bool" Property="a => a.IsActive" Id="status" Title="Status"
+                                      Width="@gridMgr.GetWidth("status", "8rem")" Visible="@gridMgr.IsVisible("status")" Resizable="true" Sortable="true">
+                <CellTemplate Context="r">
+                    @if (r.IsActive)
+                    {
+                        <BbBadge Variant="BadgeVariant.SoftSuccess">Active</BbBadge>
+                    }
+                    else
+                    {
+                        <BbBadge Variant="BadgeVariant.Secondary">Disabled</BbBadge>
+                    }
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridTemplateColumn TData="EmailAccount" Id="polling" Title="Polling Status"
+                                      Width="@gridMgr.GetWidth("polling", "16rem")" Visible="@gridMgr.IsVisible("polling")">
+                <ChildContent Context="r">
+                    @if (r.LastPolledAt.HasValue)
+                    {
+                        <div style="font-size:.875rem">@r.LastPolledAt.Value.ToString("yyyy-MM-dd HH:mm:ss")</div>
+                        @if (!string.IsNullOrEmpty(r.LastError))
+                        {
+                            <div style="font-size:.75rem;color:var(--bb-danger);text-overflow:ellipsis;overflow:hidden;white-space:nowrap" title="@r.LastError">
+                                Error: @r.LastError
+                            </div>
+                        }
+                        else
+                        {
+                            <div style="font-size:.75rem;color:var(--bb-muted-foreground)">UID: @r.LastUid (Validity: @r.UidValidity)</div>
+                        }
+                    }
+                    else
+                    {
+                        <span style="color:var(--bb-muted-foreground);font-size:.875rem">Never polled</span>
+                    }
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+
+            <BbDataGridTemplateColumn TData="EmailAccount" Id="actions" Title="Actions"
+                                      Width="@gridMgr.GetWidth("actions", "11rem")" Visible="@gridMgr.IsVisible("actions")">
+                <ChildContent Context="r">
+                    <div style="display:flex;gap:.35rem">
+                        <BbButton Size="ButtonSize.Small" Variant="ButtonVariant.Outline" OnClick="() => TestConnection(r)" Title="Test IMAP connection">
+                            <LucideIcon Name="plug" Size="14" />
+                        </BbButton>
+                        <BbButton Size="ButtonSize.Small" Variant="ButtonVariant.Ghost" OnClick="() => StartEdit(r)" Title="Edit Account">
+                            <LucideIcon Name="pencil" Size="14" />
+                        </BbButton>
+                        <BbButton Size="ButtonSize.Small" Variant="ButtonVariant.Ghost" OnClick="() => DeleteAccount(r)" Title="Delete Account">
+                            <LucideIcon Name="trash" Size="14" />
+                        </BbButton>
+                    </div>
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+        </Columns>
+    </BbDataGrid>
+
+    <!-- Create / Edit Account Drawer -->
+    <AdminDrawer Open="@isDrawerOpen"
+                 OpenChanged="v => isDrawerOpen = v"
+                 Title="@(editingAccount?.Id == Guid.Empty ? "New Email Account" : $"Edit Email Account · {editingAccount?.Name}")"
+                 WidthScale="1.5">
+        <ChildContent>
+            @if (drawerError is not null)
+            {
+                <BbAlert Variant="AlertVariant.Danger" Style="margin-bottom:1rem">
+                    <BbAlertDescription>@drawerError</BbAlertDescription>
+                </BbAlert>
+            }
+
+            <div style="display:flex;flex-direction:column;gap:1.25rem">
+                <div class="form-cols cols-2">
+                    <div>
+                        <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">Account Name *</label>
+                        <BbInput @bind-Value="formName" Placeholder="e.g. Support Desk" />
+                    </div>
+                    <div>
+                        <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">Email Address *</label>
+                        <BbInput @bind-Value="formEmailAddress" Placeholder="support@company.com" />
+                    </div>
+                </div>
+
+                <div class="form-cols cols-3">
+                    <div>
+                        <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">IMAP Host *</label>
+                        <BbInput @bind-Value="formImapHost" Placeholder="imap.example.com" />
+                    </div>
+                    <div>
+                        <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">IMAP Port *</label>
+                        <BbInput @bind-Value="formImapPortStr" Placeholder="993" />
+                    </div>
+                    <div>
+                        <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">Folder</label>
+                        <BbInput @bind-Value="formFolder" Placeholder="INBOX" />
+                    </div>
+                </div>
+
+                <div class="form-cols cols-2">
+                    <div>
+                        <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">Username *</label>
+                        <BbInput @bind-Value="formUsername" Placeholder="username or email" />
+                    </div>
+                    <div>
+                        <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">
+                            Password @(editingAccount?.Id != Guid.Empty ? "(Leave blank to keep current)" : "*")
+                        </label>
+                        <BbInput Type="InputType.Password" @bind-Value="formPassword" Placeholder="Password / App Password" />
+                    </div>
+                </div>
+
+                <div style="display:flex;align-items:center;gap:1.5rem">
+                    <div style="display:flex;align-items:center;gap:.5rem">
+                        <BbSwitch @bind-Value="formUseSsl" Id="use-ssl" />
+                        <label for="use-ssl" style="cursor:pointer;font-weight:500">Use SSL/TLS</label>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:.5rem">
+                        <BbSwitch @bind-Value="formIsActive" Id="is-active" />
+                        <label for="is-active" style="cursor:pointer;font-weight:500">Active</label>
+                    </div>
+                </div>
+
+                <hr style="border:none;border-top:1px solid var(--bb-border);margin:.25rem 0;" />
+
+                <div class="form-cols cols-2">
+                    <div>
+                        <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">Append To DocType (Optional)</label>
+                        <BbSelect TValue="string" Value="@formAppendToDocType" ValueChanged="OnAppendToDocTypeChanged" Options="DocTypeOptions" />
+                        <div style="font-size:.75rem;color:var(--bb-muted-foreground);margin-top:.25rem">
+                            If unthreaded, automatically insert a new document of this DocType.
+                        </div>
+                    </div>
+                    <div>
+                        <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">Service User ID *</label>
+                        <BbInput @bind-Value="formServiceUserId" Placeholder="User ID (e.g. system_support or admin)" />
+                        <div style="font-size:.75rem;color:var(--bb-muted-foreground);margin-top:.25rem">
+                            Documents will be created as this user, enforcing permissions and audit trails.
+                        </div>
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrEmpty(formAppendToDocType))
+                {
+                    <div>
+                        <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">Field Map (JSON)</label>
+                        <BbTextarea @bind-Value="formFieldMapRaw" Rows="3" Placeholder="{ &quot;title&quot;: &quot;subject&quot;, &quot;description&quot;: &quot;content_text&quot; }" />
+                        <div style="font-size:.75rem;color:var(--bb-muted-foreground);margin-top:.25rem">
+                            Supported source values: "subject", "sender", "content_text", "content_html", "date".
+                        </div>
+                    </div>
+                }
+            </div>
+        </ChildContent>
+        <FooterContent>
+            <div style="display:flex;justify-content:space-between;width:100%">
+                <BbButton Variant="ButtonVariant.Outline" OnClick="TestDraftConnection">
+                    <LucideIcon Name="plug" Size="14" /> Test Connection
+                </BbButton>
+                <div style="display:flex;gap:.5rem">
+                    <BbButton Variant="ButtonVariant.Ghost" OnClick="CloseDrawer">Cancel</BbButton>
+                    <BbButton OnClick="SaveAccount">Save Account</BbButton>
+                </div>
+            </div>
+        </FooterContent>
+    </AdminDrawer>
+
+    <!-- Unlinked Communications Drawer -->
+    <AdminDrawer Open="@isUnlinkedDrawerOpen"
+                 OpenChanged="v => isUnlinkedDrawerOpen = v"
+                 Title="Unlinked Incoming Emails"
+                 WidthScale="1.8">
+        <ChildContent>
+            @if (unlinkedEmails.Count == 0)
+            {
+                <div style="text-align:center;padding:2rem;color:var(--bb-muted-foreground)">
+                    <LucideIcon Name="inbox" Size="32" style="margin-bottom:.5rem;opacity:.5" />
+                    <p>No unlinked incoming emails found.</p>
+                </div>
+            }
+            else
+            {
+                <div style="display:flex;flex-direction:column;gap:.75rem">
+                    @foreach (var comm in unlinkedEmails)
+                    {
+                        <div style="border:1px solid var(--bb-border);border-radius:.375rem;padding:.75rem;background:var(--bb-bg-card)">
+                            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.35rem">
+                                <div>
+                                    <div style="font-weight:600">@comm.Subject</div>
+                                    <div style="font-size:.75rem;color:var(--bb-muted-foreground)">
+                                        From: @comm.Sender · @comm.OccurredAt.ToString("yyyy-MM-dd HH:mm:ss")
+                                    </div>
+                                </div>
+                                <div style="display:flex;gap:.35rem">
+                                    <BbButton Size="ButtonSize.Small" Variant="ButtonVariant.Outline" OnClick="() => StartLinkEmail(comm)">
+                                        <LucideIcon Name="link" Size="14" /> Link to Document
+                                    </BbButton>
+                                </div>
+                            </div>
+                            <div style="font-size:.875rem;color:var(--bb-foreground);max-height:4rem;overflow:hidden;text-overflow:ellipsis">
+                                @(comm.ContentText ?? "(No plain text content)")
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+
+            @if (linkingEntry is not null)
+            {
+                <div style="margin-top:1.5rem;padding:1rem;border:1px solid var(--bb-primary);border-radius:.375rem;background:var(--bb-bg-muted)">
+                    <h4 style="margin-top:0;margin-bottom:.5rem">Link Email: @linkingEntry.Subject</h4>
+                    <div class="form-cols cols-2" style="margin-bottom:.75rem">
+                        <div>
+                            <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">Target DocType</label>
+                            <BbSelect TValue="string" @bind-Value="linkDocType" Options="DocTypeOptions" />
+                        </div>
+                        <div>
+                            <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">Document Name / ID</label>
+                            <BbInput @bind-Value="linkDocName" Placeholder="e.g. PR-2026-0001" />
+                        </div>
+                    </div>
+                    <div style="display:flex;justify-content:flex-end;gap:.5rem">
+                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="() => linkingEntry = null">Cancel</BbButton>
+                        <BbButton Size="ButtonSize.Small" OnClick="ExecuteLinkEmail">Confirm Link</BbButton>
+                    </div>
+                </div>
+            }
+        </ChildContent>
+        <FooterContent>
+            <div style="display:flex;justify-content:flex-end;width:100%">
+                <BbButton Variant="ButtonVariant.Ghost" OnClick="() => isUnlinkedDrawerOpen = false">Close</BbButton>
+            </div>
+        </FooterContent>
+    </AdminDrawer>
+}
+
+@code {
+    private List<EmailAccount> accounts = [];
+    private List<CommunicationEntry> unlinkedEmails = [];
+    private string? errorMessage;
+    private string? drawerError;
+
+    private bool isDrawerOpen;
+    private bool isUnlinkedDrawerOpen;
+    private EmailAccount? editingAccount;
+
+    // Form fields
+    private string formName = "";
+    private string formEmailAddress = "";
+    private string formImapHost = "";
+    private string formImapPortStr = "993";
+    private bool formUseSsl = true;
+    private string formFolder = "INBOX";
+    private string formUsername = "";
+    private string formPassword = "";
+    private string formAppendToDocType = "";
+    private string formFieldMapRaw = "{}";
+    private string formServiceUserId = "";
+    private bool formIsActive = true;
+
+    // Linking fields
+    private CommunicationEntry? linkingEntry;
+    private string linkDocType = "";
+    private string linkDocName = "";
+
+    private List<SelectOption<string>> DocTypeOptions = [];
+
+    private DataGridPreferenceManager<EmailAccount> gridMgr = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        gridMgr = new DataGridPreferenceManager<EmailAccount>(
+            UserPrefs,
+            Current,
+            "grid:admin:email-accounts",
+            StateHasChanged);
+
+        await gridMgr.InitializeAsync();
+        LoadDocTypeOptions();
+        await RefreshAsync();
+    }
+
+    private async Task ResetColumnsLayout()
+    {
+        await gridMgr.ResetAsync();
+    }
+
+    private void LoadDocTypeOptions()
+    {
+        DocTypeOptions =
+        [
+            new SelectOption<string>("", "-- None (Threading Only) --"),
+            .. Metadata.Current.DocTypes.Values
+                .Where(dt => !dt.Def.IsChild)
+                .OrderBy(dt => dt.Def.Title ?? dt.Def.Name)
+                .Select(dt => new SelectOption<string>(dt.Def.Name, $"{dt.Def.Title ?? dt.Def.Name} ({dt.Def.Name})"))
+        ];
+    }
+
+    private async Task RefreshAsync()
+    {
+        errorMessage = null;
+        try
+        {
+            var list = await AccountStore.ListByTenantAsync(Current.Required.TenantId);
+            accounts = list.ToList();
+            unlinkedEmails = (await CommStore.ListUnlinkedAsync(Current.Required.TenantId, 50)).ToList();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Failed to load email accounts: " + ex.Message;
+        }
+    }
+
+    private void StartCreate()
+    {
+        editingAccount = new EmailAccount { Id = Guid.Empty, TenantId = Current.Required.TenantId };
+        formName = "";
+        formEmailAddress = "";
+        formImapHost = "";
+        formImapPortStr = "993";
+        formUseSsl = true;
+        formFolder = "INBOX";
+        formUsername = "";
+        formPassword = "";
+        formAppendToDocType = "";
+        formFieldMapRaw = "{\n  \"title\": \"subject\",\n  \"description\": \"content_text\"\n}";
+        formServiceUserId = Current.Required.Id;
+        formIsActive = true;
+        drawerError = null;
+        isDrawerOpen = true;
+    }
+
+    private void StartEdit(EmailAccount account)
+    {
+        editingAccount = account;
+        formName = account.Name;
+        formEmailAddress = account.EmailAddress;
+        formImapHost = account.ImapHost;
+        formImapPortStr = account.ImapPort.ToString();
+        formUseSsl = account.UseSsl;
+        formFolder = account.Folder;
+        formUsername = account.Username;
+        formPassword = ""; // don't expose password
+        formAppendToDocType = account.AppendToDocType ?? "";
+        formFieldMapRaw = System.Text.Json.JsonSerializer.Serialize(account.FieldMap, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+        formServiceUserId = account.ServiceUserId;
+        formIsActive = account.IsActive;
+        drawerError = null;
+        isDrawerOpen = true;
+    }
+
+    private void CloseDrawer()
+    {
+        isDrawerOpen = false;
+        editingAccount = null;
+    }
+
+    private void OnAppendToDocTypeChanged(string val)
+    {
+        formAppendToDocType = val;
+    }
+
+    private async Task SaveAccount()
+    {
+        drawerError = null;
+
+        if (string.IsNullOrWhiteSpace(formName))
+        {
+            drawerError = "Account Name is required.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(formEmailAddress))
+        {
+            drawerError = "Email Address is required.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(formImapHost))
+        {
+            drawerError = "IMAP Host is required.";
+            return;
+        }
+
+        if (!int.TryParse(formImapPortStr, out var port) || port <= 0)
+        {
+            drawerError = "IMAP Port must be a positive integer.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(formUsername))
+        {
+            drawerError = "Username is required.";
+            return;
+        }
+
+        if (editingAccount?.Id == Guid.Empty && string.IsNullOrWhiteSpace(formPassword))
+        {
+            drawerError = "Password is required for new accounts.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(formServiceUserId))
+        {
+            drawerError = "Service User ID is required.";
+            return;
+        }
+
+        Dictionary<string, string> fieldMap = [];
+        if (!string.IsNullOrWhiteSpace(formFieldMapRaw))
+        {
+            try
+            {
+                fieldMap = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(formFieldMapRaw) ?? [];
+            }
+            catch (Exception ex)
+            {
+                drawerError = "Invalid Field Map JSON: " + ex.Message;
+                return;
+            }
+        }
+
+        string passwordEnc = editingAccount?.PasswordEnc ?? "";
+        if (!string.IsNullOrWhiteSpace(formPassword))
+        {
+            passwordEnc = SecretProtector.Protect(formPassword);
+        }
+
+        var now = Clock.GetUtcNow();
+        var isNew = editingAccount?.Id == Guid.Empty;
+        var account = new EmailAccount
+        {
+            Id = isNew ? Guid.NewGuid() : editingAccount!.Id,
+            TenantId = Current.Required.TenantId,
+            Name = formName.Trim(),
+            EmailAddress = formEmailAddress.Trim(),
+            ImapHost = formImapHost.Trim(),
+            ImapPort = port,
+            UseSsl = formUseSsl,
+            Username = formUsername.Trim(),
+            PasswordEnc = passwordEnc,
+            Folder = string.IsNullOrWhiteSpace(formFolder) ? "INBOX" : formFolder.Trim(),
+            AppendToDocType = string.IsNullOrWhiteSpace(formAppendToDocType) ? null : formAppendToDocType.Trim(),
+            FieldMap = fieldMap,
+            ServiceUserId = formServiceUserId.Trim(),
+            UidValidity = isNew ? 0 : editingAccount!.UidValidity,
+            LastUid = isNew ? 0 : editingAccount!.LastUid,
+            IsActive = formIsActive,
+            LastPolledAt = isNew ? null : editingAccount!.LastPolledAt,
+            LastError = isNew ? null : editingAccount!.LastError,
+            CreatedAt = isNew ? now : editingAccount!.CreatedAt,
+            ModifiedAt = now
+        };
+
+        try
+        {
+            await AccountStore.SaveAsync(account);
+            Toasts.Success($"Email account '{account.Name}' saved.", "Success");
+            CloseDrawer();
+            await RefreshAsync();
+        }
+        catch (Exception ex)
+        {
+            drawerError = "Failed to save account: " + ex.Message;
+        }
+    }
+
+    private async Task TestConnection(EmailAccount account)
+    {
+        try
+        {
+            var rawPass = SecretProtector.Unprotect(account.PasswordEnc);
+            var folderInfo = await MailboxReader.OpenFolderAsync(account, rawPass);
+            Toasts.Success($"Connected successfully! Folder '{account.Folder}' has {folderInfo.MessageCount} message(s). UIDVALIDITY: {folderInfo.UidValidity}", "Connection Successful");
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error($"IMAP Connection Failed: {ex.Message}", "Connection Error");
+        }
+    }
+
+    private async Task TestDraftConnection()
+    {
+        drawerError = null;
+        var passToTest = !string.IsNullOrWhiteSpace(formPassword)
+            ? formPassword
+            : (editingAccount is not null ? SecretProtector.Unprotect(editingAccount.PasswordEnc) : "");
+
+        if (string.IsNullOrWhiteSpace(passToTest))
+        {
+            drawerError = "Password must be provided to test connection.";
+            return;
+        }
+
+        if (!int.TryParse(formImapPortStr, out var port))
+            port = 993;
+
+        var draft = new EmailAccount
+        {
+            TenantId = Current.Required.TenantId,
+            Name = formName,
+            EmailAddress = formEmailAddress,
+            ImapHost = formImapHost,
+            ImapPort = port,
+            UseSsl = formUseSsl,
+            Folder = string.IsNullOrWhiteSpace(formFolder) ? "INBOX" : formFolder,
+            Username = formUsername
+        };
+
+        try
+        {
+            var folderInfo = await MailboxReader.OpenFolderAsync(draft, passToTest);
+            Toasts.Success($"Connected! Folder '{draft.Folder}' contains {folderInfo.MessageCount} messages.", "Connection OK");
+        }
+        catch (Exception ex)
+        {
+            drawerError = "Connection test failed: " + ex.Message;
+        }
+    }
+
+    private async Task DeleteAccount(EmailAccount account)
+    {
+        var confirm = await Dialogs.ConfirmAsync(
+            "Delete Email Account",
+            $"Are you sure you want to delete '{account.Name}'? Previously recorded communications will remain intact.");
+
+        if (confirm.Confirmed)
+        {
+            await AccountStore.DeleteAsync(Current.Required.TenantId, account.Id);
+            Toasts.Success($"Account '{account.Name}' deleted.", "Deleted");
+            await RefreshAsync();
+        }
+    }
+
+    private void OpenUnlinkedDrawer()
+    {
+        isUnlinkedDrawerOpen = true;
+        linkingEntry = null;
+    }
+
+    private void StartLinkEmail(CommunicationEntry entry)
+    {
+        linkingEntry = entry;
+        linkDocType = DocTypeOptions.FirstOrDefault(d => !string.IsNullOrEmpty(d.Value))?.Value ?? "";
+        linkDocName = "";
+    }
+
+    private async Task ExecuteLinkEmail()
+    {
+        if (linkingEntry is null || string.IsNullOrWhiteSpace(linkDocType) || string.IsNullOrWhiteSpace(linkDocName))
+        {
+            Toasts.Error("Please specify DocType and Document Name.", "Validation Error");
+            return;
+        }
+
+        try
+        {
+            await CommService.LinkAsync(Current.Required, linkingEntry.Id, linkDocType.Trim(), linkDocName.Trim());
+            Toasts.Success("Email linked to document successfully.", "Linked");
+            linkingEntry = null;
+            await RefreshAsync();
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error("Failed to link email: " + ex.Message, "Error");
+        }
+    }
+
+    public void Dispose()
+    {
+    }
+}

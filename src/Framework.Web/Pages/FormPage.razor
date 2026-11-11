@@ -1,6 +1,8 @@
 @page "/app/{DocType}/{Name}"
 @implements IAsyncDisposable
 @using System.Text.Json
+@using Framework.Communication
+@using Framework.Email
 @using Framework.Files
 @using Framework.Presence
 @using Framework.Integrations
@@ -17,6 +19,8 @@
 @inject AttachmentService Attachments
 @inject IDocumentPresenceService Presence
 @inject AutoRepeatService AutoRepeatService
+@inject CommunicationService CommService
+@inject IEmailQueue EmailQueue
 
 <PageTitle>@(meta?.Def.IsSingle == true ? meta.Title : IsNew ? $"New {meta?.Title}" : Name) · FrogFrame</PageTitle>
 
@@ -97,6 +101,10 @@ else if (meta is not null && doc is not null)
                     <LucideIcon Name="repeat" Size="16" /> Repeat
                 </BbButton>
             }
+            <BbButton Variant="ButtonVariant.Ghost" Disabled="@dirty" OnClick="OpenSendEmailDrawer"
+                      AdditionalAttributes="@(new Dictionary<string, object> { ["title"] = "Send email regarding this document" })">
+                <LucideIcon Name="mail" Size="16" /> Email
+            </BbButton>
         }
         @if (!IsNew && !meta.Def.IsSingle && doc.DocStatus == DocStatus.Draft && meta.Def.Document.AllowDelete && Perms.Can(User, meta, DocActions.Delete))
         {
@@ -155,7 +163,7 @@ else if (meta is not null && doc is not null)
             @if (!IsNew)
             {
                 <BbTabsTrigger Value="@AttachmentsTab">Attachments (@attachments.Count)</BbTabsTrigger>
-                <BbTabsTrigger Value="@HistoryTab">History</BbTabsTrigger>
+                <BbTabsTrigger Value="@HistoryTab">History & Emails (@(audit.Count + communications.Count))</BbTabsTrigger>
             }
         </BbTabsList>
 
@@ -279,7 +287,79 @@ else if (meta is not null && doc is not null)
                 </BbCard>
             </BbTabsContent>
             <BbTabsContent Value="@HistoryTab">
-                <BbCard Class="crumbs" Style="margin-top:.75rem"><BbCardContent><div style="padding-top:1.25rem"><AuditTimeline Entries="audit" /></div></BbCardContent></BbCard>
+                <BbCard Class="crumbs" Style="margin-top:.75rem">
+                    <BbCardContent>
+                        <div style="display:flex;justify-content:space-between;align-items:center;padding:1rem 0;border-bottom:1px solid var(--bb-border);margin-bottom:1rem">
+                            <div style="display:flex;gap:.5rem">
+                                <BbButton Size="ButtonSize.Small" Variant="@(historyFilter == "all" ? ButtonVariant.Default : ButtonVariant.Outline)" OnClick='() => historyFilter = "all"'>All Activity (@(audit.Count + communications.Count))</BbButton>
+                                <BbButton Size="ButtonSize.Small" Variant="@(historyFilter == "audit" ? ButtonVariant.Default : ButtonVariant.Outline)" OnClick='() => historyFilter = "audit"'>Audit Log (@audit.Count)</BbButton>
+                                <BbButton Size="ButtonSize.Small" Variant="@(historyFilter == "emails" ? ButtonVariant.Default : ButtonVariant.Outline)" OnClick='() => historyFilter = "emails"'>Emails (@communications.Count)</BbButton>
+                            </div>
+                            <BbButton Size="ButtonSize.Small" Variant="ButtonVariant.Outline" OnClick="OpenSendEmailDrawer">
+                                <LucideIcon Name="send" Size="14" /> Send Email
+                            </BbButton>
+                        </div>
+
+                        @if (historyFilter != "audit" && communications.Count > 0)
+                        {
+                            <div style="margin-bottom:1.5rem">
+                                <h4 style="margin-bottom:.75rem;font-size:.95rem;font-weight:600">Email Communications</h4>
+                                <div style="display:flex;flex-direction:column;gap:.75rem">
+                                    @foreach (var comm in communications)
+                                    {
+                                        <div style="border:1px solid var(--bb-border);border-radius:.375rem;padding:.85rem;background:var(--bb-bg-card)">
+                                            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.5rem">
+                                                <div style="display:flex;align-items:center;gap:.5rem">
+                                                    @if (comm.Direction == CommunicationDirection.In)
+                                                    {
+                                                        <BbBadge Variant="BadgeVariant.Outline">Incoming</BbBadge>
+                                                    }
+                                                    else
+                                                    {
+                                                        <BbBadge Variant="BadgeVariant.SoftSuccess">Outgoing</BbBadge>
+                                                    }
+                                                    <span style="font-weight:600">@comm.Subject</span>
+                                                </div>
+                                                <div style="display:flex;align-items:center;gap:.75rem">
+                                                    <span style="font-size:.75rem;color:var(--bb-muted-foreground)">@Fmt.When(comm.OccurredAt)</span>
+                                                    <BbButton Size="ButtonSize.Small" Variant="ButtonVariant.Ghost" OnClick="() => ReplyToEmail(comm)" Title="Reply">
+                                                        <LucideIcon Name="reply" Size="14" /> Reply
+                                                    </BbButton>
+                                                </div>
+                                            </div>
+                                            <div style="font-size:.8rem;color:var(--bb-muted-foreground);margin-bottom:.5rem">
+                                                <span>From: <strong>@comm.Sender</strong></span>
+                                                @if (comm.Recipients.Count > 0)
+                                                {
+                                                    <span style="margin-left:1rem">To: @string.Join(", ", comm.Recipients)</span>
+                                                }
+                                            </div>
+                                            @if (!string.IsNullOrWhiteSpace(comm.ContentHtml))
+                                            {
+                                                <div style="font-size:.875rem;padding:.5rem;background:var(--bb-bg-muted);border-radius:.25rem;overflow-x:auto">
+                                                    @((MarkupString)comm.ContentHtml)
+                                                </div>
+                                            }
+                                            else if (!string.IsNullOrWhiteSpace(comm.ContentText))
+                                            {
+                                                <div style="font-size:.875rem;white-space:pre-wrap;padding:.5rem;background:var(--bb-bg-muted);border-radius:.25rem">
+                                                    @comm.ContentText
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+
+                        @if (historyFilter != "emails")
+                        {
+                            <div style="padding-top:.5rem">
+                                <AuditTimeline Entries="audit" />
+                            </div>
+                        }
+                    </BbCardContent>
+                </BbCard>
             </BbTabsContent>
         }
     </BbTabs>
@@ -326,6 +406,55 @@ else if (meta is not null && doc is not null)
             </FooterContent>
         </AdminDrawer>
     }
+
+    @if (!IsNew)
+    {
+        <AdminDrawer Open="@isSendEmailDrawerOpen"
+                     OpenChanged="v => isSendEmailDrawerOpen = v"
+                     Title="@($"Send Email · {Name}")"
+                     WidthScale="1.4">
+            <ChildContent>
+                @if (sendEmailError is not null)
+                {
+                    <BbAlert Variant="AlertVariant.Danger" Style="margin-bottom:1rem">
+                        <BbAlertDescription>@sendEmailError</BbAlertDescription>
+                    </BbAlert>
+                }
+                <div style="display:flex;flex-direction:column;gap:1rem">
+                    <div>
+                        <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">To * (comma/semicolon separated)</label>
+                        <BbInput @bind-Value="emailTo" Placeholder="recipient@example.com" />
+                    </div>
+                    <div class="row" style="gap:1rem">
+                        <div style="flex:1">
+                            <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">Cc</label>
+                            <BbInput @bind-Value="emailCc" Placeholder="cc@example.com" />
+                        </div>
+                        <div style="flex:1">
+                            <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">Bcc</label>
+                            <BbInput @bind-Value="emailBcc" Placeholder="bcc@example.com" />
+                        </div>
+                    </div>
+                    <div>
+                        <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">Subject *</label>
+                        <BbInput @bind-Value="emailSubject" Placeholder="Subject" />
+                    </div>
+                    <div>
+                        <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">Message *</label>
+                        <BbTextarea @bind-Value="emailBody" Rows="6" Placeholder="Write your message here..." />
+                    </div>
+                </div>
+            </ChildContent>
+            <FooterContent>
+                <div style="display:flex;justify-content:flex-end;gap:.5rem;width:100%">
+                    <BbButton Variant="ButtonVariant.Ghost" OnClick="() => isSendEmailDrawerOpen = false">Cancel</BbButton>
+                    <BbButton OnClick="SendEmailAsync" Loading="@isSendingEmail" LoadingText="Sending…">
+                        <LucideIcon Name="send" Size="14" /> Send Email
+                    </BbButton>
+                </div>
+            </FooterContent>
+        </AdminDrawer>
+    }
 }
 
 @code {
@@ -343,6 +472,17 @@ else if (meta is not null && doc is not null)
     private IReadOnlyList<ActionView> actions = [];
     private IReadOnlyList<AuditEntry> audit = [];
     private IReadOnlyList<AttachmentRecord> attachments = [];
+    private IReadOnlyList<CommunicationEntry> communications = [];
+    private string historyFilter = "all";
+    private bool isSendEmailDrawerOpen;
+    private bool isSendingEmail;
+    private string? sendEmailError;
+    private string emailTo = "";
+    private string emailCc = "";
+    private string emailBcc = "";
+    private string emailSubject = "";
+    private string emailBody = "";
+    private string? emailInReplyTo;
     private string? uploadError;
     private bool uploadingAttachment;
     private string activeTab = "";
@@ -481,6 +621,7 @@ else if (meta is not null && doc is not null)
             actions = IsNew ? [] : await Docs.AvailableActionsAsync(User, doc);
             audit = IsNew ? [] : await Docs.GetAuditAsync(User, DocType, Name);
             attachments = IsNew ? [] : await Attachments.ListAsync(User, DocType, Name);
+            communications = IsNew ? [] : await CommService.ListForDocumentAsync(User, DocType, Name);
 
             if (!IsNew)
             {
@@ -833,6 +974,83 @@ else if (meta is not null && doc is not null)
         catch (Exception ex)
         {
             autoRepeatError = ex.Message;
+        }
+    }
+
+    private void OpenSendEmailDrawer()
+    {
+        sendEmailError = null;
+        emailTo = "";
+        emailCc = "";
+        emailBcc = "";
+        emailSubject = $"[#{Name}] {meta?.Title ?? DocType}";
+        emailBody = "";
+        emailInReplyTo = null;
+        isSendEmailDrawerOpen = true;
+    }
+
+    private void ReplyToEmail(CommunicationEntry comm)
+    {
+        sendEmailError = null;
+        emailTo = comm.Sender;
+        emailCc = "";
+        emailBcc = "";
+        emailSubject = comm.Subject.StartsWith("Re:", StringComparison.OrdinalIgnoreCase) ? comm.Subject : $"Re: {comm.Subject}";
+        if (!emailSubject.Contains($"[#{Name}]"))
+            emailSubject = $"[#{Name}] " + emailSubject;
+        emailBody = $"\n\n--- On {comm.OccurredAt:yyyy-MM-dd HH:mm}, {comm.Sender} wrote:\n> " + (comm.ContentText ?? "").Replace("\n", "\n> ");
+        emailInReplyTo = comm.MessageId;
+        isSendEmailDrawerOpen = true;
+    }
+
+    private async Task SendEmailAsync()
+    {
+        sendEmailError = null;
+        if (string.IsNullOrWhiteSpace(emailTo))
+        {
+            sendEmailError = "Recipient email (To) is required.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(emailSubject))
+        {
+            sendEmailError = "Subject is required.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(emailBody))
+        {
+            sendEmailError = "Message body cannot be empty.";
+            return;
+        }
+
+        isSendingEmail = true;
+        try
+        {
+            var msg = new EmailMessage
+            {
+                To = emailTo.Split([';', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
+                Cc = emailCc.Split([';', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
+                Bcc = emailBcc.Split([';', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
+                Subject = emailSubject.Trim(),
+                BodyText = emailBody,
+                BodyHtml = $"<div style=\"font-family:sans-serif;\">{emailBody.Replace("\n", "<br/>")}</div>",
+                InReplyTo = emailInReplyTo,
+                ReferenceDocType = DocType,
+                ReferenceName = Name,
+                From = User.Attr("email")
+            };
+
+            await EmailQueue.QueueAsync(User.TenantId, msg);
+            Toasts.Success("Email queued for sending.", "Queued");
+            isSendEmailDrawerOpen = false;
+            communications = await CommService.ListForDocumentAsync(User, DocType, Name);
+        }
+        catch (Exception ex)
+        {
+            sendEmailError = "Failed to queue email: " + ex.Message;
+        }
+        finally
+        {
+            isSendingEmail = false;
         }
     }
 

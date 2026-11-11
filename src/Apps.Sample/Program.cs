@@ -91,6 +91,7 @@ builder.Services.AddDeskMenuItem(new DeskMenuItem("HR", "Struktur Organisasi", "
 builder.Services.AddScheduledJob<NotificationRuleDateJob>();
 builder.Services.AddScheduledJob<Framework.Integrations.AutoRepeatJob>();
 builder.Services.AddScheduledJob<Framework.Scripting.ServerScriptScheduledJob>();
+builder.Services.AddScheduledJob<Framework.Communication.EmailAccountPollJob>();
 
 // Hardening HTTP production: ForwardedHeaders & HSTS
 builder.Services.AddFrogFrameHttpHardening(builder.Configuration);

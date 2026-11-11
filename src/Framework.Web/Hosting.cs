@@ -267,6 +267,13 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<Framework.Scripting.ServerScriptExecutionService>();
         services.AddSingleton<Framework.Hooks.IServerScriptHookRunner, Framework.Scripting.ServerScriptHookRunner>();
 
+        // Inbound Email & Communication (Phase 3 Workstream D)
+        services.TryAddSingleton<Framework.Communication.IEmailAccountStore, Framework.Communication.InMemoryEmailAccountStore>();
+        services.TryAddSingleton<Framework.Communication.ICommunicationStore, Framework.Communication.InMemoryCommunicationStore>();
+        services.AddSingleton<Framework.Communication.CommunicationService>();
+        services.TryAddSingleton<Framework.Communication.IMailboxReader, Framework.Communication.MailKitMailboxReader>();
+        services.AddSingleton<Framework.Communication.InboundEmailProcessor>();
+
         services.AddHttpClient(WebhookDispatcher.HttpClientName, (sp, client) =>
         {
             client.Timeout = TimeSpan.FromSeconds(10);

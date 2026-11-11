@@ -30,6 +30,8 @@
       href: auto-repeat.md
     - name: C# Server Scripts (Roslyn Sandbox)
       href: server-scripts.md
+    - name: Inbound Email & Communication Timeline
+      href: communications.md
     - name: Excel & CSV Data Import
       href: guides/excel-import.md
     - name: Template Reporting (Excel & Word)

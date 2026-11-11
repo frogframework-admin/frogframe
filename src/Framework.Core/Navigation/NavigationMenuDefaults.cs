@@ -369,6 +369,22 @@ public static class NavigationMenuDefaults
         },
         new()
         {
+            Id = $"menu_{tenantId}_email_accounts",
+            TenantId = tenantId,
+            Title = "Email Accounts",
+            Href = "admin/email-accounts",
+            Icon = "mail",
+            GroupId = GroupSistemId(tenantId),
+            GroupName = "System",
+            SortOrder = 141,
+            AllowedRoles = [UserContext.SystemManager, UserContext.Administrator],
+            IsSystem = true,
+            IsActive = true,
+            CreatedAt = now,
+            UpdatedAt = now
+        },
+        new()
+        {
             Id = $"menu_{tenantId}_notifications",
             TenantId = tenantId,
             Title = "Notification Rules",

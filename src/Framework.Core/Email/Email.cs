@@ -1,13 +1,22 @@
 using System.Collections.Concurrent;
-using System.Net;
-using System.Net.Mail;
 using System.Reflection;
 using System.Text.RegularExpressions;
+using Framework.Communication;
 using Framework.Documents;
 using Framework.Jobs;
 using Framework.Persistence;
+using MailKit.Net.Smtp;
+using MailKit.Security;
+using MimeKit;
 
 namespace Framework.Email;
+
+public sealed class EmailAttachment
+{
+    public string FileName { get; set; } = "";
+    public string ContentType { get; set; } = "application/octet-stream";
+    public byte[] Content { get; set; } = [];
+}
 
 public sealed class EmailMessage
 {
@@ -19,6 +28,13 @@ public sealed class EmailMessage
     public string? BodyText { get; set; }
     public string? From { get; set; }
     public string? ReplyTo { get; set; }
+    public string? MessageId { get; set; }
+    public string? InReplyTo { get; set; }
+    public string? References { get; set; }
+    public Dictionary<string, string> Headers { get; set; } = [];
+    public List<EmailAttachment> Attachments { get; set; } = [];
+    public string? ReferenceDocType { get; set; }
+    public string? ReferenceName { get; set; }
 }
 
 public interface IEmailSender
@@ -44,43 +60,92 @@ public sealed class SmtpEmailSender(SmtpEmailOptions options) : IEmailSender
         if (message.To.Count == 0)
             throw new ArgumentException("Email must have at least one recipient in 'To'.", nameof(message));
 
-        using var client = new SmtpClient(options.Host, options.Port)
+        var mime = new MimeMessage();
+
+        var fromAddr = !string.IsNullOrWhiteSpace(message.From) ? message.From : options.FromAddress;
+        mime.From.Add(new MailboxAddress(options.FromDisplayName ?? "", fromAddr));
+
+        foreach (var to in message.To)
         {
-            EnableSsl = options.EnableSsl
-        };
+            if (string.IsNullOrWhiteSpace(to)) continue;
+            if (MailboxAddress.TryParse(to.Trim(), out var parsedTo))
+                mime.To.Add(parsedTo);
+            else
+                mime.To.Add(new MailboxAddress("", to.Trim()));
+        }
+
+        foreach (var cc in message.Cc)
+        {
+            if (string.IsNullOrWhiteSpace(cc)) continue;
+            if (MailboxAddress.TryParse(cc.Trim(), out var parsedCc))
+                mime.Cc.Add(parsedCc);
+            else
+                mime.Cc.Add(new MailboxAddress("", cc.Trim()));
+        }
+
+        foreach (var bcc in message.Bcc)
+        {
+            if (string.IsNullOrWhiteSpace(bcc)) continue;
+            if (MailboxAddress.TryParse(bcc.Trim(), out var parsedBcc))
+                mime.Bcc.Add(parsedBcc);
+            else
+                mime.Bcc.Add(new MailboxAddress("", bcc.Trim()));
+        }
+
+        if (!string.IsNullOrWhiteSpace(message.ReplyTo))
+        {
+            if (MailboxAddress.TryParse(message.ReplyTo.Trim(), out var parsedReplyTo))
+                mime.ReplyTo.Add(parsedReplyTo);
+            else
+                mime.ReplyTo.Add(new MailboxAddress("", message.ReplyTo.Trim()));
+        }
+
+        mime.Subject = message.Subject;
+
+        if (!string.IsNullOrWhiteSpace(message.MessageId))
+            mime.MessageId = message.MessageId.Trim('<', '>');
+
+        if (!string.IsNullOrWhiteSpace(message.InReplyTo))
+            mime.InReplyTo = message.InReplyTo.Trim('<', '>');
+
+        if (!string.IsNullOrWhiteSpace(message.References))
+        {
+            var refs = message.References.Split([' ', ',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            foreach (var r in refs)
+                mime.References.Add(r.Trim('<', '>'));
+        }
+
+        foreach (var (headerName, headerVal) in message.Headers)
+            mime.Headers.Add(headerName, headerVal);
+
+        var builder = new BodyBuilder();
+        if (!string.IsNullOrWhiteSpace(message.BodyText))
+            builder.TextBody = message.BodyText;
+        if (!string.IsNullOrWhiteSpace(message.BodyHtml))
+            builder.HtmlBody = message.BodyHtml;
+
+        foreach (var att in message.Attachments)
+        {
+            var cType = ContentType.Parse(string.IsNullOrWhiteSpace(att.ContentType) ? "application/octet-stream" : att.ContentType);
+            builder.Attachments.Add(att.FileName, att.Content, cType);
+        }
+
+        mime.Body = builder.ToMessageBody();
+
+        using var client = new SmtpClient();
+        var secureOptions = options.EnableSsl
+            ? SecureSocketOptions.Auto
+            : SecureSocketOptions.StartTlsWhenAvailable;
+
+        await client.ConnectAsync(options.Host, options.Port, secureOptions, ct);
 
         if (!string.IsNullOrEmpty(options.UserName))
         {
-            client.Credentials = new NetworkCredential(options.UserName, options.Password ?? "");
+            await client.AuthenticateAsync(options.UserName, options.Password ?? "", ct);
         }
 
-        using var mail = new MailMessage();
-        var fromAddr = !string.IsNullOrWhiteSpace(message.From) ? message.From : options.FromAddress;
-        mail.From = new MailAddress(fromAddr, options.FromDisplayName);
-
-        foreach (var to in message.To)
-            if (!string.IsNullOrWhiteSpace(to)) mail.To.Add(to.Trim());
-
-        foreach (var cc in message.Cc)
-            if (!string.IsNullOrWhiteSpace(cc)) mail.CC.Add(cc.Trim());
-
-        foreach (var bcc in message.Bcc)
-            if (!string.IsNullOrWhiteSpace(bcc)) mail.Bcc.Add(bcc.Trim());
-
-        if (!string.IsNullOrWhiteSpace(message.ReplyTo))
-            mail.ReplyToList.Add(new MailAddress(message.ReplyTo.Trim()));
-
-        mail.Subject = message.Subject;
-        mail.IsBodyHtml = true;
-        mail.Body = message.BodyHtml;
-
-        if (!string.IsNullOrWhiteSpace(message.BodyText))
-        {
-            var textView = AlternateView.CreateAlternateViewFromString(message.BodyText, null, "text/plain");
-            mail.AlternateViews.Add(textView);
-        }
-
-        await client.SendMailAsync(mail, ct);
+        await client.SendAsync(mime, ct);
+        await client.DisconnectAsync(true, ct);
     }
 }
 
@@ -149,6 +214,10 @@ public sealed class OutboxEmailQueue(IOutboxStore outbox, TimeProvider clock) : 
 
     public async Task QueueAsync(string tenantId, EmailMessage message, string? idempotencyKey = null, CancellationToken ct = default)
     {
+        var msgId = !string.IsNullOrWhiteSpace(message.MessageId)
+            ? message.MessageId
+            : $"<{Guid.NewGuid():N}@frogframe.local>";
+
         var payload = new Dictionary<string, string?>
         {
             ["to"] = string.Join(";", message.To),
@@ -159,6 +228,11 @@ public sealed class OutboxEmailQueue(IOutboxStore outbox, TimeProvider clock) : 
             ["cc"] = message.Cc.Count > 0 ? string.Join(";", message.Cc) : null,
             ["bcc"] = message.Bcc.Count > 0 ? string.Join(";", message.Bcc) : null,
             ["reply_to"] = message.ReplyTo,
+            ["message_id"] = msgId,
+            ["in_reply_to"] = message.InReplyTo,
+            ["references"] = message.References,
+            ["reference_doctype"] = message.ReferenceDocType,
+            ["reference_name"] = message.ReferenceName,
         };
 
         var outboxMessage = new OutboxMessage
@@ -175,7 +249,10 @@ public sealed class OutboxEmailQueue(IOutboxStore outbox, TimeProvider clock) : 
     }
 }
 
-public sealed class OutboxEmailHandler(IEmailSender sender) : IEventHandler
+public sealed class OutboxEmailHandler(
+    IEmailSender sender,
+    ICommunicationStore? communicationStore = null,
+    TimeProvider? clock = null) : IEventHandler
 {
     public bool CanHandle(string eventType) => eventType == OutboxEmailQueue.EventType;
 
@@ -192,6 +269,11 @@ public sealed class OutboxEmailHandler(IEmailSender sender) : IEventHandler
         var cc = message.Payload.GetValueOrDefault("cc");
         var bcc = message.Payload.GetValueOrDefault("bcc");
         var replyTo = message.Payload.GetValueOrDefault("reply_to");
+        var messageId = message.Payload.GetValueOrDefault("message_id") ?? $"<{Guid.NewGuid():N}@frogframe.local>";
+        var inReplyTo = message.Payload.GetValueOrDefault("in_reply_to");
+        var references = message.Payload.GetValueOrDefault("references");
+        var refDocType = message.Payload.GetValueOrDefault("reference_doctype");
+        var refDocName = message.Payload.GetValueOrDefault("reference_name");
 
         var email = new EmailMessage
         {
@@ -200,7 +282,12 @@ public sealed class OutboxEmailHandler(IEmailSender sender) : IEventHandler
             BodyHtml = bodyHtml,
             BodyText = bodyText,
             From = from,
-            ReplyTo = replyTo
+            ReplyTo = replyTo,
+            MessageId = messageId,
+            InReplyTo = inReplyTo,
+            References = references,
+            ReferenceDocType = refDocType,
+            ReferenceName = refDocName
         };
 
         if (!string.IsNullOrWhiteSpace(cc))
@@ -210,6 +297,30 @@ public sealed class OutboxEmailHandler(IEmailSender sender) : IEventHandler
             email.Bcc = bcc.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
 
         await sender.SendAsync(email, ct);
+
+        // Record outbound communication after successful send
+        if (communicationStore is not null && !string.IsNullOrWhiteSpace(refDocType) && !string.IsNullOrWhiteSpace(refDocName))
+        {
+            var now = (clock ?? TimeProvider.System).GetUtcNow();
+            var comm = new CommunicationEntry
+            {
+                Id = Guid.NewGuid(),
+                TenantId = message.TenantId,
+                ReferenceDocType = refDocType,
+                ReferenceName = refDocName,
+                Direction = CommunicationDirection.Out,
+                MessageId = messageId,
+                InReplyTo = inReplyTo,
+                Subject = subject,
+                Sender = from ?? "noreply@frogframe.local",
+                Recipients = email.To,
+                Cc = email.Cc,
+                ContentHtml = bodyHtml,
+                ContentText = bodyText,
+                OccurredAt = now,
+                CreatedAt = now
+            };
+            await communicationStore.SaveAsync(comm, ct);
+        }
     }
 }
-
