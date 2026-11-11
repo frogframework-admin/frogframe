@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Minimal facade assembly exposed to Roslyn scripts: zero internal framework dependencies. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Framework.Scripting" />
+    <InternalsVisibleTo Include="Framework.Tests" />
+  </ItemGroup>
+</Project>

@@ -262,6 +262,11 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IAutoRepeatStore, InMemoryAutoRepeatStore>();
         services.AddSingleton<AutoRepeatService>();
 
+        // Server Scripting (Phase 3 Workstream C)
+        services.TryAddSingleton<Framework.Scripting.IServerScriptStore, Framework.Scripting.InMemoryServerScriptStore>();
+        services.AddSingleton<Framework.Scripting.ServerScriptExecutionService>();
+        services.AddSingleton<Framework.Hooks.IServerScriptHookRunner, Framework.Scripting.ServerScriptHookRunner>();
+
         services.AddHttpClient(WebhookDispatcher.HttpClientName, (sp, client) =>
         {
             client.Timeout = TimeSpan.FromSeconds(10);

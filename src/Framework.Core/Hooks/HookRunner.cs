@@ -2,7 +2,10 @@ using Framework.Documents;
 
 namespace Framework.Hooks;
 
-public sealed class HookRunner(IEnumerable<IDocHookRegistration> registrations, IDocHookLogger log)
+public sealed class HookRunner(
+    IEnumerable<IDocHookRegistration> registrations,
+    IDocHookLogger log,
+    IServerScriptHookRunner? serverScripts = null)
 {
     public const int MaxDepth = 5;
 
@@ -42,6 +45,11 @@ public sealed class HookRunner(IEnumerable<IDocHookRegistration> registrations, 
                 log.LogHookFailure(ex, registration.HookType, context.Meta.Name, stage);
                 throw new DocumentHookException(ex);
             }
+        }
+
+        if (serverScripts is not null)
+        {
+            await serverScripts.RunAsync(stage, context, ct);
         }
     }
 

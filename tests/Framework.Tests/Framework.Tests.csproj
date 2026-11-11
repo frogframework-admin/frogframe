@@ -8,6 +8,8 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="..\..\src\Framework.Core\Framework.Core.csproj" />
+    <ProjectReference Include="..\..\src\Framework.Scripting.Abstractions\Framework.Scripting.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\Framework.Scripting\Framework.Scripting.csproj" />
     <ProjectReference Include="..\..\src\Framework.Web\Framework.Web.csproj" />
     <ProjectReference Include="..\..\src\Apps.Sample\Apps.Sample.csproj" />
   </ItemGroup>

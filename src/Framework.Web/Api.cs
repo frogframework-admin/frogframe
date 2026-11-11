@@ -121,14 +121,23 @@ public static class DocApi
         }));
 
         // ---------- Method kustom (RPC /api/method) ----------
-        api.MapGet("/method", (Delegate)((HttpContext http) => Run(http, AnyApiKeyScope, (user, sp) =>
+        api.MapGet("/method", (Delegate)((HttpContext http) => Run(http, AnyApiKeyScope, async (user, sp) =>
         {
             var granted = http.User.FindAll(Framework.Web.Identity.ApiKeyDefaults.ScopeClaim).Select(c => c.Value).ToList();
             var viaKey = http.User.FindFirst(Framework.Web.Identity.ApiKeyDefaults.KeyIdClaim) is not null;
-            var list = sp.GetRequiredService<ApiMethodRegistry>().Visible(user)
+            var staticList = sp.GetRequiredService<ApiMethodRegistry>().Visible(user)
                 .Where(m => !viaKey || ApiScopes.Allows(granted, $"method:{m.Name}"))
                 .Select(m => new { name = m.Name, description = m.Description, roles = m.Roles, parameters = m.Parameters, endpoint = $"/api/method/{m.Name}" });
-            return Task.FromResult(Results.Ok(list));
+
+            var scriptStore = sp.GetService<Framework.Scripting.IServerScriptStore>();
+            var scriptList = scriptStore is not null
+                ? (await scriptStore.ListAsync(user.TenantId, http.RequestAborted))
+                    .Where(s => s.IsActive && s.ScriptType == Framework.Scripting.Abstractions.ServerScriptType.Api && !string.IsNullOrEmpty(s.ApiMethod))
+                    .Where(s => !viaKey || ApiScopes.Allows(granted, $"method:{s.ApiMethod}"))
+                    .Select(s => new { name = s.ApiMethod!, description = s.Name, roles = (IReadOnlyList<string>)[], parameters = (IReadOnlyList<Framework.Api.ApiMethodParam>)[], endpoint = $"/api/method/{s.ApiMethod}" })
+                : [];
+
+            return Results.Ok(staticList.Concat(scriptList));
         })));
 
         api.MapPost("/method/{name}", (HttpContext http, string name) => Run(http, $"method:{name}", async (user, sp) =>
@@ -139,8 +148,25 @@ public static class DocApi
                 using var doc = await JsonDocument.ParseAsync(http.Request.Body, cancellationToken: http.RequestAborted);
                 body = doc.RootElement.Clone();
             }
-            var result = await sp.GetRequiredService<ApiMethodRegistry>().InvokeAsync(user, name, body, sp, http.RequestAborted);
-            return Results.Ok(new { data = result });
+
+            var registry = sp.GetRequiredService<ApiMethodRegistry>();
+            if (registry.Find(name) is not null)
+            {
+                var result = await registry.InvokeAsync(user, name, body, sp, http.RequestAborted);
+                return Results.Ok(new { data = result });
+            }
+
+            var scriptService = sp.GetService<Framework.Scripting.ServerScriptExecutionService>();
+            if (scriptService is not null)
+            {
+                var scriptResult = await scriptService.ExecuteApiAsync(user, name, body, http.RequestAborted);
+                if (scriptResult is not null)
+                {
+                    return Results.Ok(new { data = scriptResult });
+                }
+            }
+
+            throw new KeyNotFoundException($"API method '{name}' not found.");
         }));
 
         // Klien API (bearer token): POST /api/report-templates/{id}/generate  { "parameters": { "Periode": "2026-10-01" } }

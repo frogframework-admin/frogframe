@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- .NET murni: tanpa ASP.NET Core / Blazor. TargetFramework dari Directory.Build.props (net10.0). -->
   <ItemGroup>
+    <ProjectReference Include="..\Framework.Scripting.Abstractions\Framework.Scripting.Abstractions.csproj" />
     <InternalsVisibleTo Include="Framework.Tests" />
   </ItemGroup>
 </Project>

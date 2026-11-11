@@ -1,0 +1,658 @@
+@page "/admin/server-scripts"
+@using Framework.Metadata
+@using Framework.Security
+@using Framework.Scripting
+@using Framework.Scripting.Abstractions
+@using Framework.Web.Services
+@inject IServerScriptStore ScriptStore
+@inject ServerScriptExecutionService ScriptExecutionService
+@inject IMetadataProvider Metadata
+@inject CurrentUser Current
+@inject ToastService Toasts
+@inject DialogService Dialogs
+@inject TimeProvider Clock
+@inject Framework.Preferences.IUserPreferenceStore UserPrefs
+@implements IDisposable
+
+<PageTitle>Server Scripts · FrogFrame</PageTitle>
+
+@if (!Current.Required.IsAdmin)
+{
+    <ErrorState StatusCode="403" Description="This administration page is restricted to System Managers / Administrators." />
+}
+else
+{
+    <header class="page-head">
+        <div>
+            <h1>Server Scripts</h1>
+            <p>Execute sandboxed, Roslyn-compiled C# scripts for DocType lifecycle hooks, dynamic API RPC methods, and scheduled tasks.</p>
+        </div>
+        <div class="row" style="gap:.5rem">
+            <BbButton OnClick="StartCreate"><LucideIcon Name="plus" Size="16" /> New Server Script</BbButton>
+        </div>
+    </header>
+
+    @if (errorMessage is not null)
+    {
+        <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@errorMessage</BbAlertDescription></BbAlert>
+    }
+
+    <!-- Filter Bar -->
+    <div class="props-row" style="margin-bottom:1rem;gap:1rem;align-items:center;">
+        <div style="min-width:14rem">
+            <BbSelect TValue="string" Value="@filterType" ValueChanged="OnFilterTypeChanged" AriaLabel="Filter Script Type" Options="TypeFilterOptions" />
+        </div>
+    </div>
+
+    <!-- Data Grid of Scripts -->
+    <BbDataGrid @key="gridMgr.RenderKey"
+                TData="ServerScriptDef"
+                Items="filteredScripts"
+                AriaLabel="Server Scripts"
+                OnColumnResize="gridMgr.HandleResize"
+                StateChanged="gridMgr.HandleStateChanged">
+        <Toolbar>
+            <div class="row" style="gap:.5rem;width:100%;justify-content:flex-end">
+                @if (gridMgr.HasCustomLayout)
+                {
+                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ResetColumnsLayout" Title="Reset column layout to default">
+                        <LucideIcon Name="rotate-ccw" Size="14" />
+                        <span>Reset Columns</span>
+                    </BbButton>
+                }
+                <BbDataGridColumnVisibility TData="ServerScriptDef" />
+            </div>
+        </Toolbar>
+        <Columns>
+            <BbDataGridPropertyColumn TData="ServerScriptDef" TProp="string" Property="r => r.Name" Id="name" Title="Name"
+                                      Width="@gridMgr.GetWidth("name", "16rem")" Visible="@gridMgr.IsVisible("name")" Resizable="true" Sortable="true" Filterable="true">
+                <CellTemplate Context="r">
+                    <div style="display:flex;flex-direction:column">
+                        <span style="font-weight:600">@r.Name</span>
+                        <span style="font-size:.75rem;color:var(--bb-text-muted)">ID: @r.Id</span>
+                    </div>
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridPropertyColumn TData="ServerScriptDef" TProp="string" Property="r => r.ScriptType.ToString()" Id="type" Title="Type"
+                                      Width="@gridMgr.GetWidth("type", "10rem")" Visible="@gridMgr.IsVisible("type")" Resizable="true" Sortable="true">
+                <CellTemplate Context="r">
+                    @switch (r.ScriptType)
+                    {
+                        case ServerScriptType.DocEvent:
+                            <BbBadge Variant="BadgeVariant.Default">Doc Event</BbBadge>
+                            break;
+                        case ServerScriptType.Api:
+                            <BbBadge Variant="BadgeVariant.Success">API Method</BbBadge>
+                            break;
+                        case ServerScriptType.Scheduled:
+                            <BbBadge Variant="BadgeVariant.Secondary">Scheduled</BbBadge>
+                            break;
+                    }
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridPropertyColumn TData="ServerScriptDef" TProp="string" Property='r => r.DocType ?? r.ApiMethod ?? r.CronExpr ?? ""' Id="target" Title="Target / Trigger"
+                                      Width="@gridMgr.GetWidth("target", "16rem")" Visible="@gridMgr.IsVisible("target")" Resizable="true">
+                <CellTemplate Context="r">
+                    @switch (r.ScriptType)
+                    {
+                        case ServerScriptType.DocEvent:
+                            <span><strong>@r.DocType</strong> &rarr; @r.DocEvent</span>
+                            break;
+                        case ServerScriptType.Api:
+                            <code>/api/method/@r.ApiMethod</code>
+                            break;
+                        case ServerScriptType.Scheduled:
+                            <code>@r.CronExpr</code>
+                            break;
+                    }
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridPropertyColumn TData="ServerScriptDef" TProp="int" Property="r => r.Version" Id="version" Title="Version"
+                                      Width="@gridMgr.GetWidth("version", "6rem")" Visible="@gridMgr.IsVisible("version")" Resizable="true" Sortable="true">
+                <CellTemplate Context="r">
+                    <BbBadge Variant="BadgeVariant.Outline">v@r.Version</BbBadge>
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridPropertyColumn TData="ServerScriptDef" TProp="bool" Property="r => r.IsActive" Id="status" Title="Status"
+                                      Width="@gridMgr.GetWidth("status", "8rem")" Visible="@gridMgr.IsVisible("status")" Resizable="true" Sortable="true">
+                <CellTemplate Context="r">
+                    @if (r.IsActive)
+                    {
+                        <BbBadge Variant="BadgeVariant.Success">Active</BbBadge>
+                    }
+                    else
+                    {
+                        <BbBadge Variant="BadgeVariant.Secondary">Disabled</BbBadge>
+                    }
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridPropertyColumn TData="ServerScriptDef" TProp="string" Property='r => r.ModifiedAt.ToString("yyyy-MM-dd")' Id="modified" Title="Modified"
+                                      Width="@gridMgr.GetWidth("modified", "10rem")" Visible="@gridMgr.IsVisible("modified")" Resizable="true" Sortable="true">
+                <CellTemplate Context="r">
+                    <span style="font-size:.875rem">@r.ModifiedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</span>
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridPropertyColumn TData="ServerScriptDef" TProp="string" Property="r => r.Id" Id="actions" Title="Actions"
+                                      Width="@gridMgr.GetWidth("actions", "14rem")" Visible="true" Resizable="false">
+                <CellTemplate Context="r">
+                    <div style="display:flex;gap:.35rem;align-items:center">
+                        <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick="@(() => EditScript(r))">
+                            <LucideIcon Name="code" Size="14" /> Code
+                        </BbButton>
+                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="@(() => OpenRunsHistory(r))">
+                            <LucideIcon Name="history" Size="14" /> History
+                        </BbButton>
+                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="@(() => ToggleActive(r))">
+                            <LucideIcon Name="@(r.IsActive ? "pause" : "play")" Size="14" />
+                        </BbButton>
+                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="@(() => DeleteScript(r))">
+                            <LucideIcon Name="trash-2" Size="14" style="color:var(--bb-destructive)" />
+                        </BbButton>
+                    </div>
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+        </Columns>
+    </BbDataGrid>
+}
+
+<!-- Edit / Create Server Script Drawer -->
+<AdminDrawer Open="@isDrawerOpen"
+             OpenChanged="OnDrawerOpenChanged"
+             Title="@(isCreating ? "New Server Script" : $"Edit Script · {editName}")"
+             WidthScale="2.5">
+    <ChildContent>
+        <div style="display:flex;flex-direction:column;gap:1rem">
+            @if (validationMessages.Count > 0)
+            {
+                <BbAlert Variant="AlertVariant.Danger">
+                    <BbAlertTitle>Validation / Security Errors</BbAlertTitle>
+                    <BbAlertDescription>
+                        <ul style="margin:0;padding-left:1.25rem">
+                            @foreach (var msg in validationMessages)
+                            {
+                                <li>@msg</li>
+                            }
+                        </ul>
+                    </BbAlertDescription>
+                </BbAlert>
+            }
+            else if (validationSuccess)
+            {
+                <BbAlert Variant="AlertVariant.Success">
+                    <BbAlertTitle>Compilation Succeeded</BbAlertTitle>
+                    <BbAlertDescription>The script passed Roslyn syntax compilation and sandbox security checks with 0 errors.</BbAlertDescription>
+                </BbAlert>
+            }
+
+            <div class="row" style="gap:1rem">
+                <div style="flex:2">
+                    <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">Script Name *</label>
+                    <BbInput @bind-Value="editName" Placeholder="e.g. Calculate Purchase Request Discount" />
+                </div>
+                <div style="flex:1">
+                    <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">Script Type *</label>
+                    <BbSelect TValue="string" Value="@editScriptType" ValueChanged="OnEditTypeChanged" Options="ScriptTypeOptions" />
+                </div>
+            </div>
+
+            @if (editScriptType == "DocEvent")
+            {
+                <div class="row" style="gap:1rem">
+                    <div style="flex:1">
+                        <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">Reference DocType *</label>
+                        <BbSelect TValue="string" @bind-Value="editDocType" Options="DocTypeOptions" />
+                    </div>
+                    <div style="flex:1">
+                        <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">Lifecycle Hook Event *</label>
+                        <BbSelect TValue="string" @bind-Value="editDocEvent" Options="DocEventOptions" />
+                    </div>
+                </div>
+            }
+            else if (editScriptType == "Api")
+            {
+                <div>
+                    <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">API Method Name *</label>
+                    <BbInput @bind-Value="editApiMethod" Placeholder="e.g. calculate_custom_tax (invoked via POST /api/method/{name})" />
+                    <span style="font-size:.75rem;color:var(--bb-text-muted)">Must contain lowercase letters, numbers, and dashes/underscores.</span>
+                </div>
+            }
+            else if (editScriptType == "Scheduled")
+            {
+                <div class="row" style="gap:1rem">
+                    <div style="flex:1">
+                        <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">Cron Schedule *</label>
+                        <BbInput @bind-Value="editCronExpr" Placeholder="e.g. 0 0 * * * or @@hourly" />
+                        <span style="font-size:.75rem;color:var(--bb-text-muted)">Standard 5-field cron expression or shorthand (@@daily, @@hourly, @@every_minute).</span>
+                    </div>
+                    <div style="flex:1">
+                        <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">Run As User</label>
+                        <BbInput @bind-Value="editRunAsUserId" Placeholder="Default: Administrator" />
+                    </div>
+                </div>
+            }
+
+            <div style="display:flex;align-items:center;gap:.75rem;margin-top:.25rem">
+                <BbSwitch @bind-Value="editIsActive" Id="script-is-active" />
+                <label for="script-is-active" style="cursor:pointer;font-weight:500">Enable script execution</label>
+            </div>
+
+            <div>
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.35rem">
+                    <label class="form-label" style="font-weight:600">C# Script Code *</label>
+                    <span style="font-size:.75rem;color:var(--bb-text-muted)">Globals: <code>Doc</code>, <code>OldDoc</code>, <code>User</code>, <code>Docs</code>, <code>Log</code>, <code>Email</code>, <code>Values</code></span>
+                </div>
+                <textarea @bind="editCode"
+                          @bind:event="oninput"
+                          rows="16"
+                          style="width:100%;font-family:Consolas, Monaco, monospace;font-size:.875rem;padding:.75rem;border-radius:.375rem;border:1px solid var(--bb-border);background:var(--bb-bg-card);color:var(--bb-text);line-height:1.5;resize:vertical;"
+                          placeholder="// Write sandboxed C# code here...
+// e.g. for DocEvent:
+// var total = Doc.GetDecimal(&quot;qty&quot;) * Doc.GetDecimal(&quot;rate&quot;);
+// Doc[&quot;total&quot;] = total;
+// Log.Info($&quot;Calculated total: {total}&quot;);"></textarea>
+            </div>
+        </div>
+    </ChildContent>
+    <FooterContent>
+        <div style="display:flex;justify-content:space-between;align-items:center;width:100%">
+            <BbButton Variant="ButtonVariant.Outline" OnClick="ValidateCurrentCode">
+                <LucideIcon Name="check-circle" Size="14" /> Validate / Compile
+            </BbButton>
+            <div style="display:flex;gap:.5rem">
+                <BbButton Variant="ButtonVariant.Ghost" OnClick="CloseDrawer">Cancel</BbButton>
+                <BbButton OnClick="SaveScript">Save &amp; Publish</BbButton>
+            </div>
+        </div>
+    </FooterContent>
+</AdminDrawer>
+
+<!-- Execution Runs History Drawer -->
+<AdminDrawer Open="@isRunsDrawerOpen"
+             OpenChanged="OnRunsDrawerOpenChanged"
+             Title="@($"Script History · {activeScriptRuns?.Name}")"
+             WidthScale="2.2">
+    <ChildContent>
+        <div style="display:flex;flex-direction:column;gap:1.5rem">
+            <div>
+                <h4 style="margin:0 0 .75rem 0;font-size:1rem;font-weight:600">Recent Executions</h4>
+                @if (runs.Count == 0)
+                {
+                    <div style="text-align:center;padding:2rem;color:var(--bb-text-muted)">
+                        <LucideIcon Name="inbox" Size="32" style="margin-bottom:.5rem;opacity:.5" />
+                        <p>No execution runs recorded for this script yet.</p>
+                    </div>
+                }
+                else
+                {
+                    <div style="display:flex;flex-direction:column;gap:.75rem">
+                        @foreach (var run in runs)
+                        {
+                            <div style="border:1px solid var(--bb-border);border-radius:.375rem;padding:.75rem;background:var(--bb-bg-card)">
+                                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.35rem">
+                                    <div style="display:flex;align-items:center;gap:.5rem">
+                                        @switch (run.Status)
+                                        {
+                                            case "Success":
+                                                <BbBadge Variant="BadgeVariant.Success">Success</BbBadge>
+                                                break;
+                                            case "BudgetExceeded":
+                                                <BbBadge Variant="BadgeVariant.Secondary">Budget Exceeded</BbBadge>
+                                                break;
+                                            case "Timeout":
+                                                <BbBadge Variant="BadgeVariant.Secondary">Timeout</BbBadge>
+                                                break;
+                                            case "SecurityViolation":
+                                                <BbBadge Variant="BadgeVariant.Destructive">Security Violation</BbBadge>
+                                                break;
+                                            default:
+                                                <BbBadge Variant="BadgeVariant.Destructive">Failed</BbBadge>
+                                                break;
+                                        }
+                                        <span style="font-weight:600;font-size:.875rem">@run.TriggerType</span>
+                                        @if (!string.IsNullOrEmpty(run.DocName))
+                                        {
+                                            <span style="font-size:.875rem;color:var(--bb-text-muted)">(@run.DocName)</span>
+                                        }
+                                        <BbBadge Variant="BadgeVariant.Outline">v@run.Version</BbBadge>
+                                    </div>
+                                    <span style="font-size:.75rem;color:var(--bb-text-muted)">@run.DurationMs ms</span>
+                                </div>
+                                <div style="font-size:.75rem;color:var(--bb-text-muted)">
+                                    Executed: @run.ExecutedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")
+                                </div>
+                                @if (!string.IsNullOrEmpty(run.Error))
+                                {
+                                    <div style="margin-top:.5rem;padding:.5rem;border-radius:.25rem;background:var(--bb-bg-muted);color:var(--bb-destructive);font-size:.8rem;font-family:monospace;white-space:pre-wrap">
+                                        @run.Error
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+
+            <div>
+                <h4 style="margin:0 0 .75rem 0;font-size:1rem;font-weight:600">Version History</h4>
+                @if (versions.Count == 0)
+                {
+                    <p style="color:var(--bb-text-muted);font-size:.875rem">No version history available.</p>
+                }
+                else
+                {
+                    <div style="display:flex;flex-direction:column;gap:.5rem">
+                        @foreach (var ver in versions)
+                        {
+                            <div style="display:flex;align-items:center;justify-content:space-between;padding:.5rem;border:1px solid var(--bb-border);border-radius:.375rem">
+                                <div>
+                                    <strong>v@ver.Version</strong>
+                                    <span style="font-size:.75rem;color:var(--bb-text-muted);margin-left:.5rem">By @ver.CreatedBy on @ver.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</span>
+                                </div>
+                                <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="@(() => LoadVersionCode(ver))">
+                                    Restore / View
+                                </BbButton>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </ChildContent>
+</AdminDrawer>
+
+@code {
+    private DataGridPreferenceManager<ServerScriptDef> gridMgr = default!;
+    private IReadOnlyList<ServerScriptDef> scripts = [];
+    private string filterType = "";
+    private string? errorMessage;
+
+    private bool isDrawerOpen;
+    private bool isCreating;
+    private string? editingId;
+    private string editName = "";
+    private string editScriptType = "DocEvent";
+    private string editDocType = "";
+    private string editDocEvent = "BeforeValidate";
+    private string editApiMethod = "";
+    private string editCronExpr = "0 0 * * *";
+    private string editRunAsUserId = "";
+    private bool editIsActive = true;
+    private string editCode = "";
+    private int currentVersion = 1;
+
+    private List<string> validationMessages = [];
+    private bool validationSuccess;
+
+    private bool isRunsDrawerOpen;
+    private ServerScriptDef? activeScriptRuns;
+    private IReadOnlyList<ServerScriptRun> runs = [];
+    private IReadOnlyList<ServerScriptVersion> versions = [];
+
+    private static readonly IReadOnlyList<SelectOption<string>> TypeFilterOptions =
+    [
+        new("", "All Types"),
+        new("DocEvent", "Doc Event Scripts"),
+        new("Api", "API Method Scripts"),
+        new("Scheduled", "Scheduled Scripts")
+    ];
+
+    private static readonly IReadOnlyList<SelectOption<string>> ScriptTypeOptions =
+    [
+        new("DocEvent", "Doc Event (Document Lifecycle)"),
+        new("Api", "API Method (RPC POST /api/method)"),
+        new("Scheduled", "Scheduled (Cron Job)")
+    ];
+
+    private static readonly IReadOnlyList<SelectOption<string>> DocEventOptions =
+    [
+        new("BeforeValidate", "Before Validate"),
+        new("BeforeInsert", "Before Insert"),
+        new("AfterSave", "After Save"),
+        new("BeforeTransition", "Before Transition (Workflow)"),
+        new("BeforeDelete", "Before Delete"),
+        new("AfterDelete", "After Delete"),
+        new("OnCancel", "On Cancel"),
+        new("OnAmend", "On Amend")
+    ];
+
+    private IReadOnlyList<SelectOption<string>> DocTypeOptions =>
+        Metadata.Current.DocTypes.Values
+            .Where(m => !m.Def.IsChild && !m.Def.IsSingle)
+            .OrderBy(m => m.Title)
+            .Select(m => new SelectOption<string>(m.Name, $"{m.Title} ({m.Name})"))
+            .ToList();
+
+    private IEnumerable<ServerScriptDef> filteredScripts =>
+        scripts.Where(s => string.IsNullOrEmpty(filterType) || s.ScriptType.ToString().Equals(filterType, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        gridMgr = new DataGridPreferenceManager<ServerScriptDef>(
+            UserPrefs,
+            Current,
+            "grid:admin:server-scripts",
+            StateHasChanged
+        );
+        await gridMgr.InitializeAsync();
+        await LoadScriptsAsync();
+    }
+
+    private async Task LoadScriptsAsync()
+    {
+        try
+        {
+            var tenantId = Current.Required.TenantId;
+            scripts = await ScriptStore.ListAsync(tenantId);
+            errorMessage = null;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to load server scripts: {ex.Message}";
+        }
+    }
+
+    private void OnFilterTypeChanged(string val) => filterType = val;
+
+    private void StartCreate()
+    {
+        isCreating = true;
+        editingId = null;
+        editName = "";
+        editScriptType = "DocEvent";
+        editDocType = DocTypeOptions.FirstOrDefault()?.Value ?? "";
+        editDocEvent = "BeforeValidate";
+        editApiMethod = "";
+        editCronExpr = "0 0 * * *";
+        editRunAsUserId = "";
+        editIsActive = true;
+        editCode = "// Doc[\"field_name\"] = ...;\n// Log.Info(\"Script running\");\n";
+        currentVersion = 1;
+        validationMessages = [];
+        validationSuccess = false;
+        isDrawerOpen = true;
+    }
+
+    private void EditScript(ServerScriptDef def)
+    {
+        isCreating = false;
+        editingId = def.Id;
+        editName = def.Name;
+        editScriptType = def.ScriptType.ToString();
+        editDocType = def.DocType ?? DocTypeOptions.FirstOrDefault()?.Value ?? "";
+        editDocEvent = def.DocEvent?.ToString() ?? "BeforeValidate";
+        editApiMethod = def.ApiMethod ?? "";
+        editCronExpr = def.CronExpr ?? "0 0 * * *";
+        editRunAsUserId = def.RunAsUserId ?? "";
+        editIsActive = def.IsActive;
+        editCode = def.CurrentCode;
+        currentVersion = def.Version;
+        validationMessages = [];
+        validationSuccess = false;
+        isDrawerOpen = true;
+    }
+
+    private void OnEditTypeChanged(string val)
+    {
+        editScriptType = val;
+        validationMessages = [];
+        validationSuccess = false;
+    }
+
+    private void ValidateCurrentCode()
+    {
+        validationMessages = [];
+        validationSuccess = false;
+
+        if (string.IsNullOrWhiteSpace(editCode))
+        {
+            validationMessages.Add("Script code cannot be empty.");
+            return;
+        }
+
+        var errors = ScriptCompiler.Validate(editCode);
+        if (errors.Count > 0)
+        {
+            validationMessages.AddRange(errors);
+        }
+        else
+        {
+            validationSuccess = true;
+        }
+    }
+
+    private async Task SaveScript()
+    {
+        validationMessages = [];
+        validationSuccess = false;
+
+        if (string.IsNullOrWhiteSpace(editName))
+        {
+            validationMessages.Add("Script Name is required.");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(editCode))
+        {
+            validationMessages.Add("Script code cannot be empty.");
+            return;
+        }
+
+        // Validate Roslyn compilation and security AST
+        var compileErrors = ScriptCompiler.Validate(editCode);
+        if (compileErrors.Count > 0)
+        {
+            validationMessages.AddRange(compileErrors);
+            return;
+        }
+
+        var tenantId = Current.Required.TenantId;
+        var id = editingId ?? $"scr_{Guid.NewGuid():N}"[..12];
+
+        Enum.TryParse<ServerScriptType>(editScriptType, out var scriptType);
+        DocEventStage? docEvent = null;
+        if (scriptType == ServerScriptType.DocEvent && Enum.TryParse<DocEventStage>(editDocEvent, out var parsedEvent))
+        {
+            docEvent = parsedEvent;
+        }
+
+        var def = new ServerScriptDef
+        {
+            Id = id,
+            TenantId = tenantId,
+            Name = editName.Trim(),
+            ScriptType = scriptType,
+            DocType = scriptType == ServerScriptType.DocEvent ? editDocType : null,
+            DocEvent = docEvent,
+            ApiMethod = scriptType == ServerScriptType.Api ? editApiMethod.Trim().ToLowerInvariant() : null,
+            CronExpr = scriptType == ServerScriptType.Scheduled ? editCronExpr.Trim() : null,
+            RunAsUserId = string.IsNullOrWhiteSpace(editRunAsUserId) ? null : editRunAsUserId.Trim(),
+            IsActive = editIsActive,
+            Version = currentVersion,
+            CurrentCode = editCode,
+            CreatedAt = DateTimeOffset.UtcNow,
+            ModifiedAt = DateTimeOffset.UtcNow
+        };
+
+        try
+        {
+            await ScriptStore.SaveAsync(def, editCode, Current.Required.Id);
+            ScriptExecutionService.Invalidate(tenantId, id);
+            Toasts.Success($"Server Script '{def.Name}' saved and published (v{def.Version}).", "Server Script");
+            isDrawerOpen = false;
+            await LoadScriptsAsync();
+        }
+        catch (Exception ex)
+        {
+            validationMessages.Add($"Save error: {ex.Message}");
+        }
+    }
+
+    private async Task ToggleActive(ServerScriptDef def)
+    {
+        try
+        {
+            var tenantId = Current.Required.TenantId;
+            var newStatus = !def.IsActive;
+            await ScriptStore.SetActiveAsync(tenantId, def.Id, newStatus);
+            ScriptExecutionService.Invalidate(tenantId, def.Id);
+            Toasts.Success($"Script '{def.Name}' is now {(newStatus ? "Active" : "Disabled")}.", "Server Script");
+            await LoadScriptsAsync();
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error($"Failed to update status: {ex.Message}", "Server Script");
+        }
+    }
+
+    private async Task DeleteScript(ServerScriptDef def)
+    {
+        var confirmed = await Dialogs.ConfirmAsync("Delete Server Script", $"Are you sure you want to delete server script '{def.Name}'? This will permanently remove all versions and execution history.");
+        if (confirmed.Confirmed)
+        {
+            try
+            {
+                var tenantId = Current.Required.TenantId;
+                await ScriptStore.DeleteAsync(tenantId, def.Id);
+                ScriptExecutionService.Invalidate(tenantId, def.Id);
+                Toasts.Success($"Server Script '{def.Name}' deleted.", "Server Script");
+                await LoadScriptsAsync();
+            }
+            catch (Exception ex)
+            {
+                Toasts.Error($"Failed to delete script: {ex.Message}", "Server Script");
+            }
+        }
+    }
+
+    private async Task OpenRunsHistory(ServerScriptDef def)
+    {
+        activeScriptRuns = def;
+        runs = await ScriptStore.ListRunsAsync(def.TenantId, def.Id);
+        versions = await ScriptStore.ListVersionsAsync(def.TenantId, def.Id);
+        isRunsDrawerOpen = true;
+    }
+
+    private void LoadVersionCode(ServerScriptVersion ver)
+    {
+        editCode = ver.Code;
+        Toasts.Info($"Restored code from v{ver.Version} into editor.", "Server Script");
+        isRunsDrawerOpen = false;
+        isDrawerOpen = true;
+    }
+
+    private async Task ResetColumnsLayout() => await gridMgr.ResetAsync();
+    private void CloseDrawer() => isDrawerOpen = false;
+    private void OnDrawerOpenChanged(bool open) => isDrawerOpen = open;
+    private void OnRunsDrawerOpenChanged(bool open) => isRunsDrawerOpen = open;
+
+    public void Dispose()
+    {
+        gridMgr?.Dispose();
+    }
+}

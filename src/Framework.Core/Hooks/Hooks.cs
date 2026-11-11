@@ -102,6 +102,11 @@ public enum DocHookStage
     OnAmend
 }
 
+public interface IServerScriptHookRunner
+{
+    Task RunAsync(DocHookStage stage, HookContext context, CancellationToken ct);
+}
+
 public interface IDocHookRegistration
 {
     string DocType { get; }

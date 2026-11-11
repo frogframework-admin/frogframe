@@ -90,6 +90,7 @@ builder.Services.AddApiMethod<AjukanMassalMethod>();
 builder.Services.AddDeskMenuItem(new DeskMenuItem("HR", "Struktur Organisasi", "/hr/struktur-organisasi", "network", RequiresReadOf: "Employee"));
 builder.Services.AddScheduledJob<NotificationRuleDateJob>();
 builder.Services.AddScheduledJob<Framework.Integrations.AutoRepeatJob>();
+builder.Services.AddScheduledJob<Framework.Scripting.ServerScriptScheduledJob>();
 
 // Hardening HTTP production: ForwardedHeaders & HSTS
 builder.Services.AddFrogFrameHttpHardening(builder.Configuration);
