@@ -925,6 +925,7 @@ public static class PostgreSqlServiceCollectionExtensions
         services.Replace(ServiceDescriptor.Singleton<INotificationStore, PostgresNotificationStore>());
         services.Replace(ServiceDescriptor.Singleton<Framework.Notifications.INotificationRuleStore, PostgresNotificationRuleStore>());
         services.Replace(ServiceDescriptor.Singleton<Framework.Integrations.IWebhookStore, PostgresWebhookStore>());
+        services.Replace(ServiceDescriptor.Singleton<Framework.Integrations.IAutoRepeatStore, PostgresAutoRepeatStore>());
         services.Replace(ServiceDescriptor.Singleton<Framework.Preferences.IUserPreferenceStore, PostgresUserPreferenceStore>());
         services.Replace(ServiceDescriptor.Singleton<IMetadataVersionStore, PostgresMetadataVersionStore>());
         services.Replace(ServiceDescriptor.Singleton<Framework.Security.IUserAccountRepository, PostgresUserAccountRepository>());

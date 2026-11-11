@@ -57,6 +57,7 @@ public sealed class CompiledField
     public required IFieldType Type { get; init; }
     public string Name => Def.Name;
     public string Label => string.IsNullOrEmpty(Def.Label) ? Def.Name : Def.Label;
+    public bool NoCopy => Def.NoCopy;
     public ParsedExpression? RequiredWhen { get; init; }
     public ParsedExpression? VisibleWhen { get; init; }
     public ParsedExpression? ReadOnlyWhen { get; init; }
@@ -97,6 +98,7 @@ public sealed class CompiledDocType
     public string Name => Def.Name;
     public int Version => Def.Version;
     public string Title => string.IsNullOrEmpty(Def.Title) ? Def.Name : Def.Title;
+    public bool AllowAutoRepeat => Def.AllowAutoRepeat;
     public required IReadOnlyList<CompiledField> Fields { get; init; }
     public required IReadOnlyDictionary<string, CompiledField> ByName { get; init; }
     /// <summary>Field compute dalam urutan topologis (dependensi lebih dulu).</summary>
@@ -470,6 +472,8 @@ public sealed partial class MetadataCompiler(IFieldTypeRegistry fieldTypes, Func
 
         if (d.IsSingle && d.IsChild) errors.Add(new(src, "isSingle", "Child table tidak bisa sekaligus Single DocType"));
         if (d.IsSingle && !string.IsNullOrWhiteSpace(d.Workflow)) errors.Add(new(src, "workflow", "Single DocType tidak mendukung workflow"));
+        if (d.AllowAutoRepeat && d.IsChild) errors.Add(new(src, "allowAutoRepeat", "Child DocType cannot have AllowAutoRepeat enabled"));
+        if (d.AllowAutoRepeat && d.IsSingle) errors.Add(new(src, "allowAutoRepeat", "Single DocType cannot have AllowAutoRepeat enabled"));
 
         // Setiap DocType (bukan child table) wajib punya modul dari master modul tenant.
         if (_scope is not null && !d.IsChild)

@@ -15,6 +15,8 @@ public sealed class DocTypeDef
     public bool IsChild { get; set; }
     /// <summary>Single DocType: tepat satu dokumen per tenant (mis. pengaturan). Nama dokumen = nama DocType; tidak bisa dihapus.</summary>
     public bool IsSingle { get; set; }
+    /// <summary>Auto Repeat: controls whether this DocType supports recurring schedule automation.</summary>
+    public bool AllowAutoRepeat { get; set; }
     public StorageDef Storage { get; set; } = new();
     public DocumentDef Document { get; set; } = new();
     public NamingDef Naming { get; set; } = new();
@@ -192,6 +194,8 @@ public sealed class FieldDef
     public bool IgnoreLinks { get; set; }
     /// <summary>Field Table: tombol "Tambah dari daftar" yang mengisi baris dari DocType lain.</summary>
     public LookupAddDef? AddFromLookup { get; set; }
+    /// <summary>Auto Repeat / Duplicate: excludes this field from being copied into recurring documents.</summary>
+    public bool NoCopy { get; set; }
 }
 
 /// <summary>

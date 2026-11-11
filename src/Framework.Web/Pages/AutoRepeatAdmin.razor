@@ -1,0 +1,555 @@
+@page "/admin/auto-repeats"
+@using Framework.Integrations
+@using Framework.Metadata
+@using Framework.Security
+@using Framework.Web.Services
+@inject AutoRepeatService AutoRepeatService
+@inject IAutoRepeatStore AutoRepeatStore
+@inject IMetadataProvider Metadata
+@inject CurrentUser Current
+@inject ToastService Toasts
+@inject DialogService Dialogs
+@inject TimeProvider Clock
+@inject Framework.Preferences.IUserPreferenceStore UserPrefs
+@implements IDisposable
+
+<PageTitle>Auto Repeats · FrogFrame</PageTitle>
+
+@if (!Current.Required.IsAdmin)
+{
+    <ErrorState StatusCode="403" Description="This administration page is restricted to System Managers / Administrators." />
+}
+else
+{
+    <header class="page-head">
+        <div>
+            <h1>Auto Repeats</h1>
+            <p>Configure recurring document automation schedules. Automatically clone and insert documents on daily, weekly, monthly, quarterly, or yearly schedules.</p>
+        </div>
+        <div class="row" style="gap:.5rem">
+            <BbButton OnClick="StartCreate"><LucideIcon Name="plus" Size="16" /> New Auto Repeat</BbButton>
+        </div>
+    </header>
+
+    @if (error is not null)
+    {
+        <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@error</BbAlertDescription></BbAlert>
+    }
+
+    <div class="row" style="gap:1rem;margin-bottom:1rem;align-items:center;">
+        <div style="width:16rem">
+            <BbSelect TValue="string" Value="@filterDocType" ValueChanged="OnFilterDocTypeChanged" Options="DocTypeFilterOptions" />
+        </div>
+    </div>
+
+    <BbDataGrid @key="gridMgr.RenderKey"
+                TData="AutoRepeatDef"
+                Items="filteredRepeats"
+                AriaLabel="Auto Repeats"
+                OnColumnResize="gridMgr.HandleResize"
+                StateChanged="gridMgr.HandleStateChanged">
+        <Toolbar>
+            <div class="row" style="gap:.5rem;width:100%;justify-content:flex-end">
+                @if (gridMgr.HasCustomLayout)
+                {
+                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ResetColumnsLayout" Title="Reset column layout to default">
+                        <LucideIcon Name="rotate-ccw" Size="14" />
+                        <span>Reset Columns</span>
+                    </BbButton>
+                }
+                <BbDataGridColumnVisibility TData="AutoRepeatDef" />
+            </div>
+        </Toolbar>
+        <Columns>
+            <BbDataGridPropertyColumn TData="AutoRepeatDef" TProp="string" Property="r => r.Name" Id="name" Title="Name"
+                                      Width="@gridMgr.GetWidth("name", "16rem")" Visible="@gridMgr.IsVisible("name")" Resizable="true" Sortable="true" Filterable="true">
+                <CellTemplate Context="r">
+                    <span style="font-weight:600">@r.Name</span>
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridPropertyColumn TData="AutoRepeatDef" TProp="string" Property="r => r.ReferenceDocType" Id="doctype" Title="DocType"
+                                      Width="@gridMgr.GetWidth("doctype", "12rem")" Visible="@gridMgr.IsVisible("doctype")" Resizable="true" Sortable="true" Filterable="true">
+                <CellTemplate Context="r">
+                    <BbBadge Variant="BadgeVariant.Secondary">@r.ReferenceDocType</BbBadge>
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridPropertyColumn TData="AutoRepeatDef" TProp="string" Property="r => r.ReferenceDocName" Id="docname" Title="Source Document"
+                                      Width="@gridMgr.GetWidth("docname", "14rem")" Visible="@gridMgr.IsVisible("docname")" Resizable="true" Sortable="true">
+                <CellTemplate Context="r">
+                    <a href="@($"/desk/{r.ReferenceDocType}/{r.ReferenceDocName}")" style="font-weight:500;text-decoration:underline">
+                        @r.ReferenceDocName
+                    </a>
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridPropertyColumn TData="AutoRepeatDef" TProp="string" Property="r => r.Frequency.ToString()" Id="frequency" Title="Frequency"
+                                      Width="@gridMgr.GetWidth("frequency", "9rem")" Visible="@gridMgr.IsVisible("frequency")" Resizable="true" Sortable="true">
+                <CellTemplate Context="r">
+                    <BbBadge Variant="BadgeVariant.Outline">@r.Frequency</BbBadge>
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridPropertyColumn TData="AutoRepeatDef" TProp="string" Property='r => r.NextScheduleDate.ToString("yyyy-MM-dd")' Id="next" Title="Next Schedule"
+                                      Width="@gridMgr.GetWidth("next", "10rem")" Visible="@gridMgr.IsVisible("next")" Resizable="true" Sortable="true">
+                <CellTemplate Context="r">
+                    <span style="font-family:monospace;font-size:.875rem">@r.NextScheduleDate.ToString("yyyy-MM-dd")</span>
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridPropertyColumn TData="AutoRepeatDef" TProp="string" Property="r => r.Status.ToString()" Id="status" Title="Status"
+                                      Width="@gridMgr.GetWidth("status", "8rem")" Visible="@gridMgr.IsVisible("status")" Resizable="true" Sortable="true">
+                <CellTemplate Context="r">
+                    @if (r.Status == AutoRepeatStatus.Active)
+                    {
+                        <BbBadge Variant="BadgeVariant.SoftSuccess">Active</BbBadge>
+                    }
+                    else if (r.Status == AutoRepeatStatus.Paused)
+                    {
+                        <BbBadge Variant="BadgeVariant.Warning">Paused</BbBadge>
+                    }
+                    else
+                    {
+                        <BbBadge Variant="BadgeVariant.Secondary">Completed</BbBadge>
+                    }
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
+            <BbDataGridTemplateColumn TData="AutoRepeatDef" Id="actions" Title="Actions" Width="15rem">
+                <ChildContent Context="r">
+                    <div class="row" style="gap:.35rem">
+                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="@(() => RunNow(r))" Title="Execute recurrence now">
+                            <LucideIcon Name="play" Size="14" /> Run
+                        </BbButton>
+                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="@(() => OpenRunsDrawer(r))" Title="View Run History">
+                            <LucideIcon Name="history" Size="14" /> Logs
+                        </BbButton>
+                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="@(() => StartEdit(r))" Title="Edit Auto Repeat">
+                            <LucideIcon Name="pencil" Size="14" />
+                        </BbButton>
+                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="@(() => ToggleStatus(r))" Title="@(r.Status == AutoRepeatStatus.Active ? "Pause" : "Resume")">
+                            <LucideIcon Name="@(r.Status == AutoRepeatStatus.Active ? "pause" : "play-circle")" Size="14" />
+                        </BbButton>
+                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="@(() => ConfirmDelete(r))" Title="Delete Auto Repeat">
+                            <LucideIcon Name="trash" Size="14" />
+                        </BbButton>
+                    </div>
+                </ChildContent>
+            </BbDataGridTemplateColumn>
+        </Columns>
+    </BbDataGrid>
+}
+
+<!-- Create / Edit Auto Repeat Drawer -->
+<AdminDrawer Open="@isDrawerOpen"
+             OpenChanged="OnDrawerOpenChanged"
+             Title="@(isEditing ? "Edit Auto Repeat" : "New Auto Repeat")"
+             WidthScale="1.8">
+    <ChildContent>
+        @if (dialogError is not null)
+        {
+            <div style="margin-bottom:1rem">
+                <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@dialogError</BbAlertDescription></BbAlert>
+            </div>
+        }
+
+        <div style="display:flex;flex-direction:column;gap:1.25rem">
+            <div>
+                <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">Schedule Name</label>
+                <BbInput @bind-Value="editName" Placeholder="e.g. Monthly Office Supplies PR" />
+            </div>
+
+            <div class="row" style="gap:1rem">
+                <div style="flex:1">
+                    <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">DocType</label>
+                    <BbSelect TValue="string" @bind-Value="editDocType" Options="RepeatableDocTypeOptions" />
+                </div>
+                <div style="flex:1">
+                    <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">Reference Doc Name</label>
+                    <BbInput @bind-Value="editDocName" Placeholder="e.g. PR-2026-00001" />
+                </div>
+            </div>
+
+            <div class="row" style="gap:1rem">
+                <div style="flex:1">
+                    <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">Frequency</label>
+                    <BbSelect TValue="string" @bind-Value="editFrequency" Options="FrequencyOptions" />
+                </div>
+                <div style="flex:1">
+                    <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">Run As User</label>
+                    <BbInput @bind-Value="editRunAsUserId" Placeholder="Defaults to current user" />
+                </div>
+            </div>
+
+            <div class="row" style="gap:1rem">
+                <div style="flex:1">
+                    <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">Start Date</label>
+                    <BbInput @bind-Value="editStartDateStr" Placeholder="YYYY-MM-DD" />
+                </div>
+                <div style="flex:1">
+                    <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">End Date (Optional)</label>
+                    <BbInput @bind-Value="editEndDateStr" Placeholder="YYYY-MM-DD (Leave empty for indefinite)" />
+                </div>
+            </div>
+
+            <div style="display:flex;flex-direction:column;gap:.75rem">
+                <div style="display:flex;align-items:center;gap:.75rem">
+                    <BbSwitch @bind-Value="editSubmitOnCreation" Id="repeat-submit-on-creation" />
+                    <label for="repeat-submit-on-creation" style="cursor:pointer;font-weight:500">Automatically submit generated documents (if submittable)</label>
+                </div>
+                <div style="display:flex;align-items:center;gap:.75rem">
+                    <BbSwitch @bind-Value="editNotifyByEmail" Id="repeat-notify-email" />
+                    <label for="repeat-notify-email" style="cursor:pointer;font-weight:500">Send email notification upon document generation</label>
+                </div>
+            </div>
+
+            @if (editNotifyByEmail)
+            {
+                <div>
+                    <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">Email Recipients (comma-separated)</label>
+                    <BbInput @bind-Value="editRecipientsRaw" Placeholder="e.g. manager@example.com, procurement@example.com" />
+                </div>
+            }
+        </div>
+    </ChildContent>
+    <FooterContent>
+        <div style="display:flex;justify-content:flex-end;gap:.5rem;width:100%">
+            <BbButton Variant="ButtonVariant.Ghost" OnClick="CloseDrawer">Cancel</BbButton>
+            <BbButton OnClick="SaveAutoRepeat">Save Auto Repeat</BbButton>
+        </div>
+    </FooterContent>
+</AdminDrawer>
+
+<!-- Execution Runs History Drawer -->
+<AdminDrawer Open="@isRunsDrawerOpen"
+             OpenChanged="OnRunsDrawerOpenChanged"
+             Title="@($"Runs History · {activeRepeatRuns?.Name}")"
+             WidthScale="2.0">
+    <ChildContent>
+        @if (runs.Count == 0)
+        {
+            <div style="text-align:center;padding:2rem;color:var(--bb-text-muted)">
+                <LucideIcon Name="inbox" Size="32" style="margin-bottom:.5rem;opacity:.5" />
+                <p>No execution runs recorded for this schedule yet.</p>
+            </div>
+        }
+        else
+        {
+            <div style="display:flex;flex-direction:column;gap:.75rem">
+                @foreach (var run in runs)
+                {
+                    <div style="border:1px solid var(--bb-border);border-radius:.375rem;padding:.75rem;background:var(--bb-bg-card)">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.35rem">
+                            <div style="display:flex;align-items:center;gap:.5rem">
+                                @if (run.Status == "Success")
+                                {
+                                    <BbBadge Variant="BadgeVariant.SoftSuccess">Success</BbBadge>
+                                }
+                                else
+                                {
+                                    <BbBadge Variant="BadgeVariant.Destructive">Failed</BbBadge>
+                                }
+                                <span style="font-weight:600;font-size:.875rem">Scheduled for: @run.ScheduledFor.ToString("yyyy-MM-dd")</span>
+                                @if (!string.IsNullOrEmpty(run.GeneratedDocName))
+                                {
+                                    <a href="@($"/desk/{activeRepeatRuns?.ReferenceDocType}/{run.GeneratedDocName}")" style="font-weight:500;text-decoration:underline;font-size:.875rem">
+                                        @run.GeneratedDocName
+                                    </a>
+                                }
+                            </div>
+                            <span style="font-size:.75rem;color:var(--bb-text-muted)">@run.ExecutedAt.ToLocalTime().ToString("g")</span>
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(run.Error))
+                        {
+                            <div style="font-size:.8125rem;color:var(--bb-destructive);font-family:monospace">
+                                @run.Error
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </ChildContent>
+    <FooterContent>
+        <div style="display:flex;justify-content:flex-end;width:100%">
+            <BbButton Variant="ButtonVariant.Ghost" OnClick="CloseRunsDrawer">Close</BbButton>
+        </div>
+    </FooterContent>
+</AdminDrawer>
+
+@code {
+    private List<AutoRepeatDef> repeats = [];
+    private List<AutoRepeatRun> runs = [];
+    private string filterDocType = "";
+    private string? error;
+    private string? dialogError;
+
+    private bool isDrawerOpen;
+    private bool isRunsDrawerOpen;
+    private bool isEditing;
+    private string? editingId;
+    private AutoRepeatDef? activeRepeatRuns;
+
+    // Form fields
+    private string editName = "";
+    private string editDocType = "";
+    private string editDocName = "";
+    private string editFrequency = nameof(AutoRepeatFrequency.Monthly);
+    private string editRunAsUserId = "";
+    private string editStartDateStr = "";
+    private string editEndDateStr = "";
+    private bool editSubmitOnCreation;
+    private bool editNotifyByEmail;
+    private string editRecipientsRaw = "";
+
+    private IEnumerable<AutoRepeatDef> filteredRepeats =>
+        repeats.Where(r => string.IsNullOrEmpty(filterDocType) || string.Equals(r.ReferenceDocType, filterDocType, StringComparison.OrdinalIgnoreCase));
+
+    private IReadOnlyList<SelectOption<string>> DocTypeFilterOptions =>
+        new[] { new SelectOption<string>("", "All DocTypes") }
+            .Concat(Metadata.Current.DocTypes.Values
+                .Where(d => d.AllowAutoRepeat)
+                .OrderBy(d => d.Title)
+                .Select(d => new SelectOption<string>(d.Name, d.Title)))
+            .ToList();
+
+    private IReadOnlyList<SelectOption<string>> RepeatableDocTypeOptions =>
+        Metadata.Current.DocTypes.Values
+            .Where(d => d.AllowAutoRepeat)
+            .OrderBy(d => d.Title)
+            .Select(d => new SelectOption<string>(d.Name, d.Title))
+            .ToList();
+
+    private static readonly IReadOnlyList<SelectOption<string>> FrequencyOptions =
+    [
+        new(nameof(AutoRepeatFrequency.Daily), "Daily"),
+        new(nameof(AutoRepeatFrequency.Weekly), "Weekly"),
+        new(nameof(AutoRepeatFrequency.Monthly), "Monthly"),
+        new(nameof(AutoRepeatFrequency.Quarterly), "Quarterly"),
+        new(nameof(AutoRepeatFrequency.Yearly), "Yearly")
+    ];
+
+    private DataGridPreferenceManager<AutoRepeatDef> gridMgr = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        gridMgr = new DataGridPreferenceManager<AutoRepeatDef>(
+            UserPrefs,
+            Current,
+            "grid:admin:auto-repeats",
+            StateHasChanged
+        );
+        await gridMgr.InitializeAsync();
+        await LoadRepeatsAsync();
+    }
+
+    private async Task LoadRepeatsAsync()
+    {
+        try
+        {
+            var res = await AutoRepeatService.ListAsync(Current.Required);
+            repeats = res.ToList();
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+    }
+
+    private void OnFilterDocTypeChanged(string docType)
+    {
+        filterDocType = docType;
+    }
+
+    private void OnDrawerOpenChanged(bool open) => isDrawerOpen = open;
+    private void CloseDrawer() => isDrawerOpen = false;
+
+    private void OnRunsDrawerOpenChanged(bool open) => isRunsDrawerOpen = open;
+    private void CloseRunsDrawer() => isRunsDrawerOpen = false;
+
+    private void StartCreate()
+    {
+        isEditing = false;
+        editingId = null;
+        dialogError = null;
+
+        var defaultDt = Metadata.Current.DocTypes.Values.FirstOrDefault(d => d.AllowAutoRepeat)?.Name ?? "PurchaseRequest";
+        editName = "";
+        editDocType = defaultDt;
+        editDocName = "";
+        editFrequency = nameof(AutoRepeatFrequency.Monthly);
+        editRunAsUserId = Current.Required.Id;
+        editStartDateStr = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd");
+        editEndDateStr = "";
+        editSubmitOnCreation = false;
+        editNotifyByEmail = false;
+        editRecipientsRaw = "";
+
+        isDrawerOpen = true;
+    }
+
+    private void StartEdit(AutoRepeatDef r)
+    {
+        isEditing = true;
+        editingId = r.Id;
+        dialogError = null;
+
+        editName = r.Name;
+        editDocType = r.ReferenceDocType;
+        editDocName = r.ReferenceDocName;
+        editFrequency = r.Frequency.ToString();
+        editRunAsUserId = r.RunAsUserId;
+        editStartDateStr = r.StartDate.ToString("yyyy-MM-dd");
+        editEndDateStr = r.EndDate?.ToString("yyyy-MM-dd") ?? "";
+        editSubmitOnCreation = r.SubmitOnCreation;
+        editNotifyByEmail = r.NotifyByEmail;
+        editRecipientsRaw = string.Join(", ", r.Recipients);
+
+        isDrawerOpen = true;
+    }
+
+    private async Task SaveAutoRepeat()
+    {
+        dialogError = null;
+        try
+        {
+            if (!DateOnly.TryParse(editStartDateStr, out var startDate))
+            {
+                dialogError = "Invalid Start Date. Expected format YYYY-MM-DD.";
+                return;
+            }
+
+            DateOnly? endDate = null;
+            if (!string.IsNullOrWhiteSpace(editEndDateStr))
+            {
+                if (!DateOnly.TryParse(editEndDateStr, out var parsedEnd))
+                {
+                    dialogError = "Invalid End Date. Expected format YYYY-MM-DD.";
+                    return;
+                }
+                endDate = parsedEnd;
+            }
+
+            if (!Enum.TryParse<AutoRepeatFrequency>(editFrequency, out var freq))
+            {
+                dialogError = "Invalid Frequency selected.";
+                return;
+            }
+
+            var recipients = editRecipientsRaw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var req = new SaveAutoRepeatRequest(
+                Id: editingId,
+                Name: editName,
+                ReferenceDocType: editDocType,
+                ReferenceDocName: editDocName,
+                Frequency: freq,
+                StartDate: startDate,
+                EndDate: endDate,
+                RunAsUserId: editRunAsUserId,
+                NotifyByEmail: editNotifyByEmail,
+                Recipients: recipients,
+                SubmitOnCreation: editSubmitOnCreation
+            );
+
+            await AutoRepeatService.SaveAsync(Current.Required, req);
+
+            isDrawerOpen = false;
+            Toasts.Success("Auto Repeat schedule saved.", "Auto Repeat");
+            await LoadRepeatsAsync();
+        }
+        catch (Exception ex)
+        {
+            dialogError = ex.Message;
+        }
+    }
+
+    private async Task RunNow(AutoRepeatDef r)
+    {
+        try
+        {
+            var summary = await AutoRepeatService.ExecuteRepeatNowAsync(Current.Required, r.Id);
+            if (!string.IsNullOrEmpty(summary.Error))
+            {
+                Toasts.Error($"Execution issue: {summary.Error}", "Auto Repeat");
+            }
+            else if (summary.DocumentsGenerated > 0)
+            {
+                Toasts.Success($"Generated {summary.DocumentsGenerated} document(s): {string.Join(", ", summary.GeneratedDocNames)}", "Auto Repeat");
+            }
+            else
+            {
+                Toasts.Info("Schedule is up to date; no documents were due.", "Auto Repeat");
+            }
+            await LoadRepeatsAsync();
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error($"Execution failed: {ex.Message}", "Auto Repeat");
+        }
+    }
+
+    private async Task ToggleStatus(AutoRepeatDef r)
+    {
+        try
+        {
+            var newStatus = r.Status == AutoRepeatStatus.Active ? AutoRepeatStatus.Paused : AutoRepeatStatus.Active;
+            var updated = r with { Status = newStatus, ModifiedAt = DateTimeOffset.UtcNow };
+            await AutoRepeatStore.SaveAsync(updated);
+            Toasts.Success($"Schedule '{r.Name}' {(newStatus == AutoRepeatStatus.Active ? "resumed" : "paused")}.", "Auto Repeat");
+            await LoadRepeatsAsync();
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error($"Failed to update status: {ex.Message}", "Auto Repeat");
+        }
+    }
+
+    private async Task ConfirmDelete(AutoRepeatDef r)
+    {
+        var confirmed = await Dialogs.ConfirmAsync("Delete Auto Repeat", $"Are you sure you want to delete auto repeat schedule '{r.Name}'?");
+        if (confirmed.Confirmed)
+        {
+            try
+            {
+                await AutoRepeatService.DeleteAsync(Current.Required, r.Id);
+                Toasts.Success($"Auto repeat '{r.Name}' deleted.", "Auto Repeat");
+                await LoadRepeatsAsync();
+            }
+            catch (Exception ex)
+            {
+                Toasts.Error($"Failed to delete schedule: {ex.Message}", "Auto Repeat");
+            }
+        }
+    }
+
+    private async Task OpenRunsDrawer(AutoRepeatDef r)
+    {
+        activeRepeatRuns = r;
+        try
+        {
+            var list = await AutoRepeatStore.ListRunsAsync(Current.Required.TenantId, r.Id, limit: 50);
+            runs = list.ToList();
+            isRunsDrawerOpen = true;
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error($"Failed to load run history: {ex.Message}", "Auto Repeat");
+        }
+    }
+
+    private async Task ResetColumnsLayout()
+    {
+        await gridMgr.ResetAsync();
+    }
+
+    public void Dispose()
+    {
+        gridMgr?.Dispose();
+    }
+}
+

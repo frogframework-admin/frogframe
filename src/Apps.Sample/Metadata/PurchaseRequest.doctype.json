@@ -4,6 +4,7 @@
   "title": "Pengajuan Pembelian",
   "module": "PROCUREMENT",
   "description": "Pilot RFC §18: field dasar, Link, child table, total terhitung, permission berlapis, dan workflow persetujuan.",
+  "allowAutoRepeat": true,
   "storage": {
     "strategy": "document",
     "table": "purchase_requests"

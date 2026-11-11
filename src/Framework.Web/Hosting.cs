@@ -258,6 +258,10 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<WebhookDispatcher>();
         services.AddHostedService<WebhookDeliveryWorker>();
 
+        // Auto Repeat (Phase 3 Workstream B)
+        services.TryAddSingleton<IAutoRepeatStore, InMemoryAutoRepeatStore>();
+        services.AddSingleton<AutoRepeatService>();
+
         services.AddHttpClient(WebhookDispatcher.HttpClientName, (sp, client) =>
         {
             client.Timeout = TimeSpan.FromSeconds(10);

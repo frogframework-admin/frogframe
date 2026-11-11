@@ -26,6 +26,8 @@
       href: guides/api-integrations.md
     - name: Outbound Webhooks
       href: webhooks.md
+    - name: Auto Repeat (Recurring Documents)
+      href: auto-repeat.md
     - name: Excel & CSV Data Import
       href: guides/excel-import.md
     - name: Template Reporting (Excel & Word)

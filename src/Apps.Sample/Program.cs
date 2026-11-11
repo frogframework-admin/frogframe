@@ -89,6 +89,7 @@ builder.Services.AddApiMethod<AjukanMassalMethod>();
 // Menu tambahan di grup HR (tampil bagi yang boleh membaca data Karyawan).
 builder.Services.AddDeskMenuItem(new DeskMenuItem("HR", "Struktur Organisasi", "/hr/struktur-organisasi", "network", RequiresReadOf: "Employee"));
 builder.Services.AddScheduledJob<NotificationRuleDateJob>();
+builder.Services.AddScheduledJob<Framework.Integrations.AutoRepeatJob>();
 
 // Hardening HTTP production: ForwardedHeaders & HSTS
 builder.Services.AddFrogFrameHttpHardening(builder.Configuration);

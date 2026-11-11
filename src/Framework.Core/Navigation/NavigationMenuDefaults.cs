@@ -337,6 +337,22 @@ public static class NavigationMenuDefaults
         },
         new()
         {
+            Id = $"menu_{tenantId}_auto_repeats",
+            TenantId = tenantId,
+            Title = "Auto Repeats",
+            Href = "admin/auto-repeats",
+            Icon = "repeat",
+            GroupId = GroupSistemId(tenantId),
+            GroupName = "System",
+            SortOrder = 138,
+            AllowedRoles = [UserContext.SystemManager, UserContext.Administrator],
+            IsSystem = true,
+            IsActive = true,
+            CreatedAt = now,
+            UpdatedAt = now
+        },
+        new()
+        {
             Id = $"menu_{tenantId}_notifications",
             TenantId = tenantId,
             Title = "Notification Rules",
