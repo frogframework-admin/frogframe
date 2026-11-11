@@ -177,6 +177,9 @@ public static class DocApi
             var repo = sp.GetRequiredService<IUserAccountRepository>();
             var users = sp.GetRequiredService<UserManager<UserAccount>>();
             var queue = sp.GetRequiredService<IEmailQueue>();
+            // Sourced before looking up user: if configuration is invalid, all requests fail consistently,
+            // preventing responses from leaking whether an account exists.
+            var baseUrl = sp.GetRequiredService<PublicUrlResolver>().GetBaseUrl(http.Request);
 
             var user = await repo.FindByNormalizedEmailAsync(identifier.ToUpperInvariant(), http.RequestAborted)
                        ?? await repo.FindByNormalizedUserNameAsync(identifier.ToUpperInvariant(), http.RequestAborted);
@@ -184,8 +187,7 @@ public static class DocApi
             if (user is not null && user.IsActive && !string.IsNullOrWhiteSpace(user.Email))
             {
                 var token = await users.GeneratePasswordResetTokenAsync(user);
-                var baseUrl = $"{http.Request.Scheme}://{http.Request.Host}";
-                var resetLink = $"{baseUrl}/reset-password?userId={Uri.EscapeDataString(user.Id)}&token={Uri.EscapeDataString(token)}";
+                var resetLink = PasswordResetLink.Build(baseUrl, user.Id, token);
 
                 var template = "Hello {{FullName}},\n\nA password reset was requested for your account ({{UserName}}).\nClick the link below to set a new password:\n\n{{ResetLink}}\n\nThis single-use link is valid for 24 hours. If you did not request this, please ignore this email.";
                 var bodyText = EmailTemplateEngine.Render(template, new Dictionary<string, string?>
@@ -203,7 +205,7 @@ public static class DocApi
                     BodyText = bodyText
                 };
 
-                await queue.QueueAsync(user.TenantId, emailMsg, idempotencyKey: $"pwd-reset-{user.Id}-{token.GetHashCode()}", ct: http.RequestAborted);
+                await queue.QueueAsync(user.TenantId, emailMsg, idempotencyKey: PasswordResetLink.IdempotencyKey(user.Id, token), ct: http.RequestAborted);
             }
 
             return Results.Ok(new { message = "If the account exists and has a valid email address, password reset instructions have been sent." });

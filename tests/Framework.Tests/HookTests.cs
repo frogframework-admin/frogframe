@@ -118,6 +118,8 @@ sealed class DuplicatePurchaseRequestAction : IFormAction<PurchaseRequest>
 
 sealed partial class Tests
 {
+    private static string ReqDate(int offset = 0) => DateOnly.FromDateTime(DateTime.UtcNow.AddDays(offset)).ToString("yyyy-MM-dd");
+
     [Test]
     public async Task Hook_tahapan_berurutan_dan_OnLoad_hanya_pada_Get_tunggal()
     {
@@ -125,7 +127,7 @@ sealed partial class Tests
         await UseHookProviderAsync(s => s.AddDocHook<PurchaseRequest, HookOrderProbe>());
         HookOrderProbe.Calls.Clear();
         HookOrderProbe.Enabled = true;
-        var doc = await Docs.InsertAsync(U("andi"), PR, P(("items", Items(1, 1000)), ("request_date", "2026-10-10"), ("required_by", "2026-10-11")));
+        var doc = await Docs.InsertAsync(U("andi"), PR, P(("items", Items(1, 1000)), ("request_date", ReqDate()), ("required_by", ReqDate(1))));
         Assert.Equal("validate,insert,save", string.Join(',', HookOrderProbe.Calls), "urutan hook insert");
         HookOrderProbe.Calls.Clear();
         _ = await Docs.ListAsync(U("andi"), PR, new ListRequest(PageSize: 5));
@@ -141,13 +143,13 @@ sealed partial class Tests
         HookFailureProbe.Enabled = true;
         var before = await CountPR();
         await Assert.Throws<DocumentHookException>(() => Docs.InsertAsync(U("andi"), PR,
-            P(("items", Items(1, 1000)), ("request_date", "2026-10-10"), ("required_by", "2026-10-11"), ("justification", "fail hook"))), "insert AfterSave");
+            P(("items", Items(1, 1000)), ("request_date", ReqDate()), ("required_by", ReqDate(1)), ("justification", "fail hook"))), "insert AfterSave");
         Assert.Equal(before, await CountPR(), "insert gagal tidak tersimpan");
 
         var rows = new IDictionary<string, object?>[]
         {
-            P(("items", Items(1, 1000)), ("request_date", "2026-10-10"), ("required_by", "2026-10-11"), ("justification", "first succeeds")),
-            P(("items", Items(1, 2000)), ("request_date", "2026-10-10"), ("required_by", "2026-10-11"), ("justification", "fail hook")),
+            P(("items", Items(1, 1000)), ("request_date", ReqDate()), ("required_by", ReqDate(1)), ("justification", "first succeeds")),
+            P(("items", Items(1, 2000)), ("request_date", ReqDate()), ("required_by", ReqDate(1)), ("justification", "fail hook")),
         };
         var batch = await Assert.Throws<BatchRowException>(() => Docs.InsertBatchAsync(U("andi"), PR, rows, "batch"), "batch row failure");
         Assert.Equal(1, batch.Index, "baris gagal");
@@ -182,7 +184,7 @@ sealed partial class Tests
         HookCycleProbe.Enabled = true;
         var before = await CountPR();
         await Assert.Throws<HookRecursionException>(() => Docs.InsertAsync(U("andi"), PR,
-            P(("items", Items(1, 1000)), ("request_date", "2026-10-10"), ("required_by", "2026-10-11"))), "AfterSave membaca dokumen saat ini");
+            P(("items", Items(1, 1000)), ("request_date", ReqDate()), ("required_by", ReqDate(1)))), "AfterSave membaca dokumen saat ini");
         Assert.Equal(before, await CountPR(), "siklus tidak melakukan commit");
     }
 
@@ -193,7 +195,7 @@ sealed partial class Tests
         HookDeleteProbe.ShouldReject = true;
         await UseHookProviderAsync(s => s.AddDocHook<PurchaseRequest, HookDeleteProbe>());
 
-        var doc = await Docs.InsertAsync(U("andi"), PR, P(("items", Items(1, 1000)), ("request_date", "2026-10-10"), ("required_by", "2026-10-11")));
+        var doc = await Docs.InsertAsync(U("andi"), PR, P(("items", Items(1, 1000)), ("request_date", ReqDate()), ("required_by", ReqDate(1))));
         Assert.Equal(DocStatus.Draft, doc.DocStatus, "dokumen draft");
 
         // BeforeDelete rejects
@@ -214,7 +216,7 @@ sealed partial class Tests
         HookCancelAmendProbe.Calls.Clear();
         await UseHookProviderAsync(s => s.AddDocHook<PurchaseRequest, HookCancelAmendProbe>());
 
-        var doc = await Docs.InsertAsync(U("andi"), PR, P(("items", Items(1, 500_000)), ("vendor", "VND-0001"), ("request_date", "2026-10-10"), ("required_by", "2026-10-11")));
+        var doc = await Docs.InsertAsync(U("andi"), PR, P(("items", Items(1, 500_000)), ("vendor", "VND-0001"), ("request_date", ReqDate()), ("required_by", ReqDate(1))));
         // Transition: Submit -> Reject (DocStatus = Cancelled)
         await Docs.RunActionAsync(U("andi"), PR, doc.Name, "Ajukan", 1, "ajukan pengajuan");
         await Docs.RunActionAsync(U("budi"), PR, doc.Name, "Tolak", 2, "batal / ditolak atasan");
@@ -232,7 +234,7 @@ sealed partial class Tests
     {
         await UseHookProviderAsync(s => s.AddDocHook<PurchaseRequest, HookMessageAndFieldProbe>());
 
-        var doc = await Docs.InsertAsync(U("andi"), PR, P(("items", Items(1, 1000)), ("request_date", "2026-10-10"), ("required_by", "2026-10-11")));
+        var doc = await Docs.InsertAsync(U("andi"), PR, P(("items", Items(1, 1000)), ("request_date", ReqDate()), ("required_by", ReqDate(1))));
         Assert.True(doc.TransientMessages.Contains("Notice: Item priority automatically evaluated."), "TransientMessages terisi dari hook");
         Assert.Equal("Pt Sinar Komputindo", HookMessageAndFieldProbe.FetchedFieldValue?.ToString(), "GetFieldAsync berhasil membaca vendor_name dari Vendor");
     }
@@ -247,7 +249,7 @@ sealed partial class Tests
         Assert.True(action is not null, "action terdaftar di DI");
 
         // Draft document -> not visible
-        var doc = await Docs.InsertAsync(U("andi"), PR, P(("items", Items(1, 1000)), ("vendor", "VND-0001"), ("request_date", "2026-10-10"), ("required_by", "2026-10-11")));
+        var doc = await Docs.InsertAsync(U("andi"), PR, P(("items", Items(1, 1000)), ("vendor", "VND-0001"), ("request_date", ReqDate()), ("required_by", ReqDate(1))));
         Assert.True(!action!.IsVisible(U("andi"), doc), "Draft tidak menampilkan tombol duplikasi");
 
         // Submit -> visible

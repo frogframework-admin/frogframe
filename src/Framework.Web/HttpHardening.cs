@@ -22,10 +22,17 @@ public static class HttpHardeningExtensions
         services.Configure<ForwardedHeadersOptions>(options =>
         {
             options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost;
-            // Clear default loopback network restrictions so reverse proxy headers from Docker/Traefik/Nginx/K8s are accepted
-            options.KnownIPNetworks.Clear();
-            options.KnownProxies.Clear();
+            ConfigureTrustedProxies(options, config);
         });
+
+        // Fail on startup if App:PublicBaseUrl is empty or invalid outside Development (used for password reset links).
+        services.AddOptions<PublicUrlOptions>()
+            .Configure<IConfiguration>((o, cfg) => o.PublicBaseUrl = cfg[PublicUrlOptions.ConfigKey])
+            .Validate<IHostEnvironment>(
+                (o, env) => string.IsNullOrWhiteSpace(o.PublicBaseUrl) ? env.IsDevelopment() : PublicUrlResolver.TryNormalize(o.PublicBaseUrl, out _),
+                $"{PublicUrlOptions.ConfigKey} must be configured with an absolute http/https URL (e.g. https://erp.example.com) outside Development environments. " +
+                "This value is used for password reset links and must not be derived from the Host header.")
+            .ValidateOnStart();
 
         services.AddHsts(options =>
         {
@@ -35,6 +42,49 @@ public static class HttpHardeningExtensions
         });
 
         return services;
+    }
+
+    /// <summary>
+    /// Configures trusted proxies allowed to send X-Forwarded-For/Proto/Host headers. Headers from other sources are ignored,
+    /// preventing clients from spoofing IP addresses (API key IP allowlists, per-IP rate limits) or Host headers.
+    /// ASP.NET Core default: loopback only. Add reverse proxy IPs/CIDRs via configuration:
+    /// <code>
+    /// "ForwardedHeaders": {
+    ///   "KnownProxies":  [ "10.0.0.5" ],
+    ///   "KnownNetworks": [ "172.18.0.0/16" ],
+    ///   "ForwardLimit": 1,
+    ///   "TrustAllProxies": false
+    /// }
+    /// </code>
+    /// <c>TrustAllProxies = true</c> is only intended for deployments where the application port CANNOT be reached directly except through the proxy.
+    /// </summary>
+    public static void ConfigureTrustedProxies(ForwardedHeadersOptions options, IConfiguration? config)
+    {
+        var section = config?.GetSection("ForwardedHeaders");
+        if (section is null) return;
+
+        if (section.GetValue<bool>("TrustAllProxies"))
+        {
+            options.KnownIPNetworks.Clear();
+            options.KnownProxies.Clear();
+            return;
+        }
+
+        foreach (var raw in section.GetSection("KnownProxies").Get<string[]>() ?? [])
+        {
+            if (!System.Net.IPAddress.TryParse(raw.Trim(), out var ip))
+                throw new InvalidOperationException($"ForwardedHeaders:KnownProxies contains an invalid IP address: '{raw}'");
+            options.KnownProxies.Add(ip);
+        }
+
+        foreach (var raw in section.GetSection("KnownNetworks").Get<string[]>() ?? [])
+        {
+            if (!System.Net.IPNetwork.TryParse(raw.Trim(), out var network))
+                throw new InvalidOperationException($"ForwardedHeaders:KnownNetworks contains an invalid CIDR notation: '{raw}'");
+            options.KnownIPNetworks.Add(network);
+        }
+
+        if (section.GetValue<int?>("ForwardLimit") is { } limit) options.ForwardLimit = limit;
     }
 
     /// <summary>

@@ -92,7 +92,9 @@ sealed partial class Tests
         });
 
         // Insert a test document in tenant acme
-        var prDoc = await Docs.InsertAsync(U("andi"), PR, P(("items", Items(1, 1000)), ("request_date", "2026-10-10"), ("required_by", "2026-10-11")));
+        var today = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd");
+        var tomorrow = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)).ToString("yyyy-MM-dd");
+        var prDoc = await Docs.InsertAsync(U("andi"), PR, P(("items", Items(1, 1000)), ("request_date", today), ("required_by", tomorrow)));
 
         var runner = sp.GetRequiredService<ScheduledJobRunner>();
         var topOfHour = new DateTimeOffset(2026, 11, 1, 14, 0, 0, TimeSpan.Zero);

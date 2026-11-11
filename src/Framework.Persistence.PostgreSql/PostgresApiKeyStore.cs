@@ -38,7 +38,9 @@ public sealed class PostgresApiKeyStore(NpgsqlDataSource db) : IApiKeyStore
     {
         await using var cmd = db.CreateCommand(
             $"INSERT INTO frogframe_api_keys ({Cols}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) " +
-            "ON CONFLICT (id) DO UPDATE SET name=$4, scopes=$6, allowed_ips=$7, expires_at=$10, revoked_at=$11, last_used_at=$12, last_used_ip=$13");
+            // revoked_at uses COALESCE: a previously revoked key cannot be reactivated by saving a stale instance.
+            "ON CONFLICT (id) DO UPDATE SET name=$4, scopes=$6, allowed_ips=$7, expires_at=$10, " +
+            "revoked_at=COALESCE(frogframe_api_keys.revoked_at, EXCLUDED.revoked_at), last_used_at=$12, last_used_ip=$13");
         object N(object? v) => v ?? DBNull.Value;
         cmd.Parameters.AddWithValue(k.Id); cmd.Parameters.AddWithValue(k.TenantId); cmd.Parameters.AddWithValue(k.UserId);
         cmd.Parameters.AddWithValue(k.Name); cmd.Parameters.AddWithValue(k.SecretHash);
@@ -46,6 +48,15 @@ public sealed class PostgresApiKeyStore(NpgsqlDataSource db) : IApiKeyStore
         cmd.Parameters.AddWithValue(k.CreatedBy); cmd.Parameters.AddWithValue(k.CreatedAt);
         cmd.Parameters.AddWithValue(N(k.ExpiresAt)); cmd.Parameters.AddWithValue(N(k.RevokedAt));
         cmd.Parameters.AddWithValue(N(k.LastUsedAt)); cmd.Parameters.AddWithValue(N(k.LastUsedIp));
+        await cmd.ExecuteNonQueryAsync(ct);
+    }
+
+    public async Task RecordUsageAsync(string id, DateTimeOffset usedAt, string? ip, CancellationToken ct = default)
+    {
+        await using var cmd = db.CreateCommand("UPDATE frogframe_api_keys SET last_used_at = $2, last_used_ip = $3 WHERE id = $1");
+        cmd.Parameters.AddWithValue(id);
+        cmd.Parameters.AddWithValue(usedAt);
+        cmd.Parameters.AddWithValue((object?)ip ?? DBNull.Value);
         await cmd.ExecuteNonQueryAsync(ct);
     }
 }

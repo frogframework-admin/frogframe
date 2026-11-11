@@ -38,17 +38,57 @@ public interface IApiKeyStore
 {
     Task<ApiKey?> GetAsync(string id, CancellationToken ct = default);
     Task<IReadOnlyList<ApiKey>> ListAsync(string tenantId, CancellationToken ct = default);
+    /// <summary>Saves an API key. A revoked key remains revoked even if the saved object has <c>RevokedAt = null</c>.</summary>
     Task SaveAsync(ApiKey key, CancellationToken ct = default);
+    /// <summary>
+    /// Records last usage only (timestamp + IP), without modifying other columns. Used during verification so
+    /// a stale key instance read before revocation cannot overwrite a concurrent revocation.
+    /// </summary>
+    Task RecordUsageAsync(string id, DateTimeOffset usedAt, string? ip, CancellationToken ct = default);
 }
 
 public sealed class InMemoryApiKeyStore : IApiKeyStore
 {
     private readonly ConcurrentDictionary<string, string> _keys = new();
+    private readonly object _gate = new();
     private static ApiKey Read(string j) => JsonSerializer.Deserialize<ApiKey>(j)!;
     public Task<ApiKey?> GetAsync(string id, CancellationToken ct = default) => Task.FromResult(_keys.TryGetValue(id, out var j) ? Read(j) : null);
     public Task<IReadOnlyList<ApiKey>> ListAsync(string tenantId, CancellationToken ct = default) =>
         Task.FromResult<IReadOnlyList<ApiKey>>(_keys.Values.Select(Read).Where(k => k.TenantId == tenantId).OrderByDescending(k => k.CreatedAt).ToList());
-    public Task SaveAsync(ApiKey key, CancellationToken ct = default) { _keys[key.Id] = JsonSerializer.Serialize(key); return Task.CompletedTask; }
+
+    public Task SaveAsync(ApiKey key, CancellationToken ct = default)
+    {
+        lock (_gate)
+        {
+            // Revocation is permanent: preserve existing RevokedAt timestamp.
+            if (_keys.TryGetValue(key.Id, out var j) && Read(j).RevokedAt is { } revoked && key.RevokedAt is null)
+                key = Clone(key, k => k.RevokedAt = revoked);
+            _keys[key.Id] = JsonSerializer.Serialize(key);
+        }
+        return Task.CompletedTask;
+    }
+
+    public Task RecordUsageAsync(string id, DateTimeOffset usedAt, string? ip, CancellationToken ct = default)
+    {
+        lock (_gate)
+        {
+            if (_keys.TryGetValue(id, out var j))
+            {
+                var stored = Read(j);
+                stored.LastUsedAt = usedAt;
+                stored.LastUsedIp = ip;
+                _keys[id] = JsonSerializer.Serialize(stored);
+            }
+        }
+        return Task.CompletedTask;
+    }
+
+    private static ApiKey Clone(ApiKey key, Action<ApiKey> change)
+    {
+        var copy = Read(JsonSerializer.Serialize(key));
+        change(copy);
+        return copy;
+    }
 }
 
 public static class ApiScopes
@@ -146,11 +186,13 @@ public sealed class ApiKeyService(IApiKeyStore store, IUserAccountRepository acc
         var account = await accounts.FindByIdAsync(key.UserId, ct);
         if (account is not { IsActive: true } || account.TenantId != key.TenantId) return null;
 
-        // Catatan pemakaian (dibatasi per menit agar tidak menulis di setiap permintaan).
+        // Usage tracking (rate-limited per minute to avoid writing on every request).
+        // Only usage columns are updated: calling SaveAsync(key) here previously risked overwriting
+        // a revocation that occurred between GetAsync and this write, reactivating a revoked key.
         if (key.LastUsedAt is null || now - key.LastUsedAt > TimeSpan.FromMinutes(1) || key.LastUsedIp != remoteIp?.ToString())
         {
             key.LastUsedAt = now; key.LastUsedIp = remoteIp?.ToString();
-            await store.SaveAsync(key, ct);
+            await store.RecordUsageAsync(key.Id, now, key.LastUsedIp, ct);
         }
         return new ApiKeyVerification(key, account);
     }

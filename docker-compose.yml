@@ -11,6 +11,10 @@ services:
       - "5080:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
+      # Public URL accessed by end users; used for password reset links in emails (required in Production).
+      - App__PublicBaseUrl=http://localhost:5080
+      # When deployed behind a reverse proxy, configure proxy IP/CIDR to trust X-Forwarded-* headers:
+      # - ForwardedHeaders__KnownNetworks__0=172.18.0.0/16
       - Persistence__Provider=PostgreSql
       - ConnectionStrings__FrogFrame=Host=postgres;Port=5432;Database=frogframe;Username=frogframe;Password=frogframe
       - ConnectionStrings__FrogFrameReadOnly=Host=postgres;Port=5432;Database=frogframe;Username=frogframe_ro;Password=ganti-password-ini

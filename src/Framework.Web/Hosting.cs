@@ -162,6 +162,10 @@ public static class ServiceCollectionExtensions
         // API integrasi: kunci API + method kustom + batas laju per kunci/pengguna.
         services.TryAddSingleton<IApiKeyStore, InMemoryApiKeyStore>();
         services.AddSingleton<ApiKeyService>();
+        // Public URL for email links (password reset). Sourced from App:PublicBaseUrl, not the Host header.
+        services.TryAddSingleton(sp => new PublicUrlResolver(
+            sp.GetService<IConfiguration>()?[PublicUrlOptions.ConfigKey],
+            allowRequestFallback: sp.GetService<IHostEnvironment>()?.IsDevelopment() ?? false));
         services.AddSingleton<ApiMethodRegistry>();
         services.TryAddSingleton<IQueryApiStore, InMemoryQueryApiStore>();
         services.AddSingleton<QueryApiService>();
