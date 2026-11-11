@@ -91,9 +91,26 @@ sealed partial class Tests
         var all = ForwardedFrom(new() { ["ForwardedHeaders:TrustAllProxies"] = "true" });
         Assert.True(all.KnownIPNetworks.Count == 0 && all.KnownProxies.Count == 0, "TrustAllProxies only active when explicitly requested");
 
+        var blank = ForwardedFrom(new() { ["ForwardedHeaders:KnownNetworks:0"] = "", ["ForwardedHeaders:KnownProxies:0"] = " " });
+        Assert.True(!blank.KnownIPNetworks.Any(n => n.Contains(IPAddress.Parse("203.0.113.9"))), "Blank entries are skipped without error");
+
         var threw = false;
         try { ForwardedFrom(new() { ["ForwardedHeaders:KnownNetworks:0"] = "invalid-cidr" }); } catch (InvalidOperationException) { threw = true; }
         Assert.True(threw, "Invalid CIDR rejected on startup");
+        return Task.CompletedTask;
+    }
+
+    [Test]
+    public Task AllowedHosts_juga_membatasi_X_Forwarded_Host()
+    {
+        Assert.True(HttpHardeningExtensions.ParseAllowedHosts(" erp.example.com ; localhost;; ").SequenceEqual(["erp.example.com", "localhost"]), "Parse host list");
+        Assert.True(HttpHardeningExtensions.ParseAllowedHosts(null).Length == 0, "Empty value yields no hosts");
+
+        var restricted = ForwardedFrom(new() { ["AllowedHosts"] = "erp.example.com;localhost" });
+        Assert.True(restricted.AllowedHosts.Contains("erp.example.com") && restricted.AllowedHosts.Contains("localhost"), "X-Forwarded-Host restricted to AllowedHosts");
+
+        var wildcard = ForwardedFrom(new() { ["AllowedHosts"] = "*" });
+        Assert.True(wildcard.AllowedHosts.Count == 0, "AllowedHosts \"*\" adds no restriction (Development only)");
         return Task.CompletedTask;
     }
 

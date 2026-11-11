@@ -12,6 +12,12 @@ using Microsoft.Extensions.Logging;
 
 namespace Framework.Web;
 
+/// <summary>Parsed AllowedHosts value, used for startup validation.</summary>
+public sealed class AllowedHostsSettings
+{
+    public string[] Hosts { get; set; } = [];
+}
+
 public static class HttpHardeningExtensions
 {
     /// <summary>
@@ -32,6 +38,16 @@ public static class HttpHardeningExtensions
                 (o, env) => string.IsNullOrWhiteSpace(o.PublicBaseUrl) ? env.IsDevelopment() : PublicUrlResolver.TryNormalize(o.PublicBaseUrl, out _),
                 $"{PublicUrlOptions.ConfigKey} must be configured with an absolute http/https URL (e.g. https://erp.example.com) outside Development environments. " +
                 "This value is used for password reset links and must not be derived from the Host header.")
+            .ValidateOnStart();
+
+        // Fail on startup if AllowedHosts is "*" (or empty) outside Development. The same list is used by HostFiltering
+        // for the Host header and for X-Forwarded-Host (see ConfigureTrustedProxies).
+        services.AddOptions<AllowedHostsSettings>()
+            .Configure<IConfiguration>((o, cfg) => o.Hosts = ParseAllowedHosts(cfg["AllowedHosts"]))
+            .Validate<IHostEnvironment>(
+                (o, env) => env.IsDevelopment() || (o.Hosts.Length > 0 && !o.Hosts.Contains("*")),
+                "AllowedHosts must list the application's host names (separated by ';', e.g. \"erp.example.com;localhost\") " +
+                "outside Development environments. The value \"*\" accepts any Host header.")
             .ValidateOnStart();
 
         services.AddHsts(options =>
@@ -60,8 +76,14 @@ public static class HttpHardeningExtensions
     /// </summary>
     public static void ConfigureTrustedProxies(ForwardedHeadersOptions options, IConfiguration? config)
     {
-        var section = config?.GetSection("ForwardedHeaders");
-        if (section is null) return;
+        if (config is null) return;
+
+        // Only accept X-Forwarded-Host values that match AllowedHosts (unless AllowedHosts is "*").
+        var hosts = ParseAllowedHosts(config["AllowedHosts"]);
+        if (!hosts.Contains("*"))
+            foreach (var host in hosts) options.AllowedHosts.Add(host);
+
+        var section = config.GetSection("ForwardedHeaders");
 
         if (section.GetValue<bool>("TrustAllProxies"))
         {
@@ -70,8 +92,10 @@ public static class HttpHardeningExtensions
             return;
         }
 
+        // Blank entries are skipped (e.g. an environment variable intentionally left empty in docker-compose).
         foreach (var raw in section.GetSection("KnownProxies").Get<string[]>() ?? [])
         {
+            if (string.IsNullOrWhiteSpace(raw)) continue;
             if (!System.Net.IPAddress.TryParse(raw.Trim(), out var ip))
                 throw new InvalidOperationException($"ForwardedHeaders:KnownProxies contains an invalid IP address: '{raw}'");
             options.KnownProxies.Add(ip);
@@ -79,6 +103,7 @@ public static class HttpHardeningExtensions
 
         foreach (var raw in section.GetSection("KnownNetworks").Get<string[]>() ?? [])
         {
+            if (string.IsNullOrWhiteSpace(raw)) continue;
             if (!System.Net.IPNetwork.TryParse(raw.Trim(), out var network))
                 throw new InvalidOperationException($"ForwardedHeaders:KnownNetworks contains an invalid CIDR notation: '{raw}'");
             options.KnownIPNetworks.Add(network);
@@ -86,6 +111,10 @@ public static class HttpHardeningExtensions
 
         if (section.GetValue<int?>("ForwardLimit") is { } limit) options.ForwardLimit = limit;
     }
+
+    /// <summary>Splits an AllowedHosts value ("a.com;b.com") into a list of host names.</summary>
+    public static string[] ParseAllowedHosts(string? value) =>
+        (value ?? "").Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
     /// <summary>
     /// Adds global security headers: X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy, and CSP.

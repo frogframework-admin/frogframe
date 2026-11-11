@@ -16,8 +16,8 @@ sealed partial class Tests
         var pr = await Docs.InsertAsync(U("andi"), PR, P(
             ("vendor", vendor.Name),
             ("items", Items(1, 50000)),
-            ("request_date", "2026-11-02"),
-            ("required_by", "2026-11-05")));
+            ("request_date", ReqDate()),
+            ("required_by", ReqDate(3))));
 
         // 3. Upaya menghapus vendor harus ditolak dengan LinkedDocumentException
         var ex = await Assert.Throws<LinkedDocumentException>(
@@ -52,8 +52,8 @@ sealed partial class Tests
         };
         var pr = await Docs.InsertAsync(U("andi"), PR, P(
             ("items", itemRows),
-            ("request_date", "2026-11-02"),
-            ("required_by", "2026-11-05"),
+            ("request_date", ReqDate()),
+            ("required_by", ReqDate(3)),
             ("justification", "Pengadaan komputer link check")));
 
         // 3. Upaya menghapus produk harus ditolak karena dipakai di child table
@@ -113,8 +113,8 @@ sealed partial class Tests
         var pr = await Docs.InsertAsync(U("andi"), PR, P(
             ("vendor", vendor.Name),
             ("items", Items(1, 10000)),
-            ("request_date", "2026-11-02"),
-            ("required_by", "2026-11-05")));
+            ("request_date", ReqDate()),
+            ("required_by", ReqDate(3))));
 
         var foundDirect = await store.FindFirstLinkAsync(tenantId, "Vendor", vendor.Name, linkDefsDirect);
         Assert.True(foundDirect is not null, "PostgresDocumentStore mendeteksi tautan vendor via GIN @>");
@@ -132,8 +132,8 @@ sealed partial class Tests
             {
                 new() { ["product"] = product.Name, ["item_name"] = "Item Pg", ["qty"] = 1m, ["uom"] = "unit", ["rate"] = 10000m }
             }),
-            ("request_date", "2026-11-02"),
-            ("required_by", "2026-11-05")));
+            ("request_date", ReqDate()),
+            ("required_by", ReqDate(3))));
 
         var linkDefsChild = new List<DocTypeLinkDef>
         {

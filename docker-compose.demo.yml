@@ -1,0 +1,18 @@
+# DEMO override. Do not use in production.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.demo.yml up -d
+#
+# Adds sample data, demo accounts shown on the login page, and publishes the PostgreSQL port
+# on localhost only (for "dotnet run" with Persistence:Provider=PostgreSql).
+
+services:
+  app:
+    environment:
+      - Demo__SeedData=true
+      - Demo__ShowAccounts=true
+      - Demo__Password=${FROGFRAME_DEMO_PASSWORD:?Set FROGFRAME_DEMO_PASSWORD in .env}
+      - Api__RateLimitPerMinute=10000
+
+  postgres:
+    ports:
+      - "127.0.0.1:5432:5432"

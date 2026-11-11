@@ -1,5 +1,14 @@
 name: frogframe
 
+# PRODUCTION baseline. No demo data, no demo accounts, no built-in passwords.
+# All secrets come from a .env file (not tracked by git): copy .env.example to .env and fill it in.
+#
+#   cp .env.example .env
+#   docker compose up -d
+#
+# Demo mode (sample data + demo accounts + PostgreSQL port on localhost):
+#   docker compose -f docker-compose.yml -f docker-compose.demo.yml up -d
+
 services:
   app:
     build:
@@ -8,25 +17,25 @@ services:
     image: frogframe-app:latest
     container_name: frogframe-app
     ports:
-      - "5080:8080"
+      - "${FROGFRAME_HTTP_PORT:-5080}:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
-      # Public URL accessed by end users; used for password reset links in emails (required in Production).
-      - App__PublicBaseUrl=http://localhost:5080
-      # When deployed behind a reverse proxy, configure proxy IP/CIDR to trust X-Forwarded-* headers:
-      # - ForwardedHeaders__KnownNetworks__0=172.18.0.0/16
+      # Public URL accessed by end users; used for password reset links in emails.
+      - App__PublicBaseUrl=${FROGFRAME_PUBLIC_BASE_URL:?Set FROGFRAME_PUBLIC_BASE_URL in .env}
+      # Host names allowed in the Host header (separated by ';'). "*" is rejected in Production.
+      - AllowedHosts=${FROGFRAME_ALLOWED_HOSTS:?Set FROGFRAME_ALLOWED_HOSTS in .env}
+      # When deployed behind a reverse proxy, set the proxy CIDR so X-Forwarded-* headers are trusted, e.g. 172.18.0.0/16.
+      - ForwardedHeaders__KnownNetworks__0=${FROGFRAME_TRUSTED_PROXY_CIDR:-}
       - Persistence__Provider=PostgreSql
-      - ConnectionStrings__FrogFrame=Host=postgres;Port=5432;Database=frogframe;Username=frogframe;Password=frogframe
-      - ConnectionStrings__FrogFrameReadOnly=Host=postgres;Port=5432;Database=frogframe;Username=frogframe_ro;Password=ganti-password-ini
-      # Mode Demo: otomatis membuat akun demo + data awal + menampilkan akun di halaman login
-      - Demo__SeedData=true
-      - Demo__Password=FrogFrame#2026
-      - Demo__ShowAccounts=true
-      # Akun bootstrap admin (opsional jika tanpa data demo):
-      - Bootstrap__AdminUserName=admin
-      - Bootstrap__AdminPassword=FrogFrame#2026
-      # Batas laju API untuk beban produksi / load testing
-      - Api__RateLimitPerMinute=10000
+      - ConnectionStrings__FrogFrame=Host=postgres;Port=5432;Database=frogframe;Username=frogframe;Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      - ConnectionStrings__FrogFrameReadOnly=Host=postgres;Port=5432;Database=frogframe;Username=frogframe_ro;Password=${FROGFRAME_RO_PASSWORD:?Set FROGFRAME_RO_PASSWORD in .env}
+      # Demo data and demo accounts are always off in this baseline.
+      - Demo__SeedData=false
+      - Demo__ShowAccounts=false
+      # Initial admin. Only created when the account does not exist yet; change the password after first login.
+      - Bootstrap__AdminUserName=${FROGFRAME_ADMIN_USER:-admin}
+      - Bootstrap__AdminPassword=${FROGFRAME_ADMIN_PASSWORD:?Set FROGFRAME_ADMIN_PASSWORD in .env}
+      - Api__RateLimitPerMinute=${FROGFRAME_API_RATE_LIMIT:-300}
     depends_on:
       postgres:
         condition: service_healthy
@@ -38,14 +47,16 @@ services:
     environment:
       POSTGRES_DB: frogframe
       POSTGRES_USER: frogframe
-      POSTGRES_PASSWORD: frogframe
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      FROGFRAME_RO_PASSWORD: ${FROGFRAME_RO_PASSWORD:?Set FROGFRAME_RO_PASSWORD in .env}
       TZ: Asia/Jakarta
-    ports:
-      - "5432:5432"
+    # Intentionally NO "ports": the database is only reachable from the internal compose network.
     volumes:
       - frogframe-pg:/var/lib/postgresql/data
-      # Membuat user read-only untuk Dashboard SQL saat database pertama kali dibuat.
-      - ./deploy/sql/reporting-readonly-user.sql:/docker-entrypoint-initdb.d/10-reporting-readonly-user.sql:ro
+      # Creates the read-only user for SQL Dashboards when the database is first created,
+      # with the password from FROGFRAME_RO_PASSWORD.
+      - ./deploy/sql/reporting-readonly-user.sql:/opt/frogframe/reporting-readonly-user.sql:ro
+      - ./deploy/docker/init-readonly-user.sh:/docker-entrypoint-initdb.d/10-reporting-readonly-user.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U frogframe -d frogframe"]
       interval: 5s

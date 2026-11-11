@@ -358,7 +358,7 @@ sealed partial class Tests
     public async Task Validasi_server_required_kondisional_dan_aturan_lintas_field()
     {
         var ex = await Assert.Throws<ValidationFailedException>(() => Docs.InsertAsync(U("andi"), PR, P(
-            ("priority", "Tinggi"), ("items", Items(1, 100)), ("request_date", "2026-10-10"), ("required_by", "2026-10-01"))), "insert");
+            ("priority", "Tinggi"), ("items", Items(1, 100)), ("request_date", ReqDate()), ("required_by", ReqDate(-9)))), "insert");
         Assert.True(ex.Errors.Any(e => e.Path == "justification"), "justifikasi wajib bila prioritas Tinggi");
         Assert.True(ex.Errors.Any(e => e.Path == "required_by"), "aturan tanggal");
 

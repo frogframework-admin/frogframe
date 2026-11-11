@@ -107,12 +107,30 @@ Demo seed data is generated automatically upon startup. Seeding executes through
 ### Running with PostgreSQL
 
 ```bash
-# 1. Start PostgreSQL 17 container
-docker compose up -d
+# 1. Create .env from the template and replace every "change-me-..." value
+cp .env.example .env
 
-# 2. Run the application with PostgreSQL provider
+# 2. Start PostgreSQL 17 (the demo override publishes port 5432 on localhost only)
+docker compose -f docker-compose.yml -f docker-compose.demo.yml up -d postgres
+
+# 3. Run the application with PostgreSQL provider
+#    (use POSTGRES_PASSWORD / FROGFRAME_RO_PASSWORD from .env in the connection strings)
 dotnet run --project src/Apps.Sample --Persistence:Provider=PostgreSql
 ```
+
+### Running with Docker Compose
+
+```bash
+cp .env.example .env   # fill in passwords, FROGFRAME_PUBLIC_BASE_URL and FROGFRAME_ALLOWED_HOSTS
+
+# Production baseline: no demo data, no demo accounts, PostgreSQL not exposed to the host
+docker compose up -d
+
+# Demo: adds sample data, demo accounts on the login page, and PostgreSQL on 127.0.0.1:5432
+docker compose -f docker-compose.yml -f docker-compose.demo.yml up -d
+```
+
+Outside the Development environment the application refuses to start unless `App:PublicBaseUrl` is an absolute URL and `AllowedHosts` lists explicit host names (not `*`).
 
 ---
 
