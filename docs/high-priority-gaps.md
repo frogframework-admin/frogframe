@@ -8,14 +8,54 @@ This document outlines the six high-priority architectural gaps between **FrogFr
 
 ## Executive Summary
 
-| # | Gap Area | Current FrogFrame State | Target (Frappe Parity) | Impact |
-|---|---|---|---|---|
-| **1** | **Customization Layer** *(Custom Field & Property Setter)* | Database metadata overwritten completely when code `.doctype.json` version increments. Admin custom fields are lost during developer deploys. | Base definitions belong to app code; tenant Custom Fields & Property Setters are layered on top and preserved across upgrades. | Zero-loss tenant customization without developer dependency. |
-| **2** | **Server & Client Scripting** | Logic restricted to built-in expressions, declarative hooks, or compiled C# code in `Apps.Sample` requiring build & deploy cycles. | Sandboxed C# Roslyn scripting compiled to memory, cached as delegates, and executed for DocEvents, APIs, and Cron jobs. | Rapid custom business logic authoring directly from the web interface. |
-| **3** | **Document Collaboration & Activity Timeline** | FormPage offers attachments, audit timeline, and presence, but lacks interactive discussions and task handoffs. | Combined activity timeline with rich comments, `@mentions`, internal notifications, and task assignments (ToDos). | Operational teamwork and accountability within documents. |
-| **4** | **Per-Document Sharing & Tagging** | Document access is strictly governed by global role definitions; no ad-hoc record sharing or tag-based organization. | Explicit row-level document sharing (`can_read`, `can_write`, `can_share`), combined with GIN-indexed document tags. | Granular ad-hoc access control and fast categorization. |
-| **5** | **Webhooks & Integration Events** | Document events publish to internal outbox queues, but cannot be dispatched to external HTTP endpoints without custom C# handlers. | Declarative Webhook metadata with HMAC-SHA256 signatures, exponential backoff retries, SSRF protection, and audit logs. | Native system-to-system integration and real-time data sync. |
-| **6** | **Enterprise Authentication (2FA & SSO)** | Authentication is limited to username/password (ASP.NET Core Identity) and internal API keys. | TOTP Two-Factor Authentication, OIDC/OAuth2 Single Sign-On (Entra ID, Google, Keycloak), LDAP/AD, and Bearer token auth via OpenIddict. | Enterprise security compliance, identity federation, and seamless API integrations. |
+| # | Gap Area | Current FrogFrame State | Target (Frappe Parity) | Impact | Status |
+|---|---|---|---|---|---|
+| **1** | **Customization Layer** *(Custom Field & Property Setter)* | Database metadata overwritten completely when code `.doctype.json` version increments. Admin custom fields are lost during developer deploys. | Base definitions belong to app code; tenant Custom Fields & Property Setters are layered on top and preserved across upgrades. | Zero-loss tenant customization without developer dependency. | **Next Milestone (Option 1)** |
+| **2** | **Server & Client Scripting** | Sandboxed C# Roslyn scripting compiled to memory, cached as delegates, and executed for DocEvents, APIs, and Cron jobs. | Sandboxed C# Roslyn scripting with compile-time AST analyzer and statement budget rewriter. Client scripts unified via Blazor Server. | Rapid custom business logic authoring directly from the web interface. | **Completed (Phase 3-C)** |
+| **3** | **Document Collaboration & Activity Timeline** | FormPage offers attachments, audit timeline, and presence, but lacks interactive discussions and task handoffs. | Combined activity timeline with rich comments, `@mentions`, internal notifications, and task assignments (ToDos). | Operational teamwork and accountability within documents. | **Next Milestone (Option 2)** |
+| **4** | **Per-Document Sharing & Tagging** | Document access is strictly governed by global role definitions; no ad-hoc record sharing or tag-based organization. | Explicit row-level document sharing (`can_read`, `can_write`, `can_share`), combined with GIN-indexed document tags. | Granular ad-hoc access control and fast categorization. | **Next Milestone (Option 2)** |
+| **5** | **Webhooks & Integration Events** | Declarative Webhook metadata with HMAC-SHA256 signatures, exponential backoff retries, SSRF protection callback, and delivery logs. | Declarative Webhook metadata with HMAC-SHA256 signatures, exponential backoff retries, SSRF protection, and audit logs. | Native system-to-system integration and real-time data sync. | **Completed (Phase 3-A)** |
+| **6** | **Enterprise Authentication (2FA & SSO)** | Authentication is limited to username/password (ASP.NET Core Identity) and internal API keys. | TOTP Two-Factor Authentication, OIDC/OAuth2 Single Sign-On (Entra ID, Google, Keycloak), LDAP/AD, and Bearer token auth via OpenIddict. | Enterprise security compliance, identity federation, and seamless API integrations. | Planned (Phase 4) |
+
+---
+
+## Next Platform Milestones (High-Priority Gaps)
+
+Based on the High-Priority Gaps Roadmap, two major initiatives remain:
+
+### Option 1: Gap 1 — Customization Layer (Custom Fields & Property Setters Overlay)
+
+Enables non-developer administrators to customize standard application DocTypes without having their changes overwritten during code updates or new version deploys:
+
+- **Database Schema (`031_customizations.sql`)**:
+  `frogframe_customizations` table (`tenant_id`, `doctype`, `kind`, `target`, `value jsonb`, `version`, `updated_at`, `updated_by`).
+- **Overlay Compilation in `Compiler.cs`**:
+  Compilation pipeline: `Base DocTypeDef (file/app) -> Apply Tenant Customizations -> CompiledDocType`.
+  Developer deployments only update base definitions; tenant customizations persist seamlessly across upgrades.
+- **Custom Field Engine**:
+  Enforce mandatory `custom_` prefix to prevent naming collisions with future upstream DocType releases.
+  `InsertAfter` ordering to position custom fields deterministically within existing form and list layouts.
+- **Property Setter Engine**:
+  Overrides field and DocType properties (e.g. `Label`, `Visible`, `RequiredWhen`, `Options`, `InListView`, `PermLevel`, `ReadOnly`).
+- **Conflict & Orphan Detection in `MetadataDiff`**:
+  Detects when an upstream DocType update deletes or renames a field targeted by an active Property Setter or `InsertAfter`.
+- **UI & Admin**:
+  Custom Field & Property Setter admin interface (`/admin/customizations`), plus overlay mode in `DocTypeEditor.razor` for application DocTypes.
+
+### Option 2: Gap 3 — Document Collaboration & Activity Timeline
+
+Enhances teamwork inside documents:
+
+- **Discussions & Comments (`frogframe_comments`)**:
+  Rich comments with `@mentions` triggering in-app notifications and email outbox alerts.
+- **Assignments & ToDo (`frogframe_assignments`)**:
+  Assign documents to users with due dates, integrated into the "My Tasks / Inbox" view.
+- **Per-Document Row Sharing (`frogframe_doc_shares`)**:
+  Ad-hoc access grants (`can_read`, `can_write`, `can_share`) integrated directly into `PermissionService.ScopeFor`.
+- **Document Tagging**:
+  GIN-indexed `tags text[]` with tag filter pills on list pages and forms.
+- **Document Followers**:
+  Follow/unfollow records with automated notification digests on status changes.
 
 ---
 
@@ -287,26 +327,26 @@ Authentication is currently restricted to:
 
 ```mermaid
 flowchart TD
-    subgraph Phase 1: Customization Foundation
-        A[1. Custom Fields & Property Setters Overlay]
-        B[4. Per-Document Sharing & Tagging]
+    subgraph Done["Completed in Phase 3"]
+        W["5. Outbound Webhooks (HMAC-SHA256, SSRF)"]
+        S["2. Roslyn C# Server Scripts (Sandbox, Budget)"]
+        AR["Auto Repeat (Recurring Documents)"]
+        EM["Inbound Email & Communication Timeline"]
     end
 
-    subgraph Phase 2: Collaboration & External Integrations
-        C[3. Comments & Activity Timeline with @mentions]
-        D[5. Declarative Outbox Webhooks]
+    subgraph Next["Next Platform Milestones (High-Priority Gaps)"]
+        direction TB
+        M1["Option 1: Gap 1 — Custom Fields & Property Setters Overlay"]
+        M2["Option 2: Gap 3 & 4 — Document Collaboration, Sharing & Tags"]
     end
 
-    subgraph Phase 3: Advanced Logic & Enterprise Security
-        E[2. Roslyn C# Server & Client Scripting]
-        F[6. Enterprise SSO OIDC & TOTP 2FA]
+    subgraph Future["Future Enterprise Roadmap"]
+        SSO["6. Enterprise SSO (OIDC/OAuth2) & TOTP 2FA"]
     end
 
-    A --> C
-    B --> C
-    C --> D
-    D --> E
-    E --> F
+    Done --> Next
+    M1 --> Future
+    M2 --> Future
 ```
 
 By completing these six strategic initiatives, FrogFrame attains full architectural and functional parity with Frappe Framework, enabling organizations to deploy, customize, and scale mission-critical enterprise applications with complete developer independence.

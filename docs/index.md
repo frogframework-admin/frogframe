@@ -28,6 +28,10 @@ dotnet test
 
 ### Core Features & Workflows
 - **[DocTypes & Visual Workflows](guides/doctype-and-workflows.md)**: Designing metadata schemas, dynamic UI forms, and state machine workflows.
+- **[Outbound Webhooks](webhooks.md)**: HMAC-signed, SSRF-protected event dispatching with deduplicated delivery queue and exponential retries.
+- **[Auto Repeat (Recurring Documents)](auto-repeat.md)**: Automated recurring document generation with catch-up logic and concurrency safeguards.
+- **[C# Server Scripts (Roslyn Sandbox)](server-scripts.md)**: In-process sandboxed C# Roslyn compilation for DocEvents, Custom APIs, and Cron jobs.
+- **[Inbound Email & Communication Timeline](communications.md)**: Bidirectional MailKit SMTP/IMAP, 4-stage thread matching, and unified document history timeline.
 - **[SQL Dashboards & Widgets](guides/sql-dashboards.md)**: Building real-time SVG charts and analytical KPI cards from SQL queries.
 - **[Saved Query REST APIs](guides/saved-query-apis.md)**: Publishing read-only SQL queries as secure REST endpoints with parameter allowlists.
 - **[API Keys & Custom Methods](guides/api-integrations.md)**: Granular integration API keys and custom RPC `IApiMethod` endpoints.
@@ -40,6 +44,7 @@ dotnet test
 
 ### Architecture & Production Operations
 - **[Frequently Asked Questions (FAQ)](faq.md)**: Architectural philosophy, why Blazor, EF Core vs. ADO.NET, lean infrastructure, and roadmap vision.
+- **[High-Priority Gaps & Frappe Parity](high-priority-gaps.md)**: Architectural comparison against Frappe Framework, Frappe parity analysis, and upcoming milestones.
 - **[Project Structure Reference](PROJECT_STRUCTURE.md)**: Complete 4-project solution layout, dependency graphs, and subsystem designs.
 - **[Roadmap & Feature Gap Analysis](project-status-roadmap.md)**: Current completion status and enterprise platform feature gap analysis.
 - **[Production Readiness Checklist](production-readiness.md)**: Pre-production hardening (P0), scale-up readiness (P1), and Day-2 operations checklist (P2).

@@ -9,8 +9,8 @@ This document summarizes the current development status of FrogFramework, includ
 ## 1. Current Project Health
 
 - **Compilation Status (`dotnet build`):** `0 Errors`, `0 Critical Warnings` across all projects (`Framework.Core`, `Framework.Persistence.PostgreSql`, `Framework.Web`, `Apps.Sample`, `Framework.Tests`).
-- **Unit & Integration Test Status:** **142 Passed, 0 Failed** (34 tests decorated with `PgTest` are skipped when the local PostgreSQL server is inactive).
-- **Database & Migration Status:** 23 PostgreSQL migrations registered and verified (`001_initial.sql` through `023_user_preferences.sql`).
+- **Unit & Integration Test Status:** **184 Passed, 0 Failed** (34 tests decorated with `PgTest` are skipped when the local PostgreSQL server is inactive).
+- **Database & Migration Status:** 30 PostgreSQL migrations registered and verified (`001_initial.sql` through `030_communications.sql`).
 - **Git Repository Status:** Clean working tree.
 
 ---
@@ -48,14 +48,37 @@ This document summarizes the current development status of FrogFramework, includ
    - Singleton document schema per tenant for system and module configuration (e.g. `AccountingSettings`).
    - Dedicated APIs (`GetSingleAsync`, `SetSingleAsync`), compiler validation (workflow rejection), and UI adaptations (direct form routing, breadcrumbs, search quick action suppression).
 
+### D. Automation & Integration (Phase 3 - 100% Complete)
+1. **Outbound Webhooks ([`webhooks.md`](webhooks.md)):**
+   - HMAC-SHA256 request payload signatures, SSRF IP and DNS-rebinding protection callbacks, deduplicated background delivery queue, exponential retry backoff, and delivery logs (`027_webhooks.sql`).
+2. **Auto Repeat ([`auto-repeat.md`](auto-repeat.md)):**
+   - Recurring document automation with `AllowAutoRepeat` and `NoCopy` metadata, hourly scheduled job with catch-up logic, and zero duplicates under concurrency (`028_auto_repeat.sql`).
+3. **C# Server Scripting via Roslyn Sandbox ([`server-scripts.md`](server-scripts.md)):**
+   - Sandboxed C# Roslyn compilation with strict AST analyzer rejecting forbidden namespaces (`System.IO`, `System.Net`, `System.Reflection`), statement budget rewriter preventing infinite loops, collectible `AssemblyLoadContext`, and runtime triggers for DocEvents, Custom APIs, and Scheduled Jobs (`029_server_scripts.sql`).
+4. **Inbound Email & Communication Timeline ([`communications.md`](communications.md)):**
+   - MailKit/MimeKit integration for SMTP and IMAP polling, 4-stage thread matching (`In-Reply-To`, `References`, `[#DOC-NAME]`, `AppendToDocType`), server-side HTML sanitization, document email composer, and unified communication history timeline (`030_communications.sql`).
+
 ---
 
-## 3. Feature Backlog & Roadmap (Unfinished Items)
+## 3. Next Platform Milestones (High-Priority Gaps)
 
 > [!IMPORTANT]
-> A detailed architectural gap analysis and engineering blueprint comparing FrogFrame to Frappe Framework is available in [High-Priority Platform Gaps: Frappe Parity & Enterprise Extensibility](high-priority-gaps.md). It details solutions for Customization Overlays (Custom Field / Property Setter), Roslyn C# Server & Client Scripting, Document Collaboration, Record Sharing, Webhooks, and Enterprise 2FA/SSO.
+> The architectural blueprint and Frappe parity analysis are documented in [High-Priority Platform Gaps](high-priority-gaps.md). The two primary upcoming initiatives are:
 
-### Priority 1: Pilot Daily Operations & Essential Workflows (P1)
+### Option 1: Gap 1 — Customization Layer (Custom Fields & Property Setters Overlay)
+- **Database Schema (`031_customizations.sql`)**: `frogframe_customizations` table (`tenant_id`, `doctype`, `kind`, `target`, `value jsonb`, `version`, `updated_at`, `updated_by`).
+- **Overlay Compilation in `Compiler.cs`**: `Base DocTypeDef (file/app) -> Apply Tenant Customizations -> CompiledDocType`. Base files update independently during deploy without overwriting tenant custom fields.
+- **Custom Field Engine**: Mandatory `custom_` prefix to prevent naming collisions; `InsertAfter` ordering to position custom fields in form layouts.
+- **Property Setter Engine**: Overrides field and DocType properties (`Label`, `Visible`, `RequiredWhen`, `Options`, `InListView`, `PermLevel`, `ReadOnly`).
+- **Conflict & Orphan Detection in `MetadataDiff`**: Flags when upstream updates delete or rename targeted fields.
+- **UI & Admin**: Admin interface at `/admin/customizations` and overlay editing mode in `DocTypeEditor.razor`.
+
+### Option 2: Gap 3 — Document Collaboration & Activity Timeline
+- **Discussions & Comments (`frogframe_comments`)**: Rich comments with `@mentions` triggering in-app notifications and email outbox alerts.
+- **Assignments & ToDo (`frogframe_assignments`)**: Document assignments with due dates, integrated into "My Tasks / Inbox".
+- **Per-Document Row Sharing (`frogframe_doc_shares`)**: Ad-hoc access grants (`can_read`, `can_write`, `can_share`) integrated directly into `PermissionService.ScopeFor`.
+- **Document Tagging**: GIN-indexed `tags text[]` with tag filter pills on list pages and forms.
+- **Document Followers**: Follow/unfollow records with automated notification digests on status changes.
 
 | Code | Module / Feature | Description | Urgency |
 |---|---|---|---|
