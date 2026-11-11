@@ -14,6 +14,11 @@ public record ServerScriptDef
     public string? ApiMethod { get; init; }
     public string? CronExpr { get; init; }
     public string? RunAsUserId { get; init; }
+    /// <summary>
+    /// Roles allowed to call an Api script. Empty = only System Manager / Administrator.
+    /// Ignored for DocEvent and Scheduled scripts.
+    /// </summary>
+    public IReadOnlyList<string> AllowedRoles { get; init; } = [];
     public bool IsActive { get; init; } = true;
     public int Version { get; init; } = 1;
     public string CurrentCode { get; init; } = string.Empty;

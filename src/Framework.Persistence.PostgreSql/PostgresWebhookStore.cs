@@ -120,8 +120,12 @@ public sealed class PostgresWebhookStore(NpgsqlDataSource db) : IWebhookStore
             SET status = 'sending', lease_until = $2
             WHERE id IN (
                 SELECT id FROM frogframe_webhook_deliveries
-                WHERE (status = 'pending' OR status = 'failed')
-                  AND next_attempt_at <= $1
+                WHERE (
+                        ((status = 'pending' OR status = 'failed') AND next_attempt_at <= $1)
+                        -- A worker that crashed or was stopped mid-send leaves the row in 'sending'.
+                        -- Reclaim it once its lease has expired, otherwise the delivery is lost forever.
+                        OR status = 'sending'
+                      )
                   AND (lease_until IS NULL OR lease_until <= $1)
                 ORDER BY next_attempt_at ASC
                 LIMIT $3

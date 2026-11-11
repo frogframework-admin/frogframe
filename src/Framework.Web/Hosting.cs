@@ -264,6 +264,8 @@ public static class ServiceCollectionExtensions
 
         // Server Scripting (Phase 3 Workstream C)
         services.TryAddSingleton<Framework.Scripting.IServerScriptStore, Framework.Scripting.InMemoryServerScriptStore>();
+        services.TryAddSingleton<Framework.Scripting.IScriptingSwitch>(sp => new ConfigurationScriptingSwitch(
+            sp.GetService<IConfiguration>(), sp.GetService<IHostEnvironment>()));
         services.AddSingleton<Framework.Scripting.ServerScriptExecutionService>();
         services.AddSingleton<Framework.Hooks.IServerScriptHookRunner, Framework.Scripting.ServerScriptHookRunner>();
 

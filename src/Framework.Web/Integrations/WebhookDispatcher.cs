@@ -191,6 +191,10 @@ public sealed class WebhookDeliveryWorker(
     IWebhookStore store,
     ILogger<WebhookDeliveryWorker> logger) : BackgroundService
 {
+    private const int BatchSize = 10;
+    private static readonly TimeSpan PerDeliveryTimeout = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan BatchLease = PerDeliveryTimeout * BatchSize + TimeSpan.FromSeconds(30);
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(2));
@@ -198,7 +202,9 @@ public sealed class WebhookDeliveryWorker(
         {
             try
             {
-                var due = await store.ClaimDueAsync(limit: 20, leaseFor: TimeSpan.FromSeconds(30), stoppingToken);
+                // Deliveries in a batch are sent one after another, each with a 10 s timeout. The lease must outlast
+                // the whole batch, otherwise another instance reclaims (and re-sends) deliveries still waiting here.
+                var due = await store.ClaimDueAsync(limit: BatchSize, leaseFor: BatchLease, stoppingToken);
                 foreach (var delivery in due)
                 {
                     try

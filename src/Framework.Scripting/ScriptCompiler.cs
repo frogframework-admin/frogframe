@@ -1,6 +1,5 @@
 using System.Reflection;
 using System.Runtime.Loader;
-using System.Text;
 using System.Text.RegularExpressions;
 using Framework.Scripting.Abstractions;
 using Microsoft.CodeAnalysis;
@@ -9,18 +8,36 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Framework.Scripting;
 
+/// <summary>
+/// Compiles server scripts in four steps:
+/// 1. raw checks on the user code (no using directives, no preprocessor directives, no type declarations);
+/// 2. structural check: the user code must form exactly one block, so it cannot close the generated method
+///    and declare its own members (static constructors, finalizers, module initializers);
+/// 3. semantic allowlist analysis of the user block (<see cref="ScriptSecurityAnalyzer"/>);
+/// 4. budget instrumentation (<see cref="ScriptBudgetRewriter"/>), emit, and load into a collectible
+///    <see cref="AssemblyLoadContext"/>.
+/// </summary>
 public sealed class ScriptCompiler
 {
+    private const string GeneratedNamespace = "FrogFrame.GeneratedScripts";
+    private const string ScriptFileName = "script";
+
+    private static readonly CSharpParseOptions ParseOptions = CSharpParseOptions.Default;
+
+    private static readonly CSharpCompilationOptions CompilationOptions =
+        new(OutputKind.DynamicallyLinkedLibrary, optimizationLevel: OptimizationLevel.Release, allowUnsafe: false);
+
     private static readonly List<MetadataReference> DefaultReferences = BuildDefaultReferences();
 
     private static List<MetadataReference> BuildDefaultReferences()
     {
+        // The core library is referenced so ordinary BCL types resolve. What scripts may actually use is decided by
+        // the semantic allowlist in ScriptSecurityAnalyzer, not by the reference list.
         var assemblies = new HashSet<Assembly>
         {
             typeof(object).Assembly,
             typeof(Enumerable).Assembly,
             typeof(List<>).Assembly,
-            typeof(Regex).Assembly,
             typeof(Task).Assembly,
             typeof(ScriptContext).Assembly
         };
@@ -37,97 +54,42 @@ public sealed class ScriptCompiler
             .ToList();
     }
 
-    public static IReadOnlyList<string> Validate(string userCode)
-    {
-        var rawTree = CSharpSyntaxTree.ParseText(userCode);
-
-        // Security AST analysis
-        var securityViolations = ScriptSecurityAnalyzer.Analyze(rawTree);
-        if (securityViolations.Count > 0)
-        {
-            return securityViolations;
-        }
-
-        // Full compilation check
-        var safeId = "Validate";
-        var wrapped = WrapUserCode(safeId, 1, userCode);
-        var wrappedTree = CSharpSyntaxTree.ParseText(wrapped);
-
-        var compilation = CSharpCompilation.Create(
-            $"Script_Val_{Guid.NewGuid():N}",
-            [wrappedTree],
-            DefaultReferences,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, optimizationLevel: OptimizationLevel.Release)
-        );
-
-        var diagnostics = compilation.GetDiagnostics();
-        var errors = diagnostics
-            .Where(d => d.Severity == DiagnosticSeverity.Error)
-            .Select(d =>
-            {
-                var lineSpan = d.Location.GetLineSpan();
-                // Map line back to approximate user code line
-                var line = Math.Max(1, lineSpan.StartLinePosition.Line - 18);
-                return $"Line {line}: {d.GetMessage()}";
-            })
-            .ToList();
-
-        return errors;
-    }
+    /// <summary>Validates a script for the editor. Returns an empty list when the script can be compiled and run.</summary>
+    public static IReadOnlyList<string> Validate(string userCode) =>
+        Prepare("Validate", 1, userCode).Errors;
 
     public static CompiledScript Compile(string scriptId, int version, string userCode)
     {
-        var rawTree = CSharpSyntaxTree.ParseText(userCode);
-
-        // 1. Security AST Analysis
-        var securityViolations = ScriptSecurityAnalyzer.Analyze(rawTree);
-        if (securityViolations.Count > 0)
-        {
-            throw new ScriptSecurityException(string.Join("\n", securityViolations));
-        }
-
-        // 2. Budget Rewriter Injection
-        var rewriter = new ScriptBudgetRewriter();
-        var rewrittenRoot = rewriter.Visit(rawTree.GetRoot());
-        var rewrittenCode = rewrittenRoot.ToFullString();
-
-        // 3. Wrap into executable class
         var safeId = Regex.Replace(scriptId, "[^a-zA-Z0-9_]", "_");
-        var className = $"ScriptRunner_{safeId}_v{version}";
-        var wrappedSource = WrapUserCode(safeId, version, rewrittenCode);
-        var syntaxTree = CSharpSyntaxTree.ParseText(wrappedSource);
+        var prepared = Prepare(safeId, version, userCode);
+
+        if (prepared.SecurityViolations.Count > 0)
+            throw new ScriptSecurityException(string.Join("\n", prepared.SecurityViolations));
+        if (prepared.Errors.Count > 0)
+            throw new ScriptCompilationException("Script compilation failed:\n" + string.Join("\n", prepared.Errors), prepared.Errors);
+
+        // Instrument with budget ticks, using the semantic model of the analyzed tree.
+        var rewriter = new ScriptBudgetRewriter(prepared.Model!);
+        var rewrittenRoot = rewriter.Visit(prepared.Tree!.GetRoot())!;
+        var rewrittenTree = CSharpSyntaxTree.Create((CSharpSyntaxNode)rewrittenRoot, ParseOptions);
 
         var assemblyName = $"FrogFrame_Script_{safeId}_v{version}_{Guid.NewGuid():N}";
-        var compilation = CSharpCompilation.Create(
-            assemblyName,
-            [syntaxTree],
-            DefaultReferences,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, optimizationLevel: OptimizationLevel.Release)
-        );
+        var compilation = CSharpCompilation.Create(assemblyName, [rewrittenTree], DefaultReferences, CompilationOptions);
 
         using var peStream = new MemoryStream();
         var emitResult = compilation.Emit(peStream);
-
         if (!emitResult.Success)
         {
-            var errors = emitResult.Diagnostics
-                .Where(d => d.Severity == DiagnosticSeverity.Error)
-                .Select(d =>
-                {
-                    var lineSpan = d.Location.GetLineSpan();
-                    var line = Math.Max(1, lineSpan.StartLinePosition.Line - 18);
-                    return $"Line {line}: {d.GetMessage()}";
-                })
-                .ToList();
-
+            var errors = FormatDiagnostics(emitResult.Diagnostics);
             throw new ScriptCompilationException("Script compilation failed:\n" + string.Join("\n", errors), errors);
         }
 
         peStream.Position = 0;
+        var className = ClassName(safeId, version);
         var alc = new AssemblyLoadContext($"ALC_{assemblyName}", isCollectible: true);
         var assembly = alc.LoadFromStream(peStream);
-        var type = assembly.GetType($"FrogFrame.GeneratedScripts.{className}")
-            ?? throw new InvalidOperationException($"Type FrogFrame.GeneratedScripts.{className} not found in emitted assembly.");
+        var type = assembly.GetType($"{GeneratedNamespace}.{className}")
+            ?? throw new InvalidOperationException($"Type {GeneratedNamespace}.{className} not found in emitted assembly.");
 
         var method = type.GetMethod("ExecuteAsync", BindingFlags.Public | BindingFlags.Static)
             ?? throw new InvalidOperationException("ExecuteAsync method not found in generated script runner.");
@@ -136,24 +98,106 @@ public sealed class ScriptCompiler
         return new CompiledScript(scriptId, version, runner, alc);
     }
 
-    private static string WrapUserCode(string safeId, int version, string bodyCode)
+    // ---------------------------------------------------------------- preparation
+
+    private sealed record Prepared(
+        IReadOnlyList<string> Errors,
+        IReadOnlyList<string> SecurityViolations,
+        SyntaxTree? Tree,
+        SemanticModel? Model);
+
+    private static Prepared Prepare(string safeId, int version, string userCode)
+    {
+        userCode ??= "";
+
+        // 1. Raw checks on the user code alone.
+        var rawTree = CSharpSyntaxTree.ParseText(userCode, ParseOptions);
+        var rawViolations = ScriptSecurityAnalyzer.AnalyzeRawCode(rawTree);
+        if (rawViolations.Count > 0) return new Prepared(rawViolations, rawViolations, null, null);
+
+        // 2. The user code must be exactly one block: an unbalanced '}' would close the generated method.
+        var blockText = "{\n" + userCode + "\n}";
+        // consumeFullText: false makes the parser stop after the first statement, so any text after the
+        // closing brace (i.e. code that escaped the block) shows up as a shorter span.
+        var asBlock = SyntaxFactory.ParseStatement(blockText, offset: 0, options: ParseOptions, consumeFullText: false);
+        if (asBlock is not BlockSyntax || asBlock.FullSpan.Length != blockText.Length)
+        {
+            string[] structural = ["Line 1: The script contains unbalanced braces or code outside the script body."];
+            return new Prepared(structural, structural, null, null);
+        }
+
+        // 3. Wrap, compile for analysis, and verify the generated structure is intact.
+        var className = ClassName(safeId, version);
+        var tree = CSharpSyntaxTree.ParseText(WrapUserCode(className, userCode), ParseOptions);
+        var compilation = CSharpCompilation.Create($"Script_Analysis_{Guid.NewGuid():N}", [tree], DefaultReferences, CompilationOptions);
+        var model = compilation.GetSemanticModel(tree);
+
+        var userBlock = FindUserBlock(tree, className);
+        if (userBlock is null)
+        {
+            string[] structural = ["Line 1: The script contains code outside the script body."];
+            return new Prepared(structural, structural, null, null);
+        }
+
+        var violations = ScriptSecurityAnalyzer.AnalyzeUserBlock(model, userBlock);
+        var compileErrors = FormatDiagnostics(compilation.GetDiagnostics());
+
+        var errors = violations.Concat(compileErrors).ToList();
+        return new Prepared(errors, violations, tree, model);
+    }
+
+    /// <summary>
+    /// Returns the user block when the generated file still has exactly one type with exactly one method,
+    /// and that method's body contains exactly one nested block (the user code).
+    /// </summary>
+    private static BlockSyntax? FindUserBlock(SyntaxTree tree, string className)
+    {
+        var root = (CompilationUnitSyntax)tree.GetRoot();
+        if (root.Members.Count != 1 || root.Members[0] is not FileScopedNamespaceDeclarationSyntax ns) return null;
+        if (ns.Members.Count != 1 || ns.Members[0] is not ClassDeclarationSyntax cls || cls.Identifier.ValueText != className) return null;
+        if (cls.Members.Count != 1 || cls.Members[0] is not MethodDeclarationSyntax { Identifier.ValueText: "ExecuteAsync", Body: { } body }) return null;
+
+        var blocks = body.Statements.OfType<BlockSyntax>().ToList();
+        return blocks.Count == 1 ? blocks[0] : null;
+    }
+
+    private static string ClassName(string safeId, int version) => $"ScriptRunner_{safeId}_v{version}";
+
+    private static List<string> FormatDiagnostics(IEnumerable<Diagnostic> diagnostics) =>
+        diagnostics
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .Select(d =>
+            {
+                var span = d.Location.GetMappedLineSpan();
+                var line = span.Path == ScriptFileName ? span.StartLinePosition.Line + 1 : 1;
+                return $"Line {line}: {d.GetMessage()}";
+            })
+            .Distinct()
+            .ToList();
+
+    /// <summary>
+    /// The user code is placed inside its own block, after a <c>#line 1</c> directive so diagnostics report the
+    /// line number the user sees in the editor. Wrapper state lives in variables starting with "__", which user
+    /// code may not reference.
+    /// </summary>
+    private static string WrapUserCode(string className, string bodyCode)
     {
         return $$"""
 using System;
-using System.Collections;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
-using System.Text.RegularExpressions;
-using System.Threading;
+using System.Text;
 using System.Threading.Tasks;
 using Framework.Scripting.Abstractions;
 
-namespace FrogFrame.GeneratedScripts;
+namespace {{GeneratedNamespace}};
 
-public static class ScriptRunner_{{safeId}}_v{{version}}
+public static class {{className}}
 {
     public static async Task ExecuteAsync(ScriptContext ctx)
     {
+        var {{ScriptBudgetRewriter.BudgetVariable}} = ctx.__budget;
         var Doc = ctx.Doc;
         var OldDoc = ctx.OldDoc;
         var User = ctx.User;
@@ -161,13 +205,12 @@ public static class ScriptRunner_{{safeId}}_v{{version}}
         var Log = ctx.Log;
         var Email = ctx.Email;
         var Values = ctx.Values;
-        var __budget = ctx.__budget;
         var CancellationToken = ctx.CancellationToken;
-
-        {{bodyCode}}
-
-        ctx.Doc = Doc;
-        ctx.OldDoc = OldDoc;
+        {
+#line 1 "{{ScriptFileName}}"
+{{bodyCode}}
+#line default
+        }
         await Task.CompletedTask;
     }
 }

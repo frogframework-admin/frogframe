@@ -337,7 +337,8 @@ else if (meta is not null && doc is not null)
                                             @if (!string.IsNullOrWhiteSpace(comm.ContentHtml))
                                             {
                                                 <div style="font-size:.875rem;padding:.5rem;background:var(--bb-bg-muted);border-radius:.25rem;overflow-x:auto">
-                                                    @((MarkupString)comm.ContentHtml)
+                                                    @* Sanitized again at render time: rows stored before outbound sanitization existed may contain raw HTML. *@
+                                                    @((MarkupString)(HtmlContentSanitizer.Sanitize(comm.ContentHtml) ?? ""))
                                                 </div>
                                             }
                                             else if (!string.IsNullOrWhiteSpace(comm.ContentText))

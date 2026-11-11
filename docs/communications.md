@@ -85,7 +85,12 @@ Incoming messages are inspected for automated response headers:
 Auto-responders and bounce notifications are safely skipped to avoid infinite mail loops.
 
 ### HTML Sanitization (XSS Defense)
-Raw incoming HTML is sanitized on the server before database storage using `Ganss.Xss.HtmlSanitizer` (AngleSharp):
+Raw HTML content is sanitized on the server using `HtmlContentSanitizer` (powered by `Ganss.Xss.HtmlSanitizer` / AngleSharp) across three key defense points:
+1. **Inbound Email Storage**: Incoming HTML bodies are cleaned before persistence in `frogframe_communications`.
+2. **Outbound Email Timeline Logging**: Outgoing emails recorded as communication records are sanitized before persistence.
+3. **Timeline UI Render-Time**: `FormPage.razor` sanitizes HTML content again at render time, ensuring that even legacy rows stored prior to outbound sanitization remain fully safe.
+
+The sanitizer enforces:
 - Script tags (`<script>`) are stripped.
 - Malicious inline event handlers (`onload`, `onerror`, `onclick`) are removed.
 - Disallowed URL schemes (such as `javascript:` or raw `data:`) are sanitized.

@@ -12,14 +12,33 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Framework.Scripting;
 
+/// <summary>Kill switch for all server scripts. The web host reads it from configuration (<c>Scripting:Enabled</c>).</summary>
+public interface IScriptingSwitch
+{
+    bool IsEnabled { get; }
+}
+
+/// <summary>Result of calling an Api script. <see cref="Found"/> is false when no active script has that name.</summary>
+public sealed record ScriptApiResult(bool Found, object? Data);
+
 public sealed class ServerScriptExecutionService : IDisposable
 {
+    private sealed record Limits(TimeSpan Timeout, int MaxStatements);
+
+    private static readonly Limits DocEventLimits = new(TimeSpan.FromSeconds(5), ScriptBudget.DefaultMaxStatements);
+    private static readonly Limits ApiLimits = new(TimeSpan.FromSeconds(10), ScriptBudget.DefaultMaxStatements);
+    private static readonly Limits ScheduledLimits = new(TimeSpan.FromSeconds(60), 500_000);
+
+    /// <summary>Extra time given to a script after its deadline before the caller stops waiting for it.</summary>
+    private static readonly TimeSpan HardTimeoutGrace = TimeSpan.FromSeconds(1);
+
     private readonly IServerScriptStore _store;
     private readonly IServiceProvider _services;
     private readonly IMetadataProvider _metadata;
     private readonly IAutomationIdentity _identity;
     private readonly IPermissionService _permissions;
     private readonly IEmailQueue? _emailQueue;
+    private readonly IScriptingSwitch? _switch;
     private readonly ILogger<ServerScriptExecutionService> _logger;
     private DocumentService? _docs;
     private DocumentService Docs => _docs ??= (DocumentService)(_services.GetService(typeof(DocumentService))
@@ -35,7 +54,8 @@ public sealed class ServerScriptExecutionService : IDisposable
         IAutomationIdentity identity,
         IPermissionService permissions,
         IEmailQueue? emailQueue = null,
-        ILogger<ServerScriptExecutionService>? logger = null)
+        ILogger<ServerScriptExecutionService>? logger = null,
+        IScriptingSwitch? scriptingSwitch = null)
     {
         _store = store;
         _services = services;
@@ -43,11 +63,22 @@ public sealed class ServerScriptExecutionService : IDisposable
         _identity = identity;
         _permissions = permissions;
         _emailQueue = emailQueue;
+        _switch = scriptingSwitch;
         _logger = logger ?? NullLogger<ServerScriptExecutionService>.Instance;
     }
 
+    /// <summary>False when server scripts are switched off (<c>Scripting:Enabled = false</c>).</summary>
+    public bool IsEnabled => _switch?.IsEnabled ?? true;
+
+    /// <summary>Api scripts: administrators always; otherwise the user needs one of the script's allowed roles.</summary>
+    public static bool CanInvoke(ServerScriptDef script, UserContext user) =>
+        user.IsAdmin || script.AllowedRoles.Any(role => user.Roles.Contains(role));
+
+    // ---------------------------------------------------------------- entry points
+
     public async Task RunDocEventAsync(DocHookStage stage, HookContext context, CancellationToken ct = default)
     {
+        if (!IsEnabled) return;
         if (!Enum.TryParse<DocEventStage>(stage.ToString(), out var scriptStage))
             return;
 
@@ -56,46 +87,34 @@ public sealed class ServerScriptExecutionService : IDisposable
 
         foreach (var script in scripts)
         {
-            var userContext = context.User;
-            var scriptDoc = new ScriptDoc(context.Doc.Data, context.Meta.Name, context.Doc.Name);
+            // Snapshot before the script runs, to verify afterwards that it only changed fields the user may write.
+            var before = CopyData(context.Doc.Data);
 
-            ScriptDoc? oldDoc = null;
-            if (context.Doc.Data.TryGetValue("_old_doc", out var oldRaw) && oldRaw is IDictionary<string, object?> oldDict)
-            {
-                oldDoc = new ScriptDoc(oldDict, context.Meta.Name, context.Doc.Name);
-            }
+            IDictionary<string, object?>? previousData = context.Previous?.Data;
+            if (previousData is null && context.Doc.Data.TryGetValue("_old_doc", out var oldRaw) && oldRaw is IDictionary<string, object?> oldDict)
+                previousData = oldDict;
 
-            var scriptLog = new ScriptLog();
-            var scriptUser = new ScriptUser
-            {
-                Id = userContext.Id,
-                Email = userContext.Attr("email"),
-                Department = userContext.Attr("department"),
-                Roles = userContext.Roles.ToList()
-            };
+            var invocation = new Invocation(
+                context.User,
+                new ScriptDoc(context.Doc.Data, context.Meta.Name, context.Doc.Name),
+                // OldDoc is a copy: writes to it must never reach the stored previous version.
+                previousData is null ? null : new ScriptDoc(CopyData(previousData), context.Meta.Name, context.Doc.Name),
+                Values: null);
 
-            var scriptDocs = new InternalScriptDocs(() => Docs, userContext);
-            var scriptEmail = new InternalScriptEmail(_emailQueue, userContext.TenantId);
-
-            var ctx = new ScriptContext
-            {
-                Doc = scriptDoc,
-                OldDoc = oldDoc,
-                User = scriptUser,
-                Docs = scriptDocs,
-                Log = scriptLog,
-                Email = scriptEmail,
-                CancellationToken = ct
-            };
-
-            await ExecuteScriptAsync(script, ctx, "DocEvent", context.Doc.Name, ct);
+            await ExecuteScriptAsync(script, invocation, ServerScriptType.DocEvent, context.Doc.Name, ct);
+            EnsureOnlyWritableFieldsChanged(script, context, before);
         }
     }
 
-    public async Task<object?> ExecuteApiAsync(UserContext user, string apiMethod, JsonElement? body, CancellationToken ct = default)
+    public async Task<ScriptApiResult> ExecuteApiAsync(UserContext user, string apiMethod, JsonElement? body, CancellationToken ct = default)
     {
+        if (!IsEnabled) return new ScriptApiResult(false, null);
+
         var script = await _store.GetApiScriptAsync(user.TenantId, apiMethod, ct);
-        if (script is null) return null;
+        if (script is null) return new ScriptApiResult(false, null);
+
+        if (!CanInvoke(script, user))
+            throw new PermissionDeniedException($"You are not allowed to call API method '{apiMethod}'.");
 
         var values = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
         if (body is { ValueKind: JsonValueKind.Object } obj)
@@ -114,93 +133,92 @@ public sealed class ServerScriptExecutionService : IDisposable
             }
         }
 
-        var scriptLog = new ScriptLog();
-        var scriptUser = new ScriptUser
-        {
-            Id = user.Id,
-            Email = user.Attr("email"),
-            Department = user.Attr("department"),
-            Roles = user.Roles.ToList()
-        };
-
-        var scriptDocs = new InternalScriptDocs(() => Docs, user);
-        var scriptEmail = new InternalScriptEmail(_emailQueue, user.TenantId);
-
-        var ctx = new ScriptContext
-        {
-            User = scriptUser,
-            Docs = scriptDocs,
-            Log = scriptLog,
-            Email = scriptEmail,
-            Values = values,
-            CancellationToken = ct
-        };
-
-        await ExecuteScriptAsync(script, ctx, "Api", null, ct);
-        return ctx.Result;
+        var result = await ExecuteScriptAsync(script, new Invocation(user, null, null, values), ServerScriptType.Api, null, ct);
+        return new ScriptApiResult(true, result);
     }
 
     public async Task ExecuteScheduledAsync(string tenantId, string scriptId, CancellationToken ct = default)
     {
+        if (!IsEnabled) return;
+
         var script = await _store.GetAsync(tenantId, scriptId, ct);
         if (script is null || !script.IsActive || script.ScriptType != ServerScriptType.Scheduled)
             return;
 
-        var userId = string.IsNullOrWhiteSpace(script.RunAsUserId) ? "Administrator" : script.RunAsUserId;
-        var runAsUser = await _identity.ForUserAsync(tenantId, userId, ct);
-
-        var scriptLog = new ScriptLog();
-        var scriptUser = new ScriptUser
+        // No implicit administrator: a scheduled script runs only as an explicitly chosen, active user.
+        if (string.IsNullOrWhiteSpace(script.RunAsUserId))
         {
-            Id = runAsUser.Id,
-            Email = runAsUser.Attr("email"),
-            Department = runAsUser.Attr("department"),
-            Roles = runAsUser.Roles.ToList()
-        };
+            const string error = "Scheduled script has no Run As user. Set Run As User before it can run.";
+            await RecordRunSafeAsync(script, "Scheduled", null, "Failed", error, 0);
+            throw new InvalidOperationException($"Scheduled script '{script.Name}': {error}");
+        }
 
-        var scriptDocs = new InternalScriptDocs(() => Docs, runAsUser);
-        var scriptEmail = new InternalScriptEmail(_emailQueue, tenantId);
-
-        var ctx = new ScriptContext
-        {
-            User = scriptUser,
-            Docs = scriptDocs,
-            Log = scriptLog,
-            Email = scriptEmail,
-            CancellationToken = ct
-        };
-
-        await ExecuteScriptAsync(script, ctx, "Scheduled", null, ct);
+        var runAsUser = await _identity.ForUserAsync(tenantId, script.RunAsUserId, ct);
+        await ExecuteScriptAsync(script, new Invocation(runAsUser, null, null, null), ServerScriptType.Scheduled, null, ct);
     }
 
-    public async Task ExecuteScriptAsync(ServerScriptDef script, ScriptContext ctx, string triggerType, string? docName, CancellationToken ct)
+    // ---------------------------------------------------------------- execution
+
+    private sealed record Invocation(
+        UserContext User,
+        ScriptDoc? Doc,
+        ScriptDoc? OldDoc,
+        IDictionary<string, object?>? Values);
+
+    private async Task<object?> ExecuteScriptAsync(
+        ServerScriptDef script, Invocation invocation, ServerScriptType trigger, string? docName, CancellationToken ct)
     {
-        var compiled = GetOrCompile(script);
+        var limits = trigger switch
+        {
+            ServerScriptType.Api => ApiLimits,
+            ServerScriptType.Scheduled => ScheduledLimits,
+            _ => DocEventLimits,
+        };
+
         var sw = Stopwatch.StartNew();
         var status = "Success";
         string? error = null;
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        cts.CancelAfter(TimeSpan.FromSeconds(5)); // 5-second execution timeout
+        cts.CancelAfter(limits.Timeout);
 
         try
         {
-            var executionCtx = new ScriptContext
+            var compiled = GetOrCompile(script);
+            var user = invocation.User;
+            var ctx = new ScriptContext
             {
-                Doc = ctx.Doc,
-                OldDoc = ctx.OldDoc,
-                User = ctx.User,
-                Docs = ctx.Docs,
-                Log = ctx.Log,
-                Email = ctx.Email,
-                Values = ctx.Values,
-                Result = ctx.Result,
-                __budget = ctx.__budget,
+                Doc = invocation.Doc,
+                OldDoc = invocation.OldDoc,
+                User = new ScriptUser
+                {
+                    Id = user.Id,
+                    Email = user.Attr("email"),
+                    Department = user.Attr("department"),
+                    Roles = user.Roles.ToList()
+                },
+                Docs = new InternalScriptDocs(() => Docs, user, cts.Token),
+                Log = new ScriptLog(),
+                Email = new InternalScriptEmail(_emailQueue, user.TenantId, cts.Token),
+                Values = invocation.Values ?? new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase),
+                __budget = new ScriptBudget(limits.MaxStatements, limits.Timeout, cts.Token),
                 CancellationToken = cts.Token
             };
 
-            await compiled.Runner(executionCtx);
-            ctx.Result = executionCtx.Result;
+            // The budget stops the script at the next tick after the deadline. Code that never ticks (a long-running
+            // call into the BCL) is not interruptible in-process, so the caller stops waiting shortly after the deadline.
+            var run = Task.Run(() => compiled.Runner(ctx), CancellationToken.None);
+            try
+            {
+                await run.WaitAsync(limits.Timeout + HardTimeoutGrace, ct);
+            }
+            catch (TimeoutException)
+            {
+                cts.Cancel();
+                throw new TimeoutException($"Script execution timed out after {limits.Timeout.TotalMilliseconds:N0} ms.");
+            }
+
+            return ctx.Result;
         }
         catch (ScriptBudgetExceededException ex)
         {
@@ -208,10 +226,16 @@ public sealed class ServerScriptExecutionService : IDisposable
             error = ex.Message;
             throw;
         }
+        catch (TimeoutException ex)
+        {
+            status = "Timeout";
+            error = ex.Message;
+            throw;
+        }
         catch (OperationCanceledException) when (cts.IsCancellationRequested && !ct.IsCancellationRequested)
         {
             status = "Timeout";
-            error = "Script execution timed out after 5,000 ms.";
+            error = $"Script execution timed out after {limits.Timeout.TotalMilliseconds:N0} ms.";
             throw new TimeoutException(error);
         }
         catch (ScriptSecurityException ex)
@@ -241,29 +265,103 @@ public sealed class ServerScriptExecutionService : IDisposable
         finally
         {
             sw.Stop();
-            try
-            {
-                var run = new ServerScriptRun
-                {
-                    Id = Guid.NewGuid(),
-                    TenantId = script.TenantId,
-                    ScriptId = script.Id,
-                    Version = script.Version,
-                    TriggerType = triggerType,
-                    DocName = docName,
-                    Status = status,
-                    DurationMs = (int)sw.ElapsedMilliseconds,
-                    Error = error,
-                    ExecutedAt = DateTimeOffset.UtcNow
-                };
-                await _store.RecordRunAsync(run, CancellationToken.None);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to record server script run for {ScriptId}", script.Id);
-            }
+            await RecordRunSafeAsync(script, trigger.ToString(), docName, status, error, (int)sw.ElapsedMilliseconds);
         }
     }
+
+    private async Task RecordRunSafeAsync(ServerScriptDef script, string trigger, string? docName, string status, string? error, int durationMs)
+    {
+        try
+        {
+            await _store.RecordRunAsync(new ServerScriptRun
+            {
+                Id = Guid.NewGuid(),
+                TenantId = script.TenantId,
+                ScriptId = script.Id,
+                Version = script.Version,
+                TriggerType = trigger,
+                DocName = docName,
+                Status = status,
+                DurationMs = durationMs,
+                Error = error,
+                ExecutedAt = DateTimeOffset.UtcNow
+            }, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to record server script run for {ScriptId}", script.Id);
+        }
+    }
+
+    // ---------------------------------------------------------------- field-level permission check
+
+    /// <summary>
+    /// A DocEvent script runs as the user who triggered the event, so it may only change fields that user may
+    /// write (field PermLevel). The check compares the document before and after the script, so it covers every
+    /// way of writing: <c>Doc["x"] = ...</c>, <c>Doc.Data["x"] = ...</c> and edits to child-table rows
+    /// (a child row change counts as a change to the table field).
+    /// </summary>
+    private void EnsureOnlyWritableFieldsChanged(ServerScriptDef script, HookContext context, Dictionary<string, object?> before)
+    {
+        var current = context.Doc.Data;
+        var forbidden = new List<string>();
+
+        foreach (var key in before.Keys.Union(current.Keys, StringComparer.Ordinal))
+        {
+            var hadBefore = before.TryGetValue(key, out var oldValue);
+            var hasNow = current.TryGetValue(key, out var newValue);
+            if (hadBefore == hasNow && ValueEquals(oldValue, newValue)) continue;
+
+            if (StandardFields.All.Contains(key)
+                || !context.Meta.ByName.TryGetValue(key, out var field)
+                || !_permissions.CanWriteField(context.User, context.Meta, field))
+            {
+                forbidden.Add(key);
+            }
+        }
+
+        if (forbidden.Count == 0) return;
+
+        // Undo the script's changes before failing, so no caller can persist them by catching the exception.
+        current.Clear();
+        foreach (var (key, value) in before) current[key] = value;
+
+        throw new PermissionDeniedException(
+            $"Server script '{script.Name}' tried to modify field(s) the current user is not allowed to change: {string.Join(", ", forbidden)}");
+    }
+
+    private static Dictionary<string, object?> CopyData(IDictionary<string, object?> source)
+    {
+        var comparer = source is Dictionary<string, object?> d ? d.Comparer : StringComparer.Ordinal;
+        var copy = new Dictionary<string, object?>(comparer);
+        foreach (var (key, value) in source) copy[key] = CopyValue(value);
+        return copy;
+    }
+
+    private static object? CopyValue(object? value) => value switch
+    {
+        IDictionary<string, object?> dict => CopyData(dict),
+        List<Dictionary<string, object?>> rows => rows.Select(CopyData).ToList(),
+        IEnumerable<IDictionary<string, object?>> rows => rows.Select(r => (object?)CopyData(r)).ToList(),
+        _ => value
+    };
+
+    private static bool ValueEquals(object? a, object? b)
+    {
+        if (ReferenceEquals(a, b)) return true;
+        if (a is null || b is null) return false;
+        if (Equals(a, b)) return true;
+        try
+        {
+            return JsonSerializer.Serialize(a) == JsonSerializer.Serialize(b);
+        }
+        catch (NotSupportedException)
+        {
+            return false;
+        }
+    }
+
+    // ---------------------------------------------------------------- compiled script cache
 
     private CompiledScript GetOrCompile(ServerScriptDef def)
     {
@@ -307,60 +405,77 @@ public sealed class ServerScriptExecutionService : IDisposable
         _cache.Clear();
     }
 
-    private sealed class InternalScriptDocs(Func<DocumentService> getDocs, UserContext user) : IScriptDocs
+    // ---------------------------------------------------------------- facades exposed to scripts
+
+    /// <summary>Document access for scripts. Always runs as the script's user, so permissions and row scope apply.</summary>
+    private sealed class InternalScriptDocs(Func<DocumentService> getDocs, UserContext user, CancellationToken executionToken) : IScriptDocs
     {
         public async Task<ScriptDoc?> GetAsync(string docType, string name, CancellationToken ct = default)
         {
-            var doc = await getDocs().GetAsync(user, docType, name, ct);
+            using var linked = Link(ct);
+            var doc = await getDocs().GetAsync(user, docType, name, linked.Token);
             return doc is not null ? new ScriptDoc(doc.Data, doc.DocType, doc.Name) : null;
         }
 
         public async Task<ScriptDoc> InsertAsync(string docType, IDictionary<string, object?> data, CancellationToken ct = default)
         {
-            var inserted = await getDocs().InsertAsync(user, docType, data, ct);
+            using var linked = Link(ct);
+            var inserted = await getDocs().InsertAsync(user, docType, data, linked.Token);
             return new ScriptDoc(inserted.Data, inserted.DocType, inserted.Name);
         }
 
         public async Task<ScriptDoc> UpdateAsync(string docType, string name, IDictionary<string, object?> data, CancellationToken ct = default)
         {
+            using var linked = Link(ct);
             var docs = getDocs();
-            var existing = await docs.GetAsync(user, docType, name, ct)
+            var existing = await docs.GetAsync(user, docType, name, linked.Token)
                 ?? throw new KeyNotFoundException($"Document '{docType}/{name}' not found.");
-            var updated = await docs.UpdateAsync(user, docType, name, existing.Version, data, ct);
+            var updated = await docs.UpdateAsync(user, docType, name, existing.Version, data, linked.Token);
             return new ScriptDoc(updated.Data, updated.DocType, updated.Name);
         }
 
         public async Task DeleteAsync(string docType, string name, CancellationToken ct = default)
         {
+            using var linked = Link(ct);
             var docs = getDocs();
-            var existing = await docs.GetAsync(user, docType, name, ct)
+            var existing = await docs.GetAsync(user, docType, name, linked.Token)
                 ?? throw new KeyNotFoundException($"Document '{docType}/{name}' not found.");
-            await docs.DeleteAsync(user, docType, name, existing.Version, ct);
+            await docs.DeleteAsync(user, docType, name, existing.Version, linked.Token);
         }
 
         public async Task<ScriptDoc> RunActionAsync(string docType, string name, string action, string? comment = null, CancellationToken ct = default)
         {
+            using var linked = Link(ct);
             var docs = getDocs();
-            var existing = await docs.GetAsync(user, docType, name, ct)
+            var existing = await docs.GetAsync(user, docType, name, linked.Token)
                 ?? throw new KeyNotFoundException($"Document '{docType}/{name}' not found.");
-            var res = await docs.RunActionAsync(user, docType, name, action, existing.Version, comment, ct);
+            var res = await docs.RunActionAsync(user, docType, name, action, existing.Version, comment, linked.Token);
             return new ScriptDoc(res.Data, res.DocType, res.Name);
+        }
+
+        /// <summary>Stops a script that keeps calling the facade after its deadline.</summary>
+        private CancellationTokenSource Link(CancellationToken ct)
+        {
+            executionToken.ThrowIfCancellationRequested();
+            return CancellationTokenSource.CreateLinkedTokenSource(ct, executionToken);
         }
     }
 
-    private sealed class InternalScriptEmail(IEmailQueue? queue, string tenantId) : IScriptEmail
+    private sealed class InternalScriptEmail(IEmailQueue? queue, string tenantId, CancellationToken executionToken) : IScriptEmail
     {
         public async Task SendAsync(string to, string subject, string bodyText, string? bodyHtml = null, CancellationToken ct = default)
         {
+            executionToken.ThrowIfCancellationRequested();
             if (queue is null) return;
             var email = new EmailMessage
             {
                 To = [to],
                 Subject = subject,
                 BodyText = bodyText,
-                BodyHtml = bodyHtml
+                BodyHtml = bodyHtml ?? ""
             };
-            await queue.QueueAsync(tenantId, email, ct: ct);
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, executionToken);
+            await queue.QueueAsync(tenantId, email, ct: linked.Token);
         }
     }
 }

@@ -166,6 +166,48 @@ public sealed class PostgresAutoRepeatStore(NpgsqlDataSource db) : IAutoRepeatSt
         return affected > 0;
     }
 
+    public async Task<bool> TryClaimRunAsync(string tenantId, string autoRepeatId, DateOnly scheduledFor, CancellationToken ct = default)
+    {
+        // Insert a 'Claimed' row; on conflict only take over a period whose previous attempt failed.
+        // RETURNING yields a row only when this caller now owns the period.
+        await using var cmd = db.CreateCommand(@"
+            INSERT INTO frogframe_auto_repeat_runs
+                (id, tenant_id, auto_repeat_id, scheduled_for, generated_docname, status, error, executed_at)
+            VALUES
+                ($1, $2, $3, $4, '', 'Claimed', NULL, $5)
+            ON CONFLICT (tenant_id, auto_repeat_id, scheduled_for) DO UPDATE
+                SET status = 'Claimed', error = NULL, generated_docname = '', executed_at = EXCLUDED.executed_at
+                WHERE frogframe_auto_repeat_runs.status = 'Failed'
+            RETURNING id");
+
+        cmd.Parameters.AddWithValue(Guid.NewGuid());
+        cmd.Parameters.AddWithValue(tenantId);
+        cmd.Parameters.AddWithValue(autoRepeatId);
+        cmd.Parameters.AddWithValue(scheduledFor);
+        cmd.Parameters.AddWithValue(DateTimeOffset.UtcNow);
+
+        var claimedId = await cmd.ExecuteScalarAsync(ct).ConfigureAwait(false);
+        return claimedId is not null && claimedId is not DBNull;
+    }
+
+    public async Task CompleteRunAsync(AutoRepeatRun run, CancellationToken ct = default)
+    {
+        await using var cmd = db.CreateCommand(@"
+            UPDATE frogframe_auto_repeat_runs
+            SET generated_docname = $4, status = $5, error = $6, executed_at = $7
+            WHERE tenant_id = $1 AND auto_repeat_id = $2 AND scheduled_for = $3");
+
+        cmd.Parameters.AddWithValue(run.TenantId);
+        cmd.Parameters.AddWithValue(run.AutoRepeatId);
+        cmd.Parameters.AddWithValue(run.ScheduledFor);
+        cmd.Parameters.AddWithValue(run.GeneratedDocName);
+        cmd.Parameters.AddWithValue(run.Status);
+        cmd.Parameters.AddWithValue((object?)run.Error ?? DBNull.Value);
+        cmd.Parameters.AddWithValue(run.ExecutedAt);
+
+        await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+    }
+
     public async Task<IReadOnlyList<AutoRepeatRun>> ListRunsAsync(string tenantId, string autoRepeatId, int limit = 50, CancellationToken ct = default)
     {
         await using var cmd = db.CreateCommand(@"

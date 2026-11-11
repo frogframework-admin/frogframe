@@ -237,6 +237,8 @@ ctx.Result = baseAmount * rate;
             Name = "Calculate Tax API",
             ScriptType = ServerScriptType.Api,
             ApiMethod = "calc_tax",
+            // Api scripts are admin-only unless roles are listed.
+            AllowedRoles = user.Roles.ToList(),
             IsActive = true,
             Version = 1,
             CurrentCode = scriptCode
@@ -247,8 +249,8 @@ ctx.Result = baseAmount * rate;
         using var bodyDoc = JsonDocument.Parse("{\"amount\": 1000000, \"rate\": 0.12}");
         var result = await executionService.ExecuteApiAsync(user, "calc_tax", bodyDoc.RootElement);
 
-        Assert.True(result is not null, "API script returned non-null result");
-        Assert.Equal(120000m, Convert.ToDecimal(result), "API script calculated correct tax value");
+        Assert.True(result.Found, "API script was found and executed");
+        Assert.Equal(120000m, Convert.ToDecimal(result.Data), "API script calculated correct tax value");
 
         // Clean up
         await store.DeleteAsync("acme", scriptId);

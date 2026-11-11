@@ -11,7 +11,7 @@ public sealed class PostgresServerScriptStore(NpgsqlDataSource db) : IServerScri
         await using var cmd = db.CreateCommand(@"
             SELECT id, tenant_id, name, script_type, doctype, doc_event, api_method,
                    cron_expr, run_as_user_id, is_active, version, current_code,
-                   created_at, modified_at
+                   created_at, modified_at, allowed_roles
             FROM frogframe_server_scripts
             WHERE tenant_id = $1 AND id = $2");
         cmd.Parameters.AddWithValue(tenantId);
@@ -30,7 +30,7 @@ public sealed class PostgresServerScriptStore(NpgsqlDataSource db) : IServerScri
         await using var cmd = db.CreateCommand(@"
             SELECT id, tenant_id, name, script_type, doctype, doc_event, api_method,
                    cron_expr, run_as_user_id, is_active, version, current_code,
-                   created_at, modified_at
+                   created_at, modified_at, allowed_roles
             FROM frogframe_server_scripts
             WHERE tenant_id = $1
             ORDER BY modified_at DESC");
@@ -50,7 +50,7 @@ public sealed class PostgresServerScriptStore(NpgsqlDataSource db) : IServerScri
         await using var cmd = db.CreateCommand(@"
             SELECT id, tenant_id, name, script_type, doctype, doc_event, api_method,
                    cron_expr, run_as_user_id, is_active, version, current_code,
-                   created_at, modified_at
+                   created_at, modified_at, allowed_roles
             FROM frogframe_server_scripts
             WHERE tenant_id = $1 AND is_active = true AND script_type = 'DocEvent'
                   AND doctype = $2 AND doc_event = $3");
@@ -72,7 +72,7 @@ public sealed class PostgresServerScriptStore(NpgsqlDataSource db) : IServerScri
         await using var cmd = db.CreateCommand(@"
             SELECT id, tenant_id, name, script_type, doctype, doc_event, api_method,
                    cron_expr, run_as_user_id, is_active, version, current_code,
-                   created_at, modified_at
+                   created_at, modified_at, allowed_roles
             FROM frogframe_server_scripts
             WHERE tenant_id = $1 AND is_active = true AND script_type = 'Api'
                   AND api_method = $2
@@ -93,7 +93,7 @@ public sealed class PostgresServerScriptStore(NpgsqlDataSource db) : IServerScri
         await using var cmd = db.CreateCommand(@"
             SELECT id, tenant_id, name, script_type, doctype, doc_event, api_method,
                    cron_expr, run_as_user_id, is_active, version, current_code,
-                   created_at, modified_at
+                   created_at, modified_at, allowed_roles
             FROM frogframe_server_scripts
             WHERE tenant_id = $1 AND is_active = true AND script_type = 'Scheduled'
                   AND cron_expr IS NOT NULL AND cron_expr <> ''");
@@ -135,9 +135,10 @@ public sealed class PostgresServerScriptStore(NpgsqlDataSource db) : IServerScri
             INSERT INTO frogframe_server_scripts (
                 id, tenant_id, name, script_type, doctype, doc_event, api_method,
                 cron_expr, run_as_user_id, is_active, version, current_code,
-                created_at, modified_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+                created_at, modified_at, allowed_roles
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
             ON CONFLICT (tenant_id, id) DO UPDATE SET
+                allowed_roles = EXCLUDED.allowed_roles,
                 name = EXCLUDED.name,
                 script_type = EXCLUDED.script_type,
                 doctype = EXCLUDED.doctype,
@@ -164,6 +165,7 @@ public sealed class PostgresServerScriptStore(NpgsqlDataSource db) : IServerScri
             upsertCmd.Parameters.AddWithValue(code);
             upsertCmd.Parameters.AddWithValue(def.CreatedAt);
             upsertCmd.Parameters.AddWithValue(DateTimeOffset.UtcNow);
+            upsertCmd.Parameters.AddWithValue(def.AllowedRoles.ToArray());
 
             await upsertCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
         }
@@ -323,7 +325,8 @@ public sealed class PostgresServerScriptStore(NpgsqlDataSource db) : IServerScri
             Version = r.GetInt32(10),
             CurrentCode = r.GetString(11),
             CreatedAt = r.GetFieldValue<DateTimeOffset>(12),
-            ModifiedAt = r.GetFieldValue<DateTimeOffset>(13)
+            ModifiedAt = r.GetFieldValue<DateTimeOffset>(13),
+            AllowedRoles = r.IsDBNull(14) ? [] : r.GetFieldValue<string[]>(14)
         };
     }
 }

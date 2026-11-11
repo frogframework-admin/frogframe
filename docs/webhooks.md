@@ -145,11 +145,16 @@ To ensure idempotent processing:
 
 ---
 
-## 5. Retry & Dead-Letter Behavior
+## 5. Queue Processing, Worker Lease & Stuck Delivery Reclaiming
 
-- **Success (`2xx`)**: Delivery marked as `Sent`.
-- **Transient Failures (`408`, `429`, `5xx`, connection timeout)**: FrogFrame schedules retries with exponential backoff ($2, 4, 8, 16, 32$ seconds). Deliveries that fail after 5 attempts enter the `Dead` state.
-- **Client Errors (`4xx`)**: Treated as fatal configuration errors and marked `Dead` immediately without retry.
-- **Permanent Removal (`410 Gone`)**: If the receiver returns `HTTP 410`, the delivery is marked `Dead` and the webhook is automatically deactivated to prevent wasted traffic.
-- **SSRF Protection**: FrogFrame automatically blocks destinations resolving to internal RFC 1918 private subnets, loopback addresses (`127.0.0.1`), link-local metadata endpoints (`169.254.169.254`), and internal Docker container hostnames.
+Webhook deliveries are dispatched by a background service (`WebhookDeliveryWorker`) using a transactional lease model:
+
+1. **Batch Claiming with Lease**: Deliveries in `pending` or `failed` (due for retry) status are claimed in batches (default: 10). The lease duration (`BatchLease = BatchSize * 10s + 30s`) ensures that deliveries processed sequentially do not experience lease expiration while earlier items in the batch are sending.
+2. **Reclaiming Stuck Deliveries**: If a worker process abruptly terminates, crashes, or is restarted mid-dispatch, deliveries left in the `sending` status with expired leases (`lease_until <= now`) are automatically reclaimed and requeued by the next available worker.
+3. **Delivery Lifecycle**:
+   - **Success (`2xx`)**: Delivery marked as `Sent`.
+   - **Transient Failures (`408`, `429`, `5xx`, connection timeout)**: FrogFrame schedules retries with exponential backoff ($2, 4, 8, 16, 32$ seconds). Deliveries that fail after 5 attempts enter the `Dead` state.
+   - **Client Errors (`4xx`)**: Treated as fatal configuration errors and marked `Dead` immediately without retry.
+   - **Permanent Removal (`410 Gone`)**: If the receiver returns `HTTP 410`, the delivery is marked `Dead` and the webhook is automatically deactivated to prevent wasted traffic.
+   - **SSRF Protection**: FrogFrame automatically blocks destinations resolving to internal RFC 1918 private subnets, loopback addresses (`127.0.0.1`), link-local metadata endpoints (`169.254.169.254`), and internal Docker container hostnames.
 

@@ -6,6 +6,8 @@
 @using Framework.Web.Services
 @inject IServerScriptStore ScriptStore
 @inject ServerScriptExecutionService ScriptExecutionService
+@inject IAutomationIdentity AutomationIdentity
+@inject Framework.Api.ApiMethodRegistry ApiMethods
 @inject IMetadataProvider Metadata
 @inject CurrentUser Current
 @inject ToastService Toasts
@@ -22,6 +24,14 @@
 }
 else
 {
+    @if (!ScriptExecutionService.IsEnabled)
+    {
+        <div role="status" style="margin-bottom:1rem;padding:.75rem 1rem;border-radius:.5rem;border:1px solid var(--bb-border);background:var(--bb-bg-muted)">
+            <strong>Server scripts are switched off.</strong>
+            No script runs while <code>Scripting:Enabled</code> is false (the default outside Development).
+            Scripts can still be edited and validated here.
+        </div>
+    }
     <header class="page-head">
         <div>
             <h1>Server Scripts</h1>
@@ -221,6 +231,11 @@ else
                     <BbInput @bind-Value="editApiMethod" Placeholder="e.g. calculate_custom_tax (invoked via POST /api/method/{name})" />
                     <span style="font-size:.75rem;color:var(--bb-text-muted)">Must contain lowercase letters, numbers, and dashes/underscores.</span>
                 </div>
+                <div>
+                    <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">Allowed Roles</label>
+                    <BbInput @bind-Value="editAllowedRoles" Placeholder="e.g. Purchasing, Finance (comma-separated)" />
+                    <span style="font-size:.75rem;color:var(--bb-text-muted)">Roles that may call this method. Leave empty to allow System Managers / Administrators only.</span>
+                </div>
             }
             else if (editScriptType == "Scheduled")
             {
@@ -231,8 +246,9 @@ else
                         <span style="font-size:.75rem;color:var(--bb-text-muted)">Standard 5-field cron expression or shorthand (@@daily, @@hourly, @@every_minute).</span>
                     </div>
                     <div style="flex:1">
-                        <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">Run As User</label>
-                        <BbInput @bind-Value="editRunAsUserId" Placeholder="Default: Administrator" />
+                        <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">Run As User *</label>
+                        <BbInput @bind-Value="editRunAsUserId" Placeholder="User ID, e.g. svc_scheduler" />
+                        <span style="font-size:.75rem;color:var(--bb-text-muted)">The script runs with this user's permissions. Prefer a dedicated service account with only the roles it needs.</span>
                     </div>
                 </div>
             }
@@ -382,6 +398,7 @@ else
     private string editApiMethod = "";
     private string editCronExpr = "0 0 * * *";
     private string editRunAsUserId = "";
+    private string editAllowedRoles = "";
     private bool editIsActive = true;
     private string editCode = "";
     private int currentVersion = 1;
@@ -470,6 +487,7 @@ else
         editApiMethod = "";
         editCronExpr = "0 0 * * *";
         editRunAsUserId = "";
+        editAllowedRoles = "";
         editIsActive = true;
         editCode = "// Doc[\"field_name\"] = ...;\n// Log.Info(\"Script running\");\n";
         currentVersion = 1;
@@ -489,6 +507,7 @@ else
         editApiMethod = def.ApiMethod ?? "";
         editCronExpr = def.CronExpr ?? "0 0 * * *";
         editRunAsUserId = def.RunAsUserId ?? "";
+        editAllowedRoles = string.Join(", ", def.AllowedRoles);
         editIsActive = def.IsActive;
         editCode = def.CurrentCode;
         currentVersion = def.Version;
@@ -555,6 +574,37 @@ else
         var id = editingId ?? $"scr_{Guid.NewGuid():N}"[..12];
 
         Enum.TryParse<ServerScriptType>(editScriptType, out var scriptType);
+
+        // Scheduled scripts must run as an explicit, active user in this tenant (no implicit administrator).
+        if (scriptType == ServerScriptType.Scheduled)
+        {
+            if (string.IsNullOrWhiteSpace(editRunAsUserId))
+            {
+                validationMessages.Add("Run As User is required for scheduled scripts.");
+                return;
+            }
+            try
+            {
+                await AutomationIdentity.ForUserAsync(tenantId, editRunAsUserId.Trim());
+            }
+            catch (Exception ex)
+            {
+                validationMessages.Add($"Run As User is not valid: {ex.Message}");
+                return;
+            }
+        }
+
+        // An Api script must not shadow a built-in C# API method of the same name.
+        if (scriptType == ServerScriptType.Api && ApiMethods.Find(editApiMethod.Trim().ToLowerInvariant()) is not null)
+        {
+            validationMessages.Add($"API method name '{editApiMethod.Trim()}' is already used by a built-in method.");
+            return;
+        }
+
+        var allowedRoles = editAllowedRoles
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
         DocEventStage? docEvent = null;
         if (scriptType == ServerScriptType.DocEvent && Enum.TryParse<DocEventStage>(editDocEvent, out var parsedEvent))
         {
@@ -572,6 +622,7 @@ else
             ApiMethod = scriptType == ServerScriptType.Api ? editApiMethod.Trim().ToLowerInvariant() : null,
             CronExpr = scriptType == ServerScriptType.Scheduled ? editCronExpr.Trim() : null,
             RunAsUserId = string.IsNullOrWhiteSpace(editRunAsUserId) ? null : editRunAsUserId.Trim(),
+            AllowedRoles = scriptType == ServerScriptType.Api ? allowedRoles : [],
             IsActive = editIsActive,
             Version = currentVersion,
             CurrentCode = editCode,

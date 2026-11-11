@@ -139,8 +139,9 @@ public sealed class InMemoryWebhookStore : IWebhookStore
         lock (_gate)
         {
             var due = _deliveries.Values
-                .Where(d => (d.Status == WebhookDeliveryStatus.Pending || d.Status == WebhookDeliveryStatus.Failed)
-                            && d.NextAttemptAt <= now
+                .Where(d => (((d.Status == WebhookDeliveryStatus.Pending || d.Status == WebhookDeliveryStatus.Failed) && d.NextAttemptAt <= now)
+                             // Reclaim deliveries left in 'Sending' by a crashed or stopped worker once the lease expires.
+                             || d.Status == WebhookDeliveryStatus.Sending)
                             && (d.LeaseUntil is null || d.LeaseUntil <= now))
                 .OrderBy(d => d.NextAttemptAt)
                 .Take(limit)

@@ -16,35 +16,51 @@ FrogFrame provides runtime extensibility through **Server Scripts** written in C
 
 ## 2. Sandbox Security Architecture
 
-Server Scripts execute untrusted tenant code in a sandboxed environment with multi-layered security gates:
+Server scripts run inside the application process. .NET has no in-process security boundary (no Code Access Security, no AppDomain isolation), so the layers below are defence in depth, not an absolute boundary. Only System Managers can author scripts, and scripts are **switched off by default outside Development**.
 
-### Layer 1: Restricted Assembly References
-The Roslyn compiler is initialized with a minimal allowlist of core assemblies:
-- `System.Private.CoreLib` (primitive types, strings, math)
-- `System.Collections` / `System.Linq`
-- `System.Text.RegularExpressions`
-- `System.Threading.Tasks`
-- `Framework.Scripting.Abstractions` (minimal script facade)
+### Layer 0: Kill switch
+`Scripting:Enabled` (appsettings or environment variable `Scripting__Enabled`) turns all scripts on or off. When the key is not set, scripts run only in the Development environment. While switched off, DocEvent scripts are skipped, Api scripts return 404, and scheduled scripts do not run. The value is read on every execution, so a configuration reload takes effect without a restart.
 
-Assemblies providing system I/O, process management, low-level networking, and dynamic reflection are omitted. Any attempt to use them fails resolution at compile time.
+### Layer 1: Structural checks
+Before anything is compiled, the user code must:
+- contain no `using` directives and no preprocessor directives (`#line`, `#pragma`, `#define`, ...);
+- contain no type or member declarations;
+- form exactly one block, so it cannot close the generated method and declare its own members.
 
-### Layer 2: AST Security Analyzer
-Before compilation, `ScriptSecurityAnalyzer` walks the syntax tree (`CSharpSyntaxWalker`) and strictly rejects:
-- **Forbidden Namespaces**: `System.IO`, `System.Diagnostics`, `System.Reflection`, `System.Threading`, `System.Net`, `System.Runtime.InteropServices`, `Microsoft.Win32`, etc.
-- **Dangerous Types**: `Process`, `File`, `Directory`, `Path`, `Environment`, `AppDomain`, `Assembly`, `Type`, `Activator`, `Thread`, `Task.Run`.
-- **Unsafe Language Constructs**: `unsafe` blocks, `fixed` pointers, `stackalloc`, pointer dereferencing (`*`, `->`).
-- **Dynamic Typing**: The `dynamic` keyword is forbidden to prevent runtime reflection bypasses.
+### Layer 2: Semantic allowlist (`ScriptSecurityAnalyzer`)
+Every symbol and every expression type in the script is resolved through the Roslyn semantic model and must be on an explicit allowlist. Checking resolved symbols, not identifier text, closes the bypasses of a name-based denylist (unicode escapes such as `File`, verbatim identifiers such as `@File`, reflection through `typeof(...)` or `GetType()`).
 
-### Layer 3: Statement Budget Rewriter
-To prevent CPU exhaustion and infinite loops (`while (true) {}`), `ScriptBudgetRewriter` rewrites loop bodies and blocks by injecting:
-```csharp
-__budget.Tick();
-```
-If statement execution exceeds `MaxStatements` (default: 50,000 statements), a `ScriptBudgetExceededException` is thrown immediately, terminating execution.
+Allowed:
+- primitives, `string`, `decimal`, `DateTime`, `DateOnly`, `TimeOnly`, `TimeSpan`, `Guid`, `Math`, `Convert`, `Random`, nullable types, tuples, anonymous types;
+- `System.Collections.Generic` collections and interfaces, `System.Linq.Enumerable` (method syntax), `StringBuilder`;
+- `Func<>`, `Action<>`, `Predicate<>`, `Comparison<>`, `Converter<>` delegates;
+- common exception types (`Exception`, `ArgumentException`, `InvalidOperationException`, ...);
+- `Task` / `ValueTask` for `await` only (`CompletedTask`, `FromResult`, `WhenAll`, `WhenAny`, `Delay`);
+- `CancellationToken` (`IsCancellationRequested`, `ThrowIfCancellationRequested`), `CultureInfo` (`InvariantCulture`, `GetCultureInfo`), `NumberStyles`, `DateTimeStyles`;
+- everything in `Framework.Scripting.Abstractions` except `ScriptBudget`.
 
-### Layer 4: Execution Timeout & Collectible Memory
-- **Timeout**: Every script execution is bound to a linked `CancellationToken` with a strict **5-second timeout**.
-- **Collectible ALC**: Script assemblies are compiled into an isolated `AssemblyLoadContext` configured with `isCollectible: true`. When a script is modified, saved, or deleted, the previous ALC is immediately unloaded, preventing memory leaks in long-running processes.
+Rejected (examples): `System.Type`, reflection, `GetType()`, `System.IO`, `System.Net`, `System.Diagnostics`, `Environment`, `Console`, `Activator`, threads, timers, `Task.Run`, `Task.Factory`, `Parallel`, `CancellationToken.Register`, `Regex` (ReDoS), `dynamic`, pointers, `unsafe`, `stackalloc`, attributes, local functions, `goto`, `lock`, LINQ query syntax, events, and identifiers starting with `__` (reserved for the wrapper).
+
+To allow another BCL type, add its metadata name to `AllowedTypes` in `ScriptSecurityAnalyzer` and check that none of its members can reach the file system, network, reflection or background threads.
+
+### Layer 3: Execution budget (`ScriptBudgetRewriter` + `ScriptBudget`)
+`__budget.Tick();` is injected at the start of every loop body, lambda body and catch block. Each tick enforces:
+- the statement limit (50,000 for DocEvent and Api, 500,000 for Scheduled);
+- the wall-clock deadline (5 s DocEvent, 10 s Api, 60 s Scheduled);
+- cancellation;
+- the remaining stack, so unbounded recursion through a delegate stops with an exception instead of a process-killing `StackOverflowException`;
+- an approximate allocation limit (256 MB).
+
+Once tripped, every later tick throws again, so a `try/catch` in the script cannot swallow it. Code that never ticks (a single long-running BCL call) cannot be interrupted in-process; the caller stops waiting one second after the deadline. For full CPU and memory isolation, run Api and Scheduled scripts in a separate worker process (see the Phase 3 plan, step C10).
+
+### Layer 4: Permissions
+- **DocEvent** scripts run as the user who triggered the event. After each script the document is compared with its state before the script; changing a field the user may not write (field `PermLevel`, standard fields, unknown fields) fails with `PermissionDeniedException` and the changes are undone. This covers `Doc["x"] = ...`, `Doc.Data["x"] = ...` and edits to child-table rows.
+- **Api** scripts can be called only by the roles in **Allowed Roles**. An empty list means System Managers / Administrators only.
+- **Scheduled** scripts run as an explicit **Run As User**, which is required. There is no implicit Administrator.
+- `Docs.*` calls always go through `DocumentService` as the script's user, so permissions, row scope, validation and hooks apply.
+
+### Layer 5: Collectible memory
+Script assemblies are loaded into an `AssemblyLoadContext` with `isCollectible: true`. When a script changes, the previous context is unloaded.
 
 ---
 
@@ -81,9 +97,8 @@ Doc["total"] = total;
 
 if (total > 50000000m && string.IsNullOrWhiteSpace(Doc.GetString("justification")))
 {
-    throw new Framework.Documents.ValidationFailedException([
-        new Framework.Documents.FieldError("justification", "Justification is required for purchases over Rp 50,000,000.")
-    ]);
+    // ScriptValidationException is turned into a normal field validation error.
+    throw new ScriptValidationException("Justification is required for purchases over Rp 50,000,000.", "justification");
 }
 
 Log.Info($"Validated PR total: {total:C}");
@@ -124,4 +139,8 @@ System Managers can configure scripts under **Settings &rarr; System &rarr; Serv
 - **Code Editor**: Clean monospace code input with script type switching.
 - **Validate / Compile**: Tests compilation and security rules immediately, returning line-numbered diagnostics without saving.
 - **Save & Publish**: Bumps the version number, creates a historical version snapshot, and invalidates in-memory caches.
-- **Execution Run History**: Displays execution duration in milliseconds, status (`Success`, `BudgetExceeded`, `Timeout`, `SecurityViolation`), and full error traces.
+- **Execution Run History**: Displays execution duration in milliseconds, status (`Success`, `Failed`, `BudgetExceeded`, `Timeout`, `SecurityViolation`), and full error traces.
+- **Allowed Roles** (Api scripts) and **Run As User** (Scheduled scripts, required) are set in the editor.
+- A banner shows when scripts are switched off by `Scripting:Enabled`.
+
+> **Upgrading from the first sandbox version:** scripts that use `Regex`, `System.Threading`, framework types such as `Framework.Documents.ValidationFailedException`, local functions or LINQ query syntax are now rejected. Open each script and press **Validate** before enabling scripts in production.

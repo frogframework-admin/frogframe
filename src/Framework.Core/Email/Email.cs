@@ -315,7 +315,8 @@ public sealed class OutboxEmailHandler(
                 Sender = from ?? "noreply@frogframe.local",
                 Recipients = email.To,
                 Cc = email.Cc,
-                ContentHtml = bodyHtml,
+                // Rendered as markup in the document timeline: sanitize like inbound email.
+                ContentHtml = HtmlContentSanitizer.Sanitize(bodyHtml),
                 ContentText = bodyText,
                 OccurredAt = now,
                 CreatedAt = now

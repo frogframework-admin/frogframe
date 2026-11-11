@@ -81,15 +81,24 @@ During each scheduled run, `AutoRepeatService` performs clean document replicati
 
 If the background scheduler has been paused or the server was offline for multiple recurring intervals, `AutoRepeatService` catches up on missing cycles up to **`MaxCatchUpPerCycle = 12`** documents per cycle. This prevents worker thread starvation or massive write bursts.
 
-### Idempotency & Duplicate Prevention
+### Idempotency, Claim-First Protocol & Duplicate Prevention
 
-Every generated document run is recorded in `frogframe_auto_repeat_runs`. A unique database constraint:
+Every generated document run is managed through a **Claim-First** protocol backed by `frogframe_auto_repeat_runs` with a unique database constraint:
 
 ```sql
 CONSTRAINT uq_frogframe_auto_repeat_run UNIQUE (tenant_id, auto_repeat_id, scheduled_for)
 ```
 
-guarantees that even if multiple worker threads or manual triggers execute simultaneously, at most **one document** can be created for any given schedule date.
+1. **Atomic Period Claim (`TryClaimRunAsync`)**: Before creating a document, the worker attempts to insert a record with status `Claimed`. On conflict, only runs with status `Failed` can be reclaimed. If another worker or instance is currently processing the period or has succeeded, the claim fails immediately.
+2. **Crash Resilience**: If the application crashes or is killed mid-run (e.g. during document insertion or auto-submission), the period remains `Claimed` rather than unrecorded, guaranteeing that duplicate documents will never be generated upon restart.
+3. **Run Completion (`CompleteRunAsync`)**: Once the document is inserted and any auto-submission completes, the status is updated to `Success` with the generated document name (or `Failed` with error diagnostics if creation threw an exception).
+
+### Authorization & Run-As Security
+
+`AutoRepeatService` strictly enforces security boundaries at the API layer:
+- **Ownership Verification**: Non-administrators may only modify, pause, resume, or manually execute Auto Repeat schedules that run as their own user identity.
+- **Run-As Elevation Control**: Only System Managers / Administrators can configure a schedule to run as another user (`RunAsUserId`).
+- **Source Document Access**: Creating an Auto Repeat schedule requires the user to have read permission on the source template document.
 
 ---
 

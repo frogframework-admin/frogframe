@@ -79,6 +79,24 @@ public interface IAutoRepeatStore
     Task<IReadOnlyList<AutoRepeatDef>> ListDueAsync(string tenantId, DateOnly today, CancellationToken ct = default);
     Task<bool> RecordRunAsync(AutoRepeatRun run, CancellationToken ct = default);
     Task<IReadOnlyList<AutoRepeatRun>> ListRunsAsync(string tenantId, string autoRepeatId, int limit = 50, CancellationToken ct = default);
+
+    /// <summary>
+    /// Claims one schedule period before its document is created. Returns true when this caller now owns the
+    /// period: no run existed yet, or the previous run for that period failed. Returns false when the period is
+    /// already done or being processed, so the document is never created twice.
+    /// </summary>
+    Task<bool> TryClaimRunAsync(string tenantId, string autoRepeatId, DateOnly scheduledFor, CancellationToken ct = default);
+
+    /// <summary>Marks a claimed period as finished (Success or Failed).</summary>
+    Task CompleteRunAsync(AutoRepeatRun run, CancellationToken ct = default);
+}
+
+/// <summary>Run status values used by the claim-first protocol.</summary>
+public static class AutoRepeatRunStatus
+{
+    public const string Claimed = "Claimed";
+    public const string Success = "Success";
+    public const string Failed = "Failed";
 }
 
 public sealed class InMemoryAutoRepeatStore : IAutoRepeatStore
@@ -157,6 +175,51 @@ public sealed class InMemoryAutoRepeatStore : IAutoRepeatStore
             .ToList();
 
         return Task.FromResult<IReadOnlyList<AutoRepeatRun>>(runs);
+    }
+
+    private readonly object _claimGate = new();
+
+    public Task<bool> TryClaimRunAsync(string tenantId, string autoRepeatId, DateOnly scheduledFor, CancellationToken ct = default)
+    {
+        var key = (tenantId, autoRepeatId, scheduledFor);
+        var claim = new AutoRepeatRun
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            AutoRepeatId = autoRepeatId,
+            ScheduledFor = scheduledFor,
+            GeneratedDocName = string.Empty,
+            Status = AutoRepeatRunStatus.Claimed,
+            ExecutedAt = DateTimeOffset.UtcNow
+        };
+
+        lock (_claimGate)
+        {
+            if (!_runs.TryGetValue(key, out var existing))
+            {
+                _runs[key] = claim;
+                return Task.FromResult(true);
+            }
+
+            if (existing.Status == AutoRepeatRunStatus.Failed)
+            {
+                _runs[key] = claim with { Id = existing.Id };
+                return Task.FromResult(true);
+            }
+
+            return Task.FromResult(false);
+        }
+    }
+
+    public Task CompleteRunAsync(AutoRepeatRun run, CancellationToken ct = default)
+    {
+        var key = (run.TenantId, run.AutoRepeatId, run.ScheduledFor);
+        lock (_claimGate)
+        {
+            var id = _runs.TryGetValue(key, out var existing) ? existing.Id : run.Id;
+            _runs[key] = run with { Id = id };
+        }
+        return Task.CompletedTask;
     }
 }
 

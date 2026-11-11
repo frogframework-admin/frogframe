@@ -130,11 +130,14 @@ public static class DocApi
                 .Select(m => new { name = m.Name, description = m.Description, roles = m.Roles, parameters = m.Parameters, endpoint = $"/api/method/{m.Name}" });
 
             var scriptStore = sp.GetService<Framework.Scripting.IServerScriptStore>();
-            var scriptList = scriptStore is not null
+            var scriptService = sp.GetService<Framework.Scripting.ServerScriptExecutionService>();
+            var scriptList = scriptStore is not null && scriptService is { IsEnabled: true }
                 ? (await scriptStore.ListAsync(user.TenantId, http.RequestAborted))
                     .Where(s => s.IsActive && s.ScriptType == Framework.Scripting.Abstractions.ServerScriptType.Api && !string.IsNullOrEmpty(s.ApiMethod))
+                    // Only list scripts this caller is allowed to invoke.
+                    .Where(s => Framework.Scripting.ServerScriptExecutionService.CanInvoke(s, user))
                     .Where(s => !viaKey || ApiScopes.Allows(granted, $"method:{s.ApiMethod}"))
-                    .Select(s => new { name = s.ApiMethod!, description = s.Name, roles = (IReadOnlyList<string>)[], parameters = (IReadOnlyList<Framework.Api.ApiMethodParam>)[], endpoint = $"/api/method/{s.ApiMethod}" })
+                    .Select(s => new { name = s.ApiMethod!, description = s.Name, roles = s.AllowedRoles, parameters = (IReadOnlyList<Framework.Api.ApiMethodParam>)[], endpoint = $"/api/method/{s.ApiMethod}" })
                 : [];
 
             return Results.Ok(staticList.Concat(scriptList));
@@ -159,10 +162,12 @@ public static class DocApi
             var scriptService = sp.GetService<Framework.Scripting.ServerScriptExecutionService>();
             if (scriptService is not null)
             {
+                // Found = an active script with this name exists (its result may legitimately be null).
+                // The script's AllowedRoles are enforced inside ExecuteApiAsync (403 via PermissionDeniedException).
                 var scriptResult = await scriptService.ExecuteApiAsync(user, name, body, http.RequestAborted);
-                if (scriptResult is not null)
+                if (scriptResult.Found)
                 {
-                    return Results.Ok(new { data = scriptResult });
+                    return Results.Ok(new { data = scriptResult.Data });
                 }
             }
 

@@ -3,7 +3,6 @@ using Framework.Documents;
 using Framework.Files;
 using Framework.Metadata;
 using Framework.Security;
-using Ganss.Xss;
 using MailKit;
 using MailKit.Net.Imap;
 using MailKit.Search;
@@ -147,7 +146,7 @@ public sealed class MailKitMailboxReader : IMailboxReader
             if (att is MimePart part)
             {
                 using var ms = new MemoryStream();
-                part.Content.DecodeTo(ms);
+                part.Content?.DecodeTo(ms);
                 msg.Attachments.Add(new InboundEmailAttachment
                 {
                     FileName = part.FileName ?? "attachment",
@@ -174,7 +173,6 @@ public sealed class InboundEmailProcessor(
     ILogger<InboundEmailProcessor>? logger = null)
 {
     private static readonly Regex SubjectDocNameRegex = new(@"\[#([a-zA-Z0-9_\-\./]+)\]", RegexOptions.Compiled);
-    private static readonly HtmlSanitizer Sanitizer = new();
     private readonly ILogger _logger = logger ?? NullLogger<InboundEmailProcessor>.Instance;
 
     public const long MaxEmailSizeBytes = 25 * 1024 * 1024; // 25 MB
@@ -245,7 +243,7 @@ public sealed class InboundEmailProcessor(
             string? cleanHtml = null;
             if (!string.IsNullOrWhiteSpace(msg.BodyHtml))
             {
-                cleanHtml = Sanitizer.Sanitize(msg.BodyHtml);
+                cleanHtml = HtmlContentSanitizer.Sanitize(msg.BodyHtml);
             }
 
             // 5. Thread / Document matching

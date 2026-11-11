@@ -87,8 +87,26 @@ public sealed class AutoRepeatService(
             throw new ArgumentException("End date cannot be earlier than start date.", nameof(req));
         }
 
-        var runAsUserId = string.IsNullOrWhiteSpace(req.RunAsUserId) ? user.Id : req.RunAsUserId.Trim();
         var existing = !string.IsNullOrEmpty(req.Id) ? await store.GetAsync(user.TenantId, req.Id, ct) : null;
+
+        // A non-admin may only change schedules that run as themselves.
+        if (existing is not null && !user.IsAdmin && !string.Equals(existing.RunAsUserId, user.Id, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new PermissionDeniedException("You can only change Auto Repeat schedules that run as yourself.");
+        }
+
+        // Documents are generated as the run-as user. Only administrators may choose someone else,
+        // otherwise any user could create documents (and auto-submit them) with another user's permissions.
+        var runAsUserId = string.IsNullOrWhiteSpace(req.RunAsUserId) ? user.Id : req.RunAsUserId.Trim();
+        if (!string.Equals(runAsUserId, user.Id, StringComparison.OrdinalIgnoreCase))
+        {
+            if (!user.IsAdmin)
+                throw new PermissionDeniedException("Only System Managers can run an Auto Repeat schedule as another user.");
+            await automationIdentity.ForUserAsync(user.TenantId, runAsUserId, ct); // must exist and be active
+        }
+
+        // The creator must be able to read the source document (permission and row scope); throws otherwise.
+        await docs.GetAsync(user, req.ReferenceDocType, req.ReferenceDocName, ct);
 
         var id = existing?.Id ?? req.Id ?? $"rep_{Guid.NewGuid().ToString("N")[..8]}";
         var nextDate = existing is not null
@@ -152,6 +170,11 @@ public sealed class AutoRepeatService(
         var repeat = await store.GetAsync(user.TenantId, autoRepeatId, ct)
             ?? throw new KeyNotFoundException($"Auto Repeat '{autoRepeatId}' not found.");
 
+        if (!user.IsAdmin && !string.Equals(repeat.RunAsUserId, user.Id, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new PermissionDeniedException("You can only run Auto Repeat schedules that run as yourself.");
+        }
+
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         return await ExecuteSingleRepeatAsync(repeat, today, ct);
     }
@@ -180,57 +203,72 @@ public sealed class AutoRepeatService(
 
             while (curDate <= today && (!repeat.EndDate.HasValue || curDate <= repeat.EndDate.Value) && catchUpCount < MaxCatchUpPerCycle)
             {
+                // Claim the period BEFORE creating its document. If it is already done or in progress
+                // (concurrent "Run now", a second instance, or a crash after the insert), skip it: a missing
+                // document is visible in the run log, a duplicate one is not.
+                if (!await store.TryClaimRunAsync(repeat.TenantId, repeat.Id, curDate, ct))
+                {
+                    curDate = AutoRepeatSchedule.Next(curDate, repeat.Frequency);
+                    continue;
+                }
+
                 var payload = CloneDocumentPayload(meta, sourceDoc, curDate);
 
+                Document inserted;
                 try
                 {
-                    var inserted = await docs.InsertAsync(runAsUser, repeat.ReferenceDocType, payload, ct);
-                    generatedDocs.Add(inserted.Name);
-
-                    if (repeat.SubmitOnCreation && meta.Def.Workflow is null && !meta.Def.IsSingle)
-                    {
-                        try
-                        {
-                            await docs.RunActionAsync(runAsUser, repeat.ReferenceDocType, inserted.Name, "submit", inserted.Version, "Auto Repeat auto-submission", ct);
-                        }
-                        catch
-                        {
-                            // If auto-submit fails, document remains as draft; record the document
-                        }
-                    }
-
-                    var run = new AutoRepeatRun
-                    {
-                        Id = Guid.NewGuid(),
-                        TenantId = repeat.TenantId,
-                        AutoRepeatId = repeat.Id,
-                        ScheduledFor = curDate,
-                        GeneratedDocName = inserted.Name,
-                        Status = "Success",
-                        ExecutedAt = DateTimeOffset.UtcNow
-                    };
-                    await store.RecordRunAsync(run, ct);
-
-                    catchUpCount++;
-                    curDate = AutoRepeatSchedule.Next(curDate, repeat.Frequency);
+                    inserted = await docs.InsertAsync(runAsUser, repeat.ReferenceDocType, payload, ct);
                 }
                 catch (Exception ex)
                 {
+                    // Nothing was created: mark the period Failed so a later run may claim and retry it.
                     failureError = ex.Message;
-                    var failedRun = new AutoRepeatRun
+                    await store.CompleteRunAsync(new AutoRepeatRun
                     {
                         Id = Guid.NewGuid(),
                         TenantId = repeat.TenantId,
                         AutoRepeatId = repeat.Id,
                         ScheduledFor = curDate,
                         GeneratedDocName = string.Empty,
-                        Status = "Failed",
+                        Status = AutoRepeatRunStatus.Failed,
                         Error = ex.Message,
                         ExecutedAt = DateTimeOffset.UtcNow
-                    };
-                    await store.RecordRunAsync(failedRun, ct);
+                    }, ct);
                     break;
                 }
+
+                generatedDocs.Add(inserted.Name);
+
+                string? submitError = null;
+                if (repeat.SubmitOnCreation && meta.Def.Workflow is null && !meta.Def.IsSingle)
+                {
+                    try
+                    {
+                        await docs.RunActionAsync(runAsUser, repeat.ReferenceDocType, inserted.Name, "submit", inserted.Version, "Auto Repeat auto-submission", ct);
+                    }
+                    catch (Exception ex)
+                    {
+                        // The document stays a draft; keep the reason in the run log instead of hiding it.
+                        submitError = $"Document created as draft; auto-submit failed: {ex.Message}";
+                    }
+                }
+
+                // The document exists now. If this update fails the period stays 'Claimed' and is never retried,
+                // which prevents a duplicate document.
+                await store.CompleteRunAsync(new AutoRepeatRun
+                {
+                    Id = Guid.NewGuid(),
+                    TenantId = repeat.TenantId,
+                    AutoRepeatId = repeat.Id,
+                    ScheduledFor = curDate,
+                    GeneratedDocName = inserted.Name,
+                    Status = AutoRepeatRunStatus.Success,
+                    Error = submitError,
+                    ExecutedAt = DateTimeOffset.UtcNow
+                }, ct);
+
+                catchUpCount++;
+                curDate = AutoRepeatSchedule.Next(curDate, repeat.Frequency);
             }
 
             var isCompleted = AutoRepeatSchedule.IsCompleted(repeat, curDate);
