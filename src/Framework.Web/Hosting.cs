@@ -1,3 +1,5 @@
+using System.Net;
+using System.Net.Sockets;
 using Framework.Documents;
 using Framework.Email;
 using Framework.Hooks;
@@ -7,11 +9,13 @@ using Framework.Dashboards;
 using Framework.Reports;
 using Framework.Api;
 using Framework.Imports;
+using Framework.Integrations;
 using Framework.Navigation;
 using Framework.Notifications;
 using Framework.Observability;
 using Framework.Presence;
 using Framework.Preferences;
+using Framework.Web.Integrations;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Builder;
@@ -239,6 +243,50 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ReportService>();
         services.AddHostedService<OutboxWorker>();
         services.AddHostedService<FileOrphanWorker>(); // pembersihan file yang tidak pernah ditautkan
+
+        // Outbound Webhooks (Phase 3 Workstream A)
+        services.TryAddSingleton<IWebhookStore, InMemoryWebhookStore>();
+        services.AddSingleton(sp => new WebhookService(
+            sp.GetRequiredService<IWebhookStore>(),
+            sp.GetRequiredService<IMetadataProvider>(),
+            sp.GetRequiredService<FunctionRegistry>(),
+            sp.GetRequiredService<ISecretProtector>(),
+            isDevelopment: sp.GetService<IHostEnvironment>()?.IsDevelopment() ?? false,
+            allowedPrivateHosts: sp.GetService<IConfiguration>()?.GetSection("Webhooks:AllowedPrivateHosts").Get<string[]>()));
+        services.AddSingleton<WebhookEventHandler>();
+        services.AddSingleton<IEventHandler>(sp => sp.GetRequiredService<WebhookEventHandler>());
+        services.AddSingleton<WebhookDispatcher>();
+        services.AddHostedService<WebhookDeliveryWorker>();
+
+        services.AddHttpClient(WebhookDispatcher.HttpClientName, (sp, client) =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(10);
+        }).ConfigurePrimaryHttpMessageHandler(sp =>
+        {
+            var config = sp.GetService<IConfiguration>();
+            var allowedHosts = config?.GetSection("Webhooks:AllowedPrivateHosts").Get<string[]>() ?? [];
+            return new SocketsHttpHandler
+            {
+                AllowAutoRedirect = false,
+                ConnectCallback = async (context, token) =>
+                {
+                    var host = context.DnsEndPoint.Host;
+                    var port = context.DnsEndPoint.Port;
+                    var addresses = await Dns.GetHostAddressesAsync(host, token);
+                    if (!allowedHosts.Contains(host, StringComparer.OrdinalIgnoreCase))
+                    {
+                        foreach (var ip in addresses)
+                        {
+                            if (WebhookUrlValidator.IsPrivateOrLoopback(ip))
+                                throw new InvalidOperationException($"SSRF blocked: connection to private/loopback IP {ip} is disallowed.");
+                        }
+                    }
+                    var socket = new Socket(SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
+                    await socket.ConnectAsync(addresses, port, token);
+                    return new NetworkStream(socket, ownsSocket: true);
+                }
+            };
+        });
 
         // Background Scheduler
         services.TryAddSingleton<ISchedulerLogger, WebSchedulerLogger>();

@@ -24,6 +24,8 @@
       href: guides/saved-query-apis.md
     - name: API Keys & Custom Methods
       href: guides/api-integrations.md
+    - name: Outbound Webhooks
+      href: webhooks.md
     - name: Excel & CSV Data Import
       href: guides/excel-import.md
     - name: Template Reporting (Excel & Word)

@@ -321,6 +321,22 @@ public static class NavigationMenuDefaults
         },
         new()
         {
+            Id = $"menu_{tenantId}_webhooks",
+            TenantId = tenantId,
+            Title = "Webhooks",
+            Href = "admin/webhooks",
+            Icon = "webhook",
+            GroupId = GroupSistemId(tenantId),
+            GroupName = "System",
+            SortOrder = 137,
+            AllowedRoles = [UserContext.SystemManager, UserContext.Administrator],
+            IsSystem = true,
+            IsActive = true,
+            CreatedAt = now,
+            UpdatedAt = now
+        },
+        new()
+        {
             Id = $"menu_{tenantId}_notifications",
             TenantId = tenantId,
             Title = "Notification Rules",
