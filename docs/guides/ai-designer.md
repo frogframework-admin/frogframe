@@ -71,7 +71,7 @@ The identity of the app needs the **Foundry User** role (or the equivalent "Cogn
 
 Docker: set `FROGFRAME_AI_ENABLED`, `FROGFRAME_AI_ENDPOINT`, `FROGFRAME_AI_DEPLOYMENT`, `FROGFRAME_AI_AUTH`, `FROGFRAME_AI_MANAGED_IDENTITY_CLIENT_ID`, `FROGFRAME_AI_API_KEY` in `.env`. These environment variables override appsettings.
 
-When AI is off, the panels show the reason to System Managers on New DocType and stay hidden elsewhere.
+When AI is off, every AI panel shows the reason (for example "AI:Enabled is false") to System Managers on all six pages.
 
 ---
 
