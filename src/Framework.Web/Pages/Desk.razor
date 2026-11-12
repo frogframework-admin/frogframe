@@ -10,41 +10,42 @@
 @inject NavigationManager Nav
 @inject ToastService Toasts
 @inject TimeProvider Clock
+@inject UiText T
 
-<PageTitle>Home · FrogFrame</PageTitle>
+<PageTitle>@T["Home"] · FrogFrame</PageTitle>
 
 <div class="launcher-page">
     <header class="desk-hero">
         <img class="desk-hero-bg desk-hero-bg-light" src="/_content/Framework.Web/img/desk-hero-light.png" alt="" aria-hidden="true" />
         <img class="desk-hero-bg desk-hero-bg-dark" src="/_content/Framework.Web/img/desk-hero-dark.png" alt="" aria-hidden="true" />
         <div class="desk-hero-content">
-            <h1>@GreetingText(), @FirstName(Current.Required.FullName)!</h1>
-            <p>What would you like to work on today?</p>
+            <h1>@T[GreetingText()], @FirstName(Current.Required.FullName)!</h1>
+            <p>@T["What would you like to work on today?"]</p>
             <div class="desk-hero-accent" aria-hidden="true"></div>
         </div>
     </header>
 
-    <section class="workspace-summary" aria-label="My workspace">
+    <section class="workspace-summary" aria-label="@(T["My workspace"])">
         <div class="section-head-row">
-            <h2>My workspace</h2>
+            <h2>@T["My workspace"]</h2>
         </div>
 
         <div class="workspace-cards-grid">
             <a class="workspace-stat-card" href="#recent-docs">
-                <span>Awaiting your approval / action</span>
+                <span>@T["Awaiting your approval / action"]</span>
                 <strong class="stat-num primary">@(pending?.Count ?? 0)</strong>
             </a>
             <a class="workspace-stat-card" href="/inbox">
-                <span>Tasks &amp; unread notifications</span>
+                <span>@T["Tasks & unread notifications"]</span>
                 <strong class="stat-num">@unreadCount</strong>
             </a>
         </div>
     </section>
 
-    <section id="recent-docs" class="recent-docs-section" aria-label="Recent documents">
+    <section id="recent-docs" class="recent-docs-section" aria-label="@(T["Recent documents"])">
         <div class="section-head-row">
-            <h2>Recent documents</h2>
-            <a class="section-link" href="@SeeAllHref">View all</a>
+            <h2>@T["Recent documents"]</h2>
+            <a class="section-link" href="@SeeAllHref">@T["View all"]</a>
         </div>
 
         @if (recentDocs is null)
@@ -54,7 +55,7 @@
         else if (recentDocs.Count == 0)
         {
             <div class="desk-table-card desk-empty-box">
-                No transaction documents recorded yet.
+                @T["No transaction documents recorded yet."]
             </div>
         }
         else
@@ -63,11 +64,11 @@
                 <table class="desk-doc-table">
                     <thead>
                         <tr>
-                            <th>Document</th>
-                            <th>Requester / title</th>
-                            <th class="num">Total</th>
-                            <th>Status</th>
-                            <th class="act-col">Available actions</th>
+                            <th>@T["Document"]</th>
+                            <th>@T["Requester / title"]</th>
+                            <th class="num">@T["Total"]</th>
+                            <th>@T["Status"]</th>
+                            <th class="act-col">@T["Available actions"]</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -78,19 +79,19 @@
                             <tr class="clickable" @onclick="@(() => Nav.NavigateTo(docHref))">
                                 <td>
                                     <a class="doc-code" href="@docHref" @onclick:stopPropagation="true">@doc.Name</a>
-                                    <div class="doc-sub">@meta.Title</div>
+                                    <div class="doc-sub">@T.Title(meta)</div>
                                 </td>
                                 <td class="doc-requester">@ResolveTitle(meta, doc)</td>
-                                <td class="num doc-total">@(meta.ByName.TryGetValue("total", out var tf2) ? Fmt.Value(tf2, doc.Get("total")) : "—")</td>
+                                <td class="num doc-total">@(meta.ByName.TryGetValue("total", out var tf2) ? T.Value(tf2, doc.Get("total")) : "—")</td>
                                 <td>
                                     <span class="desk-status-pill @StatusPillClass(meta, doc)">
                                         <span class="dot" aria-hidden="true"></span>
-                                        <span>@Fmt.StateLabel(doc.WorkflowState, doc.DocStatus)</span>
+                                        <span>@T.State(doc.WorkflowState, doc.DocStatus)</span>
                                     </span>
                                 </td>
                                 <td class="act-col" @onclick:stopPropagation="true">
-                                    <a class="desk-act-btn @(isPrimary ? "primary" : "outline")" href="@docHref" title="@btnTooltip">
-                                        @btnText
+                                    <a class="desk-act-btn @(isPrimary ? "primary" : "outline")" href="@docHref" title="@(T[btnTooltip])">
+                                        @T[btnText]
                                     </a>
                                 </td>
                             </tr>
@@ -179,9 +180,9 @@
         };
     }
 
-    private static string FirstName(string fullName)
+    private string FirstName(string fullName)
     {
-        if (string.IsNullOrWhiteSpace(fullName)) return "User";
+        if (string.IsNullOrWhiteSpace(fullName)) return T["User"];
         return fullName.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0];
     }
 
@@ -207,7 +208,7 @@
         };
     }
 
-    private static (string Label, bool IsPrimary, string Tooltip) DescribeAction(IReadOnlyList<string> actions)
+    private (string Label, bool IsPrimary, string Tooltip) DescribeAction(IReadOnlyList<string> actions)
     {
         if (actions.Count == 0)
             return ("View", false, "Open document details");
@@ -215,7 +216,7 @@
             return ("Cancel", false, "Cancel document");
         if (actions.Count == 1 && (string.Equals(actions[0], "Ajukan", StringComparison.OrdinalIgnoreCase) || string.Equals(actions[0], "Submit", StringComparison.OrdinalIgnoreCase)))
             return ("Submit", true, "Submit document for approval");
-        return ("Review", true, string.Join(" · ", actions));
+        return ("Review", true, string.Join(" · ", actions.Select(a => T[a])));
     }
 
     public void Dispose()

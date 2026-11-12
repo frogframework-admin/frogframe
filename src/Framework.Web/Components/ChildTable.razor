@@ -2,6 +2,7 @@
 @inject CurrentUser Current
 @inject DocumentService Docs
 @inject IMetadataProvider Metadata
+@inject UiText T
 
 <div class="grid-wrap">
     <table class="grid">
@@ -11,10 +12,10 @@
                 @foreach (var f in ChildMeta.Fields)
                 {
                     <th scope="col" class="@(f.Type.Editor == "number" ? "num" : "")">
-                        @f.Label@if (f.Def.RequiredWhen is "true" && !ReadOnly) { <span class="req" aria-hidden="true"> *</span> }
+                        @T.Label(f)@if (f.Def.RequiredWhen is "true" && !ReadOnly) { <span class="req" aria-hidden="true"> *</span> }
                     </th>
                 }
-                @if (!ReadOnly) { <th class="row-act"><span class="sr-only">Actions</span></th> }
+                @if (!ReadOnly) { <th class="row-act"><span class="sr-only">@T["Actions"]</span></th> }
             </tr>
         </thead>
         <tbody>
@@ -39,7 +40,7 @@
                     @if (!ReadOnly)
                     {
                         <td class="row-act">
-                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@($"Delete row {i + 1}")" OnClick="() => Remove(idx)">
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@(T.Format("Delete row {0}", i + 1))" OnClick="() => Remove(idx)">
                                 <LucideIcon Name="trash-2" Size="16" />
                             </BbButton>
                         </td>
@@ -48,7 +49,7 @@
             }
             @if (Rows.Count == 0)
             {
-                <tr><td colspan="@(ChildMeta.Fields.Count + 2)" class="grid-empty">No rows yet.@(ReadOnly ? "" : " Add the first item.")</td></tr>
+                <tr><td colspan="@(ChildMeta.Fields.Count + 2)" class="grid-empty">@T["No rows yet."]@(ReadOnly ? "" : " " + T["Add the first item."])</td></tr>
             }
         </tbody>
     </table>
@@ -59,11 +60,11 @@
         @if (Lookup is not null)
         {
             <BbButton Size="ButtonSize.Small" OnClick="() => lookupOpen = true">
-                <LucideIcon Name="list-plus" Size="16" /> @(Lookup.ButtonLabel ?? $"Add from {LookupTarget} list")
+                <LucideIcon Name="list-plus" Size="16" /> @(Lookup.ButtonLabel is { } bl ? T[bl] : T.Format("Add from {0} list", LookupTitle))
             </BbButton>
         }
         <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick="Add">
-            <LucideIcon Name="plus" Size="16" /> Add row
+            <LucideIcon Name="plus" Size="16" /> @T["Add row"]
         </BbButton>
     </div>
     @if (Lookup is not null && LookupTarget is not null)
@@ -85,6 +86,7 @@
     private bool lookupOpen;
     private LookupAddDef? Lookup => Table.Def.AddFromLookup;
     private string? LookupTarget => Lookup is null ? null : ChildMeta.ByName.GetValueOrDefault(Lookup.LinkField)?.Def.LinkTo;
+    private string? LookupTitle => LookupTarget is { } t && Metadata.Current.TryGet(t, out var tm) ? T.Title(tm) : LookupTarget;
 
     /// <summary>Dokumen yang sudah ada di tabel tidak bisa dipilih lagi.</summary>
     private IReadOnlySet<string> ExistingLinks =>

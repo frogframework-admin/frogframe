@@ -2,6 +2,7 @@ using Apps.Sample.Components;
 using Apps.Sample.Domain;
 using Apps.Sample.Hooks;
 using BlazorBlueprint.Components;
+using Framework.Localization;
 using Framework.Metadata;
 using Framework.Notifications;
 using Framework.Security;
@@ -118,12 +119,10 @@ app.UseStatusCodePagesWithReExecute("/error/{0}");
 // 3. Global security headers (nosniff, SAMEORIGIN, CSP, Referrer, Permissions)
 app.UseFrogFrameSecurityHeaders();
 
-// Bahasa & format Indonesia untuk UI (nama bulan di date picker, dsb.).
-// Penyimpanan dan API tetap memakai format invarian (yyyy-MM-dd, titik desimal).
-app.UseRequestLocalization(new RequestLocalizationOptions()
-    .SetDefaultCulture("id-ID").AddSupportedCultures("id-ID").AddSupportedUICultures("id-ID"));
-
 app.UseAuthentication();
+// Bahasa UI per pengguna (Indonesia/Inggris: cookie → preferensi tersimpan → Localization:DefaultLanguage).
+// Format angka & tanggal tetap Indonesia; penyimpanan dan API tetap memakai format invarian (yyyy-MM-dd, titik desimal).
+app.UseFrogFrameLocalization();
 app.UseAuthorization();
 app.UseRateLimiter(); // batas permintaan /api per kunci API / pengguna (Api:RateLimitPerMinute)
 app.UseAntiforgery();

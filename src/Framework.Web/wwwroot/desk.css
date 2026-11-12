@@ -203,6 +203,36 @@ h1:focus {
   background: rgba(255, 255, 255, 0.18);
 }
 
+/* ---------- Language switch (ID | EN) ---------- */
+.lang-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0.15rem;
+  border-radius: 0.4rem;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.lang-switch-item {
+  padding: 0.2rem 0.45rem;
+  border-radius: 0.3rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.8);
+  text-decoration: none;
+}
+
+.lang-switch-item:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.lang-switch-item.active {
+  color: var(--topbar-bg, #1f2937);
+  background: #ffffff;
+}
+
 /* ---------- Breadcrumb Bar ---------- */
 .page-top-bar {
   padding: 0.85rem 2rem 0.25rem;

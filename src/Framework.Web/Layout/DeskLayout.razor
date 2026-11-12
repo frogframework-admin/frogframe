@@ -11,6 +11,7 @@
 @inject INavigationMenuStore MenuStore
 @inject ToastService Toasts
 @inject IJSRuntime JS
+@inject UiText T
 
 <BbSidebarProvider DefaultOpen="true">
     <BbSidebar Collapsible="true">
@@ -34,13 +35,13 @@
                 <BbSidebarGroup>
                     <BbSidebarMenu>
                         <BbSidebarMenuItem>
-                            <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="" Match="NavLinkMatch.All" Tooltip="Home & Module Picker">
-                                <LucideIcon Name="house" Size="18" /><span>Home</span>
+                            <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="" Match="NavLinkMatch.All" Tooltip="@(T["Home & Module Picker"])">
+                                <LucideIcon Name="house" Size="18" /><span>@T["Home"]</span>
                             </BbSidebarMenuButton>
                         </BbSidebarMenuItem>
                         <BbSidebarMenuItem>
-                            <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="inbox" Match="NavLinkMatch.Prefix" Tooltip="Inbox">
-                                <LucideIcon Name="inbox" Size="18" /><span>Inbox</span>
+                            <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="inbox" Match="NavLinkMatch.Prefix" Tooltip="@(T["Inbox"])">
+                                <LucideIcon Name="inbox" Size="18" /><span>@T["Inbox"]</span>
                             </BbSidebarMenuButton>
                             @if (unread > 0)
                             {
@@ -50,9 +51,9 @@
                         @if (activeMod is not null)
                         {
                             <BbSidebarMenuItem>
-                                <BbSidebarMenuButton OnClick="OpenModulePicker" Tooltip="@($"Active module: {activeMod.Name} (Click to switch module)")" Class="module-switch-btn">
+                                <BbSidebarMenuButton OnClick="OpenModulePicker" Tooltip="@(T.Format("Active module: {0} (Click to switch module)", T[activeMod.Name]))" Class="module-switch-btn">
                                     <LucideIcon Name="@(string.IsNullOrWhiteSpace(activeMod.Icon) ? "layout-grid" : activeMod.Icon)" Size="18" />
-                                    <span>@activeMod.Name</span>
+                                    <span>@T[activeMod.Name]</span>
                                 </BbSidebarMenuButton>
                             </BbSidebarMenuItem>
                         }
@@ -74,14 +75,14 @@
                     if (moduleDocs.Count > 0)
                     {
                         <BbSidebarGroup>
-                            <BbSidebarGroupLabel>Dokumen</BbSidebarGroupLabel>
+                            <BbSidebarGroupLabel>@T["Documents"]</BbSidebarGroupLabel>
                             <BbSidebarGroupContent>
                                 <BbSidebarMenu>
                                     @foreach (var d in moduleDocs)
                                     {
                                         <BbSidebarMenuItem>
-                                            <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="@($"app/{d.Name}")" Tooltip="@d.Title">
-                                                <LucideIcon Name="@IconFor(d)" Size="18" /><span>@d.Title</span>
+                                            <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="@($"app/{d.Name}")" Tooltip="@(T.Title(d))">
+                                                <LucideIcon Name="@IconFor(d)" Size="18" /><span>@T.Title(d)</span>
                                             </BbSidebarMenuButton>
                                         </BbSidebarMenuItem>
                                     }
@@ -112,30 +113,30 @@
                         @if (grpDocTypes.Count > 0 || grpDeskItems.Count > 0 || grpMenus.Count > 0)
                         {
                             <BbSidebarGroup>
-                                <BbSidebarGroupLabel>@grp.Name</BbSidebarGroupLabel>
+                                <BbSidebarGroupLabel>@T[grp.Name]</BbSidebarGroupLabel>
                                 <BbSidebarGroupContent>
                                     <BbSidebarMenu>
                                         @foreach (var d in grpDocTypes)
                                         {
                                             <BbSidebarMenuItem>
-                                                <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="@($"app/{d.Name}")" Tooltip="@d.Title">
-                                                    <LucideIcon Name="@IconFor(d)" Size="18" /><span>@d.Title</span>
+                                                <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="@($"app/{d.Name}")" Tooltip="@(T.Title(d))">
+                                                    <LucideIcon Name="@IconFor(d)" Size="18" /><span>@T.Title(d)</span>
                                                 </BbSidebarMenuButton>
                                             </BbSidebarMenuItem>
                                         }
                                         @foreach (var item in grpDeskItems)
                                         {
                                             <BbSidebarMenuItem>
-                                                <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="@item.Href.TrimStart('/')" Tooltip="@item.Title">
-                                                    <LucideIcon Name="@item.Icon" Size="18" /><span>@item.Title</span>
+                                                <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="@item.Href.TrimStart('/')" Tooltip="@(T[item.Title])">
+                                                    <LucideIcon Name="@item.Icon" Size="18" /><span>@T[item.Title]</span>
                                                 </BbSidebarMenuButton>
                                             </BbSidebarMenuItem>
                                         }
                                         @foreach (var item in grpMenus)
                                         {
                                             <BbSidebarMenuItem>
-                                                <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="@item.Href.TrimStart('/')" Match="@(string.IsNullOrEmpty(item.Href) ? NavLinkMatch.All : NavLinkMatch.Prefix)" Tooltip="@item.Title">
-                                                    <LucideIcon Name="@item.Icon" Size="18" /><span>@item.Title</span>
+                                                <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="@item.Href.TrimStart('/')" Match="@(string.IsNullOrEmpty(item.Href) ? NavLinkMatch.All : NavLinkMatch.Prefix)" Tooltip="@(T[item.Title])">
+                                                    <LucideIcon Name="@item.Icon" Size="18" /><span>@T[item.Title]</span>
                                                 </BbSidebarMenuButton>
                                                 @if (item.BadgeKey == NavigationMenuDefaults.BadgeInboxUnread && unread > 0)
                                                 {
@@ -156,7 +157,7 @@
         {
             var avatarId = me.Attr("avatar");
             <BbSidebarFooter>
-                <button type="button" class="sidebar-user sidebar-user-btn" title="@($"{me.FullName} · Click for user info & profile photo")" @onclick="OpenUserProfile">
+                <button type="button" class="sidebar-user sidebar-user-btn" title="@($"{me.FullName} · {T["Click for user info & profile photo"]}")" @onclick="OpenUserProfile">
                     <div class="sidebar-avatar-box">
                         @if (!string.IsNullOrWhiteSpace(avatarId))
                         {
@@ -186,9 +187,9 @@
                     var active = ResolveActiveModule(visibleMods);
                     @if (active is not null)
                     {
-                        <button type="button" class="module-pill" title="Click to switch module" @onclick="() => isModulePickerOpen = true">
+                        <button type="button" class="module-pill" title="@(T["Click to switch module"])" @onclick="() => isModulePickerOpen = true">
                             <LucideIcon Name="@(string.IsNullOrWhiteSpace(active.Icon) ? "layout-grid" : active.Icon)" Size="14" />
-                            <span>@active.Name</span>
+                            <span>@T[active.Name]</span>
                             <LucideIcon Name="chevrons-up-down" Size="13" />
                         </button>
                     }
@@ -196,9 +197,9 @@
             </div>
             
             <div class="header-center">
-                <button type="button" class="header-search-btn" @onclick="OpenAwesomebar" title="Search or jump to (Ctrl+K or Alt+Q)">
+                <button type="button" class="header-search-btn" @onclick="OpenAwesomebar" title="@(T["Search or jump to (Ctrl+K or Alt+Q)"])">
                     <LucideIcon Name="search" Size="16" Class="header-search-icon" />
-                    <span class="header-search-placeholder">Search (Ctrl+K / Alt+Q)</span>
+                    <span class="header-search-placeholder">@T["Search (Ctrl+K / Alt+Q)"]</span>
                     <kbd class="header-search-kbd">Ctrl+K</kbd>
                 </button>
             </div>
@@ -206,20 +207,22 @@
             <div class="header-right">
                 @if (Current.User is { } who)
                 {
-                    <span class="tenant">Tenant @who.TenantId</span>
+                    <span class="tenant">@T["Tenant"] @who.TenantId</span>
                     <BbSeparator Orientation="SeparatorOrientation.Vertical" Style="height:1.25rem;opacity:0.4;" />
                     <span class="theme-toggle"><BbDarkModeToggle Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" /></span>
+                    <LanguageSwitch />
                     <button type="button" class="header-logout-btn" @onclick="Logout">
                         <LucideIcon Name="log-out" Size="16" />
-                        <span>Log out</span>
+                        <span>@T["Log out"]</span>
                     </button>
                 }
                 else
                 {
                     <span class="theme-toggle"><BbDarkModeToggle Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" /></span>
+                    <LanguageSwitch />
                     <a href="/account/login" class="header-logout-btn" style="text-decoration:none">
                         <LucideIcon Name="login" Size="16" />
-                        <span>Sign In</span>
+                        <span>@T["Sign In"]</span>
                     </a>
                 }
             </div>
@@ -229,7 +232,7 @@
                 @{
                     var crumbs = GetBreadcrumbs();
                 }
-                <a href="" class="@(crumbs.Count == 0 ? "crumb-item crumb-home crumb-active" : "crumb-item crumb-home")" title="Home">
+                <a href="" class="@(crumbs.Count == 0 ? "crumb-item crumb-home crumb-active" : "crumb-item crumb-home")" title="@(T["Home"])">
                     <LucideIcon Name="house" Size="14" />
                 </a>
                 @foreach (var crumb in crumbs)
@@ -237,19 +240,19 @@
                     <LucideIcon Name="chevron-right" Size="13" Class="crumb-sep" />
                     @if (crumb.OnClick is not null)
                     {
-                        <button type="button" class="crumb-link" @onclick="crumb.OnClick">@crumb.Label</button>
+                        <button type="button" class="crumb-link" @onclick="crumb.OnClick">@T[crumb.Label]</button>
                     }
                     else if (!string.IsNullOrEmpty(crumb.Href))
                     {
-                        <a href="@crumb.Href" class="crumb-link">@crumb.Label</a>
+                        <a href="@crumb.Href" class="crumb-link">@T[crumb.Label]</a>
                     }
                     else if (crumb.IsActive)
                     {
-                        <span class="crumb-item crumb-active">@crumb.Label</span>
+                        <span class="crumb-item crumb-active">@T[crumb.Label]</span>
                     }
                     else
                     {
-                        <span class="crumb-item">@crumb.Label</span>
+                        <span class="crumb-item">@T[crumb.Label]</span>
                     }
                 }
             </div>
@@ -277,13 +280,13 @@
     var currentMod = ResolveActiveModule(modalModules);
     var filteredModules = string.IsNullOrWhiteSpace(moduleSearchQuery)
         ? modalModules
-        : modalModules.Where(m => m.Name.Contains(moduleSearchQuery, StringComparison.OrdinalIgnoreCase)).ToList();
+        : modalModules.Where(m => m.Name.Contains(moduleSearchQuery, StringComparison.OrdinalIgnoreCase) || T[m.Name].Contains(moduleSearchQuery, StringComparison.OrdinalIgnoreCase)).ToList();
 
     <BbDialog Open="@isModulePickerOpen" OpenChanged="OnModulePickerOpenChanged">
         <BbDialogContent Class="sm:max-w-xl">
             <BbDialogHeader>
-                <BbDialogTitle>Select Workspace Module</BbDialogTitle>
-                <BbDialogDescription>Choose a module to show its menu groups and menus in the sidebar.</BbDialogDescription>
+                <BbDialogTitle>@T["Select Workspace Module"]</BbDialogTitle>
+                <BbDialogDescription>@T["Choose a module to show its menu groups and menus in the sidebar."]</BbDialogDescription>
             </BbDialogHeader>
             <div class="module-picker-search" style="margin: .75rem 0 .5rem;">
                 <BbInputGroup>
@@ -292,12 +295,12 @@
                     </BbInputGroupAddon>
                     <BbInputGroupInput Value="@moduleSearchQuery" ValueChanged="v => moduleSearchQuery = v"
                                        UpdateTiming="UpdateTiming.Debounced" DebounceInterval="100"
-                                       Placeholder="Search modules..." AriaLabel="Search modules" />
+                                       Placeholder="@(T["Search modules..."])" AriaLabel="@(T["Search modules"])" />
                     @if (!string.IsNullOrWhiteSpace(moduleSearchQuery))
                     {
                         <BbInputGroupAddon Align="InputGroupAlign.InlineEnd">
                             <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" Class="search-clear-btn"
-                                      OnClick="() => moduleSearchQuery = string.Empty" AriaLabel="Clear search">
+                                      OnClick="() => moduleSearchQuery = string.Empty" AriaLabel="@(T["Clear search"])">
                                 <LucideIcon Name="x" Size="14" />
                             </BbButton>
                         </BbInputGroupAddon>
@@ -308,8 +311,8 @@
             {
                 <div style="padding: 2.25rem 1rem; text-align: center; color: var(--muted-foreground);">
                     <LucideIcon Name="search-x" Size="32" style="margin: 0 auto .5rem; display: block; opacity: .5;" />
-                    <div style="font-weight: 600; font-size: .95rem; color: var(--foreground);">No modules found</div>
-                    <div style="font-size: .85rem; margin-top: .25rem;">No module matches "@moduleSearchQuery"</div>
+                    <div style="font-weight: 600; font-size: .95rem; color: var(--foreground);">@T["No modules found"]</div>
+                    <div style="font-size: .85rem; margin-top: .25rem;">@(T.Format("No module matches \"{0}\"", moduleSearchQuery))</div>
                 </div>
             }
             else
@@ -326,11 +329,11 @@
                                 <LucideIcon Name="@(string.IsNullOrWhiteSpace(mod.Icon) ? "layout-grid" : mod.Icon)" Size="20" />
                             </BbItemMedia>
                             <BbItemContent Class="module-horizontal-content">
-                                <BbItemTitle Class="module-horizontal-title">@mod.Name</BbItemTitle>
+                                <BbItemTitle Class="module-horizontal-title">@T[mod.Name]</BbItemTitle>
                             </BbItemContent>
                             @if (isCurrent)
                             {
-                                <div class="module-active-check" title="Active module">
+                                <div class="module-active-check" title="@(T["Active module"])">
                                     <LucideIcon Name="check" Size="16" />
                                 </div>
                             }
@@ -380,7 +383,7 @@
         var mod = navModules.FirstOrDefault(m => m.Id == modId);
         if (mod is not null)
         {
-            Toasts.Success($"Switched to {mod.Name} module.", "Active Module");
+            Toasts.Success(T.Format("Switched to {0} module.", T[mod.Name]), T["Active Module"]);
         }
     }
 
@@ -511,7 +514,7 @@
         Current.SetActiveModule(mod.Id);
         isModulePickerOpen = false;
         moduleSearchQuery = string.Empty;
-        Toasts.Success($"Sidebar switched to {mod.Name} module.", "Active Module");
+        Toasts.Success(T.Format("Sidebar switched to {0} module.", T[mod.Name]), T["Active Module"]);
     }
 
     private void OnModuleChanged()

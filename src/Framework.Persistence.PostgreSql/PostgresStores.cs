@@ -963,6 +963,7 @@ public static class PostgreSqlServiceCollectionExtensions
         services.Replace(ServiceDescriptor.Singleton<Framework.Jobs.ITenantProvider, PostgresTenantProvider>());
         services.Replace(ServiceDescriptor.Singleton<Framework.Jobs.IScheduledJobLogStore, PostgresScheduledJobLogStore>());
         services.Replace(ServiceDescriptor.Singleton<Framework.Observability.IErrorLogStore, PostgresErrorLogStore>());
+        services.Replace(ServiceDescriptor.Singleton<Framework.Localization.ITranslationStore, PostgresTranslationStore>());
         services.AddDataProtection()
             .SetApplicationName("FrogFrame");
         services.AddSingleton<Microsoft.AspNetCore.DataProtection.Repositories.IXmlRepository, PostgresXmlRepository>();

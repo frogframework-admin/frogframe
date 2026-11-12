@@ -8,21 +8,22 @@
 @inject DialogService Dialogs
 @inject ToastService Toasts
 @inject Framework.Preferences.IUserPreferenceStore UserPrefs
+@inject UiText T
 @implements IDisposable
 
-<PageTitle>@(meta?.Title ?? DocType) · FrogFrame</PageTitle>
+<PageTitle>@(meta is null ? DocType : T.Title(meta)) · FrogFrame</PageTitle>
 
 @if (fatal is not null)
 {
-    <ErrorState StatusCode="@fatalStatus" Title="@(fatalStatus == 403 ? "Access Denied" : "DocType Not Found")" Description="@fatal" />
+    <ErrorState StatusCode="@fatalStatus" Title="@(T[fatalStatus == 403 ? "Access Denied" : "DocType Not Found"])" Description="@fatal" />
 }
 else if (meta is not null)
 {
     <header class="page-head list-header-custom">
         <div class="list-title-box">
             <div>
-                <h1 class="list-page-title">@meta.Title</h1>
-                <p class="list-page-sub">@(result is null ? "Loading…" : $"{TotalText} documents within your access scope")</p>
+                <h1 class="list-page-title">@T.Title(meta)</h1>
+                <p class="list-page-sub">@(result is null ? T["Loading…"] : T.Format("{0} documents within your access scope", TotalText))</p>
             </div>
         </div>
         @if (Perms.Can(Current.Required, meta, DocActions.Create) || Perms.Can(Current.Required, meta, DocActions.Delete))
@@ -34,19 +35,19 @@ else if (meta is not null)
                               Class="btn-action-delete"
                               Disabled="@(selectedItems.Count == 0 || busy)"
                               OnClick="DeleteSelected">
-                        <LucideIcon Name="trash-2" Size="16" /> Delete @(selectedItems.Count > 0 ? $"({selectedItems.Count})" : "")
+                        <LucideIcon Name="trash-2" Size="16" /> @T["Delete"] @(selectedItems.Count > 0 ? $"({selectedItems.Count})" : "")
                     </BbButton>
                 }
                 @if (Importer.CanImport(Current.Required, meta.Name))
                 {
                     <BbButton Variant="ButtonVariant.Outline" Class="btn-action-import" Href="@($"/app/{meta.Name}/import")">
-                        <LucideIcon Name="file-up" Size="16" /> Import
+                        <LucideIcon Name="file-up" Size="16" /> @T["Import"]
                     </BbButton>
                 }
                 @if (Perms.Can(Current.Required, meta, DocActions.Create))
                 {
                     <BbButton Class="btn-action-new" Href="@($"/app/{meta.Name}/new")">
-                        <LucideIcon Name="plus" Size="16" /> New @meta.Title.ToLower()
+                        <LucideIcon Name="plus" Size="16" /> @T.Format("New {0}", T.Title(meta).ToLower())
                     </BbButton>
                 }
             </div>
@@ -85,16 +86,16 @@ else if (meta is not null)
             <Toolbar>
                 <div class="filters" role="search" style="margin-bottom:.75rem;width:100%">
                     <div class="filter search">
-                        <span>Search</span>
+                        <span>@T["Search"]</span>
                         <BbInput Value="@search" ValueChanged="OnSearch" UpdateTiming="UpdateTiming.Debounced" DebounceInterval="300"
-                                 Placeholder="@($"{string.Join(" / ", meta.Def.ListView.SearchFields.Select(LabelOf))}…")" AriaLabel="Search" />
+                                 Placeholder="@($"{string.Join(" / ", meta.Def.ListView.SearchFields.Select(LabelOf))}…")" AriaLabel="@(T["Search"])" />
                     </div>
                     <div style="margin-left:auto;align-self:flex-end;display:flex;align-items:center;gap:.5rem">
                         @if (hasCustomLayout)
                         {
-                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ResetColumnsLayout" Title="Reset column layout to default">
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ResetColumnsLayout" Title="@(T["Reset column layout to default"])">
                                 <LucideIcon Name="rotate-ccw" Size="14" />
-                                <span>Reset Columns</span>
+                                <span>@T["Reset Columns"]</span>
                             </BbButton>
                         }
                         <BbDataGridColumnVisibility TData="Dictionary<string, object?>" />
@@ -103,8 +104,8 @@ else if (meta is not null)
             </Toolbar>
             <EmptyTemplate>
                 <div style="padding:2.5rem 1rem">
-                    <BbEmpty Title="@($"No matching {meta.Title.ToLower()} found")"
-                             Description="@(!string.IsNullOrEmpty(search) ? "Modify or clear search to view other documents." : "Documents you create or that are shared with your role will appear here.")">
+                    <BbEmpty Title="@(T.Format("No matching {0} found", T.Title(meta).ToLower()))"
+                             Description="@(T[!string.IsNullOrEmpty(search) ? "Modify or clear search to view other documents." : "Documents you create or that are shared with your role will appear here."])">
                         <Icon><LucideIcon Name="search" Size="28" /></Icon>
                     </BbEmpty>
                 </div>
@@ -116,7 +117,7 @@ else if (meta is not null)
                     <BbDataGridPropertyColumn @key="@($"_grp_{gKey}")"
                                               TData="Dictionary<string, object?>" TProp="object?"
                                               Id="@gKey"
-                                              Title="@gf.Label"
+                                              Title="@(T.Label(gf))"
                                               Property="@GetColAccessor(gKey)"
                                               SortAndFilterBy="@GetColAccessor(gKey)"
                                               Groupable="true"
@@ -131,7 +132,7 @@ else if (meta is not null)
                             <BbCheckbox Checked="@IsAllSelected"
                                         Indeterminate="@IsSomeSelected"
                                         CheckedChanged="ToggleSelectAll"
-                                        AriaLabel="Select all" />
+                                        AriaLabel="@(T["Select all"])" />
                         </div>
                     </HeaderTemplate>
                     <ChildContent Context="row">
@@ -142,13 +143,13 @@ else if (meta is not null)
                         <div @onclick:stopPropagation="true">
                             <BbCheckbox Checked="@isSelected"
                                         CheckedChanged="v => ToggleSelect(rowName, v)"
-                                        AriaLabel="@($"Select {rowName}")" />
+                                        AriaLabel="@(T.Format("Select {0}", rowName))" />
                         </div>
                     </ChildContent>
                 </BbDataGridTemplateColumn>
 
                 <BbDataGridPropertyColumn TData="Dictionary<string, object?>" TProp="object?"
-                                          Id="name" Title="Number" Hideable="false" Resizable="true" Sortable="true"
+                                          Id="name" Title="@(T["Number"])" Hideable="false" Resizable="true" Sortable="true"
                                           Property="@nameAccessor" SortAndFilterBy="@nameAccessor" Filterable="true" FilterType="BlazorBlueprint.Primitives.Filtering.FilterFieldType.Text"
                                           Width="@GetColWidth("name")">
                     <CellTemplate Context="row">
@@ -185,7 +186,7 @@ else if (meta is not null)
                             }
                             else
                             {
-                                <span class="@(cf?.Type.Editor == "number" ? "num" : "")">@Fmt.Value(cf, row.GetValueOrDefault(colKey))</span>
+                                <span class="@(cf?.Type.Editor == "number" ? "num" : "")">@T.Value(cf, row.GetValueOrDefault(colKey))</span>
                             }
                         </CellTemplate>
                     </BbDataGridPropertyColumn>
@@ -194,7 +195,7 @@ else if (meta is not null)
                 @if (HasStatus)
                 {
                     <BbDataGridPropertyColumn TData="Dictionary<string, object?>" TProp="object?"
-                                              Id="status" Title="Status" Resizable="true" Sortable="true"
+                                              Id="status" Title="@(T["Status"])" Resizable="true" Sortable="true"
                                               Property="@statusAccessor" SortAndFilterBy="@statusAccessor" Filterable="true"
                                               Width="@GetColWidth("status")"
                                               Visible="@IsColVisible("status")">
@@ -203,13 +204,13 @@ else if (meta is not null)
                                 var st = row.GetValueOrDefault("workflow_state") as string;
                                 var ds = row.TryGetValue("docstatus", out var dsv) && dsv is int dsi ? dsi : 0;
                             }
-                            <StatusBadge Label="@Fmt.StateLabel(st, ds)" Tone="@Fmt.Tone(meta, st, ds)" />
+                            <StatusBadge Label="@(T.State(st, ds))" Tone="@Fmt.Tone(meta, st, ds)" />
                         </CellTemplate>
                     </BbDataGridPropertyColumn>
                 }
 
                 <BbDataGridPropertyColumn TData="Dictionary<string, object?>" TProp="object?"
-                                          Id="modified" Title="Modified" Resizable="true" Sortable="true"
+                                          Id="modified" Title="@(T["Modified"])" Resizable="true" Sortable="true"
                                           Property="@modifiedAccessor" SortAndFilterBy="@modifiedAccessor" Filterable="true" FilterType="BlazorBlueprint.Primitives.Filtering.FilterFieldType.DateTime"
                                           Width="@GetColWidth("modified")"
                                           Visible="@IsColVisible("modified")">
@@ -223,7 +224,7 @@ else if (meta is not null)
         @if (TotalPages > 1)
         {
             <div class="list-foot">
-                <span class="muted small">Page @result.Page of @TotalPages (@TotalText documents)</span>
+                <span class="muted small">@T.Format("Page {0} of {1} ({2} documents)", result.Page, TotalPages, TotalText)</span>
                 <BbPagination TotalPages="TotalPages" CurrentPage="result.Page" CurrentPageChanged="Reload" />
             </div>
         }
@@ -261,12 +262,12 @@ else if (meta is not null)
         return expr;
     }
 
-    private static object? GetColRawOrGroupValue(CompiledField? cf, object? val)
+    private object? GetColRawOrGroupValue(CompiledField? cf, object? val)
     {
         if (val is null || (val is string s && string.IsNullOrWhiteSpace(s)))
             return cf?.Def.RowGrouping == true ? "—" : null;
         if (cf is not null && cf.Def.RowGrouping)
-            return Fmt.Value(cf, val);
+            return T.Value(cf, val);
         return val;
     }
 
@@ -340,11 +341,11 @@ else if (meta is not null)
         loadedKey = DocType;
         fatal = null; error = null; search = null; sortField = null; result = null;
         selectedItems.Clear();
-        if (!Metadata.Current.TryGet(DocType, out var m) || m.Def.IsChild) { fatalStatus = 404; fatal = $"DocType '{DocType}' was not found."; return; }
+        if (!Metadata.Current.TryGet(DocType, out var m) || m.Def.IsChild) { fatalStatus = 404; fatal = T.Format("DocType '{0}' was not found.", DocType); return; }
         meta = m;
         colAccessors.Clear();
         ApplyDefaultGrouping();
-        if (!Perms.Can(Current.Required, meta, DocActions.Read)) { fatalStatus = 403; fatal = $"You do not have permission to view {meta.Title}."; return; }
+        if (!Perms.Can(Current.Required, meta, DocActions.Read)) { fatalStatus = 403; fatal = T.Format("You do not have permission to view {0}.", T.Title(meta)); return; }
         // Single DocType: tidak ada daftar; langsung buka dokumen tunggalnya (atau form baru bila belum ada).
         if (meta.Def.IsSingle)
         {
@@ -377,10 +378,10 @@ else if (meta is not null)
 
     private string LabelOf(string field) => field switch
     {
-        "name" => "Number",
-        StandardFields.WorkflowState => "Status",
-        StandardFields.Modified => "Modified",
-        _ => meta!.ByName.TryGetValue(field, out var f) ? f.Label : field
+        "name" => T["Number"],
+        StandardFields.WorkflowState => T["Status"],
+        StandardFields.Modified => T["Modified"],
+        _ => meta!.ByName.TryGetValue(field, out var f) ? T.Label(f) : field
     };
 
     private Task OnSearch(string? v) { search = v; return Reload(1); }
@@ -391,9 +392,9 @@ else if (meta is not null)
 
         var count = selectedItems.Count;
         var confirm = await Dialogs.ConfirmAsync(
-            $"Delete {count} {meta!.Title.ToLower()} document(s)?",
-            "Selected draft documents will be permanently deleted. This action cannot be undone.",
-            new ConfirmDialogOptions { Destructive = true, ConfirmText = $"Delete ({count})", CancelText = "Cancel" });
+            T.Format("Delete {0} {1} document(s)?", count, T.Title(meta!).ToLower()),
+            T["Selected draft documents will be permanently deleted. This action cannot be undone."],
+            new ConfirmDialogOptions { Destructive = true, ConfirmText = $"{T["Delete"]} ({count})", CancelText = T["Cancel"] });
 
         if (!confirm.Confirmed) return;
 
@@ -415,18 +416,18 @@ else if (meta is not null)
                 }
                 catch (Exception ex)
                 {
-                    failed.Add($"{name}: {ex.Message}");
+                    failed.Add($"{name}: {T.Message(ex.Message)}");
                 }
             }
 
             if (success > 0)
             {
-                Toasts.Success($"{success} {meta!.Title.ToLower()} document(s) deleted successfully.", "Deleted");
+                Toasts.Success(T.Format("{0} {1} document(s) deleted successfully.", success, T.Title(meta!).ToLower()), T["Deleted"]);
             }
 
             if (failed.Count > 0)
             {
-                Toasts.Error(string.Join("; ", failed), "Failed to Delete Some Documents");
+                Toasts.Error(string.Join("; ", failed), T["Failed to Delete Some Documents"]);
             }
         }
         finally
@@ -446,7 +447,7 @@ else if (meta is not null)
         }
         catch (Exception ex) when (ex is InvalidPayloadException or PermissionDeniedException)
         {
-            error = ex.Message;
+            error = T.Message(ex.Message);
         }
     }
 
@@ -552,7 +553,7 @@ else if (meta is not null)
         hasCustomLayout = false;
         ApplyDefaultGrouping();
         gridRenderKey++;
-        Toasts.Success("Column layout has been reset to default.", "Reset Columns");
+        Toasts.Success(T["Column layout has been reset to default."], T["Reset Columns"]);
         await Reload(result?.Page ?? 1);
     }
 

@@ -1,24 +1,27 @@
 @* Link field: BbCombobox with server-side search (tenant- & permission-aware via DocumentService). *@
 @inject DocumentService Docs
 @inject CurrentUser Current
+@inject UiText T
+@inject IMetadataProvider LinkMetadata
 @implements IDisposable
 
 <div class="link-row">
     <BbCombobox TValue="string" Value="@Value" ValueChanged="Pick" Options="options" SearchQuery="@query" SearchQueryChanged="Search"
-                Placeholder="@($"Select {Label.ToLowerInvariant()}…")" SearchPlaceholder="@($"Search {Target}…")"
-                EmptyMessage="@(loading ? "Searching…" : $"No matching {Target} found")" SelectedItemText="@SelectedText"
+                Placeholder="@(T.Format("Select {0}…", Label.ToLowerInvariant()))" SearchPlaceholder="@(T.Format("Search {0}…", TargetTitle))"
+                EmptyMessage="@(loading ? T["Searching…"] : T.Format("No matching {0} found", TargetTitle))" SelectedItemText="@SelectedText"
                 IsLoading="loading" AriaLabel="@Label" MatchTriggerWidth="true" AdditionalAttributes="IdAttr" />
     @if (ShowLookup)
     {
-        <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Icon" AriaLabel="@($"Select {Label} from list")" OnClick="() => lookupOpen = true">
+        <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Icon" AriaLabel="@(T.Format("Select {0} from list", Label))" OnClick="() => lookupOpen = true">
             <LucideIcon Name="list" Size="16" />
         </BbButton>
-        <LookupDialog Target="@Target" @bind-Open="lookupOpen" Title="@($"Select {Label.ToLowerInvariant()}")" Filters="LookupFilters"
+        <LookupDialog Target="@Target" @bind-Open="lookupOpen" Title="@(T.Format("Select {0}", Label.ToLowerInvariant()))" Filters="LookupFilters"
                       OnSelected="PickFirst" />
     }
 </div>
 
 @code {
+    private string TargetTitle => LinkMetadata.Current.TryGet(Target, out var tm) ? T.Title(tm) : Target;
     [Parameter] public string? Id { get; set; }
     [Parameter, EditorRequired] public string Target { get; set; } = "";
     [Parameter] public string Label { get; set; } = "";

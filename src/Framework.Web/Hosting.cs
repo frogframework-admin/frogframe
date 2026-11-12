@@ -89,14 +89,18 @@ public sealed class FrogFrameworkOptions
 {
     public List<DocTypeDef> DocTypes { get; } = [];
     public List<WorkflowDef> Workflows { get; } = [];
+    /// <summary>Application dictionaries (*.translations.json); they win over the framework dictionaries.</summary>
+    public List<Framework.Localization.TranslationFile> Translations { get; } = [];
 
-    /// <summary>Memuat *.doctype.json dan *.workflow.json dari folder.</summary>
+    /// <summary>Memuat *.doctype.json, *.workflow.json dan *.translations.json dari folder.</summary>
     public FrogFrameworkOptions LoadFrom(string directory)
     {
         foreach (var f in Directory.GetFiles(directory, "*.doctype.json").Order())
             DocTypes.Add(MetadataJson.ParseDocType(File.ReadAllText(f)));
         foreach (var f in Directory.GetFiles(directory, "*.workflow.json").Order())
             Workflows.Add(MetadataJson.ParseWorkflow(File.ReadAllText(f)));
+        foreach (var f in Directory.GetFiles(directory, "*.translations.json").Order())
+            Translations.Add(Framework.Localization.TranslationFile.Parse(File.ReadAllText(f), Path.GetFileName(f)));
         return this;
     }
 }
@@ -139,6 +143,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<NotificationRuleEngine>();
         services.AddSingleton<IEventHandler, NotificationRuleEventHandler>();
         services.TryAddSingleton<IUserPreferenceStore, InMemoryUserPreferenceStore>();
+        // Multi-bahasa (Indonesia/Inggris): kamus framework + aplikasi + terjemahan per tenant.
+        Framework.Localization.LocalizationSetup.AddFrogFrameLocalization(services, options.Translations);
 
         // Email outgoing: SMTP jika dikonfigurasi, InMemory untuk dev/test
         services.TryAddSingleton<IEmailSender>(sp =>

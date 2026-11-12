@@ -21,33 +21,34 @@
 @inject AutoRepeatService AutoRepeatService
 @inject CommunicationService CommService
 @inject IEmailQueue EmailQueue
+@inject UiText T
 
-<PageTitle>@(meta?.Def.IsSingle == true ? meta.Title : IsNew ? $"New {meta?.Title}" : Name) · FrogFrame</PageTitle>
+<PageTitle>@(meta is null ? Name : meta.Def.IsSingle ? T.Title(meta) : IsNew ? T.Format("New {0}", T.Title(meta)) : Name) · FrogFrame</PageTitle>
 
 @if (fatal is not null)
 {
     <ErrorState StatusCode="@fatalStatus"
-                Title="@(fatalStatus == 403 ? "Access Denied" : "Document Not Found")"
-                Description="@fatal"
+                Title="@(T[fatalStatus == 403 ? "Access Denied" : "Document Not Found"])"
+                Description="@(T.Message(fatal))"
                 BackHref="@(meta is not null ? $"/app/{meta.Name}" : "/")"
-                BackLabel="@(meta is not null ? $"Back to {meta.Title}" : "Back to Home")" />
+                BackLabel="@(meta is not null ? T.Format("Back to {0}", T.Title(meta)) : T["Back to Home"])" />
 }
 else if (meta is not null && doc is not null)
 {
     <header class="doc-head">
         <div>
-            <h1>@(meta.Def.IsSingle ? meta.Title : IsNew ? $"New {meta.Title}" : doc.Name)</h1>
+            <h1>@(meta.Def.IsSingle ? T.Title(meta) : IsNew ? T.Format("New {0}", T.Title(meta)) : doc.Name)</h1>
             <p>
                 @if (meta.Def.IsSingle && IsNew)
                 {
-                    <span>Default configuration (not saved yet)</span>
+                    <span>@T["Default configuration (not saved yet)"]</span>
                 }
                 else if (!IsNew)
                 {
-                    <span>Created by @doc.Owner · modified @Fmt.When(doc.Modified) · version @doc.Version</span>
-                    @if (doc.AmendedFrom is not null) { <span> · amended from <a href="/app/@meta.Name/@doc.AmendedFrom">@doc.AmendedFrom</a></span> }
+                    <span>@T.Format("Created by {0} · modified {1} · version {2}", doc.Owner, Fmt.When(doc.Modified), doc.Version)</span>
+                    @if (doc.AmendedFrom is not null) { <span> · @T["amended from"] <a href="/app/@meta.Name/@doc.AmendedFrom">@doc.AmendedFrom</a></span> }
                 }
-                else { <span>Not saved yet</span> }
+                else { <span>@T["Not saved yet"]</span> }
             </p>
         </div>
         <div class="row" style="gap:.75rem;align-items:center;flex-wrap:wrap">
@@ -57,23 +58,23 @@ else if (meta is not null && doc is not null)
             }
             @if (!IsNew || meta.Workflow is not null)
             {
-                <StatusStamp Label="@Fmt.StateLabel(doc.WorkflowState, doc.DocStatus)" Tone="@Fmt.Tone(meta, doc)" />
+                <StatusStamp Label="@(T.State(doc.WorkflowState, doc.DocStatus))" Tone="@Fmt.Tone(meta, doc)" />
             }
         </div>
     </header>
 
-    <div class="toolbar" role="toolbar" aria-label="Document actions">
+    <div class="toolbar" role="toolbar" aria-label="@(T["Document actions"])">
         @if (Editable)
         {
-            <BbButton Disabled="@(busy || (!IsNew && !dirty))" Loading="@(busy && savingNow)" LoadingText="Saving…" OnClick="Save">
-                <LucideIcon Name="check" Size="16" /> @(IsNew ? "Save draft" : dirty ? "Save changes" : "Saved")
+            <BbButton Disabled="@(busy || (!IsNew && !dirty))" Loading="@(busy && savingNow)" LoadingText="@(T["Saving…"])" OnClick="Save">
+                <LucideIcon Name="check" Size="16" /> @T[IsNew ? "Save draft" : dirty ? "Save changes" : "Saved"]
             </BbButton>
         }
         @foreach (var a in actions)
         {
             var act = a;
             <BbButton Variant="@Fmt.ButtonFor(act.Tone)" Disabled="@(busy || dirty)" OnClick="() => RunAction(act)"
-                      AdditionalAttributes="@(new Dictionary<string, object> { ["title"] = dirty ? "Save changes first" : $"Move to {act.ToState}" })">
+                      AdditionalAttributes="@(new Dictionary<string, object> { ["title"] = dirty ? T["Save changes first"] : T.Format("Move to {0}", T[act.ToState]) })">
                 <LucideIcon Name="@IconFor(act)" Size="16" /> @ActionLabel(act.Action)
             </BbButton>
         }
@@ -81,40 +82,40 @@ else if (meta is not null && doc is not null)
         {
             var customAct = ca;
             <BbButton Variant="@Fmt.ButtonFor(customAct.Tone)" Disabled="@(busy || dirty)" OnClick="() => RunCustomAction(customAct)">
-                <LucideIcon Name="@customAct.Icon" Size="16" /> @customAct.Label
+                <LucideIcon Name="@customAct.Icon" Size="16" /> @T[customAct.Label]
             </BbButton>
         }
         @if (!IsNew)
         {
             <BbButton Variant="ButtonVariant.Outline" Href="@($"/print/{DocType}/{Name}")" Disabled="@dirty"
-                      AdditionalAttributes="@(new Dictionary<string, object> { ["target"] = "_blank", ["title"] = "A4 print preview" })">
-                <LucideIcon Name="printer" Size="16" /> Print
+                      AdditionalAttributes="@(new Dictionary<string, object> { ["target"] = "_blank", ["title"] = T["A4 print preview"] })">
+                <LucideIcon Name="printer" Size="16" /> @T["Print"]
             </BbButton>
             <BbButton Variant="ButtonVariant.Ghost" Href="@($"/api/print/{DocType}/{Name}/pdf")" Disabled="@dirty"
-                      AdditionalAttributes="@(new Dictionary<string, object> { ["title"] = "Download PDF" })">
+                      AdditionalAttributes="@(new Dictionary<string, object> { ["title"] = T["Download PDF"] })">
                 <LucideIcon Name="file-down" Size="16" /> PDF
             </BbButton>
             @if (meta.AllowAutoRepeat)
             {
                 <BbButton Variant="ButtonVariant.Ghost" Disabled="@dirty" OnClick="OpenAutoRepeatDrawer"
-                          AdditionalAttributes="@(new Dictionary<string, object> { ["title"] = "Configure recurring schedule" })">
-                    <LucideIcon Name="repeat" Size="16" /> Repeat
+                          AdditionalAttributes="@(new Dictionary<string, object> { ["title"] = T["Configure recurring schedule"] })">
+                    <LucideIcon Name="repeat" Size="16" /> @T["Repeat"]
                 </BbButton>
             }
             <BbButton Variant="ButtonVariant.Ghost" Disabled="@dirty" OnClick="OpenSendEmailDrawer"
-                      AdditionalAttributes="@(new Dictionary<string, object> { ["title"] = "Send email regarding this document" })">
-                <LucideIcon Name="mail" Size="16" /> Email
+                      AdditionalAttributes="@(new Dictionary<string, object> { ["title"] = T["Send email regarding this document"] })">
+                <LucideIcon Name="mail" Size="16" /> @T["Email"]
             </BbButton>
         }
         @if (!IsNew && !meta.Def.IsSingle && doc.DocStatus == DocStatus.Draft && meta.Def.Document.AllowDelete && Perms.Can(User, meta, DocActions.Delete))
         {
             <BbButton Variant="ButtonVariant.Ghost" Disabled="@busy" OnClick="Delete">
-                <LucideIcon Name="trash-2" Size="16" /> Delete draft
+                <LucideIcon Name="trash-2" Size="16" /> @T["Delete draft"]
             </BbButton>
         }
         @if (!Editable && !IsNew && doc.DocStatus != DocStatus.Draft)
         {
-            <span class="muted small">Document is locked with status @Fmt.StateLabel(doc.WorkflowState, doc.DocStatus).</span>
+            <span class="muted small">@T.Format("Document is locked with status {0}.", T.State(doc.WorkflowState, doc.DocStatus))</span>
         }
     </div>
 
@@ -124,8 +125,8 @@ else if (meta is not null && doc is not null)
         <div class="presence-warning-banner" role="alert">
             <LucideIcon Name="alert-triangle" Size="18" Class="presence-warning-icon" />
             <div class="presence-warning-content">
-                <strong>Dokumen Sedang Diedit Pengguna Lain</strong>
-                <span><strong>@editors</strong> saat ini sedang mengedit dokumen ini. Perubahan simultan berisiko menyebabkan konflik versi saat disimpan.</span>
+                <strong>@T["Another user is editing this document"]</strong>
+                <span><strong>@editors</strong> @T["is editing this document right now. Saving at the same time may cause a version conflict."]</span>
             </div>
         </div>
     }
@@ -134,20 +135,20 @@ else if (meta is not null && doc is not null)
     {
         <BbAlert Variant="AlertVariant.Warning" Class="crumbs">
             <ChildContent>
-                <BbAlertTitle>Version conflict</BbAlertTitle>
-                <BbAlertDescription>@conflict</BbAlertDescription>
+                <BbAlertTitle>@T["Version conflict"]</BbAlertTitle>
+                <BbAlertDescription>@T.Message(conflict)</BbAlertDescription>
             </ChildContent>
-            <Actions><BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick="Load">Reload latest version</BbButton></Actions>
+            <Actions><BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick="Load">@T["Reload latest version"]</BbButton></Actions>
         </BbAlert>
     }
     @if (banner is not null)
     {
-        <BbAlert Variant="AlertVariant.Danger" Class="crumbs"><BbAlertDescription>@banner</BbAlertDescription></BbAlert>
+        <BbAlert Variant="AlertVariant.Danger" Class="crumbs"><BbAlertDescription>@T.Message(banner)</BbAlertDescription></BbAlert>
     }
     @if (errors.Count > 0)
     {
         <BbAlert Variant="AlertVariant.Danger" Class="crumbs">
-            <BbAlertTitle>Please check the following @errors.Count field(s) before saving</BbAlertTitle>
+            <BbAlertTitle>@T.Format("Please check the following {0} field(s) before saving", errors.Count)</BbAlertTitle>
             <BbAlertDescription>
                 <ul class="error-list">@foreach (var e in errors) { <li><a href="#@Anchor(e.Key)">@e.Value</a></li> }</ul>
             </BbAlertDescription>
@@ -160,12 +161,12 @@ else if (meta is not null && doc is not null)
         <BbTabsList>
             @foreach (var t in meta.Layout.Where(TabVisible))
             {
-                <BbTabsTrigger Value="@t.Title">@t.Title@if (TabErrorCount(t) is > 0 and var n) { <span class="tab-count">@n</span> }</BbTabsTrigger>
+                <BbTabsTrigger Value="@t.Title">@T[t.Title]@if (TabErrorCount(t) is > 0 and var n) { <span class="tab-count">@n</span> }</BbTabsTrigger>
             }
             @if (!IsNew)
             {
-                <BbTabsTrigger Value="@AttachmentsTab">Attachments (@attachments.Count)</BbTabsTrigger>
-                <BbTabsTrigger Value="@HistoryTab">History & Emails (@(audit.Count + communications.Count))</BbTabsTrigger>
+                <BbTabsTrigger Value="@AttachmentsTab">@T["Attachments"] (@attachments.Count)</BbTabsTrigger>
+                <BbTabsTrigger Value="@HistoryTab">@T["History & Emails"] (@(audit.Count + communications.Count))</BbTabsTrigger>
             }
         </BbTabsList>
 
@@ -173,7 +174,7 @@ else if (meta is not null && doc is not null)
         {
             <BbTabsContent Value="@tab.Title">
                 <div class="stack" style="margin-top:.75rem">
-                    @foreach (var sec in tab.Sections.Where(SectionVisible))
+                    @foreach (var sec in tab.Sections.Where(SectionVisible).Select(T.Section))
                     {
                         <BbCard>
                             @if (sec.Title is not null) { <BbCardHeader><BbCardTitle Class="card-title">@sec.Title</BbCardTitle></BbCardHeader> }
@@ -230,14 +231,14 @@ else if (meta is not null && doc is not null)
             <BbTabsContent Value="@AttachmentsTab">
                 <BbCard Class="crumbs" Style="margin-top:.75rem">
                     <BbCardHeader>
-                        <BbCardTitle Class="card-title">Document Attachments</BbCardTitle>
-                        <BbCardDescription>Supported formats: PDF, Office (.docx, .xlsx), CSV, plain text, PNG, JPEG, WebP, GIF (Max 10 MB per file).</BbCardDescription>
+                        <BbCardTitle Class="card-title">@T["Document Attachments"]</BbCardTitle>
+                        <BbCardDescription>@T["Supported formats: PDF, Office (.docx, .xlsx), CSV, plain text, PNG, JPEG, WebP, GIF (Max 10 MB per file)."]</BbCardDescription>
                     </BbCardHeader>
                     <BbCardContent>
                         @if (!string.IsNullOrEmpty(uploadError))
                         {
                             <BbAlert Variant="AlertVariant.Danger" Style="margin-bottom:1rem">
-                                <BbAlertDescription>@uploadError</BbAlertDescription>
+                                <BbAlertDescription>@T.Message(uploadError)</BbAlertDescription>
                             </BbAlert>
                         }
 
@@ -245,25 +246,25 @@ else if (meta is not null && doc is not null)
                             <InputFile OnChange="OnAttachmentSelected" disabled="@uploadingAttachment" class="form-control" />
                             @if (uploadingAttachment)
                             {
-                                <span>Uploading...</span>
+                                <span>@T["Uploading..."]</span>
                             }
                         </div>
 
                         @if (attachments.Count == 0)
                         {
-                            <div style="color:var(--bb-muted-foreground);padding:1rem 0;">No attachments uploaded for this document yet.</div>
+                            <div style="color:var(--bb-muted-foreground);padding:1rem 0;">@T["No attachments uploaded for this document yet."]</div>
                         }
                         else
                         {
                             <table class="table" style="width:100%;border-collapse:collapse;">
                                 <thead>
                                     <tr style="text-align:left;border-bottom:1px solid var(--bb-border);">
-                                        <th style="padding:0.5rem;">File Name</th>
-                                        <th style="padding:0.5rem;">Type</th>
-                                        <th style="padding:0.5rem;">Size</th>
-                                        <th style="padding:0.5rem;">Uploaded By</th>
-                                        <th style="padding:0.5rem;">Date</th>
-                                        <th style="padding:0.5rem;text-align:right;">Actions</th>
+                                        <th style="padding:0.5rem;">@T["File Name"]</th>
+                                        <th style="padding:0.5rem;">@T["Type"]</th>
+                                        <th style="padding:0.5rem;">@T["Size"]</th>
+                                        <th style="padding:0.5rem;">@T["Uploaded By"]</th>
+                                        <th style="padding:0.5rem;">@T["Date"]</th>
+                                        <th style="padding:0.5rem;text-align:right;">@T["Actions"]</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -278,8 +279,8 @@ else if (meta is not null && doc is not null)
                                             <td style="padding:0.5rem;font-size:0.875rem;">@att.UploadedBy</td>
                                             <td style="padding:0.5rem;font-size:0.875rem;">@att.CreatedAt.ToLocalTime().ToString("g")</td>
                                             <td style="padding:0.5rem;text-align:right;">
-                                                <a href="/api/files/attachment/@att.Id" target="_blank" class="btn btn-sm btn-outline-secondary" download="@att.FileName">Download</a>
-                                                <button type="button" class="btn btn-sm btn-outline-danger" style="margin-left:0.5rem;" @onclick="() => DeleteAttachment(att.Id)">Delete</button>
+                                                <a href="/api/files/attachment/@att.Id" target="_blank" class="btn btn-sm btn-outline-secondary" download="@att.FileName">@T["Download"]</a>
+                                                <button type="button" class="btn btn-sm btn-outline-danger" style="margin-left:0.5rem;" @onclick="() => DeleteAttachment(att.Id)">@T["Delete"]</button>
                                             </td>
                                         </tr>
                                     }
@@ -294,19 +295,19 @@ else if (meta is not null && doc is not null)
                     <BbCardContent>
                         <div style="display:flex;justify-content:space-between;align-items:center;padding:1rem 0;border-bottom:1px solid var(--bb-border);margin-bottom:1rem">
                             <div style="display:flex;gap:.5rem">
-                                <BbButton Size="ButtonSize.Small" Variant="@(historyFilter == "all" ? ButtonVariant.Default : ButtonVariant.Outline)" OnClick='() => historyFilter = "all"'>All Activity (@(audit.Count + communications.Count))</BbButton>
-                                <BbButton Size="ButtonSize.Small" Variant="@(historyFilter == "audit" ? ButtonVariant.Default : ButtonVariant.Outline)" OnClick='() => historyFilter = "audit"'>Audit Log (@audit.Count)</BbButton>
-                                <BbButton Size="ButtonSize.Small" Variant="@(historyFilter == "emails" ? ButtonVariant.Default : ButtonVariant.Outline)" OnClick='() => historyFilter = "emails"'>Emails (@communications.Count)</BbButton>
+                                <BbButton Size="ButtonSize.Small" Variant="@(historyFilter == "all" ? ButtonVariant.Default : ButtonVariant.Outline)" OnClick='() => historyFilter = "all"'>@T["All Activity"] (@(audit.Count + communications.Count))</BbButton>
+                                <BbButton Size="ButtonSize.Small" Variant="@(historyFilter == "audit" ? ButtonVariant.Default : ButtonVariant.Outline)" OnClick='() => historyFilter = "audit"'>@T["Audit Log"] (@audit.Count)</BbButton>
+                                <BbButton Size="ButtonSize.Small" Variant="@(historyFilter == "emails" ? ButtonVariant.Default : ButtonVariant.Outline)" OnClick='() => historyFilter = "emails"'>@T["Emails"] (@communications.Count)</BbButton>
                             </div>
                             <BbButton Size="ButtonSize.Small" Variant="ButtonVariant.Outline" OnClick="OpenSendEmailDrawer">
-                                <LucideIcon Name="send" Size="14" /> Send Email
+                                <LucideIcon Name="send" Size="14" /> @T["Send Email"]
                             </BbButton>
                         </div>
 
                         @if (historyFilter != "audit" && communications.Count > 0)
                         {
                             <div style="margin-bottom:1.5rem">
-                                <h4 style="margin-bottom:.75rem;font-size:.95rem;font-weight:600">Email Communications</h4>
+                                <h4 style="margin-bottom:.75rem;font-size:.95rem;font-weight:600">@T["Email Communications"]</h4>
                                 <div style="display:flex;flex-direction:column;gap:.75rem">
                                     @foreach (var comm in communications)
                                     {
@@ -315,26 +316,26 @@ else if (meta is not null && doc is not null)
                                                 <div style="display:flex;align-items:center;gap:.5rem">
                                                     @if (comm.Direction == CommunicationDirection.In)
                                                     {
-                                                        <BbBadge Variant="BadgeVariant.Outline">Incoming</BbBadge>
+                                                        <BbBadge Variant="BadgeVariant.Outline">@T["Incoming"]</BbBadge>
                                                     }
                                                     else
                                                     {
-                                                        <BbBadge Variant="BadgeVariant.SoftSuccess">Outgoing</BbBadge>
+                                                        <BbBadge Variant="BadgeVariant.SoftSuccess">@T["Outgoing"]</BbBadge>
                                                     }
                                                     <span style="font-weight:600">@comm.Subject</span>
                                                 </div>
                                                 <div style="display:flex;align-items:center;gap:.75rem">
                                                     <span style="font-size:.75rem;color:var(--bb-muted-foreground)">@Fmt.When(comm.OccurredAt)</span>
-                                                    <BbButton Size="ButtonSize.Small" Variant="ButtonVariant.Ghost" OnClick="() => ReplyToEmail(comm)" Title="Reply">
-                                                        <LucideIcon Name="reply" Size="14" /> Reply
+                                                    <BbButton Size="ButtonSize.Small" Variant="ButtonVariant.Ghost" OnClick="() => ReplyToEmail(comm)" Title="@(T["Reply"])">
+                                                        <LucideIcon Name="reply" Size="14" /> @T["Reply"]
                                                     </BbButton>
                                                 </div>
                                             </div>
                                             <div style="font-size:.8rem;color:var(--bb-muted-foreground);margin-bottom:.5rem">
-                                                <span>From: <strong>@comm.Sender</strong></span>
+                                                <span>@T["From:"] <strong>@comm.Sender</strong></span>
                                                 @if (comm.Recipients.Count > 0)
                                                 {
-                                                    <span style="margin-left:1rem">To: @string.Join(", ", comm.Recipients)</span>
+                                                    <span style="margin-left:1rem">@T["To:"] @string.Join(", ", comm.Recipients)</span>
                                                 }
                                             </div>
                                             @if (!string.IsNullOrWhiteSpace(comm.ContentHtml))
@@ -373,40 +374,40 @@ else if (meta is not null && doc is not null)
     {
         <AdminDrawer Open="@isAutoRepeatDrawerOpen"
                      OpenChanged="v => isAutoRepeatDrawerOpen = v"
-                     Title="@($"Auto Repeat · {Name}")"
+                     Title="@($"{T["Auto Repeat"]} · {Name}")"
                      WidthScale="1.4">
             <ChildContent>
                 @if (autoRepeatError is not null)
                 {
                     <BbAlert Variant="AlertVariant.Danger" Style="margin-bottom:1rem">
-                        <BbAlertDescription>@autoRepeatError</BbAlertDescription>
+                        <BbAlertDescription>@T.Message(autoRepeatError)</BbAlertDescription>
                     </BbAlert>
                 }
                 <div style="display:flex;flex-direction:column;gap:1rem">
                     <div>
-                        <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">Schedule Name</label>
-                        <BbInput @bind-Value="autoRepeatName" Placeholder="e.g. Monthly Recurring" />
+                        <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">@T["Schedule Name"]</label>
+                        <BbInput @bind-Value="autoRepeatName" Placeholder="@(T["e.g. Monthly Recurring"])" />
                     </div>
                     <div class="row" style="gap:1rem">
                         <div style="flex:1">
-                            <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">Frequency</label>
+                            <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">@T["Frequency"]</label>
                             <BbSelect TValue="string" @bind-Value="autoRepeatFreqStr" Options="AutoRepeatFreqOptions" />
                         </div>
                         <div style="flex:1">
-                            <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">Start Date</label>
+                            <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">@T["Start Date"]</label>
                             <BbInput @bind-Value="autoRepeatStartDateStr" Placeholder="YYYY-MM-DD" />
                         </div>
                     </div>
                     <div style="display:flex;align-items:center;gap:.75rem">
                         <BbSwitch @bind-Value="autoRepeatSubmitOnCreation" Id="form-auto-repeat-submit" />
-                        <label for="form-auto-repeat-submit" style="cursor:pointer;font-weight:500">Submit on creation</label>
+                        <label for="form-auto-repeat-submit" style="cursor:pointer;font-weight:500">@T["Submit on creation"]</label>
                     </div>
                 </div>
             </ChildContent>
             <FooterContent>
                 <div style="display:flex;justify-content:flex-end;gap:.5rem;width:100%">
-                    <BbButton Variant="ButtonVariant.Ghost" OnClick="() => isAutoRepeatDrawerOpen = false">Cancel</BbButton>
-                    <BbButton OnClick="SaveQuickAutoRepeat">Save Schedule</BbButton>
+                    <BbButton Variant="ButtonVariant.Ghost" OnClick="() => isAutoRepeatDrawerOpen = false">@T["Cancel"]</BbButton>
+                    <BbButton OnClick="SaveQuickAutoRepeat">@T["Save Schedule"]</BbButton>
                 </div>
             </FooterContent>
         </AdminDrawer>
@@ -416,45 +417,45 @@ else if (meta is not null && doc is not null)
     {
         <AdminDrawer Open="@isSendEmailDrawerOpen"
                      OpenChanged="v => isSendEmailDrawerOpen = v"
-                     Title="@($"Send Email · {Name}")"
+                     Title="@($"{T["Send Email"]} · {Name}")"
                      WidthScale="1.4">
             <ChildContent>
                 @if (sendEmailError is not null)
                 {
                     <BbAlert Variant="AlertVariant.Danger" Style="margin-bottom:1rem">
-                        <BbAlertDescription>@sendEmailError</BbAlertDescription>
+                        <BbAlertDescription>@T.Message(sendEmailError)</BbAlertDescription>
                     </BbAlert>
                 }
                 <div style="display:flex;flex-direction:column;gap:1rem">
                     <div>
-                        <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">To * (comma/semicolon separated)</label>
+                        <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">@T["To * (comma/semicolon separated)"]</label>
                         <BbInput @bind-Value="emailTo" Placeholder="recipient@example.com" />
                     </div>
                     <div class="row" style="gap:1rem">
                         <div style="flex:1">
-                            <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">Cc</label>
+                            <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">@T["Cc"]</label>
                             <BbInput @bind-Value="emailCc" Placeholder="cc@example.com" />
                         </div>
                         <div style="flex:1">
-                            <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">Bcc</label>
+                            <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">@T["Bcc"]</label>
                             <BbInput @bind-Value="emailBcc" Placeholder="bcc@example.com" />
                         </div>
                     </div>
                     <div>
-                        <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">Subject *</label>
-                        <BbInput @bind-Value="emailSubject" Placeholder="Subject" />
+                        <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">@T["Subject"] *</label>
+                        <BbInput @bind-Value="emailSubject" Placeholder="@(T["Subject"])" />
                     </div>
                     <div>
-                        <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">Message *</label>
-                        <BbTextarea @bind-Value="emailBody" Rows="6" Placeholder="Write your message here..." />
+                        <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">@T["Message"] *</label>
+                        <BbTextarea @bind-Value="emailBody" Rows="6" Placeholder="@(T["Write your message here..."])" />
                     </div>
                 </div>
             </ChildContent>
             <FooterContent>
                 <div style="display:flex;justify-content:flex-end;gap:.5rem;width:100%">
-                    <BbButton Variant="ButtonVariant.Ghost" OnClick="() => isSendEmailDrawerOpen = false">Cancel</BbButton>
-                    <BbButton OnClick="SendEmailAsync" Loading="@isSendingEmail" LoadingText="Sending…">
-                        <LucideIcon Name="send" Size="14" /> Send Email
+                    <BbButton Variant="ButtonVariant.Ghost" OnClick="() => isSendEmailDrawerOpen = false">@T["Cancel"]</BbButton>
+                    <BbButton OnClick="SendEmailAsync" Loading="@isSendingEmail" LoadingText="@(T["Sending…"])">
+                        <LucideIcon Name="send" Size="14" /> @T["Send Email"]
                     </BbButton>
                 </div>
             </FooterContent>
@@ -546,10 +547,10 @@ else if (meta is not null && doc is not null)
         return rows;
     }
 
-    private static string ActionLabel(string action) => action switch
+    private string ActionLabel(string action) => T[action switch
     {
         DocActions.Submit => "Submit", DocActions.Cancel => "Cancel", DocActions.Amend => "Amend (create revision)", _ => action
-    };
+    }];
 
     private static string IconFor(ActionView a) => a.Tone switch
     {
@@ -595,8 +596,8 @@ else if (meta is not null && doc is not null)
             var result = await action.ExecuteAsync(ctx, CancellationToken.None);
             if (!string.IsNullOrWhiteSpace(result.Message))
             {
-                if (result.Success) Toasts.Success(result.Message, action.Label);
-                else Toasts.Error(result.Message, action.Label);
+                if (result.Success) Toasts.Success(T.Message(result.Message), T[action.Label]);
+                else Toasts.Error(T.Message(result.Message), T[action.Label]);
             }
             if (!string.IsNullOrWhiteSpace(result.RedirectUrl))
             {
@@ -610,7 +611,7 @@ else if (meta is not null && doc is not null)
         }
         catch (Exception ex)
         {
-            Toasts.Error(ex.Message, action.Label);
+            Toasts.Error(T.Message(ex.Message), T[action.Label]);
         }
         finally
         {
@@ -861,17 +862,17 @@ else if (meta is not null && doc is not null)
             {
                 var saved = await Docs.InsertAsync(User, DocType, payload);
                 if (saved.TransientMessages.Count > 0)
-                    foreach (var msg in saved.TransientMessages) Toasts.Info(msg);
-                Toasts.Success($"{saved.Name} saved as draft.", "Saved");
+                    foreach (var msg in saved.TransientMessages) Toasts.Info(T.Message(msg));
+                Toasts.Success(T.Format("{0} saved as draft.", saved.Name), T["Saved"]);
                 Nav.NavigateTo($"/app/{DocType}/{saved.Name}");
                 return;
             }
             if (payload.Count == 0) return;
             var updated = await Docs.UpdateAsync(User, DocType, Name, doc!.Version, payload);
             if (updated.TransientMessages.Count > 0)
-                foreach (var msg in updated.TransientMessages) Toasts.Info(msg);
+                foreach (var msg in updated.TransientMessages) Toasts.Info(T.Message(msg));
             await Load();
-            Toasts.Success("Changes saved.", Name);
+            Toasts.Success(T["Changes saved."], Name);
         }
         catch (Exception ex) { HandleError(ex); }
         finally { busy = savingNow = false; }
@@ -884,12 +885,12 @@ else if (meta is not null && doc is not null)
         {
             // Validasi komentar dilakukan di sini (bukan Required pada prompt): BbInput meng-commit nilai saat blur,
             // sehingga Required membuat tombol konfirmasi tetap nonaktif selama pengguna masih mengetik.
-            var prompt = await Dialogs.PromptAsync($"{a.Action} {doc!.Name}?", "Write a reason or note. This comment will be sent to the requester and recorded in history.",
-                new PromptDialogOptions { Placeholder = "Reason…", ConfirmText = a.Action, CancelText = "Cancel", MaxLength = 1000 });
+            var prompt = await Dialogs.PromptAsync($"{ActionLabel(a.Action)} {doc!.Name}?", T["Write a reason or note. This comment will be sent to the requester and recorded in history."],
+                new PromptDialogOptions { Placeholder = T["Reason…"], ConfirmText = ActionLabel(a.Action), CancelText = T["Cancel"], MaxLength = 1000 });
             if (prompt.Cancelled) return;
             if (string.IsNullOrWhiteSpace(prompt.Value))
             {
-                Toasts.Error($"Action “{a.Action}” requires a reason. Nothing was changed.", "Empty comment");
+                Toasts.Error(T.Format("Action “{0}” requires a reason. Nothing was changed.", ActionLabel(a.Action)), T["Empty comment"]);
                 return;
             }
             comment = prompt.Value.Trim();
@@ -899,15 +900,15 @@ else if (meta is not null && doc is not null)
         {
             var result = await Docs.RunActionAsync(User, DocType, Name, a.Action, doc!.Version, comment);
             if (result.TransientMessages.Count > 0)
-                foreach (var msg in result.TransientMessages) Toasts.Info(msg);
+                foreach (var msg in result.TransientMessages) Toasts.Info(T.Message(msg));
             if (result.Name != Name)
             {
-                Toasts.Success($"Revision draft {result.Name} created.", "Amend");
+                Toasts.Success(T.Format("Revision draft {0} created.", result.Name), T["Amend"]);
                 Nav.NavigateTo($"/app/{DocType}/{result.Name}");
                 return;
             }
             await Load();
-            Toasts.Success($"Status is now {Fmt.StateLabel(result.WorkflowState, result.DocStatus)}.", $"{ActionLabel(a.Action)} succeeded");
+            Toasts.Success(T.Format("Status is now {0}.", T.State(result.WorkflowState, result.DocStatus)), T.Format("{0} succeeded", ActionLabel(a.Action)));
         }
         catch (Exception ex) { HandleError(ex); }
         finally { busy = false; }
@@ -915,14 +916,14 @@ else if (meta is not null && doc is not null)
 
     private async Task Delete()
     {
-        var confirm = await Dialogs.ConfirmAsync($"Delete {Name}?", "This draft will be deleted. Deletion history remains recorded.",
-            new ConfirmDialogOptions { Destructive = true, ConfirmText = "Delete draft", CancelText = "Cancel" });
+        var confirm = await Dialogs.ConfirmAsync(T.Format("Delete {0}?", Name), T["This draft will be deleted. Deletion history remains recorded."],
+            new ConfirmDialogOptions { Destructive = true, ConfirmText = T["Delete draft"], CancelText = T["Cancel"] });
         if (!confirm.Confirmed) return;
         busy = true;
         try
         {
             await Docs.DeleteAsync(User, DocType, Name, doc!.Version);
-            Toasts.Success($"{Name} deleted.", "Deleted");
+            Toasts.Success(T.Format("{0} deleted.", Name), T["Deleted"]);
             Nav.NavigateTo($"/app/{DocType}");
         }
         catch (Exception ex) { HandleError(ex); }
@@ -934,7 +935,7 @@ else if (meta is not null && doc is not null)
         switch (ex)
         {
             case ValidationFailedException v:
-                foreach (var e in v.Errors) errors.TryAdd(e.Path, e.Message);
+                foreach (var e in v.Errors) errors.TryAdd(e.Path, T.Message(e.Message));
                 errorSnapshot = model.ToDictionary(kv => kv.Key, kv => JsonSerializer.Serialize(kv.Value));
                 if (errors.Remove("_comment", out var c)) banner = c;
                 if (errors.Remove("_doc", out var d)) banner = d;
@@ -957,7 +958,7 @@ else if (meta is not null && doc is not null)
             using var stream = file.OpenReadStream(maxAllowedSize: AttachmentService.MaxAttachmentBytes);
             await Attachments.UploadAsync(User, DocType, Name, file.Name, stream);
             attachments = await Attachments.ListAsync(User, DocType, Name);
-            Toasts.Success($"Attachment '{file.Name}' uploaded.", "Success");
+            Toasts.Success(T.Format("Attachment '{0}' uploaded.", file.Name), T["Success"]);
         }
         catch (Exception ex)
         {
@@ -971,15 +972,15 @@ else if (meta is not null && doc is not null)
 
     private async Task DeleteAttachment(string id)
     {
-        var confirm = await Dialogs.ConfirmAsync("Delete Attachment?", "This attachment will be permanently removed.",
-            new ConfirmDialogOptions { Destructive = true, ConfirmText = "Delete", CancelText = "Cancel" });
+        var confirm = await Dialogs.ConfirmAsync(T["Delete Attachment?"], T["This attachment will be permanently removed."],
+            new ConfirmDialogOptions { Destructive = true, ConfirmText = T["Delete"], CancelText = T["Cancel"] });
         if (!confirm.Confirmed) return;
 
         try
         {
             await Attachments.DeleteAsync(User, id);
             attachments = await Attachments.ListAsync(User, DocType, Name);
-            Toasts.Success("Attachment removed.", "Deleted");
+            Toasts.Success(T["Attachment removed."], T["Deleted"]);
         }
         catch (Exception ex)
         {
@@ -1095,13 +1096,13 @@ else if (meta is not null && doc is not null)
         autoRepeatError = null;
         if (!DateOnly.TryParse(autoRepeatStartDateStr, out var startDate))
         {
-            autoRepeatError = "Invalid start date format (YYYY-MM-DD).";
+            autoRepeatError = T["Invalid start date format (YYYY-MM-DD)."];
             return;
         }
 
         if (!Enum.TryParse<AutoRepeatFrequency>(autoRepeatFreqStr, out var freq))
         {
-            autoRepeatError = "Invalid frequency selected.";
+            autoRepeatError = T["Invalid frequency selected."];
             return;
         }
 
@@ -1121,7 +1122,7 @@ else if (meta is not null && doc is not null)
 
             await AutoRepeatService.SaveAsync(User, req);
             isAutoRepeatDrawerOpen = false;
-            Toasts.Success($"Auto Repeat schedule created for {Name}.", "Auto Repeat");
+            Toasts.Success(T.Format("Auto Repeat schedule created for {0}.", Name), T["Auto Repeat"]);
         }
         catch (Exception ex)
         {
@@ -1160,17 +1161,17 @@ else if (meta is not null && doc is not null)
         sendEmailError = null;
         if (string.IsNullOrWhiteSpace(emailTo))
         {
-            sendEmailError = "Recipient email (To) is required.";
+            sendEmailError = T["Recipient email (To) is required."];
             return;
         }
         if (string.IsNullOrWhiteSpace(emailSubject))
         {
-            sendEmailError = "Subject is required.";
+            sendEmailError = T["Subject is required."];
             return;
         }
         if (string.IsNullOrWhiteSpace(emailBody))
         {
-            sendEmailError = "Message body cannot be empty.";
+            sendEmailError = T["Message body cannot be empty."];
             return;
         }
 
@@ -1192,13 +1193,13 @@ else if (meta is not null && doc is not null)
             };
 
             await EmailQueue.QueueAsync(User.TenantId, msg);
-            Toasts.Success("Email queued for sending.", "Queued");
+            Toasts.Success(T["Email queued for sending."], T["Queued"]);
             isSendEmailDrawerOpen = false;
             communications = await CommService.ListForDocumentAsync(User, DocType, Name);
         }
         catch (Exception ex)
         {
-            sendEmailError = "Failed to queue email: " + ex.Message;
+            sendEmailError = T["Failed to queue email:"] + " " + T.Message(ex.Message);
         }
         finally
         {

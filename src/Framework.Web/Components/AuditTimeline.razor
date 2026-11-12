@@ -1,6 +1,8 @@
+@inject UiText T
+
 @if (Entries.Count == 0)
 {
-    <BbEmpty Title="No history yet" Description="Changes and status transitions will be recorded here." Size="EmptySize.Small" />
+    <BbEmpty Title="@(T["No history yet"])" Description="@(T["Changes and status transitions will be recorded here."])" Size="EmptySize.Small" />
 }
 else
 {
@@ -23,9 +25,9 @@ else
                         <ul class="changes">
                             @foreach (var c in e.Changes)
                             {
-                                <li><span class="f">@c.Field</span>
+                                <li><span class="f">@T[c.Field]</span>
                                     @if (c.Old is not null) { <del>@c.Old</del> <span aria-hidden="true"> › </span> }
-                                    <ins>@(c.New ?? "empty")</ins></li>
+                                    <ins>@(c.New ?? T["empty"])</ins></li>
                             }
                         </ul>
                     }
@@ -46,15 +48,15 @@ else
         _ => TimelineColor.Primary
     };
 
-    private static string Describe(AuditEntry e) => e.ToState is not null
-        ? $"executed “{e.Action}”: {e.FromState} → {e.ToState}"
-        : e.Action.ToLowerInvariant() switch
+    private string Describe(AuditEntry e) => e.ToState is not null
+        ? T.Format("executed “{0}”: {1} → {2}", T[e.Action], T[e.FromState], T[e.ToState])
+        : T[e.Action.ToLowerInvariant() switch
         {
             "dibuat" or "created" => "created document",
             "diubah" or "updated" or "modified" => "updated document",
             "amend" or "amended" => "created amendment",
             "dihapus" or "deleted" => "deleted document",
             "dicetak" or "printed" => "printed document",
-            var a => a
-        };
+            _ => e.Action
+        }];
 }

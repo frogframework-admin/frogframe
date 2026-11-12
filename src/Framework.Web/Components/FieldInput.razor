@@ -1,5 +1,6 @@
 @using Framework.Communication
 @using Framework.Expressions
+@inject UiText T
 @* Renderer field: memetakan kategori editor IFieldType ke komponen BlazorBlueprint.
    Tipe kustom dengan editor yang tidak dikenal jatuh ke input teks. *@
 
@@ -89,7 +90,7 @@
         break;
     case "select":
         <BbSelect TValue="string" Value="@(Value as string)" ValueChanged="v => Emit(v)" AriaLabel="@Field.Label"
-                  Options="@(Field.Def.Options!.Select(o => new SelectOption<string>(o, o)))" Placeholder="Select…"
+                  Options="@(Field.Def.Options!.Select(o => new SelectOption<string>(o, T.Option(o))))" Placeholder="@(T["Select…"])"
                   AdditionalAttributes="IdAttr" />
         break;
     case "link":
@@ -298,5 +299,5 @@
         catch (System.Text.Json.JsonException) { return s; }
     }
 
-    private string Static() => Fmt.Value(Field, Value);
+    private string Static() => T.Value(Field, Value);
 }

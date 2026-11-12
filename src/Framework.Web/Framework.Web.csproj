@@ -5,6 +5,11 @@
     <BlazorBlueprintVersion>4.1.0</BlazorBlueprintVersion>
   </PropertyGroup>
 
+  <!-- Kamus terjemahan framework (UI Inggris → Indonesia, pesan Indonesia → Inggris). -->
+  <ItemGroup>
+    <EmbeddedResource Include="Localization\*.translations.json" LogicalName="FrogFrame.Translations.%(Filename)%(Extension)" />
+  </ItemGroup>
+
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="..\Framework.Core\Framework.Core.csproj" />

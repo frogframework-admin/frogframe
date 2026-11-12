@@ -369,6 +369,22 @@ public static class NavigationMenuDefaults
         },
         new()
         {
+            Id = $"menu_{tenantId}_translations",
+            TenantId = tenantId,
+            Title = "Translations",
+            Href = "admin/translations",
+            Icon = "languages",
+            GroupId = GroupSistemId(tenantId),
+            GroupName = "System",
+            SortOrder = 140,
+            AllowedRoles = [UserContext.SystemManager, UserContext.Administrator],
+            IsSystem = true,
+            IsActive = true,
+            CreatedAt = now,
+            UpdatedAt = now
+        },
+        new()
+        {
             Id = $"menu_{tenantId}_email_accounts",
             TenantId = tenantId,
             Title = "Email Accounts",

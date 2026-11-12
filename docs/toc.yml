@@ -46,6 +46,8 @@
       href: guides/file-and-image-storage.md
     - name: Analytics Engine (World 2 OLAP)
       href: guides/analytics-engine.md
+    - name: Multi-Language UI (Indonesian / English)
+      href: guides/multi-language.md
 - name: Architecture & Reliability
   items:
     - name: Security Baseline (OWASP Top 10)
