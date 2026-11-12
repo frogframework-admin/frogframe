@@ -2565,6 +2565,65 @@ table.data tbody tr.excluded td {
   outline-offset: 1px;
 }
 
+/* ---------- Tabs inside a form section ---------- */
+.subtab-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--border);
+  margin: -0.5rem 0 1rem;
+}
+
+.subtab-title {
+  margin: -0.5rem 0 0.5rem;
+}
+
+.subtab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.75rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  margin-bottom: -1px;
+}
+
+.subtab:hover { color: var(--foreground); }
+.subtab.active { color: var(--foreground); border-bottom-color: var(--primary); }
+.subtab:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.subtab.has-error { color: var(--destructive); }
+
+.subtab-errors {
+  min-width: 1.1rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: var(--destructive);
+  color: var(--destructive-foreground, #fff);
+  font-size: 0.7rem;
+  line-height: 1.1rem;
+  text-align: center;
+}
+
+/* Designer: an inner tab is drawn indented under its section. */
+.d-section.d-subtab {
+  margin-left: 1.25rem;
+  border-left: 3px solid var(--primary);
+}
+
+.subtab-of {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
+
 /* Layout controls (Tab / Section / Column): not fields, so drawn with a dashed border. */
 .palette-item.palette-layout {
   border-style: dashed;

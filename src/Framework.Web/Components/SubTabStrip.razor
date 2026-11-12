@@ -1,0 +1,27 @@
+@* Strip of tabs INSIDE a form section (fields with "subTab"). Only the selected inner tab's fields are shown below it. *@
+
+<div class="subtab-strip" role="tablist" aria-label="@(AriaLabel ?? "Tabs")">
+    @foreach (var name in Tabs)
+    {
+        var tab = name;
+        var errorCount = Errors?.Invoke(tab) ?? 0;
+        <button type="button" role="tab" aria-selected="@(tab == Active ? "true" : "false")"
+                class="subtab @(tab == Active ? "active" : "") @(errorCount > 0 ? "has-error" : "")"
+                @onclick="() => OnSelect.InvokeAsync(tab)">
+            @(Label?.Invoke(tab) ?? tab)
+            @if (errorCount > 0) { <span class="subtab-errors" title="@($"{errorCount} field(s) to check")">@errorCount</span> }
+        </button>
+    }
+</div>
+
+@code {
+    /// <summary>Inner tab names (keys), in order.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<string> Tabs { get; set; } = [];
+    [Parameter] public string? Active { get; set; }
+    [Parameter] public EventCallback<string> OnSelect { get; set; }
+    /// <summary>Number of fields with errors per inner tab (badge).</summary>
+    [Parameter] public Func<string, int>? Errors { get; set; }
+    /// <summary>Display text per inner tab (e.g. a translation); default = the name.</summary>
+    [Parameter] public Func<string, string>? Label { get; set; }
+    [Parameter] public string? AriaLabel { get; set; }
+}

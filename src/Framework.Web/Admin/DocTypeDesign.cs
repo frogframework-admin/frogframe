@@ -7,6 +7,14 @@ namespace Framework.Web.Admin;
 public sealed class DesignerSection
 {
     public string? Title { get; set; }
+    /// <summary>
+    /// Set when this part is a tab INSIDE a section: the name of that inner tab. <see cref="Parent"/> is the section
+    /// that holds it (its title is saved as the fields' section); the inner tab keeps its own columns.
+    /// </summary>
+    public string? SubTab { get; set; }
+    public DesignerSection? Parent { get; set; }
+    /// <summary>Section title as saved: the holding section's title for an inner tab.</summary>
+    public string? EffectiveTitle => Parent?.Title ?? Title;
     /// <summary>Kolom 1..3, masing-masing berisi field berurutan.</summary>
     public List<List<FieldDef>> Columns { get; } = [[]];
     public bool IsEmpty => Columns.All(c => c.Count == 0);
@@ -59,8 +67,19 @@ public sealed class DocTypeDesign
             if (tab is null) design.Tabs.Add(tab = new DesignerTab { Title = tabTitle });
             if (!string.IsNullOrWhiteSpace(f.Tab)) tab.Explicit = true;
 
-            var sec = tab.Sections.FirstOrDefault(s => s.Title == f.Section);
-            if (sec is null) tab.Sections.Add(sec = new DesignerSection { Title = f.Section });
+            var main = tab.Sections.FirstOrDefault(s => s.SubTab is null && s.Title == f.Section);
+            if (main is null) tab.Sections.Add(main = new DesignerSection { Title = f.Section });
+            var sec = main;
+            if (!string.IsNullOrWhiteSpace(f.SubTab))
+            {
+                var name = f.SubTab.Trim();
+                sec = tab.Sections.FirstOrDefault(s => s.Parent == main && s.SubTab == name)!;
+                if (sec is null)
+                {
+                    sec = new DesignerSection { Title = main.Title, SubTab = name, Parent = main };
+                    tab.Sections.Insert(LastOfGroup(tab, main) + 1, sec);
+                }
+            }
             var col = Math.Clamp(f.Column, 1, 3);
             while (sec.Columns.Count < col) sec.Columns.Add([]);
             sec.Columns[col - 1].Add(f);
@@ -81,7 +100,8 @@ public sealed class DocTypeDesign
                 {
                     var copy = JsonSerializer.Deserialize<FieldDef>(JsonSerializer.Serialize(f, MetadataJson.Options), MetadataJson.Options)!;
                     copy.Tab = tab.Title == DefaultTab && !tab.Explicit ? null : tab.Title;
-                    copy.Section = string.IsNullOrWhiteSpace(sec.Title) ? null : sec.Title;
+                    copy.Section = string.IsNullOrWhiteSpace(sec.EffectiveTitle) ? null : sec.EffectiveTitle;
+                    copy.SubTab = string.IsNullOrWhiteSpace(sec.SubTab) ? null : sec.SubTab.Trim();
                     copy.Column = c + 1;
                     def.Fields.Add(copy);
                 }
@@ -125,9 +145,12 @@ public sealed class DocTypeDesign
             foreach (var t in Tabs)
             {
                 if (t.IsEmpty) w.Add($"Tab \"{t.Title}\" belum berisi field dan tidak akan tersimpan.");
-                foreach (var s in t.Sections.Where(s => s.IsEmpty && !t.IsEmpty))
+                // A section that only holds inner tabs has no own fields: that is fine.
+                foreach (var s in t.Sections.Where(s => s.IsEmpty && !t.IsEmpty && s.SubTab is null && !HasSubTabs(s)))
                     w.Add($"Section \"{s.Title ?? "(tanpa judul)"}\" di tab \"{t.Title}\" kosong dan tidak akan tersimpan.");
-                foreach (var g in t.Sections.GroupBy(s => s.Title ?? "").Where(g => g.Count() > 1))
+                foreach (var s in t.Sections.Where(s => s.IsEmpty && s.SubTab is not null))
+                    w.Add($"Tab \"{s.SubTab}\" di dalam section \"{s.EffectiveTitle ?? "(tanpa judul)"}\" belum berisi field dan tidak akan tersimpan.");
+                foreach (var g in t.Sections.Where(s => s.SubTab is null).GroupBy(s => s.Title ?? "").Where(g => g.Count() > 1))
                     w.Add($"Ada {g.Count()} section berjudul \"{(g.Key == "" ? "(tanpa judul)" : g.Key)}\" di tab \"{t.Title}\"; saat disimpan keduanya digabung.");
             }
             foreach (var g in Tabs.GroupBy(t => t.Title).Where(g => g.Count() > 1))
@@ -266,7 +289,7 @@ public sealed class DocTypeDesign
     // Metadata keeps describing the layout through the tab/section/column properties of the fields.
 
     /// <summary>Layout controls offered in the palette, in display order.</summary>
-    public static readonly string[] LayoutBreaks = ["Tab", "Section", "Column"];
+    public static readonly string[] LayoutBreaks = ["Tab", "SubTab", "Section", "Column"];
 
     public DesignerTab TabOf(DesignerSection sec) => Tabs.First(t => t.Sections.Contains(sec));
 
@@ -300,6 +323,8 @@ public sealed class DocTypeDesign
         var tab = TabOf(sec);
         var at = index ?? sec.Columns[column].Count;
         var tail = SplitOff(sec, column, at, sec.Title);
+        tail.SubTab = sec.SubTab;
+        tail.Parent = sec.Parent;
         var next = tab.Sections.IndexOf(sec) + 1;
         var moved = tab.Sections.Skip(next).ToList();
         tab.Sections.RemoveRange(next, moved.Count);
@@ -329,7 +354,9 @@ public sealed class DocTypeDesign
         var title = NextTitle("Section", tab.Sections.Select(s => s.Title ?? ""));
         var tail = SplitOff(sec, column, index ?? sec.Columns[column].Count, title);
         if (tail.IsEmpty) tail = new DesignerSection { Title = title };
-        tab.Sections.Insert(tab.Sections.IndexOf(sec) + 1, tail);
+        // After a section's inner tabs (not between the section and its tabs).
+        var pos = sec.Parent is null ? LastOfGroup(tab, sec) : tab.Sections.IndexOf(sec);
+        tab.Sections.Insert(pos + 1, tail);
         return tail;
     }
 
@@ -348,9 +375,85 @@ public sealed class DocTypeDesign
         return true;
     }
 
+    // ---------------- Tabs inside a section ----------------
+
+    /// <summary>
+    /// Moves a section up/down together with its inner tabs; an inner tab moves among the tabs of its section.
+    /// </summary>
+    public void MoveSection(DesignerTab tab, DesignerSection sec, int delta)
+    {
+        if (sec.Parent is { } main)
+        {
+            var siblings = tab.Sections.Where(s => s.Parent == main).ToList();
+            var i = siblings.IndexOf(sec);
+            var j = i + delta;
+            if (i < 0 || j < 0 || j >= siblings.Count) return;
+            var a = tab.Sections.IndexOf(sec);
+            var b = tab.Sections.IndexOf(siblings[j]);
+            (tab.Sections[a], tab.Sections[b]) = (tab.Sections[b], tab.Sections[a]);
+            return;
+        }
+        // Blocks: a section followed by its inner tabs.
+        var blocks = new List<List<DesignerSection>>();
+        foreach (var s in tab.Sections)
+        {
+            if (s.Parent is not null && blocks.Count > 0 && blocks[^1][0] == s.Parent)
+                blocks[^1].Add(s);
+            else blocks.Add([s]);
+        }
+        var from = blocks.FindIndex(b => b[0] == sec);
+        var to = from + delta;
+        if (from < 0 || to < 0 || to >= blocks.Count) return;
+        (blocks[from], blocks[to]) = (blocks[to], blocks[from]);
+        tab.Sections.Clear();
+        tab.Sections.AddRange(blocks.SelectMany(b => b));
+    }
+
+    public bool HasSubTabs(DesignerSection sec) => Tabs.SelectMany(t => t.Sections).Any(s => s.Parent == sec);
+
+    /// <summary>Index of the last part of a section's group (the section itself or its last inner tab).</summary>
+    private static int LastOfGroup(DesignerTab tab, DesignerSection main)
+    {
+        var last = tab.Sections.IndexOf(main);
+        for (var i = last + 1; i < tab.Sections.Count && tab.Sections[i].Parent == main; i++) last = i;
+        return last;
+    }
+
+    private static string NextSubTabTitle(DesignerTab tab, DesignerSection main) =>
+        NextTitle("Tab", tab.Sections.Where(s => s.Parent == main).Select(s => s.SubTab ?? ""));
+
+    /// <summary>Adds an empty tab inside the section (or next to the inner tab) <paramref name="sec"/>.</summary>
+    public DesignerSection AddSubTab(DesignerSection sec)
+    {
+        var tab = TabOf(sec);
+        var main = sec.Parent ?? sec;
+        var inner = new DesignerSection { Title = main.Title, SubTab = NextSubTabTitle(tab, main), Parent = main };
+        while (inner.Columns.Count < sec.Columns.Count) inner.Columns.Add([]);
+        tab.Sections.Insert(LastOfGroup(tab, main) + 1, inner);
+        return inner;
+    }
+
+    /// <summary>
+    /// "Tab in section" dropped on a field: a new tab inside the section starts at that field; the field and the ones
+    /// after it (in this section part) move into it. Dropped into an empty part or below the last field: an empty
+    /// inner tab is added.
+    /// </summary>
+    public DesignerSection BreakSubTab(DesignerSection sec, int column, int? index)
+    {
+        var tab = TabOf(sec);
+        var main = sec.Parent ?? sec;
+        var inner = SplitOff(sec, column, index ?? sec.Columns[column].Count, main.Title);
+        inner.SubTab = NextSubTabTitle(tab, main);
+        inner.Parent = main;
+        // Directly after the part it came from, so the reading order stays the same.
+        var at = sec == main ? LastOfGroup(tab, main) + 1 : tab.Sections.IndexOf(sec) + 1;
+        tab.Sections.Insert(at, inner);
+        return inner;
+    }
+
     public bool RemoveSection(DesignerTab tab, DesignerSection sec)
     {
-        if (!sec.IsEmpty) return false;
+        if (!sec.IsEmpty || HasSubTabs(sec)) return false;
         tab.Sections.Remove(sec);
         if (tab.Sections.Count == 0) tab.Sections.Add(new DesignerSection { Title = "Section 1" });
         return true;

@@ -32,11 +32,17 @@ else if (errors.Count > 0)
     {
         <BbTabsContent Value="@t.Title">
             <div class="stack" style="margin-top:.75rem">
-                @foreach (var sec in t.Sections)
+                @foreach (var sec in t.Sections.Where(Shown))
                 {
                     <BbCard>
                         @if (sec.Title is not null) { <BbCardHeader><BbCardTitle Class="card-title">@sec.Title</BbCardTitle></BbCardHeader> }
                         <BbCardContent Style="@(sec.Title is null ? "padding-top:1.5rem" : null)">
+                            @if (sec.SubTab is not null)
+                            {
+                                @if (sec.ShowParentTitle && sec.ParentTitle is not null) { <div class="card-title subtab-title">@sec.ParentTitle</div> }
+                                <SubTabStrip Tabs="@sec.SubTabs" Active="@ActiveSubTab(sec)" AriaLabel="@(sec.ParentTitle ?? "Tabs")"
+                                             OnSelect="@(name => { if (sec.SubTabGroup is { } g) subTabs[g] = name; })" />
+                            }
                             <div class="form-cols cols-@sec.Columns.Count">
                                 @foreach (var col in sec.Columns)
                                 {
@@ -107,6 +113,12 @@ else if (errors.Count > 0)
     }
 
     private CompiledDocType Resolve(string name) => Snapshot.Get(name);
+
+    // Tabs inside a section: one part shown at a time.
+    private readonly Dictionary<string, string> subTabs = new();
+    private string? ActiveSubTab(LayoutSection s) =>
+        s.SubTabGroup is { } g && subTabs.TryGetValue(g, out var name) && s.SubTabs.Contains(name) ? name : s.SubTabs.FirstOrDefault();
+    private bool Shown(LayoutSection s) => s.SubTab is null || s.SubTab == ActiveSubTab(s);
     private void Recompute() => Evaluator.ApplyCompute(Meta, model, User, Resolve);
 
     private List<Dictionary<string, object?>> Rows(CompiledField f)

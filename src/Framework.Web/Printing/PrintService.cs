@@ -103,7 +103,8 @@ public sealed class PrintService(DocumentService docs, IMetadataProvider metadat
         var sectionDefs = pf.Sections ?? meta.Layout.SelectMany(t => t.Sections)
             .Select(s => new PrintSectionDef
             {
-                Title = s.Title,
+                // Tabs inside a section are printed one after the other: "Section · Tab".
+                Title = s.SubTab is null ? s.Title : string.IsNullOrWhiteSpace(s.ParentTitle) ? s.SubTab : $"{s.ParentTitle} · {s.SubTab}",
                 Fields = s.Columns.SelectMany(c => c.Fields).Where(f => f.Def.Type != "Table" && !f.IsLayout).Select(f => f.Name).ToList()
             }).Where(s => s.Fields.Count > 0).ToList();
 

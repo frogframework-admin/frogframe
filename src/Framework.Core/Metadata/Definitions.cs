@@ -157,6 +157,11 @@ public sealed class FieldDef
     public string? Description { get; set; }
     public string? Tab { get; set; }
     public string? Section { get; set; }
+    /// <summary>
+    /// Optional tab INSIDE the section ("tab in section"): fields of one section with the same subTab are shown
+    /// together in that inner tab; fields without subTab are shown above the inner tabs.
+    /// </summary>
+    public string? SubTab { get; set; }
     public int Column { get; set; } = 1;
     public string? RequiredWhen { get; set; }
     public string? VisibleWhen { get; set; }

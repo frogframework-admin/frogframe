@@ -72,7 +72,19 @@ public sealed class CompiledField
 }
 
 public sealed record LayoutColumn(IReadOnlyList<CompiledField> Fields);
-public sealed record LayoutSection(string? Title, IReadOnlyList<LayoutColumn> Columns);
+public sealed record LayoutSection(string? Title, IReadOnlyList<LayoutColumn> Columns)
+{
+    /// <summary>Name of the tab inside the section when this part is one (fields with <c>subTab</c>); null for a normal section.</summary>
+    public string? SubTab { get; init; }
+    /// <summary>Same value for all inner tabs of one section (key for the selected inner tab).</summary>
+    public string? SubTabGroup { get; init; }
+    /// <summary>All inner tabs of the section, in order (shown as the tab strip).</summary>
+    public IReadOnlyList<string> SubTabs { get; init; } = [];
+    /// <summary>Title of the section that holds the inner tabs.</summary>
+    public string? ParentTitle { get; init; }
+    /// <summary>True on inner tabs of a section without own (non-tab) fields: the strip carries the section title.</summary>
+    public bool ShowParentTitle { get; init; }
+}
 public sealed record LayoutTab(string Title, IReadOnlyList<LayoutSection> Sections);
 
 public sealed class CompiledRule
@@ -637,14 +649,34 @@ public sealed partial class MetadataCompiler(IFieldTypeRegistry fieldTypes, Func
     private static List<LayoutTab> BuildLayout(List<CompiledField> fields)
     {
         // Urutan kemunculan field menentukan urutan tab/section; kolom 1..3 per section.
+        // Section dengan subTab: field tanpa subTab tampil di atas, lalu satu bagian per tab di dalam section.
+        static List<LayoutColumn> Columns(IEnumerable<CompiledField> fs) =>
+            fs.GroupBy(f => Math.Clamp(f.Def.Column, 1, 3)).OrderBy(g => g.Key).Select(cg => new LayoutColumn(cg.ToList())).ToList();
+        static string? SubTabOf(CompiledField f) => string.IsNullOrWhiteSpace(f.Def.SubTab) ? null : f.Def.SubTab.Trim();
+
         var tabs = new List<LayoutTab>();
         foreach (var tabGroup in fields.GroupBy(f => f.Def.Tab ?? "Detail"))
         {
-            var sections = tabGroup.GroupBy(f => f.Def.Section)
-                .Select(sg => new LayoutSection(sg.Key,
-                    sg.GroupBy(f => Math.Clamp(f.Def.Column, 1, 3)).OrderBy(g => g.Key)
-                      .Select(cg => new LayoutColumn(cg.ToList())).ToList()))
-                .ToList();
+            var sections = new List<LayoutSection>();
+            foreach (var sg in tabGroup.GroupBy(f => f.Def.Section))
+            {
+                var main = sg.Where(f => SubTabOf(f) is null).ToList();
+                var inner = sg.Where(f => SubTabOf(f) is not null).GroupBy(f => SubTabOf(f)!, StringComparer.Ordinal).ToList();
+                if (inner.Count == 0)
+                {
+                    sections.Add(new LayoutSection(sg.Key, Columns(main)));
+                    continue;
+                }
+                if (main.Count > 0) sections.Add(new LayoutSection(sg.Key, Columns(main)));
+                var names = inner.Select(g => g.Key).ToList();
+                var group = $"{tabGroup.Key}\u001f{sg.Key}";
+                foreach (var g in inner)
+                    // Title stays null: the inner tab is shown by its strip, not as a titled section.
+                    sections.Add(new LayoutSection(null, Columns(g))
+                    {
+                        SubTab = g.Key, SubTabGroup = group, SubTabs = names, ParentTitle = sg.Key, ShowParentTitle = main.Count == 0,
+                    });
+            }
             tabs.Add(new LayoutTab(tabGroup.Key, sections));
         }
         return tabs;
@@ -730,7 +762,7 @@ public static class MetadataDiff
             if (JsonSerializer.Serialize(of.Default) != JsonSerializer.Serialize(nf.Default))
                 changes.Add(new(ChangeRisk.NeedsTransform, $"fields.{name}.default", "Nilai default berubah"));
             if (of.PermLevel != nf.PermLevel) changes.Add(new(ChangeRisk.Risky, $"fields.{name}.permLevel", "Level permission field berubah"));
-            if (of.Label != nf.Label || of.Description != nf.Description || of.Tab != nf.Tab || of.Section != nf.Section || of.Column != nf.Column || of.InListView != nf.InListView || of.VisibleWhen != nf.VisibleWhen || of.Filterable != nf.Filterable || of.Visible != nf.Visible || of.Pinned != nf.Pinned || of.RowGrouping != nf.RowGrouping || of.GroupCollapsedByDefault != nf.GroupCollapsedByDefault)
+            if (of.Label != nf.Label || of.Description != nf.Description || of.Tab != nf.Tab || of.Section != nf.Section || of.SubTab != nf.SubTab || of.Column != nf.Column || of.InListView != nf.InListView || of.VisibleWhen != nf.VisibleWhen || of.Filterable != nf.Filterable || of.Visible != nf.Visible || of.Pinned != nf.Pinned || of.RowGrouping != nf.RowGrouping || of.GroupCollapsedByDefault != nf.GroupCollapsedByDefault)
                 changes.Add(new(ChangeRisk.Safe, $"fields.{name}", "Tampilan/label berubah"));
         }
         foreach (var (name, nf) in newFields.Where(kv => !oldFields.ContainsKey(kv.Key)))

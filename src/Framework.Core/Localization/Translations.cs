@@ -330,6 +330,7 @@ public static class MetadataTexts
                 Add(f.Description, $"{d.Name}.{f.Name} · description");
                 Add(f.Section, $"{d.Name} · section");
                 Add(f.Tab, $"{d.Name} · tab");
+                Add(f.SubTab, $"{d.Name} · tab in section");
                 foreach (var o in f.Options ?? []) Add(o, $"{d.Name}.{f.Name} · option");
             }
         }

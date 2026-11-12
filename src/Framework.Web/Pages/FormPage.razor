@@ -179,6 +179,13 @@ else if (meta is not null && doc is not null)
                         <BbCard>
                             @if (sec.Title is not null) { <BbCardHeader><BbCardTitle Class="card-title">@sec.Title</BbCardTitle></BbCardHeader> }
                             <BbCardContent Style="@(sec.Title is null ? "padding-top:1.5rem" : null)">
+                                @if (sec.SubTab is not null)
+                                {
+                                    @* Tabs inside the section: only the selected inner tab's fields are rendered below. *@
+                                    @if (sec.ShowParentTitle && sec.ParentTitle is not null) { <div class="card-title subtab-title">@sec.ParentTitle</div> }
+                                    <SubTabStrip Tabs="@VisibleSubTabs(sec)" Active="@ActiveSubTab(sec)" Errors="@(name => SubTabErrorCount(sec, name))" Label="@(name => T[name])"
+                                                 AriaLabel="@(sec.ParentTitle ?? "Tabs")" OnSelect="@(name => SelectSubTab(sec, name))" />
+                                }
                                 <div class="form-cols cols-@sec.Columns.Count">
                                     @foreach (var col in sec.Columns)
                                     {
@@ -530,7 +537,49 @@ else if (meta is not null && doc is not null)
     private bool Readable(CompiledField f) => Perms.CanReadField(User, meta!, f);
     private bool FieldReadOnly(CompiledField f, FieldState st) => !Editable || st.ReadOnly || !Perms.CanWriteField(User, meta!, f)
         || (!IsNew && meta!.Def.Naming.Pattern == $"field:{f.Name}"); // kode = nomor dokumen, tetap setelah disimpan
-    private bool SectionVisible(LayoutSection s) => s.Columns.SelectMany(c => c.Fields).Any(f => Readable(f) && State(f).Visible);
+    private bool SectionVisible(LayoutSection s) => FieldsVisible(s) && (s.SubTab is null || s.SubTab == ActiveSubTab(s));
+    private bool FieldsVisible(LayoutSection s) => s.Columns.SelectMany(c => c.Fields).Any(f => Readable(f) && State(f).Visible);
+
+    // ---------------- tabs inside a section (fields with subTab) ----------------
+
+    /// <summary>Picked inner tab per section, with the errors shown at that moment (see <see cref="ActiveSubTab"/>).</summary>
+    private readonly Dictionary<string, (string Name, string ErrorsKey)> subTabSelection = new();
+    private string ErrorsKey => string.Join("\n", errors.Keys.Order(StringComparer.Ordinal));
+
+    private IEnumerable<LayoutSection> SubTabSections(LayoutSection s) =>
+        meta!.Layout.SelectMany(t => t.Sections).Where(x => x.SubTab is not null && x.SubTabGroup == s.SubTabGroup);
+
+    /// <summary>Inner tabs that have at least one visible field.</summary>
+    private IReadOnlyList<string> VisibleSubTabs(LayoutSection s) =>
+        SubTabSections(s).Where(FieldsVisible).Select(x => x.SubTab!).Distinct().ToList();
+
+    /// <summary>
+    /// The inner tab shown: the one the user picked, else the first visible one. When new errors appear (e.g. after
+    /// Save) and the shown tab has none, the first inner tab with errors is shown, so the fields to fix are on screen;
+    /// picking a tab afterwards is respected.
+    /// </summary>
+    private string? ActiveSubTab(LayoutSection s)
+    {
+        var visible = VisibleSubTabs(s);
+        var hasPick = s.SubTabGroup is { } g && subTabSelection.TryGetValue(g, out var sel) && visible.Contains(sel.Name);
+        var picked = hasPick ? subTabSelection[s.SubTabGroup!].Name : visible.FirstOrDefault();
+        var errorsChangedSincePick = !hasPick || subTabSelection[s.SubTabGroup!].ErrorsKey != ErrorsKey;
+        if (errors.Count > 0 && errorsChangedSincePick && picked is not null && SubTabErrorCount(s, picked) == 0)
+            return visible.FirstOrDefault(name => SubTabErrorCount(s, name) > 0) ?? picked;
+        return picked;
+    }
+
+    private void SelectSubTab(LayoutSection s, string name)
+    {
+        if (s.SubTabGroup is { } g) subTabSelection[g] = (name, ErrorsKey);
+    }
+
+    private int SubTabErrorCount(LayoutSection s, string name)
+    {
+        if (errors.Count == 0) return 0;
+        var names = SubTabSections(s).Where(x => x.SubTab == name).SelectMany(x => x.Columns).SelectMany(c => c.Fields).Select(f => f.Name).ToHashSet();
+        return errors.Keys.Count(k => names.Contains(k.Split('[', '.')[0]));
+    }
     private bool TabVisible(LayoutTab t) => t.Sections.Any(SectionVisible);
     private static string Anchor(string path) => "f-" + path.Replace("[", "-").Replace("].", "-").Replace("]", "");
 

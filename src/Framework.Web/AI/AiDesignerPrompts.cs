@@ -30,6 +30,9 @@ public static class AiDesignerPrompts
           functions empty(x), len(x), sum(table.field), round(x, n), abs(x), coalesce(a, b, ...), today(), has_role('Role').
           Use requiredWhen = "true" for always-required fields. Example compute: "sum(items.amount)" or "qty * rate".
         - Use fetchFrom "link_field.target_field" to copy a value from a linked document.
+        - Layout: fields[].tab (tab above the form), fields[].section, fields[].column (1-3) and optionally
+          fields[].subTab to group fields of one section into tabs inside that section (e.g. section "Address",
+          subTab "Home" / "Office"). Fields of the section without subTab are shown above the inner tabs.
         - permissions[]: role from list_roles; actions from: read, create, write, delete, submit, cancel, amend, export, report;
           scope "all", "owner", or "match:<doc_field>=<user_attribute>".
         - listView: titleField and searchFields should use real field names.

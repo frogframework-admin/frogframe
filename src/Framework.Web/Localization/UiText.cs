@@ -94,8 +94,12 @@ public sealed class UiText(TranslationCatalog catalog, Framework.Web.CurrentUser
 
     public IEnumerable<CompiledField> Fields(IEnumerable<CompiledField> fields) => fields.Select(Field);
 
-    /// <summary>Form section with translated title and field labels (field names, rules and options unchanged).</summary>
-    public LayoutSection Section(LayoutSection section) =>
-        new(section.Title is null ? null : this[section.Title],
-            section.Columns.Select(c => new LayoutColumn(c.Fields.Select(Field).ToList())).ToList());
+    /// <summary>Form section with translated title and field labels (field names, rules and options unchanged).
+    /// Inner-tab info (subTab) is kept; inner tab names stay keys and are translated where the strip shows them.</summary>
+    public LayoutSection Section(LayoutSection section) => section with
+    {
+        Title = section.Title is null ? null : this[section.Title],
+        ParentTitle = section.ParentTitle is null ? null : this[section.ParentTitle],
+        Columns = section.Columns.Select(c => new LayoutColumn(c.Fields.Select(Field).ToList())).ToList(),
+    };
 }

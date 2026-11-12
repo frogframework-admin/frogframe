@@ -175,7 +175,7 @@ else
                         <div class="palette-item palette-layout" draggable="true" role="button" tabindex="0" title="@LayoutHelp(kind)"
                              @ondragstart="() => StartBreak(kind)" @ondragend="EndDrag" @onclick="() => AddBreakByClick(kind)"
                              @onkeydown="@(e => { if (e.Key is "Enter" or " ") AddBreakByClick(kind); })">
-                            <LucideIcon Name="@LayoutIcon(kind)" Size="16" /><span>@kind</span>
+                            <LucideIcon Name="@LayoutIcon(kind)" Size="16" /><span>@LayoutLabel(kind)</span>
                         </div>
                     }
                     <div class="props-group-title" style="margin-top:.75rem">ADD FIELD</div>
@@ -225,16 +225,26 @@ else
                         @foreach (var section in ct.Sections)
                         {
                             var sec = section;
-                            <div class="d-section @(sec == currentSection ? "current" : "")" @onclick="() => currentSection = sec">
+                            <div class="d-section @(sec == currentSection ? "current" : "") @(sec.SubTab is not null ? "d-subtab" : "")" @onclick="() => currentSection = sec">
                                 <div class="d-section-head">
-                                    <BbInput Value="@sec.Title" ValueChanged="v => Mutate(() => sec.Title = string.IsNullOrWhiteSpace(v) ? null : v.Trim())" Placeholder="Section title (optional)" AriaLabel="Section title" />
+                                    @if (sec.SubTab is not null)
+                                    {
+                                        <span class="subtab-of" title="Tab inside a section: only one of these tabs is shown at a time">
+                                            <LucideIcon Name="layout-panel-top" Size="14" /> Tab in “@(sec.Parent?.Title ?? "(untitled section)")”
+                                        </span>
+                                        <BbInput Value="@sec.SubTab" ValueChanged="v => Mutate(() => { if (!string.IsNullOrWhiteSpace(v)) sec.SubTab = v.Trim(); })" AriaLabel="Tab title" />
+                                    }
+                                    else
+                                    {
+                                        <BbInput Value="@sec.Title" ValueChanged="v => Mutate(() => sec.Title = string.IsNullOrWhiteSpace(v) ? null : v.Trim())" Placeholder="Section title (optional)" AriaLabel="Section title" />
+                                    }
                                     <div class="col-select">
                                         <BbSelect TValue="string" Value="@sec.Columns.Count.ToString()" ValueChanged="v => Mutate(() => design.SetColumns(sec, int.Parse(v!)))" AriaLabel="Number of columns"
                                                   Options="ColumnOptions" />
                                     </div>
-                                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Move section up" OnClick="() => Mutate(() => DocTypeDesign.MoveItem(ct.Sections, sec, -1))"><LucideIcon Name="arrow-up" Size="16" /></BbButton>
-                                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Move section down" OnClick="() => Mutate(() => DocTypeDesign.MoveItem(ct.Sections, sec, 1))"><LucideIcon Name="arrow-down" Size="16" /></BbButton>
-                                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Delete section" Disabled="@(!sec.IsEmpty)" OnClick="() => Mutate(() => { design.RemoveSection(ct, sec); if (currentSection == sec) currentSection = ct.Sections.FirstOrDefault(); })"><LucideIcon Name="trash-2" Size="16" /></BbButton>
+                                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Move section up" OnClick="() => Mutate(() => design.MoveSection(ct, sec, -1))"><LucideIcon Name="arrow-up" Size="16" /></BbButton>
+                                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Move section down" OnClick="() => Mutate(() => design.MoveSection(ct, sec, 1))"><LucideIcon Name="arrow-down" Size="16" /></BbButton>
+                                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Delete section" Disabled="@(!sec.IsEmpty || design.HasSubTabs(sec))" OnClick="() => Mutate(() => { design.RemoveSection(ct, sec); if (currentSection == sec) currentSection = ct.Sections.FirstOrDefault(); })"><LucideIcon Name="trash-2" Size="16" /></BbButton>
                                 </div>
                                 <div class="d-cols cols-@sec.Columns.Count">
                                     @for (var c = 0; c < sec.Columns.Count; c++)
@@ -961,11 +971,13 @@ else
 
     // ---------- layout palette (Tab / Section / Column) ----------
 
-    private static string LayoutIcon(string kind) => kind switch { "Tab" => "panel-top", "Section" => "rows-2", _ => "columns-2" };
+    private static string LayoutIcon(string kind) => kind switch { "Tab" => "panel-top", "SubTab" => "layout-panel-top", "Section" => "rows-2", _ => "columns-2" };
+    private static string LayoutLabel(string kind) => kind switch { "Tab" => "Tab (top)", "SubTab" => "Tab in section", _ => kind };
 
     private static string LayoutHelp(string kind) => kind switch
     {
-        "Tab" => "New tab. Drop on a field: that field and everything after it move to the new tab.",
+        "Tab" => "New tab in the tab bar above the form. Drop on a field: that field and everything after it move to the new tab.",
+        "SubTab" => "New tab INSIDE a section. Click: adds a tab to the selected section. Drop on a field: that field and the ones after it move into the new inner tab.",
         "Section" => "New section. Drop on a field: that field and the fields after it start a new section.",
         _ => "New column (max. 3). Drop on a field: that field and the ones below it start the next column.",
     };
@@ -977,6 +989,12 @@ else
         {
             case "Tab":
                 AddTab();
+                break;
+            case "SubTab":
+                var target = currentSection ?? currentTab.Sections.FirstOrDefault();
+                if (target is null) return;
+                Mutate(() => currentSection = design.AddSubTab(target));
+                Toasts.Info($"Tab “{currentSection!.SubTab}” added inside section “{currentSection.EffectiveTitle ?? "(untitled)"}”. Drag fields into it.", "Tab in section");
                 break;
             case "Section":
                 Mutate(() => currentSection = design.AddSection(currentTab));
@@ -1007,6 +1025,15 @@ else
                     Toasts.Success($"Tab “{currentTab!.Title}” added to the tab bar with {moved} field(s) from the drop point onwards.", "Tab");
                 else
                     Toasts.Info($"Tab “{currentTab!.Title}” added to the tab bar. It has no fields yet: drag fields into it. Tabs without fields are not saved and do not appear in Preview.", "Tab");
+                break;
+            case "SubTab":
+                Mutate(() => currentSection = design!.BreakSubTab(sec, col, index));
+                var inner = currentSection!;
+                var count = inner.Columns.Sum(c => c.Count);
+                if (count > 0)
+                    Toasts.Success($"Tab “{inner.SubTab}” added inside section “{inner.EffectiveTitle ?? "(untitled)"}” with {count} field(s).", "Tab in section");
+                else
+                    Toasts.Info($"Tab “{inner.SubTab}” added inside section “{inner.EffectiveTitle ?? "(untitled)"}”. Drag fields into it; tabs without fields are not saved.", "Tab in section");
                 break;
             case "Section":
                 Mutate(() => currentSection = design!.BreakSection(sec, col, index));

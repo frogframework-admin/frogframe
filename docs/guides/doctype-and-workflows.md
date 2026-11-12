@@ -23,7 +23,18 @@ Once created, DocTypes are compiled, assigned an immutable schema version, and a
 ## 2. Visual DocType Editor
 
 Accessible at `/admin/metadata/{DocType}/editor`:
-- **Drag-and-Drop Layout**: Organize fields into tabs, sections, and 1–3 responsive columns.
+- **Drag-and-Drop Layout**: Organize fields into tabs, sections, and 1–3 responsive columns. The **LAYOUT** palette
+  offers *Tab (top)*, *Tab in section*, *Section* and *Column*: click to add, or drop on a field to start the new tab,
+  section or column at that field.
+- **Tabs inside a section**: fields of one section can be grouped into tabs shown inside that section
+  (field property `subTab`). Fields of the section without `subTab` appear above the inner tabs; only one inner tab
+  is visible at a time. Inner tabs with errors get a red count badge, and after a failed save the first inner tab with
+  errors is shown. In print, inner tabs are printed one after another as "Section · Tab".
+
+  ```json
+  { "name": "street", "label": "Street", "type": "Data", "section": "Address", "subTab": "Home" },
+  { "name": "office_street", "label": "Street", "type": "Data", "section": "Address", "subTab": "Office" }
+  ```
 - **Real-Time Validation**: Field configurations and expressions are validated continuously using the same AST compiler that executes at server startup.
 - **Live Preview**: Preview the interactive form as an end user before publishing changes.
 - **Diff & Risk Assessment**: Before publishing, changes are categorized into:
