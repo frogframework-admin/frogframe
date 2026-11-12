@@ -305,7 +305,14 @@ public sealed class DocTypeDesign
         tab.Sections.RemoveRange(next, moved.Count);
 
         var newTab = new DesignerTab { Title = NextTitle("Tab", Tabs.Select(t => t.Title)), Explicit = true };
-        if (!tail.IsEmpty) newTab.Sections.Add(tail);
+        if (sec.IsEmpty && tab.Sections.Count > 1)
+        {
+            // Nothing of the section stays behind (dropped on its first field, or into an empty section): the
+            // section itself moves to the new tab instead of leaving an empty section here.
+            tab.Sections.Remove(sec);
+            newTab.Sections.Add(tail.IsEmpty ? sec : tail);
+        }
+        else if (!tail.IsEmpty) newTab.Sections.Add(tail);
         newTab.Sections.AddRange(moved);
         if (newTab.Sections.Count == 0) newTab.Sections.Add(new DesignerSection { Title = "Section 1" });
         Tabs.Insert(Tabs.IndexOf(tab) + 1, newTab);

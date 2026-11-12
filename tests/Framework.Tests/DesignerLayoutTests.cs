@@ -87,4 +87,30 @@ sealed partial class Tests
         Assert.Equal("Item", d.ToDef(2).Fields.Single(f => f.Name == "total").Section, "fields stay");
         return Task.CompletedTask;
     }
+
+    [Test]
+    public Task Designer_tab_dropped_into_an_empty_section_moves_that_section_to_the_new_tab()
+    {
+        // Reported scenario: "Add section", then drag Tab into the new (empty) section.
+        var (d, _) = PrDesign();
+        var pengajuan = d.Tabs.Single(t => t.Title == "Pengajuan");
+        var before = pengajuan.Sections.Count;
+        var added = d.AddSection(pengajuan);
+
+        var newTab = d.BreakTab(added, 0, null);
+
+        Assert.Equal(before, pengajuan.Sections.Count, "no empty section left behind in the original tab");
+        Assert.True(newTab.Sections.Count == 1 && ReferenceEquals(newTab.Sections[0], added), "the empty section moved into the new tab");
+        Assert.Equal(1, d.Tabs.IndexOf(newTab), "new tab right after Pengajuan in the tab bar");
+        Assert.True(newTab.IsEmpty, "still empty: fields have to be added (empty tabs are not saved)");
+        Assert.True(d.Warnings.Any(w => w.Contains(newTab.Title)), "editor warns that the empty tab is not saved yet");
+
+        // Dropped on the first field of a section: the whole section (with its title) moves, nothing empty stays.
+        var (sec, col, idx) = At(d, "items"); // first field of section Item
+        var tab2 = d.BreakTab(sec, col, idx);
+        Assert.True(!pengajuan.Sections.Any(s => s.IsEmpty), "no empty section in Pengajuan");
+        Assert.Equal("Item", tab2.Sections[0].Title, "section title kept");
+        Assert.Equal(tab2.Title, d.ToDef(2).Fields.Single(f => f.Name == "items").Tab, "items saved in the new tab");
+        return Task.CompletedTask;
+    }
 }

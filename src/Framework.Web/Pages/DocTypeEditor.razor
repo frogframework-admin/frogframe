@@ -212,6 +212,15 @@ else
                             <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Delete tab" Disabled="@(!ct.IsEmpty || design.Tabs.Count == 1)"
                                       OnClick="() => Mutate(() => { design.RemoveTab(ct); currentTab = design.Tabs[0]; currentSection = currentTab.Sections.FirstOrDefault(); })"><LucideIcon Name="trash-2" Size="16" /></BbButton>
                         </div>
+                        @if (ct.IsEmpty)
+                        {
+                            <BbAlert Variant="AlertVariant.Info" Class="props-block">
+                                <BbAlertDescription>
+                                    Tab “@ct.Title” has no fields yet. Drag fields here from the palette, or move them from another tab.
+                                    Tabs and sections without fields are not saved and do not appear in Preview.
+                                </BbAlertDescription>
+                            </BbAlert>
+                        }
 
                         @foreach (var section in ct.Sections)
                         {
@@ -992,9 +1001,17 @@ else
                     currentTab = design!.BreakTab(sec, col, index);
                     currentSection = currentTab.Sections[0];
                 });
+                // Tabs always appear in the tab bar above the form; say where it went and what moved.
+                var moved = CountFields(currentTab!);
+                if (moved > 0)
+                    Toasts.Success($"Tab “{currentTab!.Title}” added to the tab bar with {moved} field(s) from the drop point onwards.", "Tab");
+                else
+                    Toasts.Info($"Tab “{currentTab!.Title}” added to the tab bar. It has no fields yet: drag fields into it. Tabs without fields are not saved and do not appear in Preview.", "Tab");
                 break;
             case "Section":
                 Mutate(() => currentSection = design!.BreakSection(sec, col, index));
+                if (currentSection is { IsEmpty: true })
+                    Toasts.Info("New section added. It has no fields yet: sections without fields are not saved and do not appear in Preview.", "Section");
                 break;
             default:
                 if (!design!.BreakColumn(sec, col, index)) { Toasts.Warning("A section has at most 3 columns.", "Column"); return; }
