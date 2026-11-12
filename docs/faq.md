@@ -119,5 +119,6 @@ Beyond being a full-stack .NET engineer, the creator has **over 15 years of doma
 Whether you are interested in commercial collaboration, enterprise consulting, feature sponsorships, or simply saying hello:
 
 - **Email**: [bpristiwanto@gmail.com](mailto:bpristiwanto@gmail.com)
+- **LinkedIn**: [Bambang Pristiwanto on LinkedIn](https://www.linkedin.com/in/bambang-pristiwanto-5abb3522/)
 - **Repository**: [FrogFramework on GitHub](https://github.com/frogframework-admin/frogframe)
 
