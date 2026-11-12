@@ -167,7 +167,18 @@ else
         <BbTabsContent Value="design">
             <div class="designer">
                 <aside class="palette" aria-label="Field types">
-                    <div class="props-group-title">ADD FIELD</div>
+                    <div class="props-group-title">LAYOUT</div>
+                    <p class="muted small" style="margin:0 0 .5rem">Click to add at the end, or drag onto a field to start a new tab, section or column from that field.</p>
+                    @foreach (var b in DocTypeDesign.LayoutBreaks)
+                    {
+                        var kind = b;
+                        <div class="palette-item palette-layout" draggable="true" role="button" tabindex="0" title="@LayoutHelp(kind)"
+                             @ondragstart="() => StartBreak(kind)" @ondragend="EndDrag" @onclick="() => AddBreakByClick(kind)"
+                             @onkeydown="@(e => { if (e.Key is "Enter" or " ") AddBreakByClick(kind); })">
+                            <LucideIcon Name="@LayoutIcon(kind)" Size="16" /><span>@kind</span>
+                        </div>
+                    }
+                    <div class="props-group-title" style="margin-top:.75rem">ADD FIELD</div>
                     <p class="muted small" style="margin:0 0 .5rem">Drag to form, or click to add to the selected section.</p>
                     @foreach (var t in DocTypeDesign.FieldTypes)
                     {
@@ -199,7 +210,7 @@ else
                             <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Move tab left" OnClick="() => Mutate(() => DocTypeDesign.MoveItem(design.Tabs, ct, -1))"><LucideIcon Name="arrow-left" Size="16" /></BbButton>
                             <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Move tab right" OnClick="() => Mutate(() => DocTypeDesign.MoveItem(design.Tabs, ct, 1))"><LucideIcon Name="arrow-right" Size="16" /></BbButton>
                             <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Delete tab" Disabled="@(!ct.IsEmpty || design.Tabs.Count == 1)"
-                                      OnClick="() => Mutate(() => { design.RemoveTab(ct); currentTab = design.Tabs[0]; })"><LucideIcon Name="trash-2" Size="16" /></BbButton>
+                                      OnClick="() => Mutate(() => { design.RemoveTab(ct); currentTab = design.Tabs[0]; currentSection = currentTab.Sections.FirstOrDefault(); })"><LucideIcon Name="trash-2" Size="16" /></BbButton>
                         </div>
 
                         @foreach (var section in ct.Sections)
@@ -214,7 +225,7 @@ else
                                     </div>
                                     <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Move section up" OnClick="() => Mutate(() => DocTypeDesign.MoveItem(ct.Sections, sec, -1))"><LucideIcon Name="arrow-up" Size="16" /></BbButton>
                                     <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Move section down" OnClick="() => Mutate(() => DocTypeDesign.MoveItem(ct.Sections, sec, 1))"><LucideIcon Name="arrow-down" Size="16" /></BbButton>
-                                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Delete section" Disabled="@(!sec.IsEmpty)" OnClick="() => Mutate(() => design.RemoveSection(ct, sec))"><LucideIcon Name="trash-2" Size="16" /></BbButton>
+                                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Delete section" Disabled="@(!sec.IsEmpty)" OnClick="() => Mutate(() => { design.RemoveSection(ct, sec); if (currentSection == sec) currentSection = ct.Sections.FirstOrDefault(); })"><LucideIcon Name="trash-2" Size="16" /></BbButton>
                                 </div>
                                 <div class="d-cols cols-@sec.Columns.Count">
                                     @for (var c = 0; c < sec.Columns.Count; c++)
@@ -692,7 +703,8 @@ else
     // Drag & drop
     private string? dragType;
     private FieldDef? dragField;
-    private bool dragging => dragType is not null || dragField is not null;
+    private string? dragBreak; // "Tab", "Section" or "Column" dragged from the LAYOUT palette
+    private bool dragging => dragType is not null || dragField is not null || dragBreak is not null;
     private (DesignerSection Section, int Column, int Index)? hint;
 
     private static readonly IEnumerable<SelectOption<string>> ColumnOptions =
@@ -916,20 +928,79 @@ else
 
     // ---------- drag & drop ----------
 
-    private void StartNew(string type) { dragType = type; dragField = null; }
-    private void StartMove(FieldDef f) { dragField = f; dragType = null; }
-    private void EndDrag() { dragType = null; dragField = null; hint = null; }
+    private void StartNew(string type) { dragType = type; dragField = null; dragBreak = null; }
+    private void StartMove(FieldDef f) { dragField = f; dragType = null; dragBreak = null; }
+    private void StartBreak(string kind) { dragBreak = kind; dragType = null; dragField = null; }
+    private void EndDrag() { dragType = null; dragField = null; dragBreak = null; hint = null; }
     private void Hint(DesignerSection s, int c, int i) => hint = (s, c, i);
     private bool IsHint(DesignerSection s, int c, int i) => dragging && hint is { } h && h.Section == s && h.Column == c && h.Index == i;
 
     private void Drop(DesignerSection sec, int col, int? index)
     {
+        if (dragBreak is { } kind)
+        {
+            DropBreak(kind, sec, col, index);
+            return;
+        }
         if (dragField is { } f) { design!.Move(f, sec, col, index); selected = f; }
         else if (dragType is { } type && lastGoodSnapshot is not null) selected = design!.AddField(type, sec, col, index, lastGoodSnapshot);
         currentSection = sec;
         isDrawerOpen = true;
         EndDrag();
         Recompile();
+    }
+
+    // ---------- layout palette (Tab / Section / Column) ----------
+
+    private static string LayoutIcon(string kind) => kind switch { "Tab" => "panel-top", "Section" => "rows-2", _ => "columns-2" };
+
+    private static string LayoutHelp(string kind) => kind switch
+    {
+        "Tab" => "New tab. Drop on a field: that field and everything after it move to the new tab.",
+        "Section" => "New section. Drop on a field: that field and the fields after it start a new section.",
+        _ => "New column (max. 3). Drop on a field: that field and the ones below it start the next column.",
+    };
+
+    private void AddBreakByClick(string kind)
+    {
+        if (design is null || currentTab is null) return;
+        switch (kind)
+        {
+            case "Tab":
+                AddTab();
+                break;
+            case "Section":
+                Mutate(() => currentSection = design.AddSection(currentTab));
+                break;
+            default:
+                var sec = currentSection ?? currentTab.Sections.FirstOrDefault();
+                if (sec is null) return;
+                if (sec.Columns.Count >= 3) { Toasts.Warning("A section has at most 3 columns.", "Column"); return; }
+                Mutate(() => design.SetColumns(sec, sec.Columns.Count + 1));
+                break;
+        }
+    }
+
+    private void DropBreak(string kind, DesignerSection sec, int col, int? index)
+    {
+        EndDrag();
+        switch (kind)
+        {
+            case "Tab":
+                Mutate(() =>
+                {
+                    currentTab = design!.BreakTab(sec, col, index);
+                    currentSection = currentTab.Sections[0];
+                });
+                break;
+            case "Section":
+                Mutate(() => currentSection = design!.BreakSection(sec, col, index));
+                break;
+            default:
+                if (!design!.BreakColumn(sec, col, index)) { Toasts.Warning("A section has at most 3 columns.", "Column"); return; }
+                Mutate(() => currentSection = sec);
+                break;
+        }
     }
 
     // ---------- tab ----------

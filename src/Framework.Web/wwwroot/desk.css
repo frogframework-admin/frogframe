@@ -2565,6 +2565,12 @@ table.data tbody tr.excluded td {
   outline-offset: 1px;
 }
 
+/* Layout controls (Tab / Section / Column): not fields, so drawn with a dashed border. */
+.palette-item.palette-layout {
+  border-style: dashed;
+  background: var(--muted);
+}
+
 .canvas {
   min-width: 0;
   display: flex;

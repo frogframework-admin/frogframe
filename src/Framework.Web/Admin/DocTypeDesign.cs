@@ -259,6 +259,88 @@ public sealed class DocTypeDesign
         }
     }
 
+    // ---------------- Layout breaks (palette: Tab, Section, Column) ----------------
+    //
+    // Like Frappe's Tab Break / Section Break / Column Break, but only in the designer: dropping one on a field starts
+    // a new tab, section or column at that field; that field and everything after it in reading order move along.
+    // Metadata keeps describing the layout through the tab/section/column properties of the fields.
+
+    /// <summary>Layout controls offered in the palette, in display order.</summary>
+    public static readonly string[] LayoutBreaks = ["Tab", "Section", "Column"];
+
+    public DesignerTab TabOf(DesignerSection sec) => Tabs.First(t => t.Sections.Contains(sec));
+
+    /// <summary>
+    /// Moves the fields from (<paramref name="column"/>, <paramref name="index"/>) onwards out of the section: from that
+    /// column, the fields at and after the index; from later columns, all fields. The new section keeps the column count.
+    /// </summary>
+    private static DesignerSection SplitOff(DesignerSection sec, int column, int index, string? title)
+    {
+        var tail = new DesignerSection { Title = title };
+        while (tail.Columns.Count < sec.Columns.Count) tail.Columns.Add([]);
+        for (var c = column; c < sec.Columns.Count; c++)
+        {
+            var from = c == column ? Math.Clamp(index, 0, sec.Columns[c].Count) : 0;
+            tail.Columns[c].AddRange(sec.Columns[c].Skip(from));
+            sec.Columns[c].RemoveRange(from, sec.Columns[c].Count - from);
+        }
+        // Columns that start empty in the new section would leave a gap on the left: shift the fields to the left.
+        var used = tail.Columns.Where(c => c.Count > 0).ToList();
+        if (used.Count > 0 && used.Count < tail.Columns.Count)
+        {
+            tail.Columns.Clear();
+            tail.Columns.AddRange(used);
+        }
+        return tail;
+    }
+
+    /// <summary>Tab break: a new tab after the current one starts at the given field (or at the end of the column).</summary>
+    public DesignerTab BreakTab(DesignerSection sec, int column, int? index)
+    {
+        var tab = TabOf(sec);
+        var at = index ?? sec.Columns[column].Count;
+        var tail = SplitOff(sec, column, at, sec.Title);
+        var next = tab.Sections.IndexOf(sec) + 1;
+        var moved = tab.Sections.Skip(next).ToList();
+        tab.Sections.RemoveRange(next, moved.Count);
+
+        var newTab = new DesignerTab { Title = NextTitle("Tab", Tabs.Select(t => t.Title)), Explicit = true };
+        if (!tail.IsEmpty) newTab.Sections.Add(tail);
+        newTab.Sections.AddRange(moved);
+        if (newTab.Sections.Count == 0) newTab.Sections.Add(new DesignerSection { Title = "Section 1" });
+        Tabs.Insert(Tabs.IndexOf(tab) + 1, newTab);
+
+        // A tab that kept nothing would not be saved; keep one (empty) section so it can still be filled.
+        if (tab.Sections.Count == 0) tab.Sections.Add(new DesignerSection { Title = "Section 1" });
+        return newTab;
+    }
+
+    /// <summary>Section break: a new section after the current one starts at the given field (or at the end of the column).</summary>
+    public DesignerSection BreakSection(DesignerSection sec, int column, int? index)
+    {
+        var tab = TabOf(sec);
+        var title = NextTitle("Section", tab.Sections.Select(s => s.Title ?? ""));
+        var tail = SplitOff(sec, column, index ?? sec.Columns[column].Count, title);
+        if (tail.IsEmpty) tail = new DesignerSection { Title = title };
+        tab.Sections.Insert(tab.Sections.IndexOf(sec) + 1, tail);
+        return tail;
+    }
+
+    /// <summary>
+    /// Column break: the given field and the ones below it start the next column; later columns shift right.
+    /// False when the section already has the maximum of 3 columns.
+    /// </summary>
+    public bool BreakColumn(DesignerSection sec, int column, int? index)
+    {
+        if (sec.Columns.Count >= 3) return false;
+        var col = sec.Columns[column];
+        var at = Math.Clamp(index ?? col.Count, 0, col.Count);
+        var moved = col.Skip(at).ToList();
+        col.RemoveRange(at, moved.Count);
+        sec.Columns.Insert(column + 1, moved);
+        return true;
+    }
+
     public bool RemoveSection(DesignerTab tab, DesignerSection sec)
     {
         if (!sec.IsEmpty) return false;
