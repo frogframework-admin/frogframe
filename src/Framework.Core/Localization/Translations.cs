@@ -136,9 +136,16 @@ public sealed class TranslationCatalog
     private readonly ConcurrentDictionary<string, IReadOnlyList<Template>> _shippedTemplates = new(StringComparer.Ordinal);
     private int _version;
 
-    public TranslationCatalog(IEnumerable<TranslationFile> files, ITranslationStore store, ILogger<TranslationCatalog>? logger = null, TimeProvider? clock = null)
+    private readonly Framework.Cluster.IClusterBus? _cluster;
+
+    public TranslationCatalog(IEnumerable<TranslationFile> files, ITranslationStore store, ILogger<TranslationCatalog>? logger = null, TimeProvider? clock = null,
+        Framework.Cluster.IClusterBus? cluster = null)
     {
         _store = store;
+        _cluster = cluster;
+        // Multi-node: translations saved on another node are reloaded here at once (not only after TenantCacheTtl).
+        cluster?.Subscribe(Framework.Cluster.ClusterTopics.Translations, tenant => { if (!string.IsNullOrEmpty(tenant)) InvalidateLocal(tenant); });
+        if (cluster is not null) cluster.Reconnected += () => { foreach (var t in _tenants.Keys.ToList()) InvalidateLocal(t); };
         _logger = logger ?? NullLogger<TranslationCatalog>.Instance;
         _clock = clock ?? TimeProvider.System;
         // Later files win: the framework registers its dictionaries first, the application after it.
@@ -221,7 +228,14 @@ public sealed class TranslationCatalog
         Invalidate(tenantId);
     }
 
+    /// <summary>Drops the tenant's cached translations here and on the other nodes.</summary>
     public void Invalidate(string tenantId)
+    {
+        InvalidateLocal(tenantId);
+        _cluster?.Publish(Framework.Cluster.ClusterTopics.Translations, tenantId);
+    }
+
+    private void InvalidateLocal(string tenantId)
     {
         _tenants.TryRemove(tenantId, out _);
         Interlocked.Increment(ref _version);

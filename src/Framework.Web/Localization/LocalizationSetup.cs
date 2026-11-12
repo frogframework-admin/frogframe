@@ -42,7 +42,8 @@ public static class LocalizationSetup
         var files = FrameworkTranslations().Concat(applicationFiles).ToList();
         services.TryAddSingleton<ITranslationStore, InMemoryTranslationStore>();
         services.AddSingleton(sp => new TranslationCatalog(files, sp.GetRequiredService<ITranslationStore>(),
-            sp.GetService<Microsoft.Extensions.Logging.ILogger<TranslationCatalog>>(), sp.GetService<TimeProvider>()));
+            sp.GetService<Microsoft.Extensions.Logging.ILogger<TranslationCatalog>>(), sp.GetService<TimeProvider>(),
+            sp.GetService<Framework.Cluster.IClusterBus>()));
         services.AddScoped<UiText>();
 
         // BlazorBlueprint registers one English localizer for everyone; replace it with one that follows the user's language.

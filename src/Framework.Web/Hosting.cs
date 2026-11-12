@@ -194,6 +194,18 @@ public static class ServiceCollectionExtensions
         // Master roles pengguna.
         services.TryAddSingleton<IRoleStore, InMemoryRoleStore>();
         services.AddSingleton<RoleCatalog>(); // satu sumber nama role (master) untuk editor, publish, dan akun
+        // Multi-node: tanpa PostgreSQL hanya satu node (sinyal tidak dikirim). Lihat docs/guides/multi-node.md.
+        services.TryAddSingleton<Framework.Cluster.IClusterBus, Framework.Cluster.LocalClusterBus>();
+        services.AddHostedService(sp => new Framework.Cluster.ClusterSync(
+            sp.GetRequiredService<Framework.Cluster.IClusterBus>(),
+            sp.GetRequiredService<MetadataRegistry>(),
+            () => new MetadataRegistry(sp.GetRequiredService<MetadataCompiler>(), options.DocTypes, options.Workflows,
+                sp.GetRequiredService<TimeProvider>(), sp.GetService<IMetadataVersionStore>()),
+            sp.GetRequiredService<RoleCatalog>(),
+            sp.GetRequiredService<IRoleStore>(),
+            sp.GetRequiredService<INavigationMenuStore>(),
+            sp.GetService<IDocumentPresenceService>() as DocumentPresenceService,
+            sp.GetRequiredService<ILogger<Framework.Cluster.ClusterSync>>()));
         services.AddSingleton(sp =>
         {
             var cfg = sp.GetService<IConfiguration>();
@@ -217,7 +229,12 @@ public static class ServiceCollectionExtensions
                 var who = http.User.FindFirst(Framework.Web.Identity.ApiKeyDefaults.KeyIdClaim)?.Value is { } k ? "k:" + k
                         : http.User.FindFirst(ClaimTypes.NameIdentifier)?.Value is { } u ? "u:" + u
                         : "ip:" + http.Connection.RemoteIpAddress;
-                var limit = http.RequestServices.GetService<IConfiguration>()?.GetValue("Api:RateLimitPerMinute", 300) ?? 300;
+                var cfg = http.RequestServices.GetService<IConfiguration>();
+                var limit = cfg?.GetValue("Api:RateLimitPerMinute", 300) ?? 300;
+                // The counter lives in each node's memory. With N nodes behind a load balancer that spreads API calls
+                // evenly, Cluster:Nodes = N keeps the total close to Api:RateLimitPerMinute.
+                var nodes = Math.Max(1, cfg?.GetValue("Cluster:Nodes", 1) ?? 1);
+                limit = Math.Max(1, limit / nodes);
                 return RateLimitPartition.GetFixedWindowLimiter(who, _ => new FixedWindowRateLimiterOptions { PermitLimit = limit, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 });
             });
         });

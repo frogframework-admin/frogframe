@@ -941,6 +941,10 @@ public static class PostgreSqlServiceCollectionExtensions
         services.Replace(ServiceDescriptor.Singleton<Framework.Accounting.ILedgerReader, PostgresLedgerReader>());
         services.Replace(ServiceDescriptor.Singleton<IOutboxStore>(sp => sp.GetRequiredService<PostgresDocumentStore>()));
         services.Replace(ServiceDescriptor.Singleton<IDatabaseHealthCheck>(sp => sp.GetRequiredService<PostgresDocumentStore>()));
+        // Multi-node: sinyal antar node lewat LISTEN/NOTIFY (metadata, cache role, presence).
+        services.AddSingleton<PostgresClusterBus>();
+        services.Replace(ServiceDescriptor.Singleton<Framework.Cluster.IClusterBus>(sp => sp.GetRequiredService<PostgresClusterBus>()));
+        services.AddHostedService(sp => sp.GetRequiredService<PostgresClusterBus>());
         services.Replace(ServiceDescriptor.Singleton<INotificationStore, PostgresNotificationStore>());
         services.Replace(ServiceDescriptor.Singleton<Framework.Notifications.INotificationRuleStore, PostgresNotificationRuleStore>());
         services.Replace(ServiceDescriptor.Singleton<Framework.Integrations.IWebhookStore, PostgresWebhookStore>());

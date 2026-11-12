@@ -9,16 +9,32 @@ namespace Framework.Security;
 /// dan role di akun pengguna harus merujuk ke nama yang ada di sini. Metadata yang memakai role tak dikenal ditolak
 /// saat publish (lewat MetadataCompiler); role yang masih dipakai tidak bisa di-rename atau dihapus.
 /// </summary>
-public sealed class RoleCatalog(IRoleStore roles, IUserAccountRepository accounts, INavigationMenuStore navigation)
+public sealed class RoleCatalog(IRoleStore roles, IUserAccountRepository accounts, INavigationMenuStore navigation,
+    Framework.Cluster.IClusterBus? cluster = null)
 {
     private readonly ConcurrentDictionary<string, (IReadOnlySet<string> Data, DateTimeOffset Exp)> _moduleCache = new();
     private readonly ConcurrentDictionary<string, (IReadOnlySet<string> Data, DateTimeOffset Exp)> _roleCache = new();
     private static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(30);
 
+    /// <summary>Clears the tenant's role/module cache here and on the other nodes.</summary>
     public void Invalidate(string tenantId)
+    {
+        InvalidateLocal(tenantId);
+        cluster?.Publish(Framework.Cluster.ClusterTopics.Roles, tenantId);
+    }
+
+    /// <summary>Clears this node's cache only (signal from another node).</summary>
+    public void InvalidateLocal(string tenantId)
     {
         _moduleCache.TryRemove(tenantId, out _);
         _roleCache.TryRemove(tenantId, out _);
+    }
+
+    /// <summary>Clears every tenant's cache on this node (after missed signals).</summary>
+    public void InvalidateAllLocal()
+    {
+        _moduleCache.Clear();
+        _roleCache.Clear();
     }
 
     /// <summary>Role dan kode modul master tenant: daftar yang diizinkan untuk diacu metadata saat publish.</summary>

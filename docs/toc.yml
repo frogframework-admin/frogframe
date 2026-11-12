@@ -56,6 +56,8 @@
       href: observability.md
     - name: Backup & Disaster Recovery
       href: backup-disaster-recovery.md
+    - name: Running on Several Nodes
+      href: guides/multi-node.md
 - name: Extensibility & Runtime
   items:
     - name: Hooks, Form Actions & Scheduler

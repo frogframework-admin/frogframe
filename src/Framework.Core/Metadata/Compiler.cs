@@ -1413,4 +1413,30 @@ public sealed class MetadataRegistry : IMetadataProvider
         }
         return errors;
     }
+
+    // ---------------- Multi-node ----------------
+
+    /// <summary>Fields that belong to this instance and are never taken from a rebuilt registry.</summary>
+    private static readonly HashSet<string> OwnFields = new(StringComparer.Ordinal) { "_compiler", "_gate", "_store", "Published", "<Clock>k__BackingField" };
+
+    /// <summary>
+    /// Takes over the state of a registry rebuilt from the shared store, after another node published metadata.
+    /// <paramref name="rebuild"/> runs under this registry's lock, so it cannot overwrite a publish made here meanwhile.
+    /// All state fields are taken over (also those added by extensions of this class, e.g. customizations), so the
+    /// method stays correct when fields are added. <see cref="Published"/> is NOT raised: the node that published
+    /// already synchronized the database objects (reporting views, indexes).
+    /// </summary>
+    public void ReloadFrom(Func<MetadataRegistry> rebuild)
+    {
+        lock (_gate)
+        {
+            var fresh = rebuild();
+            foreach (var field in typeof(MetadataRegistry).GetFields(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic))
+            {
+                if (OwnFields.Contains(field.Name)) continue;
+                field.SetValue(this, field.GetValue(fresh));
+            }
+            Volatile.Write(ref _current, fresh.Current);
+        }
+    }
 }

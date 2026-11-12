@@ -62,7 +62,8 @@ public sealed class ServerScriptExecutionService : IDisposable
         IPermissionService permissions,
         IEmailQueue? emailQueue = null,
         ILogger<ServerScriptExecutionService>? logger = null,
-        IScriptingSwitch? scriptingSwitch = null)
+        IScriptingSwitch? scriptingSwitch = null,
+        Framework.Cluster.IClusterBus? cluster = null)
     {
         _store = store;
         _services = services;
@@ -72,7 +73,17 @@ public sealed class ServerScriptExecutionService : IDisposable
         _emailQueue = emailQueue;
         _switch = scriptingSwitch;
         _logger = logger ?? NullLogger<ServerScriptExecutionService>.Instance;
+        _cluster = cluster;
+        // Multi-node: a script saved on another node clears the Client Script list and the compiled copy here at once.
+        cluster?.Subscribe(Framework.Cluster.ClusterTopics.Scripts, payload =>
+        {
+            var sep = payload.IndexOf(':');
+            if (sep > 0) InvalidateLocal(payload[..sep], payload[(sep + 1)..]);
+        });
+        if (cluster is not null) cluster.Reconnected += () => _formScripts.Clear();
     }
+
+    private readonly Framework.Cluster.IClusterBus? _cluster;
 
     /// <summary>False when server scripts are switched off (<c>Scripting:Enabled = false</c>).</summary>
     public bool IsEnabled => _switch?.IsEnabled ?? true;
@@ -489,7 +500,14 @@ public sealed class ServerScriptExecutionService : IDisposable
         return compiled;
     }
 
+    /// <summary>Clears the cached script here and on the other nodes (call after saving or deleting a script).</summary>
     public void Invalidate(string tenantId, string scriptId)
+    {
+        InvalidateLocal(tenantId, scriptId);
+        _cluster?.Publish(Framework.Cluster.ClusterTopics.Scripts, $"{tenantId}:{scriptId}");
+    }
+
+    private void InvalidateLocal(string tenantId, string scriptId)
     {
         foreach (var formKey in _formScripts.Keys.Where(k => k.StartsWith(tenantId + ":", StringComparison.Ordinal)).ToList())
             _formScripts.TryRemove(formKey, out _);
