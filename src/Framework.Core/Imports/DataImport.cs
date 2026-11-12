@@ -119,7 +119,7 @@ public sealed partial class DataImportService(DocumentService docs, IMetadataPro
 
     /// <summary>Field yang boleh diisi lewat impor oleh pengguna ini — sama dengan yang boleh ia isi di form.</summary>
     public IReadOnlyList<CompiledField> Fields(UserContext u, CompiledDocType m, bool child = false) => m.Fields.Where(f =>
-        !StandardFields.All.Contains(f.Name) && f.Def.Type is not ("Image" or "Table") && !f.IsDerived
+        !StandardFields.All.Contains(f.Name) && FieldKinds.IsImportable(f.Def.Type) && !f.IsDerived
         && !Always(f.Def.ReadOnlyWhen, "true") && !Always(f.Def.VisibleWhen, "false")
         && (child || permissions.CanWriteField(u, m, f))).ToList();
 
@@ -137,6 +137,16 @@ public sealed partial class DataImportService(DocumentService docs, IMetadataPro
         "Select" => "Salah satu: " + string.Join(", ", f.Def.Options ?? []),
         "Link" => $"Nomor atau nama {f.Def.LinkTo} yang sudah ada",
         "Email" => "Alamat email",
+        "Datetime" => "Tanggal dan jam: sel tanggal-waktu Excel atau 2026-10-30 14:30 (WIB)",
+        "Time" => "Jam: 14:30 atau 14:30:00",
+        "Duration" => "Durasi: detik, 01:30:00, atau 1h 30m",
+        "Percent" => "Persen: 12,5",
+        "Phone" => "Nomor telepon: 081234567890 atau +6281234567890",
+        "Rating" => $"Rating 0 sampai {f.Def.Max ?? 5}",
+        "Color" => "Warna hex, mis. #1f6feb",
+        "TableMultiSelect" => $"Beberapa {f.Def.LinkTo} dipisah koma",
+        "DynamicLink" => $"Nama dokumen sesuai jenis di kolom {f.Def.LinkToField}",
+        "Geolocation" => "Lintang,bujur: -6.2,106.816666",
         _ => f.Def.MaxLength is { } n ? $"Teks (maks. {n} karakter)" : "Teks",
     };
 
@@ -280,6 +290,9 @@ public sealed partial class DataImportService(DocumentService docs, IMetadataPro
         }
     }
 
+    private static readonly string[] DateTimeFormats =
+        ["yyyy-MM-dd HH:mm", "yyyy-MM-dd HH:mm:ss", "yyyy-MM-ddTHH:mm", "yyyy-MM-ddTHH:mm:ss", "dd/MM/yyyy HH:mm", "d/M/yyyy HH:mm", "dd/MM/yyyy HH:mm:ss", "dd-MM-yyyy HH:mm", "d MMM yyyy HH:mm"];
+
     private static readonly string[] DateFormats = ["yyyy-MM-dd", "dd/MM/yyyy", "d/M/yyyy", "dd-MM-yyyy", "d-M-yyyy", "dd.MM.yyyy", "yyyy/MM/dd", "d MMMM yyyy", "dd MMMM yyyy", "d MMM yyyy", "yyyy-MM-ddTHH:mm:ss", "yyyy-MM-dd HH:mm:ss"];
 
     public static bool TryNumber(object? v, out decimal d)
@@ -330,6 +343,19 @@ public sealed partial class DataImportService(DocumentService docs, IMetadataPro
                 if (DateTime.TryParseExact(text, DateFormats, Id, DateTimeStyles.None, out var p) || DateTime.TryParseExact(text, DateFormats, CultureInfo.InvariantCulture, DateTimeStyles.None, out p))
                     return (p.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), null);
                 return (null, $"'{text}' bukan tanggal (pakai 2026-10-30 atau 30/10/2026)");
+            case "Datetime":
+                // Excel date-time cells and local text are read in the default time zone (Asia/Jakarta).
+                if (raw is DateTime ldt) return (ldt.ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture), null);
+                if (raw is decimal oa && oa is > 0 and < 2958466) return (DateTime.FromOADate((double)oa).ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture), null);
+                var dtText = Convert.ToString(raw, CultureInfo.InvariantCulture)!.Trim();
+                if (DateTime.TryParseExact(dtText, DateTimeFormats, Id, DateTimeStyles.None, out var pdt) || DateTime.TryParseExact(dtText, DateTimeFormats, CultureInfo.InvariantCulture, DateTimeStyles.None, out pdt))
+                    return (pdt.ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture), null);
+                var dtn = f.Type.Normalize(dtText);
+                return dtn.Ok ? (dtn.Value, null) : (null, $"'{dtText}' bukan tanggal-waktu (pakai 2026-10-30 14:30)");
+            case "Time":
+                if (raw is DateTime tdt) return (tdt.ToString("HH:mm:ss", CultureInfo.InvariantCulture), null);
+                if (raw is decimal frac && frac is >= 0 and < 1) return (TimeSpan.FromDays((double)frac).ToString(@"hh\:mm\:ss", CultureInfo.InvariantCulture), null);
+                return (Display(raw).Trim(), null);
             case "Select":
                 var sv = Display(raw).Trim();
                 var opt = f.Def.Options?.FirstOrDefault(o => o.Equals(sv, StringComparison.OrdinalIgnoreCase));

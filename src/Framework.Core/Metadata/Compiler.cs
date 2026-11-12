@@ -67,6 +67,8 @@ public sealed class CompiledField
     public object? StaticDefault { get; init; }
     public string? DynamicDefault { get; init; }
     public bool IsDerived => Compute is not null || FetchFrom is not null;
+    /// <summary>Layout-only field (HTML, Button, Heading): no value, never stored.</summary>
+    public bool IsLayout => FieldKinds.IsLayout(Def.Type);
 }
 
 public sealed record LayoutColumn(IReadOnlyList<CompiledField> Fields);
@@ -313,7 +315,47 @@ public sealed partial class MetadataCompiler(IFieldTypeRegistry fieldTypes, Func
                 case "Select":
                     if (f.Options is not { Count: > 0 }) errors.Add(new(src, path, "Field Select membutuhkan options"));
                     break;
+                case "TableMultiSelect":
+                    if (string.IsNullOrEmpty(f.LinkTo) || !defs.TryGetValue(f.LinkTo, out var multiTarget))
+                        errors.Add(new(src, path, $"linkTo '{f.LinkTo}' tidak ditemukan"));
+                    else if (multiTarget.IsChild)
+                        errors.Add(new(src, path, "TableMultiSelect tidak boleh menunjuk child DocType"));
+                    break;
+                case "DynamicLink":
+                    var typeField = string.IsNullOrEmpty(f.LinkToField) ? null : d.Fields.FirstOrDefault(x => x.Name == f.LinkToField);
+                    if (typeField is null)
+                        errors.Add(new(src, path, "linkToField harus menunjuk field di DocType ini yang berisi nama DocType tujuan"));
+                    else if (typeField.Type is not ("Select" or "Data" or "ReadOnly"))
+                        errors.Add(new(src, path, $"Field '{typeField.Name}' (linkToField) harus bertipe Select atau Data"));
+                    else if (typeField.Type == "Select")
+                        foreach (var option in typeField.Options ?? [])
+                            if (!defs.TryGetValue(option, out var optionDef) || optionDef.IsChild)
+                                errors.Add(new(src, path, $"Pilihan '{option}' di field {typeField.Name} bukan DocType"));
+                    break;
+                case "Rating":
+                    if (f.Max is { } ratingMax && (ratingMax < 1 || ratingMax > 10 || ratingMax != Math.Truncate(ratingMax)))
+                        errors.Add(new(src, path, "Maksimum rating harus bilangan bulat 1 sampai 10"));
+                    break;
+                case "Barcode":
+                    if (f.Options is { Count: > 0 } barcodeOptions && !BarcodeFieldType.Formats.Contains(barcodeOptions[0]))
+                        errors.Add(new(src, path, $"Format barcode '{barcodeOptions[0]}' tidak didukung ({string.Join(", ", BarcodeFieldType.Formats)})"));
+                    break;
+                case "Button":
+                    if (string.IsNullOrWhiteSpace(f.ButtonAction)) errors.Add(new(src, path, "Field Button membutuhkan buttonAction (ActionId form action)"));
+                    break;
             }
+
+            // Gap #3 types: where they may be used and what they may carry.
+            if (d.IsChild && !FieldKinds.AllowedInChildTable(f.Type))
+                errors.Add(new(src, path, $"Tipe {f.Type} tidak bisa dipakai di child table"));
+            if (f.Type is "Password" or "Attach" or "Signature" || FieldKinds.IsLayout(f.Type))
+            {
+                if (f.Compute is not null) errors.Add(new(src, path, $"Field {f.Type} tidak dapat di-compute"));
+                if (f.FetchFrom is not null) errors.Add(new(src, path, $"Field {f.Type} tidak dapat memakai fetchFrom"));
+                if (f.Default is { ValueKind: not JsonValueKind.Null }) errors.Add(new(src, path, $"Field {f.Type} tidak boleh punya default"));
+            }
+            if (FieldKinds.IsLayout(f.Type) && !string.IsNullOrEmpty(f.RequiredWhen))
+                errors.Add(new(src, path, $"Field {f.Type} hanya tampilan dan tidak bisa wajib diisi"));
 
             Regex? rx = null;
             if (!string.IsNullOrEmpty(f.Pattern))
@@ -502,7 +544,8 @@ public sealed partial class MetadataCompiler(IFieldTypeRegistry fieldTypes, Func
         var lv = d.ListView;
         var columns = lv.Columns ?? d.Fields.Where(f => f.InListView).Select(f => f.Name).ToList();
         foreach (var c in columns.Concat(lv.Filters).Concat(lv.SearchFields).Concat(lv.DefaultSort.Select(s => s.Field)))
-            if (!StandardFields.Queryable.Contains(c) && !(byName.TryGetValue(c, out var cf) && cf.Def.Type != "Table"))
+            if (!StandardFields.Queryable.Contains(c) && !(byName.TryGetValue(c, out var cf) && cf.Def.Type != "Table"
+                    && (cf.Def.Type == "Image" || FieldKinds.IsQueryable(cf.Def.Type))))
                 errors.Add(new(src, "listView", $"Field '{c}' tidak dapat dipakai di list view"));
         foreach (var s in lv.SearchFields)
             if (byName.TryGetValue(s, out var sf) && !sf.Type.Searchable)

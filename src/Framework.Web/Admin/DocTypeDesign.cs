@@ -29,7 +29,14 @@ public sealed class DesignerTab
 public sealed class DocTypeDesign
 {
     public const string DefaultTab = "Detail";
-    public static readonly string[] FieldTypes = ["Data", "Text", "Email", "Int", "Float", "Currency", "Check", "Date", "Select", "Link", "Table", "Image"];
+    public static readonly string[] FieldTypes =
+    [
+        "Data", "Text", "Email", "Int", "Float", "Currency", "Check", "Date", "Select", "Link", "Table", "Image",
+        // Gap #3 (Frappe parity)
+        "Datetime", "Time", "Duration", "Percent", "Phone", "TextEditor", "Markdown", "Attach", "Password",
+        "DynamicLink", "TableMultiSelect", "Rating", "Color", "JSON", "Signature", "Barcode", "Geolocation",
+        "ReadOnly", "HTML", "Button", "Heading",
+    ];
 
     private DocTypeDef _def = new();
     /// <summary>Posisi asli field di metadata sumber, untuk mempertahankan urutan saat kolom digabung kembali.</summary>
@@ -166,8 +173,24 @@ public sealed class DocTypeDesign
             f.LinkTo = snapshot.DocTypes.Values.Where(d => !d.Def.IsChild && d.Name != _def.Name).Select(d => d.Name).Order().FirstOrDefault();
         if (f.Type == "Table" && f.ChildDocType is null)
             f.ChildDocType = snapshot.DocTypes.Values.Where(d => d.Def.IsChild).Select(d => d.Name).Order().FirstOrDefault();
-        if (f.Type != "Select") f.Options = null;
-        if (f.Type != "Link") { f.LinkTo = null; f.LookupDialog = false; }
+        if (f.Type == "TableMultiSelect" && (f.LinkTo is null || !snapshot.TryGet(f.LinkTo, out _)))
+            f.LinkTo = snapshot.DocTypes.Values.Where(d => !d.Def.IsChild && d.Name != _def.Name).Select(d => d.Name).Order().FirstOrDefault();
+        if (f.Type == "DynamicLink" && f.LinkToField is null)
+            f.LinkToField = AllFields.FirstOrDefault(x => x.Type == "Select" && x != f)?.Name;
+        if (f.Type == "HTML" && f.Content is null) f.Content = "<p>Text shown on the form.</p>";
+        if (f.Type is "Rating" && f.Max is null) f.Max = 5;
+        if (f.Type is not ("Select" or "Barcode")) f.Options = null;
+        if (f.Type is not ("Link" or "TableMultiSelect")) f.LinkTo = null;
+        if (f.Type != "Link") f.LookupDialog = false;
+        if (f.Type != "DynamicLink") f.LinkToField = null;
+        if (f.Type is not ("HTML" or "Heading")) f.Content = null;
+        if (f.Type != "Button") f.ButtonAction = null;
+        if (FieldKinds.IsLayout(f.Type) || f.Type is "Password" or "Attach" or "Signature")
+        {
+            f.Compute = null; f.FetchFrom = null; f.Default = null; f.InListView = false;
+            if (FieldKinds.IsLayout(f.Type)) f.RequiredWhen = null;
+        }
+        if (!FieldKinds.IsQueryable(f.Type) && f.Type != "Image") f.InListView = false;
         if (f.Type != "Table") { f.ChildDocType = null; f.AddFromLookup = null; }
     }
 
@@ -274,7 +297,7 @@ public sealed class DocTypeDesign
         if (string.IsNullOrWhiteSpace(text)) return null;
         var t = text.Trim();
         if (t.StartsWith('$')) return JsonSerializer.SerializeToElement(t);
-        if (fieldType is "Int" or "Float" or "Currency" && decimal.TryParse(t, NumberStyles.Number, CultureInfo.InvariantCulture, out var d))
+        if (fieldType is "Int" or "Float" or "Currency" or "Percent" or "Rating" or "Duration" && decimal.TryParse(t, NumberStyles.Number, CultureInfo.InvariantCulture, out var d))
             return JsonSerializer.SerializeToElement(d);
         if (fieldType == "Check" && bool.TryParse(t, out var b)) return JsonSerializer.SerializeToElement(b);
         return JsonSerializer.SerializeToElement(t);

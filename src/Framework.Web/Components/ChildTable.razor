@@ -32,7 +32,7 @@
                             <FieldInput Field="f" DocType="@ChildMeta.Name" Value="row.GetValueOrDefault(f.Name)" Compact="true"
                                         ReadOnly="@(ReadOnly || state.ReadOnly)" Invalid="@(err is not null)"
                                         Id="@($"{Table.Name}-{idx}-{f.Name}")"
-                                        ValueChanged="v => SetCell(row, f.Name, v)" />
+                                        ValueChanged="v => SetCell(row, f.Name, v)" Data="row" />
                             @if (err is not null) { <span class="cell-error">@err</span> }
                         </td>
                     }

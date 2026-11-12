@@ -1,0 +1,87 @@
+@* Attach field: upload one file (PDF, Office .docx/.xlsx, CSV, text, PNG/JPEG/WebP/GIF; max 10 MB; type checked from the
+   content), download, replace, remove. Stored via FileService; field value = file id. Download via /files/{id}
+   (tenant + document permission checks; non-images are sent as attachment with the original name). *@
+@using Framework.Files
+@using Microsoft.AspNetCore.Components.Forms
+@inject FileService Files
+@inject IFileStore FileStore
+@inject CurrentUser Current
+
+<div class="attach-field @(Compact ? "compact" : "")" style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+    @if (Value is not null)
+    {
+        <a href="@($"/files/{Value}")" target="_blank" rel="noopener" class="attach-link" style="display:inline-flex;align-items:center;gap:.35rem">
+            <LucideIcon Name="paperclip" Size="15" /> @(info?.FileName ?? "Attached file")
+        </a>
+        @if (info is not null && !Compact) { <span class="muted small">@Size(info.Size)</span> }
+    }
+    else if (ReadOnly)
+    {
+        <span class="muted">—</span>
+    }
+    @if (!ReadOnly)
+    {
+        <label class="image-pick @(busy ? "busy" : "")">
+            <InputFile id="@Id" accept="@Accept" OnChange="Upload" disabled="@busy" />
+            <LucideIcon Name="upload" Size="15" /> @(busy ? "Uploading…" : Value is null ? "Upload file" : "Replace")
+        </label>
+        @if (Value is not null && !busy)
+        {
+            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="() => ValueChanged.InvokeAsync(null)">Remove</BbButton>
+        }
+        @if (!Compact) { <span class="muted small">PDF, Word, Excel, CSV, text or image · max. 10 MB</span> }
+        @if (error is not null) { <span class="image-error" role="alert">@error</span> }
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public CompiledField Field { get; set; } = default!;
+    [Parameter, EditorRequired] public string DocType { get; set; } = "";
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public EventCallback<object?> ValueChanged { get; set; }
+    [Parameter] public bool ReadOnly { get; set; }
+    [Parameter] public bool Compact { get; set; }
+    [Parameter] public string? Id { get; set; }
+
+    private const string Accept = ".pdf,.docx,.xlsx,.csv,.txt,.log,image/png,image/jpeg,image/webp,image/gif";
+    private bool busy;
+    private string? error;
+    private FileRecord? info;
+    private string? infoFor;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Value == infoFor) return;
+        infoFor = Value;
+        info = null;
+        if (Value is null || Current.User is not { } user) return;
+        // Metadata only (name/size) for display; the file itself is served by /files/{id} with full permission checks.
+        var record = await FileStore.GetInfoAsync(user.TenantId, Value);
+        info = record is not null && (record.DocName is not null || record.UploadedBy == user.Id) ? record : null;
+    }
+
+    private async Task Upload(InputFileChangeEventArgs e)
+    {
+        error = null;
+        if (e.File.Size > FileService.MaxAttachBytes) { error = "File size must be at most 10 MB."; return; }
+        busy = true;
+        try
+        {
+            await using var stream = e.File.OpenReadStream(FileService.MaxAttachBytes + 1);
+            var id = await Files.UploadFieldFileAsync(Current.Required, DocType, Field.Name, e.File.Name, stream);
+            await ValueChanged.InvokeAsync(id);
+        }
+        catch (Exception ex) when (ex is FileRejectedException or PermissionDeniedException or IOException)
+        {
+            error = ex is IOException ? "File size must be at most 10 MB." : ex.Message;
+        }
+        finally { busy = false; }
+    }
+
+    private static string Size(long bytes) => bytes switch
+    {
+        < 1024 => $"{bytes} B",
+        < 1024 * 1024 => $"{bytes / 1024.0:0.#} KB",
+        _ => $"{bytes / (1024.0 * 1024):0.#} MB",
+    };
+}

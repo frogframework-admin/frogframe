@@ -31,6 +31,42 @@ Accessible at `/admin/metadata/{DocType}/editor`:
   - **Requires Transformation**: Renaming fields, changing types.
   - **High Risk**: Deleting fields, removing roles, narrowing permissions. High-risk changes require explicit administrator confirmation.
 
+### Field types
+
+| Type | Stored value | Editor (BlazorBlueprint) | Notes |
+|---|---|---|---|
+| `Data`, `Text`, `Email` | text | input / textarea | |
+| `Int`, `Float`, `Currency` | number | numeric input | `min`, `max` |
+| `Check` | true/false | checkbox | |
+| `Date` | `yyyy-MM-dd` | `BbDatePicker` | |
+| `Select` | text | `BbSelect` | `options` required |
+| `Link` | document name | `BbCombobox` search | `linkTo`, `linkFilters`, `lookupDialog` |
+| `Table` | rows | child table | `childDocType` |
+| `Image` | file id | upload | PNG/JPEG/WebP/GIF, 2 MB |
+| `Datetime` | UTC `yyyy-MM-ddTHH:mm:ssZ` | `BbDateTimePicker` (24 h) | Shown and entered in Asia/Jakarta (`FieldTypeSettings.DefaultTimeZone`); API input without offset is read in that zone. Reporting column type `timestamptz` |
+| `Time` | `HH:mm:ss` | `BbTimeInput` | Reporting column type `time` |
+| `Duration` | seconds (number) | text input: `1h 30m`, `01:30:00` or seconds | Shown as `1h 30m` |
+| `Percent` | number (2 decimals) | numeric input + `%` | `min`, `max` |
+| `Phone` | E.164 `+628123456789` | `tel` input | `0812…` becomes `+62812…` (`FieldTypeSettings.DefaultCountryCode`) |
+| `TextEditor` | sanitized HTML | `BbRichTextEditor` (Quill) | Sanitized on the server on every write (HtmlSanitizer), again when rendered. Not usable in list/filter/search or child tables |
+| `Markdown` | text | `BbMarkdownEditor` | Not usable in list/filter/search or child tables |
+| `Attach` | file id | upload + download | PDF, .docx, .xlsx, CSV, text, images; 10 MB; type detected from content; downloaded with its original name |
+| `Password` | encrypted (`enc:v1:…`, ASP.NET Data Protection) | password input | Never returned by reads (UI/API show `********`); empty or `********` on save keeps the stored value; masked in the audit trail; not listed, filtered, reported, imported or printed. Server code reads it with `PasswordFieldType.Reveal` |
+| `DynamicLink` | document name | link search on the DocType chosen in `linkToField` | `linkToField` = a Select (options are DocType names) or Data field. Checked for existence and read permission |
+| `TableMultiSelect` | list of document names | `BbMultiSelect` with search | `linkTo`. Each name is checked; stored as a JSON array (not a child table) |
+| `Rating` | number 0–10, steps of 0.5 | `BbRating` | `max` = number of stars (default 5) |
+| `Color` | `#rrggbb` | `BbColorPicker` | |
+| `JSON` | compact JSON text | monospace textarea | Accepts a JSON string or object in the API |
+| `Signature` | SVG | `BbSignature` (drawn or typed) | Only plain SVG is accepted; always displayed through `<img>` so embedded scripts cannot run |
+| `Barcode` | text | input + `BbBarcode` preview | `options[0]` = format: Code128 (default), Code39, Ean13, Ean8, UpcA, Itf, Codabar, Msi. Display only (no camera scanning) |
+| `Geolocation` | `lat,lng` | latitude + longitude inputs | Read-only view links to OpenStreetMap |
+| `ReadOnly` | text | shown as text | Filled by `fetchFrom`, a formula, or server code |
+| `HTML` | – | static block | `content`, sanitized when rendered |
+| `Heading` | – | section heading | `label`, optional `content` subtitle |
+| `Button` | – | button | `buttonAction` = ActionId of a form action registered for the DocType; runs on the saved document |
+
+`HTML`, `Heading` and `Button` hold no value: anything sent for them is ignored. Child tables cannot use `TextEditor`, `Markdown`, `JSON`, `Signature`, `TableMultiSelect`, `Password` or the layout types.
+
 ---
 
 ## 3. Workflow State Machine Design

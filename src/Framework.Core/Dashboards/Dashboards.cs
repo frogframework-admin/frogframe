@@ -782,10 +782,11 @@ public static class ReportingCatalog
     }
 
     /// <summary>Field yang diekspos ke view: hanya level izin 0; child table jadi view sendiri; gambar tidak diekspos.</summary>
-    public static bool Exposed(CompiledField f) => f.Def.PermLevel == 0 && f.Def.Type is not ("Table" or "Image");
+    public static bool Exposed(CompiledField f) => f.Def.PermLevel == 0 && FieldKinds.IsReported(f.Def.Type);
 
     public static string TypeLabel(CompiledField f) =>
-        f.Type.ClrType == typeof(long) || f.Type.ClrType == typeof(decimal) ? "angka" : f.Type.ClrType == typeof(bool) ? "boolean" : f.Def.Type == "Date" ? "tanggal" : "teks";
+        f.Type.ClrType == typeof(long) || f.Type.ClrType == typeof(decimal) ? "angka" : f.Type.ClrType == typeof(bool) ? "boolean"
+        : f.Def.Type == "Date" ? "tanggal" : f.Def.Type == "Datetime" ? "waktu" : f.Def.Type == "Time" ? "jam" : "teks";
 
     public static IReadOnlyList<ReportingView> Describe(MetadataSnapshot snap)
     {

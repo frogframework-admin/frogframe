@@ -47,7 +47,7 @@ else if (errors.Count > 0)
                                             if (!st.Visible) continue;
                                             var err = errors.GetValueOrDefault(f.Name);
                                             <BbField IsInvalid="@(err is not null)">
-                                                @if (f.Type.Editor != "check" && !(f.Def.Type == "Table" && f.Label == sec.Title))
+                                                @if (f.Type.Editor != "check" && !f.IsLayout && !(f.Def.Type == "Table" && f.Label == sec.Title))
                                                 {
                                                     <BbFieldLabel For="@($"pv-{f.Name}")">
                                                         <span class="label-row">@f.Label@if (st.Required) { <span class="req">*</span> }
@@ -63,7 +63,7 @@ else if (errors.Count > 0)
                                                 else if (f.Def.Type != "Table")
                                                 {
                                                     <FieldInput Field="f" Id="@($"pv-{f.Name}")" DocType="@Meta.Name" Value="model.GetValueOrDefault(f.Name)" ReadOnly="st.ReadOnly"
-                                                                Invalid="@(err is not null)" ValueChanged="v => SetValue(f, v)" />
+                                                                Invalid="@(err is not null)" ValueChanged="v => SetValue(f, v)" Data="model" />
                                                 }
                                                 @if (err is not null) { <BbFieldError Errors="@(new[] { err })" /> }
                                                 else if (f.Def.Description is not null) { <BbFieldDescription>@f.Def.Description</BbFieldDescription> }

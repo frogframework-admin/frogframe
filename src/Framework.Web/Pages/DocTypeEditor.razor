@@ -983,12 +983,22 @@ else
     private static string TypeIcon(string t) => t switch
     {
         "Data" => "type", "Text" => "align-left", "Email" => "mail", "Int" => "hash", "Float" => "sigma", "Currency" => "banknote",
-        "Check" => "square-check", "Date" => "calendar", "Select" => "list", "Link" => "link", "Table" => "table", "Image" => "image", _ => "square"
+        "Check" => "square-check", "Date" => "calendar", "Select" => "list", "Link" => "link", "Table" => "table", "Image" => "image",
+        "Datetime" => "calendar-clock", "Time" => "clock", "Duration" => "timer", "Percent" => "percent", "Phone" => "phone",
+        "TextEditor" => "text-cursor-input", "Markdown" => "file-text", "Attach" => "paperclip", "Password" => "key-round",
+        "DynamicLink" => "link-2", "TableMultiSelect" => "list-checks", "Rating" => "star", "Color" => "palette", "JSON" => "braces",
+        "Signature" => "signature", "Barcode" => "barcode", "Geolocation" => "map-pin", "ReadOnly" => "eye", "HTML" => "code",
+        "Button" => "mouse-pointer-click", "Heading" => "heading", _ => "square"
     };
 
     private static string TypeLabel(string t) => t switch
     {
         "Data" => "Short text", "Text" => "Long text", "Email" => "Email", "Int" => "Integer", "Float" => "Decimal",
-        "Currency" => "Currency", "Check" => "Checkbox", "Date" => "Date", "Select" => "Select", "Link" => "Link to DocType", "Table" => "Child table", "Image" => "Image", _ => t
+        "Currency" => "Currency", "Check" => "Checkbox", "Date" => "Date", "Select" => "Select", "Link" => "Link to DocType", "Table" => "Child table", "Image" => "Image",
+        "Datetime" => "Date & time", "Time" => "Time", "Duration" => "Duration", "Percent" => "Percent", "Phone" => "Phone",
+        "TextEditor" => "Rich text", "Markdown" => "Markdown", "Attach" => "File", "Password" => "Password",
+        "DynamicLink" => "Dynamic link", "TableMultiSelect" => "Multi-select links", "Rating" => "Rating", "Color" => "Color", "JSON" => "JSON",
+        "Signature" => "Signature", "Barcode" => "Barcode", "Geolocation" => "Location", "ReadOnly" => "Read-only text", "HTML" => "HTML block",
+        "Button" => "Button", "Heading" => "Heading", _ => t
     };
 }

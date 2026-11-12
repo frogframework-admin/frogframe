@@ -188,7 +188,7 @@ else if (meta is not null && doc is not null)
                                                 var ro = FieldReadOnly(f, st);
                                                 <div id="@Anchor(f.Name)" class="@(f.Def.PermLevel > 0 ? "restricted" : "")">
                                                     <BbField IsInvalid="@(err is not null)">
-                                                        @if (f.Type.Editor != "check" && !(f.Def.Type == "Table" && f.Label == sec.Title))
+                                                        @if (f.Type.Editor != "check" && !f.IsLayout && !(f.Def.Type == "Table" && f.Label == sec.Title))
                                                         {
                                                             <BbFieldLabel For="@f.Name">
                                                                 <span class="label-row">
@@ -206,7 +206,7 @@ else if (meta is not null && doc is not null)
                                                         else
                                                         {
                                                             <FieldInput Field="f" Id="@f.Name" DocType="@meta.Name" Value="model.GetValueOrDefault(f.Name)" ReadOnly="ro" Invalid="@(err is not null)"
-                                                                        ValueChanged="v => SetValue(f, v)" />
+                                                                        ValueChanged="v => SetValue(f, v)" Data="model" OnButton="RunButtonField" />
                                                         }
                                                         @if (err is not null) { <BbFieldError Errors="@(new[] { err })" /> }
                                                         else if (f.Def.Description is not null && !ro) { <BbFieldDescription>@f.Def.Description</BbFieldDescription> }
@@ -547,6 +547,23 @@ else if (meta is not null && doc is not null)
         !IsNew && doc is not null && User is not null
             ? (RegisteredFormActions ?? []).Where(a => string.Equals(a.DocType, DocType, StringComparison.Ordinal) && a.IsVisible(User, doc))
             : [];
+
+    /// <summary>Button field: runs the form action named in its metadata (buttonAction) on the saved document.</summary>
+    private async Task RunButtonField(CompiledField f)
+    {
+        if (IsNew || doc is null)
+        {
+            Toasts.Info("Save the document first.", f.Label);
+            return;
+        }
+        var action = CustomActions.FirstOrDefault(a => string.Equals(a.ActionId, f.Def.ButtonAction, StringComparison.Ordinal));
+        if (action is null)
+        {
+            Toasts.Error($"Action '{f.Def.ButtonAction}' is not available for this document.", f.Label);
+            return;
+        }
+        await RunCustomAction(action);
+    }
 
     private async Task RunCustomAction(Framework.Actions.IFormAction action)
     {

@@ -130,7 +130,8 @@ internal sealed class SqlQueryBuilder(CompiledDocType? meta)
     {
         if (Standard.TryGetValue(field, out var std))
             return (std.Type == NpgsqlDbType.Numeric ? $"d.{std.Column}::numeric" : $"d.{std.Column}", std.Type);
-        if (meta is null || !meta.ByName.TryGetValue(field, out var f) || f.Def.Type == "Table")
+        if (meta is null || !meta.ByName.TryGetValue(field, out var f) || f.Def.Type == "Table"
+            || (f.Def.Type != "Image" && !FieldKinds.IsQueryable(f.Def.Type)))
             throw new InvalidPayloadException($"Field '{field}' tidak dapat dipakai dalam query", [field]);
         var type = f.Type.ClrType == typeof(long) || f.Type.ClrType == typeof(decimal) ? NpgsqlDbType.Numeric
                  : f.Type.ClrType == typeof(bool) ? NpgsqlDbType.Boolean : NpgsqlDbType.Text;

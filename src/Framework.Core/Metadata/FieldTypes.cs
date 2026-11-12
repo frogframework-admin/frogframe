@@ -14,7 +14,9 @@ public interface IFieldType
 {
     string Name { get; }
     Type ClrType { get; }
-    /// <summary>Kategori renderer UI: text, textarea, number, check, date, select, link, table.</summary>
+    /// <summary>Kategori renderer UI: text, textarea, number, check, date, select, link, table, image, plus the
+    /// Gap #3 editors (datetime, time, duration, percent, phone, texteditor, markdown, attach, password, dynamiclink,
+    /// multiselect, rating, color, json, signature, barcode, geolocation, readonly, html, button, heading).</summary>
     string Editor { get; }
     bool Searchable => false;
     NormalizeResult Normalize(object? raw);
@@ -42,7 +44,14 @@ public sealed class FieldTypeRegistry : IFieldTypeRegistry
     [
         new TextType("Data", "text", 140), new TextType("Text", "textarea", 5000), new EmailType(),
         new IntType(), new DecimalType("Float", 6), new DecimalType("Currency", 2),
-        new CheckType(), new DateType(), new SelectType(), new LinkType(), new TableType(), new ImageType()
+        new CheckType(), new DateType(), new SelectType(), new LinkType(), new TableType(), new ImageType(),
+        // Gap #3 (Frappe parity). Password needs a secret protector and is registered by the host (AddFrogFramework).
+        new DatetimeFieldType(), new TimeFieldType(), new DurationFieldType(), new DecimalType("Percent", 2, "percent"),
+        new PhoneFieldType(), new TextEditorFieldType(), new MarkdownFieldType(), new AttachFieldType(),
+        new DynamicLinkFieldType(), new TableMultiSelectFieldType(), new RatingFieldType(), new ColorFieldType(),
+        new JsonFieldType(), new SignatureFieldType(), new BarcodeFieldType(), new GeolocationFieldType(),
+        new ReadOnlyFieldType(), new LayoutFieldType("HTML", "html"), new LayoutFieldType("Button", "button"),
+        new LayoutFieldType("Heading", "heading"),
     ];
 }
 
@@ -104,11 +113,11 @@ public sealed class IntType : IFieldType
     }
 }
 
-public sealed class DecimalType(string name, int scale) : IFieldType
+public sealed class DecimalType(string name, int scale, string editor = "number") : IFieldType
 {
     public string Name => name;
     public Type ClrType => typeof(decimal);
-    public string Editor => "number";
+    public string Editor => editor;
     public NormalizeResult Normalize(object? raw)
     {
         var v = Raw.Unwrap(raw);

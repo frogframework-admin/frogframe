@@ -166,6 +166,12 @@ public sealed class FieldDef
     /// <summary>"linkField.targetField" — nilai diambil server dari dokumen tertaut.</summary>
     public string? FetchFrom { get; set; }
     public string? LinkTo { get; set; }
+    /// <summary>DynamicLink: name of the field in the same DocType that holds the target DocType name.</summary>
+    public string? LinkToField { get; set; }
+    /// <summary>HTML field: static content (sanitized when rendered). Heading: optional subtitle.</summary>
+    public string? Content { get; set; }
+    /// <summary>Button field: ActionId of a registered form action (IFormAction) for this DocType.</summary>
+    public string? ButtonAction { get; set; }
     /// <summary>Filter statis untuk Link (lihat LinkFilterDef).</summary>
     public List<LinkFilterDef> LinkFilters { get; set; } = [];
     public string? ChildDocType { get; set; }

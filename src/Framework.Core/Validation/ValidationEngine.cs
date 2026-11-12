@@ -68,6 +68,7 @@ public sealed class DocumentEvaluator(ExpressionEvaluator evaluator, TimeProvide
     {
         foreach (var f in meta.Fields)
         {
+            if (f.IsLayout) continue; // HTML, Button, Heading hold no value
             if (f.Def.Type == "Table") { if (!data.ContainsKey(f.Name)) data[f.Name] = new List<Dictionary<string, object?>>(); continue; }
             if (!data.TryGetValue(f.Name, out var v) || Values.IsEmpty(v))
             {
@@ -130,6 +131,7 @@ public sealed class ValidationEngine(DocumentEvaluator evaluator, IValidatorRegi
     {
         foreach (var f in meta.Fields)
         {
+            if (f.IsLayout) continue;
             var path = prefix + f.Name;
             var value = data.GetValueOrDefault(f.Name);
             var state = evaluator.StateOf(f, data, user, parent);
@@ -157,6 +159,16 @@ public sealed class ValidationEngine(DocumentEvaluator evaluator, IValidatorRegi
                 if (f.Def.Max is { } max && d > max) errors.Add(new(path, $"{f.Label} maksimal {max.ToString(CultureInfo.InvariantCulture)}"));
             }
 
+            if (f.Def.Type == "Rating" && f.Def.Max is null && Values.ToDecimal(value) > 5)
+                errors.Add(new(path, $"{f.Label} maksimal 5"));
+
+            if (f.Def.Type == "TableMultiSelect")
+            {
+                foreach (var item in TableMultiSelectFieldType.Items(value))
+                    if (await lookup.GetAsync(f.Def.LinkTo!, item, ct) is null)
+                        errors.Add(new(path, $"{f.Label}: {f.Def.LinkTo} '{item}' tidak ditemukan"));
+            }
+
             if (value is string s)
             {
                 if (f.Def.MaxLength is { } ml && s.Length > ml) errors.Add(new(path, $"{f.Label} maksimal {ml} karakter"));
@@ -168,6 +180,22 @@ public sealed class ValidationEngine(DocumentEvaluator evaluator, IValidatorRegi
                 }
                 if (f.Def.Type == "Select" && f.Def.Options is { } opts && !opts.Contains(s))
                     errors.Add(new(path, $"{f.Label} harus salah satu dari: {string.Join(", ", opts)}"));
+                if (f.Def.Type == "DynamicLink")
+                {
+                    var targetType = f.Def.LinkToField is { } tf ? data.GetValueOrDefault(tf) as string : null;
+                    CompiledDocType? targetMeta = null;
+                    if (!string.IsNullOrWhiteSpace(targetType))
+                    {
+                        try { targetMeta = resolve(targetType); }
+                        catch (Exception ex) when (ex is KeyNotFoundException or InvalidOperationException) { targetMeta = null; }
+                    }
+                    if (string.IsNullOrWhiteSpace(targetType))
+                        errors.Add(new(path, $"{f.Label}: pilih jenis dokumen ({f.Def.LinkToField}) terlebih dahulu"));
+                    else if (targetMeta is null || targetMeta.Def.IsChild)
+                        errors.Add(new(path, $"{f.Label}: DocType '{targetType}' tidak dikenal"));
+                    else if (await lookup.GetAsync(targetMeta.Name, s, ct) is null)
+                        errors.Add(new(path, $"{f.Label}: {targetMeta.Name} '{s}' tidak ditemukan"));
+                }
                 if (f.Def.Type == "Link")
                 {
                     var linked = await lookup.GetAsync(f.Def.LinkTo!, s, ct);

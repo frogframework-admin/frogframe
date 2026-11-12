@@ -39,7 +39,7 @@ public sealed class DocumentIndexSync(SchemaDataSource schema, IMetadataProvider
         foreach (var meta in snapshot.DocTypes.Values.Where(m => !m.Def.IsChild).OrderBy(m => m.Name))
         {
             var lv = meta.Def.ListView;
-            bool Indexable(string f) => !StandardFields.All.Contains(f) && meta.ByName.TryGetValue(f, out var cf) && cf.Def.Type is not ("Table" or "Image");
+            bool Indexable(string f) => !StandardFields.All.Contains(f) && meta.ByName.TryGetValue(f, out var cf) && FieldKinds.IsQueryable(cf.Def.Type);
             // Field urut default: indeks dengan arah urut persis sama dengan query (+ name sebagai penentu urutan kedua),
             // sehingga "ORDER BY … LIMIT 20" cukup membaca 20 entri indeks, bukan mengurutkan semua baris.
             var sorted = new HashSet<string>();
@@ -58,7 +58,7 @@ public sealed class DocumentIndexSync(SchemaDataSource schema, IMetadataProvider
                     $"ON frogframe_documents (tenant_id, ({Expression(f)})) WHERE doctype = '{meta.Name}'"));
             }
             var trgm = lv.SearchFields
-                .Where(f => !StandardFields.All.Contains(f) && meta.ByName.TryGetValue(f, out var cf) && cf.Type.ClrType == typeof(string) && cf.Def.Type is not ("Table" or "Image"))
+                .Where(f => !StandardFields.All.Contains(f) && meta.ByName.TryGetValue(f, out var cf) && cf.Type.ClrType == typeof(string) && FieldKinds.IsQueryable(cf.Def.Type))
                 .Distinct();
             foreach (var name in trgm)
             {

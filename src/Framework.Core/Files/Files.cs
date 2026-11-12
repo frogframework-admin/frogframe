@@ -23,6 +23,8 @@ public sealed record FileRecord
     public string? DocType { get; init; }
     public string? DocName { get; init; }
     public string? Field { get; init; }
+    /// <summary>Original file name (Attach fields); null for images.</summary>
+    public string? FileName { get; init; }
 }
 
 public interface IFileStore
@@ -109,6 +111,52 @@ public sealed class FileService(IFileStore store, IMetadataProvider metadata, IP
         };
         await store.SaveAsync(record, bytes, ct);
         return record.Id;
+    }
+
+    public const long MaxAttachBytes = AttachmentService.MaxAttachmentBytes;
+
+    /// <summary>
+    /// Upload for an Attach field: PDF, Office (.docx/.xlsx), CSV, text or image (max 10 MB), type detected from the
+    /// content. Like images, the file is visible only to the uploader until the document is saved and links it.
+    /// </summary>
+    public async Task<string> UploadFieldFileAsync(UserContext user, string docType, string field, string fileName, Stream content, CancellationToken ct = default)
+    {
+        if (!metadata.Current.TryGet(docType, out var meta) || !meta.ByName.TryGetValue(field, out var f) || f.Def.Type != "Attach")
+            throw new FileRejectedException("Unknown attachment field.");
+        if (!permissions.Can(user, meta, DocActions.Create) && !permissions.Can(user, meta, DocActions.Write))
+            throw new PermissionDeniedException($"You are not allowed to upload files for {meta.Title}.");
+        if (!permissions.CanWriteField(user, meta, f))
+            throw new PermissionDeniedException($"You are not allowed to modify {f.Label}.");
+
+        using var ms = new MemoryStream();
+        var buffer = new byte[81920];
+        int read;
+        while ((read = await content.ReadAsync(buffer, ct)) > 0)
+        {
+            ms.Write(buffer, 0, read);
+            if (ms.Length > MaxAttachBytes) throw new FileRejectedException("File size exceeds maximum limit of 10 MB.");
+        }
+        var bytes = ms.ToArray();
+        var safeName = SafeFileName(fileName);
+        var type = AttachmentService.SniffContentType(bytes, safeName)
+            ?? throw new FileRejectedException("File format not supported. Allowed: PDF, Office documents (.docx, .xlsx), CSV, plain text, and standard images.");
+        var record = new FileRecord
+        {
+            Id = "f_" + Guid.NewGuid().ToString("N"), TenantId = user.TenantId, UploadedBy = user.Id, ContentType = type,
+            Size = bytes.Length, Sha256 = Convert.ToHexString(SHA256.HashData(bytes)), CreatedAt = clock.GetUtcNow(),
+            FileName = safeName,
+        };
+        await store.SaveAsync(record, bytes, ct);
+        return record.Id;
+    }
+
+    /// <summary>File name without path and control characters, max 200 characters.</summary>
+    public static string SafeFileName(string? name)
+    {
+        var n = Path.GetFileName((name ?? "").Replace('\\', '/'));
+        n = new string(n.Where(c => !char.IsControl(c) && c is not ('"' or '<' or '>' or '|' or ':' or '*' or '?')).ToArray()).Trim();
+        if (n.Length == 0) n = "file";
+        return n.Length <= 200 ? n : n[..200];
     }
 
     /// <summary>Uploads and validates a user profile photo (avatar) for the specified user account.</summary>

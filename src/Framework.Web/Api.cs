@@ -54,7 +54,10 @@ public static class DocApi
             http.Response.Headers["X-Content-Type-Options"] = "nosniff";
             http.Response.Headers["Content-Security-Policy"] = "default-src 'none'; img-src 'self'; sandbox";
             http.Response.Headers.CacheControl = "private, max-age=300";
-            return Results.File(f.Content, f.Record.ContentType);
+            // Images are shown inline (<img>); other Attach-field files are downloaded with their original name.
+            return f.Record.ContentType.StartsWith("image/", StringComparison.Ordinal)
+                ? Results.File(f.Content, f.Record.ContentType)
+                : Results.File(f.Content, f.Record.ContentType, fileDownloadName: f.Record.FileName ?? $"{id}");
         });
 
         // ---------- File lampiran dokumen (PDF/Office/CSV/teks/gambar) ----------

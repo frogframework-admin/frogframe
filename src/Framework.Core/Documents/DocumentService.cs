@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using Framework.Expressions;
 using Framework.Files;
 using Framework.Hooks;
@@ -189,8 +190,11 @@ public sealed class DocumentService(
     private Document RedactForRead(UserContext user, CompiledDocType meta, Document doc)
     {
         var copy = doc.Clone();
-        foreach (var f in meta.Fields.Where(f => !permissions.CanReadField(user, meta, f)))
+        foreach (var f in meta.Fields.Where(f => !permissions.CanReadField(user, meta, f) || f.IsLayout))
             copy.Data.Remove(f.Name);
+        // Password fields: never sent to clients. A set value is shown as the mask so forms know one is stored.
+        foreach (var f in meta.Fields.Where(f => f.Def.Type == "Password" && copy.Data.ContainsKey(f.Name)))
+            copy.Data[f.Name] = Values.IsEmpty(copy.Data[f.Name]) ? null : PasswordFieldType.Mask;
         // Field yang sudah tidak ada di metadata aktif tidak dikirim ke client.
         foreach (var key in copy.Data.Keys.Where(k => !meta.ByName.ContainsKey(k)).ToList())
             copy.Data.Remove(key);
@@ -723,6 +727,9 @@ public sealed class DocumentService(
             if (StandardFields.All.Contains(key)) { forbidden.Add(key); continue; }
             if (!meta.ByName.TryGetValue(key, out var f)) { unknown.Add(key); continue; }
             if (f.IsDerived) continue; // dihitung ulang server; nilai client tidak dipercaya
+            if (f.IsLayout) continue;  // HTML, Button, Heading: tidak menyimpan nilai
+            // Password: kosong atau mask = pertahankan nilai tersimpan (UI tidak pernah menerima nilai aslinya).
+            if (f.Def.Type == "Password" && KeepsSecret(raw)) continue;
 
             var n = f.Def.Type == "Table" ? NormalizeTable(user, f, raw, errors) : f.Type.Normalize(raw);
             if (!n.Ok) { if (n.Error is not null) errors.Add(new(key, $"{f.Label} {n.Error}")); continue; }
@@ -735,7 +742,18 @@ public sealed class DocumentService(
             { forbidden.Add(key); continue; }
             if (f.Def.Type == "Link" && n.Value is not null && !permissions.Can(user, Resolve(f.Def.LinkTo!), DocActions.Read))
             { forbidden.Add(key); continue; }
+            if (f.Def.Type == "TableMultiSelect" && n.Value is List<string> { Count: > 0 } && !permissions.Can(user, Resolve(f.Def.LinkTo!), DocActions.Read))
+            { forbidden.Add(key); continue; }
             doc.Data[key] = n.Value;
+        }
+
+        // DynamicLink: the target DocType comes from another field, possibly set in the same payload.
+        foreach (var f in meta.Fields.Where(f => f.Def.Type == "DynamicLink" && f.Def.LinkToField is not null
+                     && (payload.ContainsKey(f.Name) || payload.ContainsKey(f.Def.LinkToField!))))
+        {
+            if (doc.Data.GetValueOrDefault(f.Name) is not string || doc.Data.GetValueOrDefault(f.Def.LinkToField!) is not string target) continue;
+            if (Meta.TryGet(target, out var targetMeta) && !targetMeta.Def.IsChild && !permissions.Can(user, targetMeta, DocActions.Read))
+                forbidden.Add(f.Name);
         }
 
         // Mass-assignment ditolak eksplisit, bukan diabaikan diam-diam.
@@ -743,6 +761,16 @@ public sealed class DocumentService(
         if (forbidden.Count > 0) throw new PermissionDeniedException($"You are not allowed to modify field(s): {string.Join(", ", forbidden)}");
         if (errors.Count > 0) throw new ValidationFailedException(errors);
     }
+
+    /// <summary>A Password value that means "keep what is stored": empty, null, or the read mask.</summary>
+    private static bool KeepsSecret(object? raw) => raw switch
+    {
+        null => true,
+        string s => s.Length == 0 || s == PasswordFieldType.Mask,
+        JsonElement { ValueKind: JsonValueKind.Null or JsonValueKind.Undefined } => true,
+        JsonElement { ValueKind: JsonValueKind.String } e => e.GetString() is null or "" or PasswordFieldType.Mask,
+        _ => false,
+    };
 
     private NormalizeResult NormalizeTable(UserContext user, CompiledField table, object? raw, List<FieldError> errors)
     {
@@ -826,14 +854,14 @@ public sealed class DocumentService(
     /// <summary>Id gambar harus file di tenant ini yang diunggah pengguna sendiri, atau sudah milik dokumen ini.</summary>
     private async Task ValidateImagesAsync(DocumentContext ctx, CancellationToken ct)
     {
-        foreach (var f in ctx.Meta.Fields.Where(f => f.Def.Type == "Image"))
+        foreach (var f in ctx.Meta.Fields.Where(f => FieldKinds.IsFileField(f.Def.Type)))
         {
             if (ctx.Doc.Data.GetValueOrDefault(f.Name) is not string id || Equals(ctx.Previous?.Data.GetValueOrDefault(f.Name), id)) continue;
             var info = await files.GetInfoAsync(ctx.User.TenantId, id, ct);
             var ok = info is not null && (
                 (info.DocName is null && info.UploadedBy == ctx.User.Id) ||
                 (info.DocType == ctx.Meta.Name && (info.DocName == ctx.Doc.Name || info.DocName == ctx.Doc.AmendedFrom)));
-            if (!ok) ctx.AddError(f.Name, $"{f.Label}: gambar tidak ditemukan atau bukan milik Anda. Unggah ulang.");
+            if (!ok) ctx.AddError(f.Name, $"{f.Label}: {(f.Def.Type == "Image" ? "gambar" : "file")} tidak ditemukan atau bukan milik Anda. Unggah ulang.");
         }
     }
 
@@ -857,7 +885,7 @@ public sealed class DocumentService(
     private async Task FinishAsync(DocumentContext ctx, Document doc, UnitOfWork uow, AuditEntry? audit, CancellationToken ct)
     {
         // Gambar baru/berganti ditautkan ke dokumen (nama final sudah diketahui); sejak itu izin lihat = izin baca dokumen.
-        foreach (var f in ctx.Meta.Fields.Where(f => f.Def.Type == "Image"))
+        foreach (var f in ctx.Meta.Fields.Where(f => FieldKinds.IsFileField(f.Def.Type)))
             if (doc.Data.GetValueOrDefault(f.Name) is string id && !Equals(ctx.Previous?.Data.GetValueOrDefault(f.Name), id)
                 && ctx.Operation is DocumentOperation.Insert or DocumentOperation.Update)
                 await files.AttachAsync(doc.TenantId, id, doc.DocType, doc.Name, f.Name, ct);
@@ -938,9 +966,20 @@ public sealed class DocumentService(
                 ["workflowState"] = doc.WorkflowState,
                 ["workflowVersion"] = doc.WorkflowVersion?.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 ["amendedFrom"] = doc.AmendedFrom,
-                ["data"] = System.Text.Json.JsonSerializer.Serialize(doc.Data),
+                ["data"] = SerializeEventData(doc),
             }
         };
+    }
+
+    /// <summary>Document data for events and webhooks: Password fields are masked, never sent (even encrypted).</summary>
+    private string SerializeEventData(Document doc)
+    {
+        if (!Meta.TryGet(doc.DocType, out var meta) || meta.Fields.All(f => f.Def.Type != "Password"))
+            return System.Text.Json.JsonSerializer.Serialize(doc.Data);
+        var copy = new Dictionary<string, object?>(doc.Data);
+        foreach (var f in meta.Fields.Where(f => f.Def.Type == "Password" && copy.ContainsKey(f.Name)))
+            copy[f.Name] = Values.IsEmpty(copy[f.Name]) ? null : PasswordFieldType.Mask;
+        return System.Text.Json.JsonSerializer.Serialize(copy);
     }
 
     private AuditEntry Audit(Document doc, UserContext user, string action, IReadOnlyList<FieldChange> changes) => new()
@@ -957,6 +996,13 @@ public sealed class DocumentService(
             var o = before?.Data.GetValueOrDefault(f.Name);
             var n = after.Data.GetValueOrDefault(f.Name);
             if (SameValue(o, n)) continue;
+            if (f.IsLayout) continue;
+            if (f.Def.Type == "Password")
+            {
+                // The audit trail records that a secret changed, never its (encrypted) value.
+                list.Add(new FieldChange(f.Label, Values.IsEmpty(o) ? null : PasswordFieldType.Mask, Values.IsEmpty(n) ? null : PasswordFieldType.Mask, f.Def.PermLevel));
+                continue;
+            }
             list.Add(new FieldChange(f.Label, Display(o), Display(n), f.Def.PermLevel));
         }
         return list;
@@ -977,6 +1023,7 @@ public sealed class DocumentService(
             return ra.Count == rb.Count && ra.Zip(rb).All(p =>
                 p.First.Keys.Union(p.Second.Keys).Where(k => k != "idx").All(k => SameValue(p.First.GetValueOrDefault(k), p.Second.GetValueOrDefault(k))));
         if (a is null || b is null) return Values.IsEmpty(a) && Values.IsEmpty(b);
+        if (a is List<string> la && b is List<string> lb) return la.SequenceEqual(lb, StringComparer.Ordinal);
         return Values.AreEqual(a, b);
     }
 
@@ -1017,7 +1064,7 @@ public sealed class DocumentService(
                             ["name"] = context.Doc.Name,
                             ["version"] = context.Doc.Version.ToString(CultureInfo.InvariantCulture),
                             ["actor"] = context.User.Id,
-                            ["data"] = System.Text.Json.JsonSerializer.Serialize(context.Doc.Data)
+                            ["data"] = SerializeEventData(context.Doc)
                         },
                         CreatedAt = now
                     });

@@ -56,9 +56,12 @@ public sealed class Document
     }
 
     public static Dictionary<string, object?> DeepCopy(IReadOnlyDictionary<string, object?> src) =>
-        src.ToDictionary(kv => kv.Key, kv => kv.Value is List<Dictionary<string, object?>> rows
-            ? (object?)rows.Select(r => DeepCopy(r)).ToList()
-            : kv.Value);
+        src.ToDictionary(kv => kv.Key, kv => kv.Value switch
+        {
+            List<Dictionary<string, object?>> rows => (object?)rows.Select(r => DeepCopy(r)).ToList(),
+            List<string> names => new List<string>(names), // TableMultiSelect
+            _ => kv.Value,
+        });
 }
 
 // ---------- Error model ----------

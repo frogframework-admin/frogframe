@@ -110,6 +110,11 @@ public static class ServiceCollectionExtensions
 
         services.TryAddSingleton(TimeProvider.System);
         foreach (var t in FieldTypeRegistry.BuiltIns()) services.AddSingleton(t);
+        // Password fields are encrypted with ASP.NET Data Protection (keys persisted by the host, e.g. PostgresDataProtection).
+        // AddDataProtection uses TryAdd, so a host that configures key persistence later keeps its settings.
+        Microsoft.Extensions.DependencyInjection.DataProtectionServiceCollectionExtensions.AddDataProtection(services);
+        services.AddSingleton<IFieldType>(sp => new PasswordFieldType(new DocumentPasswordProtector(
+            sp.GetRequiredService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>())));
         services.AddSingleton<IFieldTypeRegistry>(sp => new FieldTypeRegistry(sp.GetServices<IFieldType>()));
         services.AddSingleton(_ => FunctionRegistry.CreateDefault());
         services.AddSingleton<ExpressionEvaluator>();

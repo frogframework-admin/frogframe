@@ -67,6 +67,8 @@ public sealed class ReportingSchemaSync(AnalyticsDataSource analytics, IMetadata
         return f.Type.ClrType == typeof(long) || f.Type.ClrType == typeof(decimal) ? $"NULLIF({source}->>{key}, '')::numeric"
             : f.Type.ClrType == typeof(bool) ? $"({source}->>{key})::boolean"
             : f.Def.Type == "Date" ? $"NULLIF({source}->>{key}, '')::date"
+            : f.Def.Type == "Datetime" ? $"NULLIF({source}->>{key}, '')::timestamptz"
+            : f.Def.Type == "Time" ? $"NULLIF({source}->>{key}, '')::time"
             : $"({source}->>{key})";
     }
 

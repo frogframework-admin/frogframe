@@ -80,21 +80,95 @@
             </BbField>
         </div>
         break;
+    case "TableMultiSelect":
+        <div class="props-group">
+            <div class="props-group-title">Relation</div>
+            <BbField IsInvalid="@Err("")">
+                <BbFieldLabel>Points to DocType</BbFieldLabel>
+                <BbSelect TValue="string" Value="@Field.LinkTo" ValueChanged="v => Set(() => Field.LinkTo = v)" AriaLabel="Points to DocType"
+                          Options="@(Snapshot.DocTypes.Values.Where(d => !d.Def.IsChild).OrderBy(d => d.Name).Select(d => new SelectOption<string>(d.Name, $"{d.Title} ({d.Name})")))" />
+                <BbFieldDescription>Users pick several documents of this DocType; stored as a list of names.</BbFieldDescription>
+            </BbField>
+        </div>
+        break;
+    case "DynamicLink":
+        <div class="props-group">
+            <div class="props-group-title">Relation</div>
+            <BbField IsInvalid="@Err("")">
+                <BbFieldLabel>DocType comes from field</BbFieldLabel>
+                <BbSelect TValue="string" Value="@Field.LinkToField" ValueChanged="v => Set(() => Field.LinkToField = v)" AriaLabel="DocType comes from field"
+                          Options="@(Design.AllFields.Where(x => x != Field && x.Type is "Select" or "Data" or "ReadOnly").Select(x => new SelectOption<string>(x.Name, $"{x.Label} ({x.Name})")))" />
+                <BbFieldDescription>A Select field whose options are DocType names (e.g. Customer, Vendor), or a Data field.</BbFieldDescription>
+            </BbField>
+        </div>
+        break;
+    case "HTML":
+        <div class="props-group">
+            <div class="props-group-title">Content</div>
+            <BbField>
+                <BbFieldLabel For="p-content">HTML shown on the form</BbFieldLabel>
+                <BbTextarea Id="p-content" Value="@Field.Content" ValueChanged="v => Set(() => Field.Content = Blank(v))" UpdateTiming="UpdateTiming.OnChange" />
+                <BbFieldDescription>Sanitized when shown: scripts, event handlers and styles that run code are removed.</BbFieldDescription>
+            </BbField>
+        </div>
+        break;
+    case "Heading":
+        <div class="props-group">
+            <div class="props-group-title">Content</div>
+            <BbField>
+                <BbFieldLabel For="p-sub">Subtitle (optional)</BbFieldLabel>
+                <BbInput Id="p-sub" Value="@Field.Content" ValueChanged="v => Set(() => Field.Content = Blank(v))" />
+            </BbField>
+        </div>
+        break;
+    case "Button":
+        <div class="props-group">
+            <div class="props-group-title">Action</div>
+            <BbField IsInvalid="@Err("")">
+                <BbFieldLabel For="p-action">Form action id</BbFieldLabel>
+                <BbInput Id="p-action" Value="@Field.ButtonAction" ValueChanged="v => Set(() => Field.ButtonAction = Blank(v))" Placeholder="e.g. send_reminder" />
+                <BbFieldDescription>ActionId of a form action registered for this DocType (AddFormAction). Runs on the saved document.</BbFieldDescription>
+            </BbField>
+        </div>
+        break;
+    case "Barcode":
+        <div class="props-group">
+            <div class="props-group-title">Barcode</div>
+            <BbField IsInvalid="@Err("")">
+                <BbFieldLabel>Format</BbFieldLabel>
+                <BbSelect TValue="string" Value="@(Field.Options is { Count: > 0 } bo ? bo[0] : "Code128")" ValueChanged="@(v => Set(() => Field.Options = v is null or "Code128" ? null : [v]))" AriaLabel="Barcode format"
+                          Options="@(BarcodeFieldType.Formats.Select(x => new SelectOption<string>(x, x)))" />
+            </BbField>
+        </div>
+        break;
+    case "Rating":
+        <div class="props-group">
+            <div class="props-group-title">Rating</div>
+            <BbField IsInvalid="@Err("")">
+                <BbFieldLabel For="p-rmax">Number of stars</BbFieldLabel>
+                <BbInput Id="p-rmax" Value="@Num(Field.Max)" ValueChanged="v => Set(() => Field.Max = ParseNum(v))" Placeholder="5" />
+                <BbFieldDescription>1 to 10. Half stars are allowed.</BbFieldDescription>
+            </BbField>
+        </div>
+        break;
 }
 
 <div class="props-group">
     <div class="props-group-title">Rules</div>
-    <div class="label-row">
-        <BbCheckbox Id="p-req" Checked="@AlwaysRequired" CheckedChanged="SetAlwaysRequired" />
-        <BbLabel For="p-req">Always required</BbLabel>
-    </div>
-    @if (!AlwaysRequired)
+    @if (!FieldKinds.IsLayout(Field.Type))
     {
-        @ExprInput("requiredWhen", "Required when", Field.RequiredWhen, v => Field.RequiredWhen = v, "e.g. priority == 'High'")
+        <div class="label-row">
+            <BbCheckbox Id="p-req" Checked="@AlwaysRequired" CheckedChanged="SetAlwaysRequired" />
+            <BbLabel For="p-req">Always required</BbLabel>
+        </div>
+        @if (!AlwaysRequired)
+        {
+            @ExprInput("requiredWhen", "Required when", Field.RequiredWhen, v => Field.RequiredWhen = v, "e.g. priority == 'High'")
+        }
     }
     @ExprInput("visibleWhen", "Visible when", Field.VisibleWhen, v => Field.VisibleWhen = v, "empty = always visible")
     @ExprInput("readOnlyWhen", "Read-only when", Field.ReadOnlyWhen, v => Field.ReadOnlyWhen = v, "e.g. docstatus != 0")
-    @if (Field.Type != "Table")
+    @if (Field.Type != "Table" && FieldKinds.AllowsDerivedValue(Field.Type))
     {
         @ExprInput("compute", "Formula (server computed)", Field.Compute, v => Field.Compute = v, "e.g. qty * rate")
         <BbField IsInvalid="@Err("")">
@@ -108,7 +182,7 @@
                       Options="FetchOptions" />
         </BbField>
     }
-    @if (Field.Type is "Int" or "Float" or "Currency")
+    @if (Field.Type is "Int" or "Float" or "Currency" or "Percent" or "Duration")
     {
         <div class="props-row">
             <BbField><BbFieldLabel For="p-min">Minimum</BbFieldLabel><BbInput Id="p-min" Value="@Num(Field.Min)" ValueChanged="v => Set(() => Field.Min = ParseNum(v))" /></BbField>
@@ -131,7 +205,7 @@
 
 <div class="props-group">
     <div class="props-group-title">Display & permissions</div>
-    @if (Field.Type != "Table")
+    @if (Field.Type != "Table" && (Field.Type == "Image" || FieldKinds.IsQueryable(Field.Type)))
     {
         <div class="label-row"><BbCheckbox Id="p-list" Checked="Field.InListView" CheckedChanged="v => Set(() => Field.InListView = v)" /><BbLabel For="p-list">Show as column in list view</BbLabel></div>
         <div class="props-row">

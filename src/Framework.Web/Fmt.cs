@@ -25,6 +25,31 @@ public static class Fmt
                 return v is true ? "Yes" : "No";
             case "Image":
                 return "Attached image";
+            // Gap #3 types
+            case "Datetime":
+                return DatetimeFieldType.ToZone(v) is { } local ? local.ToString("d MMM yyyy HH:mm", Id) : v.ToString()!;
+            case "Time":
+                return v is string t && t.Length >= 5 ? t[..5] : v.ToString()!;
+            case "Duration":
+                return Values.ToDecimal(v) is { } sec ? DurationFieldType.Display((long)sec) : v.ToString()!;
+            case "Percent":
+                return Values.ToDecimal(v) is { } pct ? pct.ToString("#,0.##", Id) + "%" : v.ToString()!;
+            case "Rating":
+                return Values.ToDecimal(v) is { } stars ? $"★ {stars.ToString("0.#", Id)} / {(f!.Def.Max is { } m ? m.ToString("0", Id) : "5")}" : v.ToString()!;
+            case "Password":
+                return "••••••••";
+            case "Attach":
+                return "Attached file";
+            case "Signature":
+                return "Signed";
+            case "TableMultiSelect":
+                return string.Join(", ", TableMultiSelectFieldType.Items(v)) is { Length: > 0 } items ? items : "—";
+            case "TextEditor":
+                return Shorten(PlainText(v as string ?? ""), 200);
+            case "Markdown" or "JSON":
+                return v is string longText ? Shorten(longText, 2000) : v.ToString()!;
+            case "HTML" or "Button" or "Heading":
+                return "";
         }
         return v switch
         {
@@ -33,6 +58,13 @@ public static class Fmt
             _ => Convert.ToString(v, CultureInfo.InvariantCulture) ?? ""
         };
     }
+
+    /// <summary>Text of an HTML fragment (tags removed, entities decoded, whitespace collapsed).</summary>
+    public static string PlainText(string html) =>
+        System.Text.RegularExpressions.Regex.Replace(
+            System.Net.WebUtility.HtmlDecode(System.Text.RegularExpressions.Regex.Replace(html, "<[^>]+>", " ")), @"\s+", " ").Trim();
+
+    private static string Shorten(string s, int max) => s.Length <= max ? s : s[..max] + "…";
 
     /// <summary>Raw value for input (without thousand separators).</summary>
     public static string Raw(object? v) => v switch

@@ -104,7 +104,7 @@ public sealed class PrintService(DocumentService docs, IMetadataProvider metadat
             .Select(s => new PrintSectionDef
             {
                 Title = s.Title,
-                Fields = s.Columns.SelectMany(c => c.Fields).Where(f => f.Def.Type != "Table").Select(f => f.Name).ToList()
+                Fields = s.Columns.SelectMany(c => c.Fields).Where(f => f.Def.Type != "Table" && !f.IsLayout).Select(f => f.Name).ToList()
             }).Where(s => s.Fields.Count > 0).ToList();
 
         var sections = new List<PrintSection>();
@@ -115,9 +115,9 @@ public sealed class PrintService(DocumentService docs, IMetadataProvider metadat
             {
                 if (meta.ByName.TryGetValue(fname, out var f))
                 {
-                    if (!Readable(f) || pf.TotalFields.Contains(fname)) continue;
+                    if (!Readable(f) || pf.TotalFields.Contains(fname) || f.IsLayout || f.Def.Type == "Password") continue;
                     var v = doc.Data.GetValueOrDefault(fname);
-                    fields.Add(new PrintField(f.Label, await Display(f, v), f.Def.Type == "Text"));
+                    fields.Add(new PrintField(f.Label, await Display(f, v), f.Def.Type is "Text" or "TextEditor" or "Markdown"));
                 }
                 else fields.Add(new PrintField(fname, Fmt.Value(null, doc.Get(fname))));
             }

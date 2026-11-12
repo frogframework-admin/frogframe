@@ -1,0 +1,62 @@
+@* TableMultiSelect field: BbMultiSelect with server-side search (tenant- & permission-aware via DocumentService),
+   same search as LinkInput. Selected names stay in the option list so their tags always render. *@
+@inject DocumentService Docs
+@inject CurrentUser Current
+@implements IDisposable
+
+<BbMultiSelect TValue="string" Values="@Values" ValuesChanged="Pick" Options="AllOptions" SearchQueryChanged="Search"
+               Placeholder="@($"Select {Label.ToLowerInvariant()}…")" SearchPlaceholder="@($"Search {Target}…")"
+               EmptyMessage="@(loading ? "Searching…" : $"No matching {Target} found")" ShowSelectAll="false"
+               MaxDisplayTags="4" MatchTriggerWidth="true" AriaLabel="@Label" AdditionalAttributes="IdAttr" />
+
+@code {
+    [Parameter] public string? Id { get; set; }
+    [Parameter, EditorRequired] public string Target { get; set; } = "";
+    [Parameter] public string Label { get; set; } = "";
+    [Parameter] public IReadOnlyList<string> Values { get; set; } = [];
+    [Parameter] public EventCallback<IEnumerable<string>> ValuesChanged { get; set; }
+
+    private List<SelectOption<string>> options = [];
+    private readonly Dictionary<string, string> titles = new(StringComparer.Ordinal);
+    private bool loading;
+    private CancellationTokenSource? cts;
+
+    private Dictionary<string, object> IdAttr => Id is null ? new() : new() { ["id"] = Id };
+
+    private IEnumerable<SelectOption<string>> AllOptions =>
+        Values.Where(v => options.All(o => o.Value != v))
+              .Select(v => new SelectOption<string>(v, titles.TryGetValue(v, out var t) && t.Length > 0 ? $"{v} · {t}" : v))
+              .Concat(options);
+
+    protected override async Task OnInitializedAsync() => await Load("");
+
+    private async Task Search(string q)
+    {
+        cts?.Cancel();
+        cts = new CancellationTokenSource();
+        var token = cts.Token;
+        try
+        {
+            await Task.Delay(200, token);
+            await Load(q, token);
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private async Task Load(string q, CancellationToken ct = default)
+    {
+        loading = true;
+        try
+        {
+            var found = await Docs.SearchLinkAsync(Current.Required, Target, q, ct);
+            foreach (var f in found) titles[f.Name] = f.Title ?? "";
+            options = found.Select(f => new SelectOption<string>(f.Name, string.IsNullOrEmpty(f.Title) ? f.Name : $"{f.Name} · {f.Title}")).ToList();
+        }
+        catch (PermissionDeniedException) { options = []; }
+        finally { loading = false; }
+    }
+
+    private Task Pick(IEnumerable<string>? values) => ValuesChanged.InvokeAsync(values ?? []);
+
+    public void Dispose() => cts?.Cancel();
+}
