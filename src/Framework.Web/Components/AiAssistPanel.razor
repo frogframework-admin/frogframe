@@ -1,0 +1,138 @@
+@using Framework.Web.AI
+@implements IDisposable
+@inject AiDesignerService Ai
+@inject CurrentUser Current
+
+@* Reusable "describe it, AI drafts it" panel. The page decides what to do with the answer in Generate. *@
+@if (Current.User is not { } viewer || !AiDesignerService.CanUse(viewer))
+{
+    @* Only System Managers can use the AI designer. *@
+}
+else if (!Ai.IsEnabled)
+{
+    @if (ShowWhenDisabled)
+    {
+        <p class="muted small" style="margin:0 0 .75rem 0">
+            <LucideIcon Name="sparkles" Size="14" /> AI designer is not available: @Ai.DisabledReason
+        </p>
+    }
+}
+else
+{
+    <BbCard Class="props-block ai-assist">
+        <BbCardHeader>
+            <BbCardTitle Class="card-title"><LucideIcon Name="sparkles" Size="16" /> @Title</BbCardTitle>
+            <BbCardDescription>@Description</BbCardDescription>
+        </BbCardHeader>
+        <BbCardContent>
+            <div class="stack">
+                <BbTextarea Value="@prompt" ValueChanged="v => prompt = v ?? string.Empty" Rows="@Rows"
+                            Placeholder="@Placeholder" AriaLabel="@Title" Disabled="busy" />
+                @if (Examples.Count > 0 && string.IsNullOrWhiteSpace(prompt))
+                {
+                    <div class="row" style="flex-wrap:wrap;gap:.35rem">
+                        @foreach (var example in Examples)
+                        {
+                            <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick="() => prompt = example">@Shorten(example)</BbButton>
+                        }
+                    </div>
+                }
+                <div class="row" style="align-items:center;gap:.5rem">
+                    <BbButton Disabled="@(busy || string.IsNullOrWhiteSpace(prompt))" OnClick="RunAsync">
+                        <LucideIcon Name="sparkles" Size="16" /> @(busy ? "Working…" : ButtonText)
+                    </BbButton>
+                    @if (busy)
+                    {
+                        <BbButton Variant="ButtonVariant.Ghost" OnClick="Cancel">Cancel</BbButton>
+                        <span class="muted small">The AI checks its draft with the platform compiler; this can take up to a minute.</span>
+                    }
+                </div>
+
+                @if (outcome is not null)
+                {
+                    @if (outcome.Ok)
+                    {
+                        <BbAlert Variant="AlertVariant.Success">
+                            <BbAlertTitle>@(outcome.AppliedMessage ?? "Draft ready")</BbAlertTitle>
+                            <BbAlertDescription>@outcome.Explanation</BbAlertDescription>
+                        </BbAlert>
+                    }
+                    else
+                    {
+                        <BbAlert Variant="AlertVariant.Warning">
+                            <BbAlertTitle>@(outcome.AppliedMessage ?? "The AI draft still has problems")</BbAlertTitle>
+                            <BbAlertDescription>
+                                @if (!string.IsNullOrWhiteSpace(outcome.Explanation)) { <p style="margin:0 0 .4rem 0">@outcome.Explanation</p> }
+                                <ul class="error-list">@foreach (var e in outcome.Errors.Take(12)) { <li>@e</li> }</ul>
+                            </BbAlertDescription>
+                        </BbAlert>
+                    }
+                    @if (outcome.Usage is { } u)
+                    {
+                        <span class="muted small">@UsageText(u) · Review before publishing; nothing has been published.</span>
+                    }
+                }
+            </div>
+        </BbCardContent>
+    </BbCard>
+}
+
+@code {
+    /// <summary>Called with the description. Apply the draft to the page here and return what to show.</summary>
+    [Parameter, EditorRequired] public Func<string, CancellationToken, Task<AiPanelOutcome>> Generate { get; set; } = default!;
+
+    [Parameter] public string Title { get; set; } = "Draft with AI";
+    [Parameter] public string Description { get; set; } = "Describe what you need. The AI drafts it, the platform validates it, and you review it before publishing.";
+    [Parameter] public string Placeholder { get; set; } = "";
+    [Parameter] public string ButtonText { get; set; } = "Generate draft";
+    [Parameter] public int Rows { get; set; } = 4;
+    [Parameter] public IReadOnlyList<string> Examples { get; set; } = [];
+
+    /// <summary>Show a one-line note with the reason when AI is switched off.</summary>
+    [Parameter] public bool ShowWhenDisabled { get; set; } = true;
+
+    private string prompt = "";
+    private bool busy;
+    private AiPanelOutcome? outcome;
+    private CancellationTokenSource? cts;
+
+    private async Task RunAsync()
+    {
+        if (busy || string.IsNullOrWhiteSpace(prompt)) return;
+        busy = true;
+        outcome = null;
+        cts?.Dispose();
+        cts = new CancellationTokenSource();
+        try
+        {
+            outcome = await Generate(prompt.Trim(), cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            outcome = new AiPanelOutcome(false, "", ["Cancelled."], null, "Cancelled");
+        }
+        catch (Exception ex) when (ex is AiUnavailableException or ArgumentException or InvalidOperationException
+                                       or Framework.Security.PermissionDeniedException)
+        {
+            outcome = new AiPanelOutcome(false, "", [ex.Message], null, "AI request not possible");
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private void Cancel() => cts?.Cancel();
+
+    private static string UsageText(AiUsage u) =>
+        $"{u.Attempts} attempt(s) · {u.Elapsed.TotalSeconds:0.0} s"
+        + (u.InputTokens is { } i ? $" · {i:N0} input / {u.OutputTokens ?? 0:N0} output tokens" : "");
+
+    private static string Shorten(string s) => s.Length <= 60 ? s : s[..57] + "…";
+
+    public void Dispose()
+    {
+        cts?.Cancel();
+        cts?.Dispose();
+    }
+}

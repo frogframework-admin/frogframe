@@ -39,6 +39,13 @@ services:
       - Bootstrap__AdminUserName=${FROGFRAME_ADMIN_USER:-admin}
       - Bootstrap__AdminPassword=${FROGFRAME_ADMIN_PASSWORD:?Set FROGFRAME_ADMIN_PASSWORD in .env}
       - Api__RateLimitPerMinute=${FROGFRAME_API_RATE_LIMIT:-300}
+      # AI designer (Azure OpenAI in Microsoft Foundry). Off unless FROGFRAME_AI_ENABLED=true. See docs/guides/ai-designer.md.
+      - AI__Enabled=${FROGFRAME_AI_ENABLED:-false}
+      - AI__Endpoint=${FROGFRAME_AI_ENDPOINT:-}
+      - AI__Deployment=${FROGFRAME_AI_DEPLOYMENT:-}
+      - AI__Auth=${FROGFRAME_AI_AUTH:-ManagedIdentity}
+      - AI__ManagedIdentityClientId=${FROGFRAME_AI_MANAGED_IDENTITY_CLIENT_ID:-}
+      - AI__ApiKey=${FROGFRAME_AI_API_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy

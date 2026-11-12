@@ -6,6 +6,8 @@
 @inject CurrentUser Current
 @inject ToastService Toasts
 @inject NavigationManager Nav
+@inject Framework.Web.AI.AiDraftValidator AiValidator
+@inject Framework.Web.AI.AiDesignerService Ai
 
 <PageTitle>New DocType · FrogFrame</PageTitle>
 
@@ -18,6 +20,12 @@ else
     <header class="page-head">
         <div><h1>Create DocType</h1><p>Once created, the DocType immediately appears in navigation and can be configured further in the visual editor.</p></div>
     </header>
+
+    <AiAssistPanel Title="Create with AI"
+                   Description="Describe the document, its fields and its approval flow. The AI drafts the DocType (plus child tables and workflow), the platform compiler checks it, and you review it before creating."
+                   Placeholder="e.g. Leave request: employee, leave type (annual, sick, unpaid), start and end date, number of days calculated automatically, reason. Approved by the line manager, then HR."
+                   Examples="AiExamples"
+                   Generate="GenerateWithAi" />
 
     <div class="new-doctype">
         <BbCard>
@@ -53,21 +61,87 @@ else
                             <BbInput Id="nd-naming" Class="code-input" Value="@Naming" ValueChanged="v => { naming = v; namingTouched = true; }" />
                             <BbFieldDescription>Next document number example: <code>@SampleName</code></BbFieldDescription>
                         </BbField>
+                        @if (aiDraft is null)
+                        {
                         <BbField>
                             <BbFieldLabel>Initial template</BbFieldLabel>
                             <BbSelect TValue="string" Value="@template" ValueChanged="v => template = v ?? template" AriaLabel="Template"
                                       Options="@(new[] { new SelectOption<string>("approval", "Approval document (standard fields + permissions + workflow)"), new SelectOption<string>("basic", "Simple document (standard fields + permissions, no workflow)"), new SelectOption<string>("empty", "Empty (single title field)") })" />
                         </BbField>
+                        }
                     }
                     @if (error is not null) { <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@error</BbAlertDescription></BbAlert> }
                     <div class="row">
-                        <BbButton Disabled="@(busy || NameError is not null || string.IsNullOrWhiteSpace(title))" OnClick="Create"><LucideIcon Name="plus" Size="16" /> Create DocType</BbButton>
+                        @if (aiDraft is null)
+                        {
+                            <BbButton Disabled="@(busy || NameError is not null || string.IsNullOrWhiteSpace(title))" OnClick="Create"><LucideIcon Name="plus" Size="16" /> Create DocType</BbButton>
+                        }
+                        else
+                        {
+                            <BbButton Disabled="@(busy || NameError is not null || string.IsNullOrWhiteSpace(title))" OnClick="CreateFromAi"><LucideIcon Name="sparkles" Size="16" /> Create from AI draft</BbButton>
+                            <BbButton Variant="ButtonVariant.Outline" Disabled="busy" OnClick="DiscardAi">Discard AI draft</BbButton>
+                        }
                         <BbButton Variant="ButtonVariant.Ghost" Href="/admin/metadata" OnClick="@(() => Nav.NavigateTo("/admin/metadata"))">Cancel</BbButton>
                     </div>
                 </div>
             </BbCardContent>
         </BbCard>
 
+        @if (aiDraft?.DocType is { } d)
+        {
+            <BbCard>
+                <BbCardHeader>
+                    <BbCardTitle Class="card-title">AI draft: what will be created</BbCardTitle>
+                    <BbCardDescription>
+                        @if (aiDraft.Ok) { <BbBadge Variant="BadgeVariant.SoftSuccess">Checked by the compiler</BbBadge> }
+                        else { <BbBadge Variant="BadgeVariant.SoftDestructive">@aiDraft.Errors.Count issue(s)</BbBadge> }
+                    </BbCardDescription>
+                </BbCardHeader>
+                <BbCardContent>
+                    <div class="stack small">
+                        <div><strong>@d.Title</strong> <code>@d.Name</code> @(d.IsSingle ? "· single" : "") @(string.IsNullOrWhiteSpace(d.Module) ? "" : $"· module {d.Module}")</div>
+                        <table style="width:100%;border-collapse:collapse">
+                            <thead><tr style="text-align:left"><th>Field</th><th>Type</th><th>Rule</th></tr></thead>
+                            <tbody>
+                                @foreach (var f in d.Fields)
+                                {
+                                    <tr style="border-top:1px solid var(--bb-border)">
+                                        <td>@f.Label <code class="muted">@f.Name</code></td>
+                                        <td>@FieldTypeText(f)</td>
+                                        <td class="muted">@FieldRule(f)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                        @foreach (var child in aiDraft.ChildDocTypes)
+                        {
+                            <div><LucideIcon Name="table" Size="14" /> Child table <code>@child.Name</code>: @(string.Join(", ", child.Fields.Select(cf => $"{cf.Label} ({cf.Type})")))</div>
+                        }
+                        @if (d.Permissions.Count > 0)
+                        {
+                            <div><LucideIcon Name="shield" Size="14" /> Permissions: @(string.Join("; ", d.Permissions.Select(p => $"{p.Role}: {string.Join("/", p.Actions)} ({p.Scope})")))</div>
+                        }
+                        @if (aiDraft.Workflow is { } wf)
+                        {
+                            <div><LucideIcon Name="git-branch" Size="14" /> Workflow <code>@wf.Name</code>: @(string.Join(" → ", wf.States.Select(st => st.Name)))</div>
+                            <ul style="margin:.2rem 0 0 1rem;padding:0">
+                                @foreach (var t in wf.Transitions)
+                                {
+                                    <li>@t.From → @t.To: <strong>@t.Action</strong> @TransitionText(t)</li>
+                                }
+                            </ul>
+                        }
+                        @if (!aiDraft.Ok)
+                        {
+                            <BbAlert Variant="AlertVariant.Warning"><BbAlertDescription><ul class="error-list">@foreach (var e in aiDraft.Errors.Take(10)) { <li>@e</li> }</ul></BbAlertDescription></BbAlert>
+                        }
+                        <p class="muted small">Publishing happens only when you press "Create from AI draft". Fields, layout and permissions can be changed afterwards in the visual editor.</p>
+                    </div>
+                </BbCardContent>
+            </BbCard>
+        }
+        else
+        {
         <BbCard>
             <BbCardHeader><BbCardTitle Class="card-title">What will be created</BbCardTitle></BbCardHeader>
             <BbCardContent>
@@ -77,6 +151,7 @@ else
                 <p class="muted small">Everything can be modified later in the visual editor (fields, layout, permissions) and workflow editor.</p>
             </BbCardContent>
         </BbCard>
+        }
     </div>
 }
 
@@ -201,6 +276,103 @@ else
         catch (Exception ex) when (ex is MetadataCompilationException or InvalidOperationException)
         {
             error = ex.Message;
+        }
+        finally { busy = false; }
+    }
+
+    // ------------------------------------------------------------------ AI draft
+
+    private Framework.Web.AI.AiDocTypeResult? aiDraft;
+
+    private static readonly IReadOnlyList<string> AiExamples =
+    [
+        "Leave request: employee, leave type (annual, sick, unpaid), start and end date, number of days calculated automatically, reason. Approved by the line manager, then HR.",
+        "Vehicle booking: vehicle, driver, destination, departure and return time, passengers. Approved by General Affairs.",
+        "Pengajuan reimburse: karyawan, tanggal, tabel rincian biaya (kategori, keterangan, jumlah), total otomatis. Disetujui atasan lalu Finance.",
+    ];
+
+    private async Task<Framework.Web.AI.AiPanelOutcome> GenerateWithAi(string request, CancellationToken ct)
+    {
+        var r = await Ai.DesignDocTypeAsync(Current.Required, request, existingDocType: null, module: module, ct: ct);
+        if (r.DocType is null)
+            return new(false, r.Explanation, r.Errors, r.Usage, "The AI did not return a draft");
+
+        aiDraft = r;
+        error = null;
+        title = r.DocType.Title;
+        name = r.DocType.Name;
+        nameTouched = true;
+        kind = r.DocType.IsSingle ? "single" : "document";
+        if (!string.IsNullOrWhiteSpace(r.DocType.Module)) module = r.DocType.Module;
+        if (kind == "document" && !string.IsNullOrWhiteSpace(r.DocType.Naming?.Pattern)) { naming = r.DocType.Naming.Pattern; namingTouched = true; }
+
+        return new(r.Ok, r.Explanation, r.Errors, r.Usage,
+            r.Ok ? "Draft ready: review it and press \"Create from AI draft\"" : "The draft still has problems: refine the description and try again");
+    }
+
+    private void DiscardAi()
+    {
+        aiDraft = null;
+        error = null;
+    }
+
+    private static string FieldTypeText(FieldDef f) =>
+        f.Type + (f.LinkTo is { } l ? $" → {l}" : f.ChildDocType is { } c ? $" → {c}" : f.Options is { Count: > 0 } o ? $" ({string.Join(", ", o)})" : "");
+
+    private static string TransitionText(WorkflowTransitionDef t) =>
+        $"({string.Join(", ", t.AllowedRoles)})" + (string.IsNullOrWhiteSpace(t.Condition) ? "" : $" if {t.Condition}");
+
+    private static string FieldRule(FieldDef f) =>
+        f.Compute is { Length: > 0 } c ? $"= {c}"
+        : f.FetchFrom is { Length: > 0 } ff ? $"from {ff}"
+        : f.RequiredWhen == "true" ? "required"
+        : f.RequiredWhen is { Length: > 0 } rw ? $"required if {rw}"
+        : "";
+
+    /// <summary>Publishes the AI draft: child DocTypes, then the main DocType, then the workflow (attached).</summary>
+    private void CreateFromAi()
+    {
+        if (aiDraft?.DocType is null) return;
+        error = null; busy = true;
+        var user = Current.Required;
+        var scope = RoleCatalogSvc.Scope(user.TenantId);
+
+        // The administrator may have changed title, technical name, module or naming on the form.
+        var main = Framework.Web.AI.AiDraftValidator.Clone(aiDraft.DocType);
+        main.Name = name;
+        main.Title = title.Trim();
+        main.Version = 1;
+        main.Workflow = null;
+        if (!main.IsChild && !string.IsNullOrWhiteSpace(module)) main.Module = module.Trim();
+        if (kind == "document") main.Naming = new NamingDef { Pattern = Naming };
+        var children = aiDraft.ChildDocTypes.Select(Framework.Web.AI.AiDraftValidator.Clone).ToList();
+        var wf = aiDraft.Workflow is null ? null : Framework.Web.AI.AiDraftValidator.CloneWorkflow(aiDraft.Workflow);
+        if (wf is not null) { wf.DocType = main.Name; wf.Version = 1; }
+
+        var problems = AiValidator.ValidateDocTypes(user, main, children, wf, existingName: null);
+        if (problems.Count > 0) { error = string.Join(" ", problems.Take(8)); busy = false; return; }
+
+        var done = new List<string>();
+        try
+        {
+            foreach (var c in children)
+            {
+                Registry.Publish(c, user.Id, acknowledgeRisk: false, scope: scope);
+                done.Add(c.Name);
+            }
+            Registry.Publish(main, user.Id, acknowledgeRisk: false, scope: scope);
+            done.Add(main.Name);
+            if (wf is not null)
+            {
+                Registry.PublishWorkflow(wf, user.Id, acknowledgeRisk: true, attach: true, scope: scope);
+                done.Add(wf.Name);
+            }
+            Toasts.Success("Review fields, layout and permissions in the visual editor.", $"DocType {main.Name} created from the AI draft");
+            Nav.NavigateTo($"/admin/metadata/{main.Name}/editor");
+        }
+        catch (Exception ex) when (ex is MetadataCompilationException or InvalidOperationException)
+        {
+            error = done.Count == 0 ? ex.Message : $"Published {string.Join(", ", done)}, then stopped: {ex.Message}";
         }
         finally { busy = false; }
     }

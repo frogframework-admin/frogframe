@@ -7,6 +7,7 @@
 @inject ToastService Toasts
 @inject DialogService Dialogs
 @inject NavigationManager Nav
+@inject Framework.Web.AI.AiDesignerService Ai
 
 <PageTitle>Workflow @(wf?.Name) · FrogFrame</PageTitle>
 
@@ -40,6 +41,14 @@ else
             </BbButton>
         </div>
     </header>
+
+    <AiAssistPanel Title="@(isNew ? "Design with AI" : "Modify with AI")"
+                   Description="Describe the approval flow: who approves, in which order, and under which conditions. The AI rewrites the draft below; you review it and publish."
+                   Placeholder="e.g. Line manager approves first. If total is above 50,000,000, the Finance Manager approves next. Rejections need a comment and go back to Draft."
+                   ButtonText="Apply to draft"
+                   Rows="3"
+                   ShowWhenDisabled="false"
+                   Generate="DesignWithAi" />
 
     @if (string.IsNullOrWhiteSpace(wf.DocType))
     {
@@ -391,6 +400,37 @@ else
     {
         if (on && !t.AllowedRoles.Contains(role)) t.AllowedRoles.Add(role);
         if (!on) t.AllowedRoles.Remove(role);
+    }
+
+    /// <summary>AI rewrites the draft; name and version stay as the editor set them. Nothing is published.</summary>
+    private async Task<Framework.Web.AI.AiPanelOutcome> DesignWithAi(string request, CancellationToken ct)
+    {
+        var r = await Ai.DesignWorkflowAsync(Current.Required, request, wf, EffectiveDocType, ct);
+        if (r.Workflow is null)
+            return new(false, r.Explanation, r.Errors, r.Usage, "The AI did not return a draft");
+
+        var next = r.Workflow;
+        next.Name = wf!.Name;
+        next.Version = wf.Version;
+        if (string.IsNullOrWhiteSpace(wf.DocType))
+        {
+            // Standalone or new workflow: a DocType chosen by the AI becomes the link target; the admin can still untick linking.
+            if (!string.IsNullOrWhiteSpace(next.DocType) && Registry.Current.TryGet(next.DocType, out var d) && !d.Def.IsChild)
+                targetDocType = d.Name;
+            next.DocType = null;
+        }
+        else
+        {
+            next.DocType = wf.DocType;
+        }
+
+        wf = next;
+        selected = null;
+        attach = attach || (isNew && CanAttach);
+        Recompile();
+
+        return new(r.Ok, r.Explanation, r.Errors, r.Usage,
+            r.Ok ? "Applied to the draft: check the diagram, then Check changes and Publish" : "Applied to the draft with problems: fix them or try again");
     }
 
     private void Check() => preview = Registry.PreviewWorkflow(DraftForCompile(), attach, RoleCatalogSvc.Scope(Current.Required.TenantId));

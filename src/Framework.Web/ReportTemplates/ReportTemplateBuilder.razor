@@ -11,6 +11,7 @@
 @inject CurrentUser Current
 @inject ToastService Toasts
 @inject NavigationManager Nav
+@inject Framework.Web.AI.AiDesignerService Ai
 
 <PageTitle>@(isEdit ? "Edit report template" : "New report template") · FrogFrame</PageTitle>
 
@@ -51,6 +52,14 @@ else
     @switch (step)
     {
         case 1:
+            <AiAssistPanel Title="Write the report queries with AI"
+                           Description="Describe the data you need in plain words. The AI writes the SQL over the reporting views, the server checks it with a dry run (no data is sent to the AI), and you continue with parameters and preview."
+                           Placeholder="e.g. Purchase request lines between @@Start and @@End with item, quantity, rate and amount, grouped by department."
+                           ButtonText="Write SQL"
+                           Rows="3"
+                           ShowWhenDisabled="false"
+                           Examples="AiQueryExamples"
+                           Generate="WriteSqlWithAi" />
             <div class="builder-grid builder-grid-equal">
                 <BbCard Class="builder-card-left">
                     <BbCardHeader>
@@ -332,6 +341,25 @@ else
     {
         var sql = def.Config.Sql.TrimEnd();
         def.Config.Sql = sql + (sql.Length == 0 ? "" : " ") + text;
+    }
+
+    private static readonly IReadOnlyList<string> AiQueryExamples = ["Purchase request lines between a start and end date with item, quantity, rate and amount.", "Rekap pembelian per vendor per bulan untuk tahun yang dipilih."];
+
+    /// <summary>AI writes the SQL (validated by SqlGuard and a dry run); the admin continues with parameters and preview.</summary>
+    private async Task<Framework.Web.AI.AiPanelOutcome> WriteSqlWithAi(string request, CancellationToken ct)
+    {
+        var r = await Ai.DesignQueryAsync(Current.Required, Framework.Web.AI.QueryPurpose.ReportTemplate, request, def.Config.Sql, def.Config.HeaderSql, ct);
+        if (string.IsNullOrWhiteSpace(r.Sql))
+            return new(false, r.Explanation, r.Errors, r.Usage, "The AI did not return a query");
+
+        def.Config.Sql = r.Sql;
+        def.Config.HeaderSql = r.HeaderSql;
+        def.Config.Parameters = r.Parameters.ToList();
+        preview = null; check = null;
+        error = null;
+        if (r.Ok) step = maxStep = 2;
+        return new(r.Ok, r.Explanation, r.Errors, r.Usage,
+            r.Ok ? "Query written and checked: review the parameters and run the preview" : "Query written but it still has problems: fix it in the editor or try again");
     }
 
     private void Detect()

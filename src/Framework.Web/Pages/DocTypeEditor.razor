@@ -6,6 +6,7 @@
 @inject ToastService Toasts
 @inject DialogService Dialogs
 @inject NavigationManager Nav
+@inject Framework.Web.AI.AiDesignerService Ai
 
 <PageTitle>@DocTypeName Editor · FrogFrame</PageTitle>
 
@@ -37,6 +38,14 @@ else
             </BbButton>
         </div>
     </header>
+
+    <AiAssistPanel Title="Modify with AI"
+                   Description="Describe the change. The AI rewrites the draft below; nothing is published until you review the changes and press Publish."
+                   Placeholder="e.g. Add a required NPWP field (15 digits) after the vendor name, and make the bank account visible only when payment method is Transfer."
+                   ButtonText="Apply to draft"
+                   Rows="3"
+                   ShowWhenDisabled="false"
+                   Generate="ModifyWithAi" />
 
     @if (preview is not null)
     {
@@ -906,6 +915,25 @@ else
             Toasts.Success("JSON applied to design.", "Applied");
         }
         catch (JsonException ex) { jsonError = $"Invalid JSON: {ex.Message}"; }
+    }
+
+    /// <summary>AI rewrites the draft (same as applying JSON); the administrator reviews the changes and publishes.</summary>
+    private async Task<Framework.Web.AI.AiPanelOutcome> ModifyWithAi(string request, CancellationToken ct)
+    {
+        var r = await Ai.DesignDocTypeAsync(Current.Required, request, existingDocType: DocTypeName, ct: ct);
+        if (r.DocType is null)
+            return new(false, r.Explanation, r.Errors, r.Usage, "The AI did not return a draft");
+
+        r.DocType.Version = version;
+        design = DocTypeDesign.From(r.DocType);
+        currentTab = design.Tabs[0]; currentSection = currentTab.Sections.FirstOrDefault(); selected = null;
+        isDrawerOpen = false;
+        jsonError = null;
+        Recompile();
+        Check(); // show the diff against the active version right away
+
+        return new(r.Ok, r.Explanation, r.Errors, r.Usage,
+            r.Ok ? "Applied to the draft: review the changes, then Publish" : "Applied to the draft with problems: fix them or use Discard changes");
     }
 
     private void Check()

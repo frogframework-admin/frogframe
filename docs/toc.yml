@@ -22,6 +22,8 @@
       href: guides/sql-dashboards.md
     - name: Saved Query REST APIs
       href: guides/saved-query-apis.md
+    - name: AI Designer
+      href: guides/ai-designer.md
     - name: API Keys & Custom Methods
       href: guides/api-integrations.md
     - name: Outbound Webhooks

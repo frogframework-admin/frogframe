@@ -9,6 +9,7 @@
 @inject CurrentUser Current
 @inject ToastService Toasts
 @inject NavigationManager Nav
+@inject Framework.Web.AI.AiDesignerService Ai
 
 <PageTitle>@(isEdit ? "Edit query API" : "New query API") · FrogFrame</PageTitle>
 
@@ -54,6 +55,14 @@ else
     @switch (step)
     {
         case 1:
+            <AiAssistPanel Title="Write the API query with AI"
+                           Description="Describe the data you need in plain words. The AI writes the SQL over the reporting views, the server checks it with a dry run (no data is sent to the AI), and you continue with parameters and preview."
+                           Placeholder="e.g. Open purchase requests of the caller's department with number, date, requester and total, newest first."
+                           ButtonText="Write SQL"
+                           Rows="3"
+                           ShowWhenDisabled="false"
+                           Examples="AiQueryExamples"
+                           Generate="WriteSqlWithAi" />
             <div class="builder-grid builder-grid-equal">
                 <BbCard Class="builder-card-left">
                     <BbCardHeader>
@@ -269,6 +278,24 @@ else
     private void GoTo(int n) { if (n <= maxStep) { step = n; error = null; } }
     private void Insert(string text) { var s = def.Config.Sql.TrimEnd(); def.Config.Sql = s + (s.Length == 0 ? "" : " ") + text; }
     private void SetName(string? v) { def.Name = v ?? string.Empty; if (!slugTouched) def.Slug = QueryApiService.Slugify(def.Name); }
+
+    private static readonly IReadOnlyList<string> AiQueryExamples = ["Open purchase requests of the caller's department with number, date, requester and total, newest first.", "Daftar vendor beserta total pembelian tahun berjalan, urut dari terbesar."];
+
+    /// <summary>AI writes the SQL (validated by SqlGuard and a dry run); the admin continues with parameters and preview.</summary>
+    private async Task<Framework.Web.AI.AiPanelOutcome> WriteSqlWithAi(string request, CancellationToken ct)
+    {
+        var r = await Ai.DesignQueryAsync(Current.Required, Framework.Web.AI.QueryPurpose.QueryApi, request, def.Config.Sql, null, ct);
+        if (string.IsNullOrWhiteSpace(r.Sql))
+            return new(false, r.Explanation, r.Errors, r.Usage, "The AI did not return a query");
+
+        def.Config.Sql = r.Sql;
+        def.Config.Parameters = r.Parameters.ToList();
+        preview = null;
+        error = null;
+        if (r.Ok) step = maxStep = 2;
+        return new(r.Ok, r.Explanation, r.Errors, r.Usage,
+            r.Ok ? "Query written and checked: review the parameters and run the preview" : "Query written but it still has problems: fix it in the editor or try again");
+    }
 
     private void Detect()
     {
