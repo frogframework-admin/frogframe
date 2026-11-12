@@ -37,6 +37,8 @@ public static class ScriptCompletionCatalog
             ["Log"] = InstanceMembers(typeof(IScriptLog)),
             ["Email"] = InstanceMembers(typeof(IScriptEmail)),
             ["ctx"] = InstanceMembers(typeof(ScriptContext)),
+            ["Form"] = InstanceMembers(typeof(IScriptForm)),
+            ["FormScriptEvent"] = EnumMembers(typeof(FormScriptEvent)),
             ["CancellationToken"] =
             [
                 new("IsCancellationRequested", "property", "bool IsCancellationRequested", "IsCancellationRequested"),
@@ -70,7 +72,9 @@ public static class ScriptCompletionCatalog
             new("Email", "variable", "IScriptEmail Email", "Email", Documentation: "Queue an outbound email."),
             new("Values", "variable", "IDictionary<string, object?> Values", "Values", Documentation: "Request arguments (Api scripts)."),
             new("CancellationToken", "variable", "CancellationToken CancellationToken", "CancellationToken", Documentation: "Pass to Docs/Email calls; cancelled when the time limit is reached."),
-            new("ctx", "variable", "ScriptContext ctx", "ctx", Documentation: "Script context. Set ctx.Result to return data from an Api script.")
+            new("ctx", "variable", "ScriptContext ctx", "ctx", Documentation: "Script context. Set ctx.Result to return data from an Api script."),
+            new("Form", "variable", "IScriptForm Form", "Form", Documentation: "The open form (Client Scripts only; null in other scripts): show/hide fields, fill values, messages."),
+            new("FormScriptEvent", "enum", "enum FormScriptEvent", "FormScriptEvent", Documentation: "Load, Change or Validate (compare with Form.Event).")
         ];
 
         ScriptCompletionItem[] snippets =
@@ -85,7 +89,17 @@ public static class ScriptCompletionCatalog
             new("result", "snippet", "return data from an Api script",
                 "ctx.Result = new Dictionary<string, object?>\n{\n\t[\"${1:key}\"] = ${2:value}\n};", true),
             new("sendmail", "snippet", "queue an email",
-                "await Email.SendAsync(${1:to}, \"${2:subject}\", \"${3:body}\", ct: CancellationToken);", true)
+                "await Email.SendAsync(${1:to}, \"${2:subject}\", \"${3:body}\", ct: CancellationToken);", true),
+            new("formtoggle", "snippet", "Client Script: show a field only when a condition holds",
+                "var ${1:show} = ${2:Form.GetValue(\"priority\") as string == \"High\"};\nForm.SetHidden(\"${3:field}\", !${1:show});\nForm.SetRequired(\"${3:field}\", ${1:show});", true,
+                "Hide and require a field depending on another one (Change event)."),
+            new("formfill", "snippet", "Client Script: fill a value when empty",
+                "if (string.IsNullOrEmpty(Form.GetValue(\"${1:field}\") as string))\n{\n\tForm.SetValue(\"${1:field}\", ${2:value});\n}", true),
+            new("formerror", "snippet", "Client Script: block saving with a field error",
+                "if (${1:condition})\n{\n\tForm.AddError(\"${2:field}\", \"${3:message}\");\n}", true,
+                "Validate event: the form is not saved while errors are reported."),
+            new("formmessage", "snippet", "Client Script: show a message",
+                "Form.ShowMessage(\"${1:message}\", \"${2|info,success,warning,error|}\");", true)
         ];
 
         return new { globals, members, snippets };
@@ -138,6 +152,9 @@ public static class ScriptCompletionCatalog
 
         return Dedupe(items);
     }
+
+    private static IReadOnlyList<ScriptCompletionItem> EnumMembers(Type type) =>
+        Enum.GetNames(type).Select(n => new ScriptCompletionItem(n, "enumMember", $"{type.Name}.{n}", n)).ToList();
 
     private static ScriptCompletionItem Method(MethodInfo m)
     {

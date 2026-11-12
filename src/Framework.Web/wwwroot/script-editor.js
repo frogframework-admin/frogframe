@@ -82,6 +82,8 @@ function kindOf(monaco, kind) {
         case 'field': return K.Field;
         case 'variable': return K.Variable;
         case 'snippet': return K.Snippet;
+        case 'enum': return K.Enum;
+        case 'enumMember': return K.EnumMember;
         default: return K.Text;
     }
 }
@@ -98,8 +100,8 @@ function toSuggestion(monaco, item, range) {
     };
 }
 
-// Field names after Doc["  /  OldDoc["  /  Doc.Data["  /  Doc.GetDecimal("  etc.
-const FIELD_CONTEXT = /(?:\b(?:Doc|OldDoc)(?:\.Data)?\s*\[\s*|\.(?:GetString|GetDecimal|GetInt|GetBool|GetTable|ContainsKey)\s*\(\s*)"\w*$/;
+// Field names after Doc["  /  OldDoc["  /  Doc.Data["  /  Doc.GetDecimal("  /  Form.SetHidden("  /  Form.ChangedField == "  etc.
+const FIELD_CONTEXT = /(?:\b(?:Doc|OldDoc)(?:\.Data)?\s*\[\s*|\.(?:GetString|GetDecimal|GetInt|GetBool|GetTable|ContainsKey|GetValue|SetValue|SetHidden|SetRequired|SetReadOnly|SetOptions|SetDescription|AddError)\s*\(\s*|\bChangedField\s*[=!]=\s*)"\w*$/;
 // Member access: identifier followed by a dot and a partial word.
 const MEMBER_CONTEXT = /\b([A-Za-z_]\w*)\s*\.\s*\w*$/;
 

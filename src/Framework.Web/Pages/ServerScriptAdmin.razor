@@ -299,7 +299,7 @@ else
             <div>
                 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.35rem">
                     <label class="form-label" style="font-weight:600">C# Script Code *</label>
-                    <span style="font-size:.75rem;color:var(--bb-text-muted)">Globals: <code>Doc</code>, <code>OldDoc</code>, <code>User</code>, <code>Docs</code>, <code>Log</code>, <code>Email</code>, <code>Values</code></span>
+                    <span style="font-size:.75rem;color:var(--bb-text-muted)">Globals: <code>Doc</code>, <code>OldDoc</code>, <code>User</code>, <code>Docs</code>, <code>Log</code>, <code>Email</code>, <code>Values</code>@if (editScriptType == "Form") { <text>, <code>Form</code></text> }</span>
                 </div>
                 <ScriptCodeEditor @ref="codeEditor"
                                   @bind-Value="editCode"
@@ -630,7 +630,7 @@ else
     {
         get
         {
-            var docType = editScriptType == "DocEvent" ? editDocType : "";
+            var docType = editScriptType is "DocEvent" or "Form" ? editDocType : "";
             if (docType == editorFieldsDocType) return editorFields;
 
             editorFieldsDocType = docType;

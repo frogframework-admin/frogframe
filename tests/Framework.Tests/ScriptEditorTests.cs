@@ -82,6 +82,39 @@ sealed partial class Tests
     }
 
     [Test]
+    public Task ScriptEditor_catalog_supports_client_scripts()
+    {
+        var catalog = ScriptEditorCatalogJson();
+        var members = catalog.GetProperty("members");
+        var form = Labels(members.GetProperty("Form"));
+        foreach (var name in new[] { "Event", "ChangedField", "IsNew", "GetValue", "SetValue", "SetHidden", "SetRequired", "SetReadOnly", "SetOptions", "SetDescription", "ShowMessage", "AddError" })
+            Assert.True(form.Contains(name), $"Form offers {name}");
+        Assert.True(Labels(members.GetProperty("FormScriptEvent")).SequenceEqual(new[] { "Load", "Change", "Validate" }), "FormScriptEvent values");
+        var globals = Labels(catalog.GetProperty("globals"));
+        Assert.True(globals.Contains("Form") && globals.Contains("FormScriptEvent"), "Form globals");
+        Assert.True(Labels(catalog.GetProperty("snippets")).Count(l => l.StartsWith("form", StringComparison.Ordinal)) == 4, "Client Script snippets");
+
+        // The Client Script snippets, filled in, pass the sandbox analyzer.
+        var code = """
+            var show = Form.GetValue("priority") as string == "High";
+            Form.SetHidden("procurement_notes", !show);
+            Form.SetRequired("procurement_notes", show);
+            if (string.IsNullOrEmpty(Form.GetValue("justification") as string))
+            {
+                Form.SetValue("justification", "Urgent request");
+            }
+            if (Form.Event == FormScriptEvent.Validate && Form.ChangedField == null)
+            {
+                Form.AddError("justification", "Please explain.");
+            }
+            Form.ShowMessage("Saved", "info");
+            """;
+        var errors = Framework.Scripting.ScriptCompiler.Validate(code);
+        Assert.Equal(0, errors.Count, "client script snippets validate: " + string.Join(" | ", errors));
+        return Task.CompletedTask;
+    }
+
+    [Test]
     public async Task ScriptEditor_csp_allows_monaco_blob_workers()
     {
         var context = new DefaultHttpContext();
