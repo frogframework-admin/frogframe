@@ -136,7 +136,7 @@ ctx.Result = new Dictionary<string, object>
 ## 5. Administration UI (`/admin/server-scripts`)
 
 System Managers can configure scripts under **Settings &rarr; System &rarr; Server Scripts**:
-- **Code Editor**: Clean monospace code input with script type switching.
+- **Code Editor (Monaco)**: C# syntax highlighting, completions for the script globals (`Doc.`, `Docs.`, `Log.`, `User.`, `ctx.`, `Math.`, ...), field names of the selected DocType inside `Doc["..."]` / `Doc.GetDecimal("...")`, and snippets (`validate`, `rows`, `getdoc`, `result`, `sendmail`). Errors from the analyzer and compiler are underlined while you type (background validation about 0.7 s after the last keystroke). **Ctrl+S** validates. If Monaco cannot be loaded, the page falls back to a plain text box.
 - **Validate / Compile**: Tests compilation and security rules immediately, returning line-numbered diagnostics without saving.
 - **Save & Publish**: Bumps the version number, creates a historical version snapshot, and invalidates in-memory caches.
 - **Execution Run History**: Displays execution duration in milliseconds, status (`Success`, `Failed`, `BudgetExceeded`, `Timeout`, `SecurityViolation`), and full error traces.
@@ -144,3 +144,18 @@ System Managers can configure scripts under **Settings &rarr; System &rarr; Serv
 - A banner shows when scripts are switched off by `Scripting:Enabled`.
 
 > **Upgrading from the first sandbox version:** scripts that use `Regex`, `System.Threading`, framework types such as `Framework.Documents.ValidationFailedException`, local functions or LINQ query syntax are now rejected. Open each script and press **Validate** before enabling scripts in production.
+
+### Monaco editor: how it is wired
+
+| Piece | Role |
+|---|---|
+| `BlazorMonaco` NuGet package (`Framework.Web.csproj`) | Supplies the Monaco files under `_content/BlazorMonaco/lib/monaco-editor/min/vs`. Only the static files are used. |
+| `wwwroot/script-editor.js` | ES module. Loads Monaco lazily the first time the editor opens, creates the editor, completions, markers, theme sync (follows the `dark` class on `<html>`), Ctrl+S. |
+| `Components/ScriptCodeEditor.razor` | Blazor component: `@bind-Value`, `Fields`, `OnSaveShortcut`, `FlushAsync()`, `SetDiagnosticsAsync()`, live validation. |
+| `Components/ScriptCompletionCatalog.cs` | Completion data, read by reflection from `Framework.Scripting.Abstractions`, so it follows the real script API. Members starting with `__` are never offered. |
+| CSP (`HttpHardening.cs`) | `worker-src 'self' blob:` so Monaco can start its web workers. |
+
+Notes:
+- Monaco's AMD loader installs a global `define()`. `script-editor.js` removes the `define.amd` marker after loading so UMD libraries loaded later (ECharts for dashboards, Quill) keep working.
+- Completions are not full Roslyn IntelliSense (no type inference for local variables); unknown members fall back to word-based suggestions. Errors still come from the real compiler and analyzer.
+- Blazor Server limits one SignalR message to 32 KB by default (`HubOptions.MaximumReceiveMessageSize`). Keep scripts below that size or raise the limit.

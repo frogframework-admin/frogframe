@@ -277,6 +277,8 @@ public sealed class FrogFrameSecurityHeadersMiddleware(RequestDelegate next)
                 "font-src 'self' https://fonts.gstatic.com data:; " +
                 "img-src 'self' data: blob:; " +
                 "connect-src 'self' ws: wss:; " +
+                // Monaco (Server Script editor) starts its web workers from blob: URLs.
+                "worker-src 'self' blob:; " +
                 "frame-ancestors 'self';";
         }
 

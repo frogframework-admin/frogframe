@@ -11,6 +11,9 @@
     <ProjectReference Include="..\Framework.Scripting\Framework.Scripting.csproj" />
     <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.20.1" />
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.20.1" />
+    <!-- Monaco editor files for the Server Script editor (served from _content/BlazorMonaco, loaded lazily by
+         wwwroot/script-editor.js). Only the static files are used, not the BlazorMonaco components. -->
+    <PackageReference Include="BlazorMonaco" Version="3.5.0" />
   </ItemGroup>
 
   <!-- Default: paket NuGet resmi (membawa BlazorBlueprint.Primitives dan Icons.Lucide secara transitif). -->

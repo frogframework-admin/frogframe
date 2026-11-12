@@ -263,15 +263,11 @@ else
                     <label class="form-label" style="font-weight:600">C# Script Code *</label>
                     <span style="font-size:.75rem;color:var(--bb-text-muted)">Globals: <code>Doc</code>, <code>OldDoc</code>, <code>User</code>, <code>Docs</code>, <code>Log</code>, <code>Email</code>, <code>Values</code></span>
                 </div>
-                <textarea @bind="editCode"
-                          @bind:event="oninput"
-                          rows="16"
-                          style="width:100%;font-family:Consolas, Monaco, monospace;font-size:.875rem;padding:.75rem;border-radius:.375rem;border:1px solid var(--bb-border);background:var(--bb-bg-card);color:var(--bb-text);line-height:1.5;resize:vertical;"
-                          placeholder="// Write sandboxed C# code here...
-// e.g. for DocEvent:
-// var total = Doc.GetDecimal(&quot;qty&quot;) * Doc.GetDecimal(&quot;rate&quot;);
-// Doc[&quot;total&quot;] = total;
-// Log.Info($&quot;Calculated total: {total}&quot;);"></textarea>
+                <ScriptCodeEditor @ref="codeEditor"
+                                  @bind-Value="editCode"
+                                  Fields="EditorFields"
+                                  OnSaveShortcut="ValidateCurrentCode" />
+                <span style="font-size:.75rem;color:var(--bb-text-muted)">Ctrl+Space: suggestions · Ctrl+S: validate · errors are underlined while you type.</span>
             </div>
         </div>
     </ChildContent>
@@ -401,6 +397,7 @@ else
     private string editAllowedRoles = "";
     private bool editIsActive = true;
     private string editCode = "";
+    private ScriptCodeEditor? codeEditor;
     private int currentVersion = 1;
 
     private List<string> validationMessages = [];
@@ -523,10 +520,13 @@ else
         validationSuccess = false;
     }
 
-    private void ValidateCurrentCode()
+    private async Task ValidateCurrentCode()
     {
         validationMessages = [];
         validationSuccess = false;
+
+        // Change notifications from the editor are debounced; read the latest text first.
+        if (codeEditor is not null) await codeEditor.FlushAsync();
 
         if (string.IsNullOrWhiteSpace(editCode))
         {
@@ -534,7 +534,8 @@ else
             return;
         }
 
-        var errors = ScriptCompiler.Validate(editCode);
+        var code = editCode;
+        var errors = await Task.Run(() => ScriptCompiler.Validate(code));
         if (errors.Count > 0)
         {
             validationMessages.AddRange(errors);
@@ -543,12 +544,36 @@ else
         {
             validationSuccess = true;
         }
+
+        if (codeEditor is not null) await codeEditor.SetDiagnosticsAsync(errors);
+    }
+
+    // DocType fields offered as completions in Doc["..."]; cached per DocType so renders do not rebuild the list.
+    private string? editorFieldsDocType;
+    private IReadOnlyList<ScriptEditorField> editorFields = [];
+
+    private IReadOnlyList<ScriptEditorField> EditorFields
+    {
+        get
+        {
+            var docType = editScriptType == "DocEvent" ? editDocType : "";
+            if (docType == editorFieldsDocType) return editorFields;
+
+            editorFieldsDocType = docType;
+            editorFields = !string.IsNullOrEmpty(docType) && Metadata.Current.TryGet(docType, out var meta)
+                ? meta.Fields.Select(f => new ScriptEditorField(f.Name, f.Label, f.Def.Type)).ToList()
+                : [];
+            return editorFields;
+        }
     }
 
     private async Task SaveScript()
     {
         validationMessages = [];
         validationSuccess = false;
+
+        // Change notifications from the editor are debounced; read the latest text first.
+        if (codeEditor is not null) await codeEditor.FlushAsync();
 
         if (string.IsNullOrWhiteSpace(editName))
         {
@@ -563,10 +588,12 @@ else
         }
 
         // Validate Roslyn compilation and security AST
-        var compileErrors = ScriptCompiler.Validate(editCode);
+        var codeToValidate = editCode;
+        var compileErrors = await Task.Run(() => ScriptCompiler.Validate(codeToValidate));
         if (compileErrors.Count > 0)
         {
             validationMessages.AddRange(compileErrors);
+            if (codeEditor is not null) await codeEditor.SetDiagnosticsAsync(compileErrors);
             return;
         }
 

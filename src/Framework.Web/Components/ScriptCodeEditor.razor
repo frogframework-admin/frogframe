@@ -1,0 +1,236 @@
+@using System.Text.RegularExpressions
+@using Framework.Scripting
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+@* Monaco C# editor for Server Scripts. Falls back to a plain textarea if Monaco cannot be loaded. *@
+@if (failed)
+{
+    <textarea value="@Value"
+              @oninput="OnTextAreaInput"
+              rows="16"
+              spellcheck="false"
+              style="width:100%;font-family:Consolas, Menlo, monospace;font-size:.875rem;padding:.75rem;border-radius:.375rem;border:1px solid var(--bb-border);background:var(--bb-bg-card);color:var(--bb-text);line-height:1.5;resize:vertical;"></textarea>
+    <span style="font-size:.75rem;color:var(--bb-text-muted)">The code editor could not be loaded; using plain text input.</span>
+}
+else
+{
+    <div style="position:relative;height:@Height;min-height:200px;resize:vertical;overflow:hidden;border:1px solid var(--bb-border);border-radius:.375rem;">
+        @* Monaco owns the DOM inside this element; Blazor never renders children into it. *@
+        <div @ref="host" class="ff-script-editor" style="position:absolute;inset:0;"></div>
+        @if (!ready)
+        {
+            <div style="position:absolute;inset:0;padding:.75rem;font-size:.8125rem;color:var(--bb-text-muted);pointer-events:none">Loading editor…</div>
+        }
+    </div>
+}
+
+@code {
+    /// <summary>Script source. Use with <c>@bind-Value</c>.</summary>
+    [Parameter] public string Value { get; set; } = "";
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+
+    /// <summary>Raised on Ctrl/Cmd+S inside the editor (after <see cref="Value"/> has been updated).</summary>
+    [Parameter] public EventCallback OnSaveShortcut { get; set; }
+
+    /// <summary>DocType fields offered inside <c>Doc["..."]</c> and <c>Doc.GetX("...")</c>.</summary>
+    [Parameter] public IReadOnlyList<ScriptEditorField> Fields { get; set; } = [];
+
+    /// <summary>Validate in the background while typing and show errors as squiggles.</summary>
+    [Parameter] public bool LiveValidation { get; set; } = true;
+
+    [Parameter] public string Height { get; set; } = "420px";
+
+    private const int LiveValidationDelayMs = 700;
+    private static readonly Regex LinePrefix = new(@"^Line (\d+):\s*(.*)$", RegexOptions.Singleline | RegexOptions.CultureInvariant);
+
+    private readonly string id = "ffse_" + Guid.NewGuid().ToString("N");
+    private ElementReference host;
+    private IJSObjectReference? module;
+    private DotNetObjectReference<ScriptCodeEditor>? selfRef;
+    private bool ready;
+    private bool failed;
+    private bool disposed;
+    private string editorValue = "";          // last value known to be in the Monaco model
+    private IReadOnlyList<ScriptEditorField> sentFields = [];
+    private CancellationTokenSource? validateCts;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await InitializeAsync();
+            return;
+        }
+
+        if (!ready || module is null || disposed) return;
+
+        try
+        {
+            // The parent replaced the code (open another script, restore a version): push it into the editor.
+            var value = Value ?? "";
+            if (!string.Equals(value, editorValue, StringComparison.Ordinal))
+            {
+                editorValue = value;
+                await module.InvokeVoidAsync("setValue", id, value);
+                ScheduleValidation(value, 0);
+            }
+
+            if (!Fields.SequenceEqual(sentFields))
+            {
+                sentFields = Fields.ToList();
+                await module.InvokeVoidAsync("setFields", id, sentFields);
+            }
+        }
+        catch (JSDisconnectedException) { }
+    }
+
+    private async Task InitializeAsync()
+    {
+        try
+        {
+            selfRef = DotNetObjectReference.Create(this);
+            module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/Framework.Web/script-editor.js");
+            editorValue = Value ?? "";
+            sentFields = Fields.ToList();
+            await module.InvokeAsync<bool>("create", id, host, selfRef, new
+            {
+                value = editorValue,
+                fields = sentFields,
+                catalog = ScriptCompletionCatalog.ForEditor
+            });
+            ready = true;
+            StateHasChanged();
+            if (LiveValidation) ScheduleValidation(editorValue, 0);
+        }
+        catch (JSDisconnectedException) { }
+        catch (JSException)
+        {
+            // Monaco failed to load (blocked file, CSP, offline): keep the page usable.
+            failed = true;
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>
+    /// Reads the current text straight from the editor and updates <see cref="Value"/>.
+    /// Call before validating or saving: change notifications are debounced, so the bound value can be a few
+    /// hundred milliseconds behind what the user typed.
+    /// </summary>
+    public async Task<string> FlushAsync()
+    {
+        if (!ready || module is null || disposed) return Value ?? "";
+        try
+        {
+            var code = await module.InvokeAsync<string?>("getValue", id) ?? "";
+            await ApplyEditorValueAsync(code);
+            return code;
+        }
+        catch (JSDisconnectedException)
+        {
+            return Value ?? "";
+        }
+    }
+
+    /// <summary>Shows diagnostics in the form "Line N: message" (as returned by <see cref="ScriptCompiler.Validate"/>).</summary>
+    public async Task SetDiagnosticsAsync(IReadOnlyList<string> diagnostics)
+    {
+        if (!ready || module is null || disposed) return;
+        var markers = diagnostics.Select(d =>
+        {
+            var m = LinePrefix.Match(d);
+            return m.Success && int.TryParse(m.Groups[1].Value, out var line)
+                ? new { line, message = m.Groups[2].Value, severity = "error" }
+                : new { line = 1, message = d, severity = "error" };
+        }).ToList();
+
+        try { await module.InvokeVoidAsync("setMarkers", id, markers); }
+        catch (JSDisconnectedException) { }
+    }
+
+    public async Task FocusAsync()
+    {
+        if (!ready || module is null || disposed) return;
+        try { await module.InvokeVoidAsync("focus", id); }
+        catch (JSDisconnectedException) { }
+    }
+
+    [JSInvokable]
+    public async Task OnCodeChanged(string code)
+    {
+        await ApplyEditorValueAsync(code ?? "");
+    }
+
+    [JSInvokable]
+    public async Task OnSaveShortcutPressed(string code)
+    {
+        await ApplyEditorValueAsync(code ?? "");
+        await OnSaveShortcut.InvokeAsync();
+    }
+
+    private async Task ApplyEditorValueAsync(string code)
+    {
+        if (string.Equals(code, editorValue, StringComparison.Ordinal)) return;
+        editorValue = code;
+        await ValueChanged.InvokeAsync(code);
+        if (LiveValidation) ScheduleValidation(code, LiveValidationDelayMs);
+    }
+
+    private async Task OnTextAreaInput(ChangeEventArgs e)
+    {
+        var code = e.Value?.ToString() ?? "";
+        editorValue = code;
+        await ValueChanged.InvokeAsync(code);
+    }
+
+    // ------------------------------------------------------------- live validation
+
+    private void ScheduleValidation(string code, int delayMs)
+    {
+        if (!LiveValidation || disposed) return;
+        validateCts?.Cancel();
+        validateCts?.Dispose();
+        var cts = validateCts = new CancellationTokenSource();
+        _ = ValidateLaterAsync(code, delayMs, cts.Token);
+    }
+
+    private async Task ValidateLaterAsync(string code, int delayMs, CancellationToken ct)
+    {
+        try
+        {
+            if (delayMs > 0) await Task.Delay(delayMs, ct);
+
+            // Roslyn work runs off the circuit's thread; only the newest request is shown.
+            IReadOnlyList<string> errors = string.IsNullOrWhiteSpace(code)
+                ? []
+                : await Task.Run(() => ScriptCompiler.Validate(code), ct);
+
+            if (ct.IsCancellationRequested || disposed) return;
+            await InvokeAsync(() => SetDiagnosticsAsync(errors));
+        }
+        catch (OperationCanceledException) { }
+        catch (ObjectDisposedException) { }
+        catch (JSDisconnectedException) { }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        disposed = true;
+        validateCts?.Cancel();
+        validateCts?.Dispose();
+        validateCts = null;
+
+        if (module is not null)
+        {
+            try
+            {
+                if (ready) await module.InvokeVoidAsync("dispose", id);
+                await module.DisposeAsync();
+            }
+            catch (JSDisconnectedException) { }
+            catch (JSException) { }
+        }
+
+        selfRef?.Dispose();
+    }
+}
