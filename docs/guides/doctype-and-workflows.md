@@ -88,3 +88,29 @@ stateDiagram-v2
 2. **Mandatory Action Comments**: Actions such as "Reject" or "Cancel" require user comments before the transition is accepted.
 3. **Role & Condition Guards**: Each transition specifies eligible roles and optional Boolean expressions evaluated safely by the AST interpreter (e.g., `total <= 10000000 && user.department == 'IT'`).
 
+---
+
+## 4. Customizing Application DocTypes (Custom Field / Property Setter)
+
+A DocType that ships with the application (a `*.doctype.json` file under `Metadata/`) is **application-owned**. When an administrator changes it in the DocType Editor (or through the JSON tab, the metadata API, the AI designer, or by linking a workflow), FrogFrame does not publish a new base version. It stores only the difference as a **customization** and applies it on top of the base:
+
+```
+effective = base (file, or the stored base version) + customization → compile
+```
+
+When the developers deploy a newer file, the new base is used and the customization is applied again, so administrators' work is kept.
+
+| Administrators can | Only developers can (in the file) |
+|---|---|
+| Add fields. Their names must start with `custom_` so they never clash with fields added later by the developers | Remove an application field, or change its `name`, `type`, `linkTo`, `childDocType`, `compute`, `fetchFrom` |
+| Change label, description, tab/section/column, required/visible/read-only rules, default, options, min/max, list and filter settings, permission level, link filters of application fields | Change DocType `name`, `naming`, `storage`, `document` (submit/cancel), `isChild`, `isSingle`, `module`, `api`, data migrations |
+| Re-order fields | |
+| Change DocType `title`, `description`, `listView`, `permissions`, `printFormat`, `rules`, `hooks`, `import`, `allowAutoRepeat`, linked `workflow` | |
+
+Storage: table `frogframe_customizations` (migration `033_customizations.sql`); every save is a new version, so the history is kept. **Reset to application default** in the editor removes the customization (values of custom fields stay in the documents and reappear if the same field is added again).
+
+After a deploy, parts that no longer fit (for example an override of a field the developers removed) are skipped and listed as warnings in the editor. A customization that no longer compiles at all (for example a custom formula that uses a removed field) is switched off for that DocType instead of stopping the application.
+
+DocTypes created in the UI (no file) are not affected: they keep normal versions, and new fields need no prefix.
+
+Customizations apply to the whole installation: metadata is shared by all tenants.

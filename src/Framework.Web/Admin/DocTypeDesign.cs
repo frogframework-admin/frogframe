@@ -150,6 +150,9 @@ public sealed class DocTypeDesign
         return null;
     }
 
+    /// <summary>Prefix for new field names, e.g. "custom_" when customizing an application DocType.</summary>
+    public string? NewFieldPrefix { get; set; }
+
     public string UniqueName(string baseName)
     {
         var names = AllFields.Select(f => f.Name).ToHashSet();
@@ -160,7 +163,7 @@ public sealed class DocTypeDesign
     /// <summary>Field baru dengan nilai awal yang lolos compiler untuk tipe tersebut.</summary>
     public FieldDef AddField(string type, DesignerSection section, int column, int? index, MetadataSnapshot snapshot)
     {
-        var f = new FieldDef { Name = UniqueName(type.ToLowerInvariant() + "_field"), Label = $"{type} baru", Type = type };
+        var f = new FieldDef { Name = UniqueName((NewFieldPrefix ?? "") + type.ToLowerInvariant() + "_field"), Label = $"{type} baru", Type = type };
         ApplyTypeDefaults(f, snapshot);
         Insert(f, section, column, index);
         return f;

@@ -72,6 +72,17 @@ public sealed partial class AiDraftValidator(MetadataRegistry registry, Metadata
             errors.Add($"The draft is malformed: {ex.Message}");
         }
 
+        // Application DocTypes are saved as customizations: check the same rules saving will apply (custom_ prefix,
+        // no removed fields, no changes reserved for developers), so the model repairs them before the admin sees the draft.
+        if (existingName is not null && registry.IsAppOwned(existingName) && registry.BaseDefinition(existingName) is { } baseDef)
+        {
+            try { errors.AddRange(Customizations.Extract(baseDef, main).Errors.Select(e => e.ToString())); }
+            catch (Exception ex) when (ex is NullReferenceException or ArgumentException or InvalidOperationException or System.Text.Json.JsonException)
+            {
+                errors.Add($"The draft is malformed: {ex.Message}");
+            }
+        }
+
         return errors.Distinct().ToList();
     }
 

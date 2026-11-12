@@ -541,7 +541,15 @@ sealed partial class Tests
     public async Task Publish_metadata_mengklasifikasi_risiko_dan_membuat_versi_baru()
     {
         var reg = sp.GetRequiredService<MetadataRegistry>();
-        DocTypeDef Clone() => MetadataJson.ParseDocType(MetadataJson.Serialize(reg.Current.Get("Vendor").Def));
+        DocTypeDef Clone()
+        {
+            var def = MetadataJson.ParseDocType(MetadataJson.Serialize(reg.Current.Get("Vendor").Def));
+            def.Name = "CustomVendor";
+            return def;
+        }
+
+        // Daftarkan CustomVendor v1 sebagai UI DocType
+        reg.Publish(Clone(), "admin", acknowledgeRisk: false);
 
         var safe = Clone(); safe.Version = 2; safe.Fields[0].Label = "Nama perusahaan";
         Assert.Equal(ChangeRisk.Safe, reg.Preview(safe).Risk, "ubah label aman");
@@ -555,9 +563,9 @@ sealed partial class Tests
         Assert.True(!reg.Preview(broken).Valid, "draft tak valid ditolak");
 
         reg.Publish(safe, "admin", acknowledgeRisk: false);
-        Assert.Equal(2, reg.Current.Get("Vendor").Version, "versi aktif");
-        Assert.Equal(MetadataStatus.Deprecated, reg.History("Vendor").Single(v => v.Version == 1).Status, "v1 usang");
-        var v = await Docs.InsertAsync(U("rina"), "Vendor", P(("vendor_name", "PT Baru")));
+        Assert.Equal(2, reg.Current.Get("CustomVendor").Version, "versi aktif");
+        Assert.Equal(MetadataStatus.Deprecated, reg.History("CustomVendor").Single(v => v.Version == 1).Status, "v1 usang");
+        var v = await Docs.InsertAsync(U("rina"), "CustomVendor", P(("vendor_name", "PT Baru")));
         Assert.Equal(2, v.SchemaVersion, "dokumen baru mencatat skema v2");
     }
 
@@ -565,7 +573,11 @@ sealed partial class Tests
     public Task Migrasi_doctype_mengubah_payload_tanpa_mengubah_sumber()
     {
         var reg = sp.GetRequiredService<MetadataRegistry>();
-        var sourceMeta = reg.Current.Get("Vendor");
+        var baseVendor = MetadataJson.ParseDocType(MetadataJson.Serialize(reg.Current.Get("Vendor").Def));
+        baseVendor.Name = "CustomVendorMigrate";
+        reg.Publish(baseVendor, "admin", acknowledgeRisk: false);
+
+        var sourceMeta = reg.Current.Get("CustomVendorMigrate");
         var draft = MetadataJson.ParseDocType(MetadataJson.Serialize(sourceMeta.Def));
         draft.Version = sourceMeta.Version + 1;
         draft.Fields[0].Name = "supplier_name";
@@ -581,12 +593,12 @@ sealed partial class Tests
         };
         var source = new Document
         {
-            TenantId = "acme", DocType = "Vendor", Name = "VND-TEST", Owner = "admin", Created = DateTimeOffset.UtcNow,
+            TenantId = "acme", DocType = "CustomVendorMigrate", Name = "VND-TEST", Owner = "admin", Created = DateTimeOffset.UtcNow,
             Modified = DateTimeOffset.UtcNow, ModifiedBy = "admin", SchemaVersion = sourceMeta.Version,
             Data = new Dictionary<string, object?> { ["vendor_name"] = "Test supplier" }
         };
 
-        var target = reg.CompileDraft(draft).Snapshot!.Get("Vendor");
+        var target = reg.CompileDraft(draft).Snapshot!.Get("CustomVendorMigrate");
         var (migrated, changes) = DocTypeDataMigrator.Transform(source, target, draft.DataMigration.Operations, "admin", DateTimeOffset.UtcNow);
         Assert.Equal("Test supplier", migrated.Data["supplier_name"], "rename value");
         Assert.Equal("ATK", migrated.Data["category"], "default applied");
@@ -762,7 +774,13 @@ sealed partial class Tests
     public Task Editor_operasi_tambah_pindah_kolom_hapus_dan_klasifikasi_risiko()
     {
         var reg = sp.GetRequiredService<MetadataRegistry>();
-        var active = reg.Current.Get(PR).Def;
+        var customPR = MetadataJson.ParseDocType(MetadataJson.Serialize(reg.Current.Get(PR).Def));
+        customPR.Name = "CustomPRDesign";
+        customPR.Workflow = null;
+        customPR.PrintFormat = null;
+        reg.Publish(customPR, "admin", acknowledgeRisk: false);
+
+        var active = reg.Current.Get("CustomPRDesign").Def;
         var d = DocTypeDesign.From(active);
         var tab = d.Tabs.Single(t => t.Title == "Pengajuan");
         var kebutuhan = tab.Sections.Single(s => s.Title == "Kebutuhan");
@@ -786,7 +804,7 @@ sealed partial class Tests
         def = d.ToDef(2);
         var moved = def.Fields.Single(x => x.Name == "priority");
         Assert.True(moved.Section == "Pemohon" && moved.Column == 1, "priority pindah ke section Pemohon kolom 1");
-        var layout = reg.CompileDraft(def).Snapshot!.Get(PR).Layout;
+        var layout = reg.CompileDraft(def).Snapshot!.Get("CustomPRDesign").Layout;
         var firstInColumn = layout.Single(t => t.Title == "Pengajuan").Sections.Single(s => s.Title == "Pemohon").Columns[0].Fields[0];
         Assert.Equal("priority", firstInColumn.Name, "di form, priority tampil paling atas kolom 1 section Pemohon");
 
@@ -837,16 +855,17 @@ sealed partial class Tests
     {
         var reg = sp.GetRequiredService<MetadataRegistry>();
         var d = DocTypeDesign.From(reg.Current.Get("Vendor").Def);
+        d.NewFieldPrefix = "custom_";
         var sec = d.Tabs[0].Sections[0];
         var f = d.AddField("Select", sec, 0, null, reg.Current);
-        f.Name = "rating"; f.Label = "Penilaian"; f.Options = ["A", "B", "C"]; f.InListView = true;
+        f.Name = "custom_rating"; f.Label = "Penilaian"; f.Options = ["A", "B", "C"]; f.InListView = true;
         reg.Publish(d.ToDef(2), "admin", acknowledgeRisk: false);
-        Assert.Equal(2, reg.Current.Get("Vendor").Version, "versi 2 aktif");
-        var v = await Docs.InsertAsync(U("rina"), "Vendor", P(("vendor_name", "PT Baru"), ("rating", "A")));
-        Assert.Equal("A", v.Data["rating"], "field baru tersimpan");
-        await Assert.Throws<ValidationFailedException>(() => Docs.InsertAsync(U("rina"), "Vendor", P(("vendor_name", "PT X"), ("rating", "Z"))), "opsi di luar daftar ditolak");
+        Assert.True(reg.Current.Get("Vendor").Def.Fields.Any(fld => fld.Name == "custom_rating"), "custom field aktif di metadata");
+        var v = await Docs.InsertAsync(U("rina"), "Vendor", P(("vendor_name", "PT Baru"), ("custom_rating", "A")));
+        Assert.Equal("A", v.Data["custom_rating"], "field baru tersimpan");
+        await Assert.Throws<ValidationFailedException>(() => Docs.InsertAsync(U("rina"), "Vendor", P(("vendor_name", "PT X"), ("custom_rating", "Z"))), "opsi di luar daftar ditolak");
         var list = await Docs.ListAsync(U("rina"), "Vendor", new ListRequest());
-        Assert.True(list.Columns.Contains("rating"), "kolom daftar ikut berubah");
+        Assert.True(list.Columns.Contains("custom_rating"), "kolom daftar ikut berubah");
     }
 
     // ---------------- Login (ASP.NET Core Identity) ----------------
@@ -980,7 +999,7 @@ sealed partial class Tests
         Assert.Throws<InvalidOperationException>(() => reg.PublishWorkflow(wf, "admin", acknowledgeRisk: false, attach: true), "butuh konfirmasi");
         reg.PublishWorkflow(wf, "admin", acknowledgeRisk: true, attach: true);
         Assert.Equal("VendorReview", reg.Current.Get("Vendor").Def.Workflow, "DocType memakai workflow");
-        Assert.Equal(2, reg.Current.Get("Vendor").Version, "DocType naik versi bersama");
+        Assert.Equal(1, reg.Current.Get("Vendor").Version, "DocType base version tetap 1 (workflow tersimpan sebagai kustomisasi)");
         Assert.Equal(1, reg.WorkflowHistory("VendorReview").Count, "riwayat workflow");
 
         // Dokumen lama (draft, belum punya state) langsung memakai state awal
@@ -1002,7 +1021,7 @@ sealed partial class Tests
         var v2 = VendorWorkflow(2); v2.States.Add(new() { Name = "Ditolak", DocStatus = 2, Tone = "negative" }); v2.Transitions.Add(new() { From = "Ditinjau", To = "Ditolak", Action = "Tolak", AllowedRoles = ["Finance"], RequireComment = true });
         reg.PublishWorkflow(v2, "admin", acknowledgeRisk: false, attach: false);
         Assert.Equal(2, reg.Current.Get("Vendor").Workflow!.Def.Version, "workflow v2 aktif tanpa mengubah DocType");
-        Assert.Equal(2, reg.Current.Get("Vendor").Version, "DocType tidak ikut naik versi");
+        Assert.Equal(1, reg.Current.Get("Vendor").Version, "DocType tidak ikut naik versi");
     }
 
     [Test]

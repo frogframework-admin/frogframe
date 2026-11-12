@@ -22,9 +22,16 @@ else
 {
     <header class="page-head">
         <div>
-            <h1>@design.Def.Title <span class="muted" style="font-weight:500">· draft v@(version)</span></h1>
+            <h1>@design.Def.Title <span class="muted" style="font-weight:500">@(isApp ? "· customizing" : $"· draft v{version}")</span></h1>
             <p>
-                Active version v@(version - 1).
+                @if (isApp)
+                {
+                    <span>Application DocType v@(version - 1)@(customization is { } cz ? $" · customization v{cz.Version} ({cz.CustomFields.Count} custom field(s), {cz.PropertySetters.Count} change(s))" : " · not customized").</span>
+                }
+                else
+                {
+                    <span>Active version v@(version - 1).</span>
+                }
                 @if (errors.Count > 0) { <BbBadge Variant="BadgeVariant.SoftDestructive">@errors.Count issues</BbBadge> }
                 else { <BbBadge Variant="BadgeVariant.SoftSuccess">Draft valid</BbBadge> }
                 @if (dirty) { <BbBadge Variant="BadgeVariant.Warning">Unpublished changes</BbBadge> }
@@ -34,7 +41,7 @@ else
             <BbButton Variant="ButtonVariant.Ghost" Disabled="@(!dirty)" OnClick="Discard"><LucideIcon Name="rotate-ccw" Size="16" /> Discard changes</BbButton>
             <BbButton Variant="ButtonVariant.Outline" Disabled="@(errors.Count > 0)" OnClick="Check"><LucideIcon Name="search" Size="16" /> Review changes</BbButton>
             <BbButton Disabled="@(preview is not { Valid: true } || preview.Changes.Count == 0 || (preview.Risk == ChangeRisk.Risky && !ack) || (design.Def.DataMigration is not null && migrationPreview is not { Valid: true }))" OnClick="Publish">
-                <LucideIcon Name="upload" Size="16" /> Publish v@(version)
+                <LucideIcon Name="upload" Size="16" /> @(isApp ? "Save customization" : $"Publish v{version}")
             </BbButton>
         </div>
     </header>
@@ -94,6 +101,38 @@ else
                 }
             </BbCardContent>
         </BbCard>
+    }
+
+    @if (isApp)
+    {
+        <BbAlert Variant="AlertVariant.Info" Class="props-block">
+            <BbAlertTitle>This DocType comes from the application</BbAlertTitle>
+            <BbAlertDescription>
+                Your changes are saved as a <strong>customization</strong> on top of the application's definition, so they stay when the application is updated.
+                New fields are named <code>@Framework.Metadata.Customizations.CustomFieldPrefix…</code>. Application fields cannot be removed or change type; hide them instead.
+                @if (customization is not null)
+                {
+                    <div style="margin-top:.5rem">
+                        <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick="ResetCustomization">
+                            <LucideIcon Name="rotate-ccw" Size="14" /> Reset to application default
+                        </BbButton>
+                    </div>
+                }
+            </BbAlertDescription>
+        </BbAlert>
+        @foreach (var w in Registry.CustomizationWarnings(DocTypeName))
+        {
+            <BbAlert Variant="AlertVariant.Warning" Class="props-block"><BbAlertDescription>Customization: @w</BbAlertDescription></BbAlert>
+        }
+        @if (Registry.HasLegacyUiVersion(DocTypeName))
+        {
+            <BbAlert Variant="AlertVariant.Warning" Class="props-block">
+                <BbAlertDescription>
+                    The active definition (v@(version - 1)) was published from this editor before customizations existed. It stays active,
+                    but the next deploy of a newer application file for this DocType replaces it. Ask the developers to copy those changes into the DocType file.
+                </BbAlertDescription>
+            </BbAlert>
+        }
     }
 
     @foreach (var w in design.Warnings)
@@ -584,6 +623,7 @@ else
                                  Errors="errors"
                                  ShowHeader="false"
                                  OriginalName="@OriginalName(selected)"
+                                 IsAppField="@(isApp && baseFieldNames.Contains(OriginalName(selected) ?? selected.Name))"
                                  OnChanged="Recompile"
                                  OnRemove="() => RemoveField(selected)"
                                  OnClose="CloseDrawer" />
@@ -727,6 +767,12 @@ else
         active = meta.Def;
         version = meta.Version + 1;
         design = DocTypeDesign.From(meta.Def);
+        isApp = Registry.IsAppOwned(DocTypeName);
+        customization = isApp ? Registry.Customization(DocTypeName) : null;
+        baseFieldNames = isApp && Registry.BaseDefinition(DocTypeName) is { } baseDef
+            ? baseDef.Fields.Select(f => f.Name).ToHashSet(StringComparer.Ordinal)
+            : [];
+        design.NewFieldPrefix = isApp ? Framework.Metadata.Customizations.CustomFieldPrefix : null;
         migrationJson = JsonSerializer.Serialize(new DataMigrationPlanDef { FromVersion = meta.Version }, MetadataJson.Options);
         migrationJsonError = null;
         originalJson = MetadataJson.Serialize(design.ToDef(version));
@@ -959,12 +1005,38 @@ else
                 ? result.Documents
                 : throw new InvalidOperationException("Run a successful migration dry-run before publishing.");
             var v = Registry.Publish(draft, Current.Required.Id, ack, migratedDocuments, RoleCatalogSvc.Scope(Current.Required.TenantId));
-            Toasts.Success("Forms, lists, and APIs will immediately use this version.", $"{v.DocType} v{v.Version} published");
+            if (isApp)
+                Toasts.Success("Saved separately from the application's definition; it stays when the application is updated.", $"{v.DocType} customization saved");
+            else
+                Toasts.Success("Forms, lists, and APIs will immediately use this version.", $"{v.DocType} v{v.Version} published");
             Load();
         }
         catch (Exception ex) when (ex is MetadataCompilationException or InvalidOperationException)
         {
             Toasts.Error(ex.Message, "Failed to publish");
+        }
+    }
+
+    // ---- Customization layer (application DocTypes)
+    private bool isApp;
+    private DocTypeCustomization? customization;
+    private HashSet<string> baseFieldNames = [];
+
+    private async Task ResetCustomization()
+    {
+        var ok = await Dialogs.ConfirmAsync("Reset to the application default?",
+            "All customizations of this DocType are removed: custom fields disappear from forms and lists (their values stay in the documents and come back if you add the same field again), and changed labels, rules and settings return to the application's definition.",
+            new ConfirmDialogOptions { ConfirmText = "Reset customization", CancelText = "Cancel" });
+        if (!ok.Confirmed) return;
+        try
+        {
+            Registry.ResetCustomization(DocTypeName, Current.Required.Id, RoleCatalogSvc.Scope(Current.Required.TenantId));
+            Toasts.Success("The application's definition is active again.", $"{DocTypeName} customization reset");
+            Load();
+        }
+        catch (MetadataCompilationException ex)
+        {
+            Toasts.Error(string.Join("; ", ex.Errors.Take(3).Select(e => e.ToString())), "Cannot reset: other metadata uses the custom fields");
         }
     }
 

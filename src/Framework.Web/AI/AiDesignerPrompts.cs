@@ -44,6 +44,16 @@ public static class AiDesignerPrompts
 
         When modifying an existing DocType, keep its name, keep fields that the request does not mention, and
         do not rename fields that already hold data unless asked.
+
+        Application DocTypes (the message says when the DocType ships with the application). Changes to them are
+        stored as customizations on top of the application's definition, so they survive application updates:
+        - Every NEW field must be named custom_<snake_case> (e.g. custom_npwp, custom_bank_account), and expressions,
+          listView and rules must refer to it by that full name.
+        - Never remove an application field. To hide one, set its visibleWhen to "false" (or to a condition).
+        - Do not change name, type, linkTo, childDocType, compute or fetchFrom of application fields, and do not change
+          the DocType's name, naming, storage, document, isChild, isSingle, module or api.
+        - You may change labels, descriptions, sections and tabs, requiredWhen/visibleWhen/readOnlyWhen, defaults,
+          options, list and filter settings, field order, title, description, listView, permissions and rules.
         Validate with validate_doctype_draft (pass existingName when modifying) before you answer.
         """;
 

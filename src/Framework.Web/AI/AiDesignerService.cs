@@ -77,6 +77,12 @@ public sealed class AiDesignerService(
             message.AppendLine($"Modify the existing DocType '{current.Name}' (existingName = {current.Name}). Its current definition:");
             message.AppendLine("```json").AppendLine(MetadataJson.Serialize(current)).AppendLine("```");
             message.AppendLine("Return the complete modified DocType. Do not return a workflow (workflow = null) and do not create new child DocTypes (childDocTypes = []); Table fields may only use existing child DocTypes.");
+            if (registry.IsAppOwned(current.Name) && registry.BaseDefinition(current.Name) is { } baseDef)
+            {
+                message.AppendLine($"'{current.Name}' ships with the application: follow the rules for application DocTypes.");
+                message.AppendLine($"Application fields (keep them; do not change their name, type, linkTo, childDocType, compute or fetchFrom): {string.Join(", ", baseDef.Fields.Select(f => f.Name))}.");
+                message.AppendLine($"Every new field must be named {Customizations.CustomFieldPrefix}<name>.");
+            }
         }
         message.AppendLine().AppendLine("Request:").AppendLine(request);
 

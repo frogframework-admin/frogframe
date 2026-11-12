@@ -15,21 +15,25 @@ sealed partial class Tests
         Assert.True(scope.Modules.Contains("HR") && scope.Modules.Contains("PROCUREMENT"), "kode modul bawaan tersedia di master");
 
         var tanpa = RoleClone(reg, "Department");
+        tanpa.Name = "TestCustomDept";
         tanpa.Module = null;
         var pTanpa = reg.Preview(tanpa, scope);
         Assert.True(!pTanpa.Valid && pTanpa.Errors.Any(e => e.Path == "module" && e.Message.Contains("wajib")), "modul kosong ditolak: " + string.Join("; ", pTanpa.Errors));
 
         var salah = RoleClone(reg, "Department");
+        salah.Name = "TestCustomDept";
         salah.Module = "PENGADAAN_BARU";
         var pSalah = reg.Preview(salah, scope);
         Assert.True(!pSalah.Valid && pSalah.Errors.Any(e => e.Path == "module" && e.Message.Contains("PENGADAAN_BARU")), "modul di luar master ditolak");
 
         var benar = RoleClone(reg, "Department");
+        benar.Name = "TestCustomDept";
         benar.Module = "HR";
         Assert.True(reg.Preview(benar, scope).Valid, "modul dari master diterima");
 
         // Child table tidak perlu modul: ikut DocType induknya.
         var child = RoleClone(reg, "PurchaseRequestItem");
+        child.Name = "TestCustomChild";
         child.Module = null;
         Assert.True(!reg.Preview(child, scope).Errors.Any(e => e.Path == "module"), "child table tanpa modul diterima");
         await Task.CompletedTask;

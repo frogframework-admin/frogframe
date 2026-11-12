@@ -864,6 +864,25 @@ public sealed class PostgresMetadataVersionStore(NpgsqlDataSource db) : IMetadat
         }
     }
 
+    public IReadOnlyList<DocTypeCustomization> LoadAllCustomizations()
+    {
+        using var cmd = db.CreateCommand("SELECT definition::text FROM frogframe_customizations ORDER BY doctype, version");
+        using var r = cmd.ExecuteReader();
+        var list = new List<DocTypeCustomization>();
+        while (r.Read())
+            list.Add(JsonSerializer.Deserialize<DocTypeCustomization>(r.GetString(0), MetadataJson.Options)!);
+        return list;
+    }
+
+    public void SaveCustomization(DocTypeCustomization c)
+    {
+        using var cmd = db.CreateCommand(
+            "INSERT INTO frogframe_customizations (doctype, version, definition, modified_by, modified_at) VALUES ($1,$2,$3::jsonb,$4,$5)");
+        cmd.Parameters.AddWithValue(c.DocType); cmd.Parameters.AddWithValue(c.Version);
+        cmd.Parameters.AddWithValue(MetadataJson.Serialize(c)); cmd.Parameters.AddWithValue(c.ModifiedBy); cmd.Parameters.AddWithValue(c.Modified);
+        cmd.ExecuteNonQuery();
+    }
+
     public IReadOnlyList<WorkflowVersion> LoadAllWorkflows()
     {
         using var cmd = db.CreateCommand("SELECT name, doctype, version, definition::text, status, published_by, published_at, changes::text FROM frogframe_workflow_versions ORDER BY name, version");

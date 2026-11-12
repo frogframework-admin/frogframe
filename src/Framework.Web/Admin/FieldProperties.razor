@@ -18,6 +18,13 @@
     </BbAlert>
 }
 
+@if (IsAppField)
+{
+    <BbAlert Variant="AlertVariant.Info" Class="props-block">
+        <BbAlertDescription>Application field: its name, type, relation and formula come from the application and cannot be changed here. Label, help text, rules, visibility and list settings can be customized.</BbAlertDescription>
+    </BbAlert>
+}
+
 <div class="props-group">
     <div class="props-group-title">Basic</div>
     <BbField>
@@ -26,7 +33,7 @@
     </BbField>
     <BbField IsInvalid="@NameError">
         <BbFieldLabel For="p-name">Field name</BbFieldLabel>
-        <BbInput Id="p-name" Value="@Field.Name" ValueChanged="v => Set(() => Field.Name = (v ?? string.Empty).Trim())" />
+        <BbInput Id="p-name" Value="@Field.Name" ValueChanged="v => Set(() => Field.Name = (v ?? string.Empty).Trim())" Disabled="IsAppField" />
         @if (IsExisting && Field.Name != OriginalName)
         {
             <BbFieldDescription>This field already exists in the active version. Renaming = deleting the old field (old data becomes unreadable) and adding a new field — risky change.</BbFieldDescription>
@@ -38,7 +45,7 @@
     </BbField>
     <BbField>
         <BbFieldLabel>Type</BbFieldLabel>
-        <BbSelect TValue="string" Value="@Field.Type" ValueChanged="ChangeType" AriaLabel="Field type"
+        <BbSelect TValue="string" Value="@Field.Type" ValueChanged="ChangeType" AriaLabel="Field type" Disabled="IsAppField"
                   Options="@(DocTypeDesign.FieldTypes.Select(t => new SelectOption<string>(t, t)))" />
     </BbField>
     <BbField>
@@ -261,6 +268,8 @@
     [Parameter] public EventCallback OnRemove { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
     [Parameter] public bool ShowHeader { get; set; } = true;
+    /// <summary>Field defined by the application (base of an app DocType): name, type and relation are locked.</summary>
+    [Parameter] public bool IsAppField { get; set; }
 
     private bool IsExisting => OriginalName is not null;
     private IEnumerable<MetadataError> FieldErrors => Errors.Where(e => e.Path == $"fields.{Field.Name}" || e.Path.StartsWith($"fields.{Field.Name}."));

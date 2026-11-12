@@ -818,6 +818,9 @@ public interface IMetadataVersionStore
     void Save(MetadataVersion version);
     IReadOnlyList<WorkflowVersion> LoadAllWorkflows() => [];
     void SaveWorkflow(WorkflowVersion version) { }
+    /// <summary>All saved customization versions (every save is a new row; the highest version per DocType is active).</summary>
+    IReadOnlyList<DocTypeCustomization> LoadAllCustomizations() => [];
+    void SaveCustomization(DocTypeCustomization customization) { }
 }
 
 public interface IAtomicDocTypeMigrationPublisher
@@ -844,6 +847,14 @@ public sealed class MetadataRegistry : IMetadataProvider
 
     private readonly IMetadataVersionStore? _store;
 
+    // Customization layer: base definitions (file or stored version) + administrator overlay per DocType.
+    private readonly HashSet<string> _appDocTypes;
+    private readonly Dictionary<string, int> _fileVersions;
+    private readonly Dictionary<string, DocTypeDef> _base = new();
+    private readonly Dictionary<string, List<DocTypeCustomization>> _customHistory = new();
+    private readonly Dictionary<string, DocTypeCustomization> _custom = new();
+    private readonly Dictionary<string, IReadOnlyList<string>> _customWarnings = new();
+
     /// <param name="docTypes">Metadata dari file (sumber awal / hasil deploy).</param>
     /// <param name="store">Opsional: penyimpanan versi permanen (mis. PostgreSQL). Tanpa store, versi hasil publish hilang saat restart.</param>
     public MetadataRegistry(MetadataCompiler compiler, IEnumerable<DocTypeDef> docTypes, IEnumerable<WorkflowDef> workflows, TimeProvider clock,
@@ -853,6 +864,8 @@ public sealed class MetadataRegistry : IMetadataProvider
         _store = store;
         Clock = clock;
         var fromFiles = docTypes.ToDictionary(d => d.Name);
+        _appDocTypes = fromFiles.Keys.ToHashSet(StringComparer.Ordinal);
+        _fileVersions = fromFiles.ToDictionary(kv => kv.Key, kv => kv.Value.Version);
 
         // Workflow: aturan sama dengan DocType — versi tersimpan menang, kecuali file membawa versi lebih baru (deploy).
         foreach (var g in (store?.LoadAllWorkflows() ?? []).GroupBy(v => v.Name))
@@ -894,7 +907,14 @@ public sealed class MetadataRegistry : IMetadataProvider
             else if (stored is not null) active[name] = stored.Def;
         }
 
-        _current = compiler.Compile(active.Values.ToList(), _workflows);
+        foreach (var (name, def) in active) _base[name] = def;
+        foreach (var g in (store?.LoadAllCustomizations() ?? []).GroupBy(c => c.DocType))
+        {
+            var versions = g.OrderBy(c => c.Version).ToList();
+            _customHistory[g.Key] = versions;
+            if (!versions[^1].IsEmpty) _custom[g.Key] = versions[^1];
+        }
+        _current = CompileAtStartup();
 
         foreach (var v in autoWf)
         {
@@ -914,6 +934,100 @@ public sealed class MetadataRegistry : IMetadataProvider
     }
 
     private TimeProvider Clock { get; }
+
+    // ---------------- Customization layer ----------------
+
+    /// <summary>DocType shipped with the application (a *.doctype.json file). UI edits of it are saved as customizations.</summary>
+    public bool IsAppOwned(string docType) => _appDocTypes.Contains(docType);
+
+    /// <summary>
+    /// True when the active base of an application DocType is a version published from the UI before the
+    /// customization layer existed (newer than the file). The next deploy of a newer file replaces it.
+    /// </summary>
+    public bool HasLegacyUiVersion(string docType)
+    {
+        lock (_gate)
+            return _fileVersions.TryGetValue(docType, out var fileVersion) && _base.TryGetValue(docType, out var b) && b.Version > fileVersion;
+    }
+
+    /// <summary>Definition without customizations (from the file, or the stored base version).</summary>
+    public DocTypeDef? BaseDefinition(string docType) { lock (_gate) return _base.TryGetValue(docType, out var d) ? Customizations.Clone(d) : null; }
+
+    public DocTypeCustomization? Customization(string docType) { lock (_gate) return _custom.GetValueOrDefault(docType); }
+
+    public IReadOnlyList<DocTypeCustomization> CustomizationHistory(string docType)
+    {
+        lock (_gate) return _customHistory.TryGetValue(docType, out var h) ? h.ToList() : [];
+    }
+
+    /// <summary>Parts of the customization that could not be applied (e.g. a deploy removed the field they changed).</summary>
+    public IReadOnlyList<string> CustomizationWarnings(string docType)
+    {
+        lock (_gate) return _customWarnings.TryGetValue(docType, out var w) ? w : [];
+    }
+
+    /// <summary>Removes all customizations of a DocType (custom field values stay in the documents).</summary>
+    public void ResetCustomization(string docType, string resetBy, MetadataScope? scope = null)
+    {
+        lock (_gate)
+        {
+            if (!_custom.ContainsKey(docType)) return;
+            var defs = _current.DocTypes.Values.Select(c => c.Def).Where(d => d.Name != docType).Append(_base[docType]).ToList();
+            var snapshot = _compiler.Compile(defs, _workflows, scope); // throws when other DocTypes depend on custom fields
+            SaveCustomizationVersion(new DocTypeCustomization { DocType = docType }, resetBy);
+            _customWarnings.Remove(docType);
+            Volatile.Write(ref _current, snapshot);
+            Published?.Invoke(snapshot);
+        }
+    }
+
+    private DocTypeDef Effective(DocTypeDef baseDef)
+    {
+        var result = Customizations.Apply(baseDef, _custom.GetValueOrDefault(baseDef.Name));
+        if (result.Warnings.Count > 0) _customWarnings[baseDef.Name] = result.Warnings;
+        else _customWarnings.Remove(baseDef.Name);
+        return result.Def;
+    }
+
+    /// <summary>
+    /// Startup compile. A customization that no longer compiles against a newer base (for example it references a
+    /// field the deploy removed) is switched off for that DocType instead of stopping the application.
+    /// </summary>
+    private MetadataSnapshot CompileAtStartup()
+    {
+        var disabled = new HashSet<string>(StringComparer.Ordinal);
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            var defs = _base.Values.Select(b => disabled.Contains(b.Name) ? Customizations.Clone(b) : Effective(b)).ToList();
+            try { return _compiler.Compile(defs, _workflows); }
+            catch (MetadataCompilationException ex)
+            {
+                static string DocTypeOf(MetadataError e) => e.Source.Split('@')[0]; // compiler sources look like "Name@v3"
+                var culprits = ex.Errors.Select(DocTypeOf).Where(s => _custom.ContainsKey(s) && !disabled.Contains(s)).ToHashSet();
+                if (culprits.Count == 0) culprits = _custom.Keys.Where(k => !disabled.Contains(k)).ToHashSet();
+                if (culprits.Count == 0) throw;
+                foreach (var name in culprits)
+                {
+                    disabled.Add(name);
+                    _customWarnings[name] = ex.Errors.Where(e => DocTypeOf(e) == name).Select(e => $"Customization switched off: {e}")
+                        .DefaultIfEmpty($"Customization switched off because the metadata did not compile with it.")
+                        .Append("Saving this DocType in the editor replaces the switched-off customization; fix or re-add what is still needed first.").ToList();
+                }
+            }
+        }
+        return _compiler.Compile(_base.Values.ToList(), _workflows);
+    }
+
+    private void SaveCustomizationVersion(DocTypeCustomization c, string by)
+    {
+        var history = _customHistory.TryGetValue(c.DocType, out var h) ? h : _customHistory[c.DocType] = [];
+        c.Version = history.Count == 0 ? 1 : history[^1].Version + 1;
+        c.ModifiedBy = by;
+        c.Modified = Clock.GetUtcNow();
+        _store?.SaveCustomization(c); // persist first; on failure nothing changes in memory
+        history.Add(c);
+        if (c.IsEmpty) _custom.Remove(c.DocType); else _custom[c.DocType] = c;
+    }
 
     /// <summary>Dipicu setelah DocType atau workflow dipublikasikan (mis. untuk menyinkronkan view pelaporan).</summary>
     public event Action<MetadataSnapshot>? Published;
@@ -966,7 +1080,8 @@ public sealed class MetadataRegistry : IMetadataProvider
         {
             attached = MetadataJson.ParseDocType(MetadataJson.Serialize(owner));
             attached.Workflow = draft.Name;
-            attached.Version = owner.Version + 1;
+            // Application DocType: the link is stored as a customization, the base version does not change.
+            attached.Version = IsAppOwned(owner.Name) ? owner.Version : owner.Version + 1;
             docs = docs.Where(d => d.Name != owner.Name).Append(attached).ToList();
         }
         return (docs, wfs, attached);
@@ -1023,6 +1138,15 @@ public sealed class MetadataRegistry : IMetadataProvider
             if (changes.Any(c => c.Risk == ChangeRisk.Risky) && !acknowledgeRisk)
                 throw new InvalidOperationException("Risky changes must be confirmed before publishing");
 
+            // Linking a workflow to an application DocType is a customization (survives deploys); check it before saving anything.
+            DocTypeCustomization? attachCustomization = null;
+            if (attached is not null && IsAppOwned(attached.Name) && _base.TryGetValue(attached.Name, out var attachBase))
+            {
+                var (customization, extractErrors) = Customizations.Extract(attachBase, attached);
+                if (extractErrors.Count > 0) throw new MetadataCompilationException(extractErrors);
+                attachCustomization = customization;
+            }
+
             var now = Clock.GetUtcNow();
             var wv = new WorkflowVersion(draft.Name, draft.DocType, draft.Version, draft, MetadataStatus.Published, publishedBy, now,
                 WorkflowDiff.Compare(_workflows.FirstOrDefault(w => w.Name == draft.Name), draft));
@@ -1030,7 +1154,11 @@ public sealed class MetadataRegistry : IMetadataProvider
             DeprecateWorkflow(draft.Name);
             (_wfHistory.TryGetValue(draft.Name, out var wh) ? wh : _wfHistory[draft.Name] = []).Add(wv);
 
-            if (attached is not null)
+            if (attachCustomization is not null)
+            {
+                SaveCustomizationVersion(attachCustomization, publishedBy);
+            }
+            else if (attached is not null)
             {
                 var mv = new MetadataVersion(attached.Name, attached.Version, attached, MetadataStatus.Published, publishedBy, now,
                     MetadataDiff.Compare(_current.Get(attached.Name).Def, attached));
@@ -1039,6 +1167,7 @@ public sealed class MetadataRegistry : IMetadataProvider
                     for (var i = 0; i < hist.Count; i++)
                         if (hist[i].Status == MetadataStatus.Published) hist[i] = hist[i] with { Status = MetadataStatus.Deprecated };
                 (_history.TryGetValue(attached.Name, out var hh) ? hh : _history[attached.Name] = []).Add(mv);
+                if (!_custom.ContainsKey(attached.Name)) _base[attached.Name] = attached;
             }
 
             _workflows = _workflows.Where(w => w.Name != draft.Name).Append(draft).ToList();
@@ -1072,14 +1201,24 @@ public sealed class MetadataRegistry : IMetadataProvider
         lock (_gate)
         {
             var old = _current.DocTypes.TryGetValue(draft.Name, out var current) ? current.Def : null;
-            var defs = _current.DocTypes.Values.Select(c => c.Def).Where(d => d.Name != draft.Name).Append(draft).ToList();
+            var effective = draft;
+            var extractErrors = new List<MetadataError>();
+            if (IsAppOwned(draft.Name) && _base.TryGetValue(draft.Name, out var baseDef))
+            {
+                var (customization, errs) = Customizations.Extract(baseDef, draft);
+                extractErrors.AddRange(errs);
+                effective = Customizations.Apply(baseDef, customization).Def;
+            }
+            else effective = Customizations.Apply(draft, _custom.GetValueOrDefault(draft.Name)).Def;
+            var defs = _current.DocTypes.Values.Select(c => c.Def).Where(d => d.Name != draft.Name).Append(effective).ToList();
             try
             {
                 var snapshot = _compiler.Compile(defs, _workflows, scope);
-                var migrationErrors = ValidateDataMigrations(old, draft);
-                return migrationErrors.Count == 0 ? (snapshot, []) : (null, migrationErrors);
+                var migrationErrors = IsAppOwned(draft.Name) ? [] : ValidateDataMigrations(old, draft);
+                var all = extractErrors.Concat(migrationErrors).ToList();
+                return all.Count == 0 ? (snapshot, []) : (null, all);
             }
-            catch (MetadataCompilationException ex) { return (null, ex.Errors); }
+            catch (MetadataCompilationException ex) { return (null, extractErrors.Concat(ex.Errors).ToList()); }
         }
     }
 
@@ -1112,10 +1251,20 @@ public sealed class MetadataRegistry : IMetadataProvider
     {
         lock (_gate)
         {
-            var (errors, changes) = TryCompileWith(draft, out var snapshot, scope);
+            var (errors, changes) = TryCompileWith(draft, out var snapshot, out var effective, out var customization, scope);
             if (errors.Count > 0) throw new MetadataCompilationException(errors);
             if (changes.Any(c => c.Risk == ChangeRisk.Risky) && !acknowledgeRisk)
                 throw new InvalidOperationException("Risky changes must be confirmed before publishing");
+
+            if (customization is not null)
+            {
+                // Application DocType: only the overlay is saved; the base stays as deployed.
+                SaveCustomizationVersion(customization, publishedBy);
+                Effective(_base[draft.Name]); // refresh warnings
+                Volatile.Write(ref _current, snapshot!);
+                Published?.Invoke(snapshot!);
+                return new MetadataVersion(draft.Name, _base[draft.Name].Version, effective, MetadataStatus.Published, publishedBy, Clock.GetUtcNow(), changes);
+            }
 
             var source = _current.TryGet(draft.Name, out var currentMeta) ? currentMeta : null;
             var target = snapshot!.Get(draft.Name);
@@ -1130,7 +1279,7 @@ public sealed class MetadataRegistry : IMetadataProvider
                 migrationPublisher = publisher;
                 publishedDef = MetadataJson.ParseDocType(MetadataJson.Serialize(draft));
                 publishedDef.DataMigration = null;
-                var defs = _current.DocTypes.Values.Select(c => c.Def).Where(d => d.Name != draft.Name).Append(publishedDef).ToList();
+                var defs = _current.DocTypes.Values.Select(c => c.Def).Where(d => d.Name != draft.Name).Append(Effective(publishedDef)).ToList();
                 publishedSnapshot = _compiler.Compile(defs, _workflows, scope);
             }
             var version = new MetadataVersion(draft.Name, draft.Version, publishedDef, MetadataStatus.Published, publishedBy, Clock.GetUtcNow(), changes);
@@ -1145,25 +1294,51 @@ public sealed class MetadataRegistry : IMetadataProvider
                     if (hist[i].Status == MetadataStatus.Published) hist[i] = hist[i] with { Status = MetadataStatus.Deprecated };
 
             (_history.TryGetValue(draft.Name, out var h) ? h : _history[draft.Name] = []).Add(version);
+            _base[draft.Name] = publishedDef;
             Volatile.Write(ref _current, publishedSnapshot!);
             Published?.Invoke(publishedSnapshot!);
             return version;
         }
     }
 
-    private (List<MetadataError> Errors, IReadOnlyList<MetadataChange> Changes) TryCompileWith(DocTypeDef draft, out MetadataSnapshot? snapshot, MetadataScope? scope = null)
+    private (List<MetadataError> Errors, IReadOnlyList<MetadataChange> Changes) TryCompileWith(DocTypeDef draft, out MetadataSnapshot? snapshot, MetadataScope? scope = null) =>
+        TryCompileWith(draft, out snapshot, out _, out _, scope);
+
+    /// <summary>
+    /// For an application DocType the draft is an edited effective definition: it is turned into a customization
+    /// (<paramref name="customization"/>), and <paramref name="effective"/> is base + that customization.
+    /// For other DocTypes the draft is a new base version.
+    /// </summary>
+    private (List<MetadataError> Errors, IReadOnlyList<MetadataChange> Changes) TryCompileWith(DocTypeDef draft, out MetadataSnapshot? snapshot,
+        out DocTypeDef effective, out DocTypeCustomization? customization, MetadataScope? scope = null)
     {
         snapshot = null;
+        customization = null;
         var current = _current.DocTypes.TryGetValue(draft.Name, out var existing) ? existing.Def : null;
         var errors = new List<MetadataError>();
-        if (current is not null && draft.Version <= current.Version)
-            errors.Add(new(draft.Name, "version", $"Versi harus lebih besar dari versi aktif ({current.Version})"));
-        var changes = MetadataDiff.Compare(current, draft);
-        var defs = _current.DocTypes.Values.Select(c => c.Def).Where(d => d.Name != draft.Name).Append(draft).ToList();
+
+        if (IsAppOwned(draft.Name) && _base.TryGetValue(draft.Name, out var baseDef))
+        {
+            var (extracted, extractErrors) = Customizations.Extract(baseDef, draft);
+            errors.AddRange(extractErrors);
+            customization = extracted;
+            var applied = Customizations.Apply(baseDef, extracted);
+            effective = applied.Def;
+            errors.AddRange(applied.Warnings.Select(w => new MetadataError(draft.Name, "customization", w)));
+        }
+        else
+        {
+            if (current is not null && draft.Version <= current.Version)
+                errors.Add(new(draft.Name, "version", $"Versi harus lebih besar dari versi aktif ({current.Version})"));
+            effective = Customizations.Apply(draft, _custom.GetValueOrDefault(draft.Name)).Def;
+        }
+
+        var changes = MetadataDiff.Compare(current, effective);
+        var defs = _current.DocTypes.Values.Select(c => c.Def).Where(d => d.Name != draft.Name).Append(effective).ToList();
         try
         {
             if (errors.Count == 0) snapshot = _compiler.Compile(defs, _workflows, scope);
-            errors.AddRange(ValidateDataMigrations(current, draft));
+            if (customization is null) errors.AddRange(ValidateDataMigrations(current, draft));
         }
         catch (MetadataCompilationException ex) { errors.AddRange(ex.Errors); }
         return (errors, changes);
