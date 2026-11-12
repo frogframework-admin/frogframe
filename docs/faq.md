@@ -41,7 +41,31 @@ Building enterprise business software requires rich interactive forms, complex d
 
 ---
 
-### 4. Why not use Entity Framework Core (EF Core)?
+### 4. Why use Blazor Server rather than Blazor WebAssembly (Wasm)?
+
+While Blazor WebAssembly (Wasm) is popular for client-heavy single-page applications, **FrogFramework purposefully chose Blazor Server (InteractiveServer)** for enterprise ERP and metadata-driven applications for several fundamental technical reasons:
+
+1. **Zero-Trust Server-Authoritative Security**:
+   - An enterprise ERP cannot trust client-side execution. FrogFramework strictly enforces field-level access control (`permLevel`), multi-tenant data boundaries, workflow transition validation, financial ledger invariants, and transactional hooks.
+   - Running the business logic inside the user's browser (Wasm) exposes internal schema models, business rules, and memory state to client tampering. In Blazor Server, the execution environment remains entirely inside the secure backend host.
+2. **Direct Infrastructure Access & Multi-Node Synchronization**:
+   - FrogFramework communicates directly with PostgreSQL using high-throughput ADO.NET (`Npgsql`), native advisory locks, and PostgreSQL `LISTEN/NOTIFY` cluster signals (`IClusterBus`). It also handles S3 object storage directly with SeaweedFS.
+   - Web browsers cannot open raw TCP sockets to PostgreSQL or manage server cluster buses. A Wasm client would require hundreds of custom REST/gRPC API controllers, introducing significant synchronization overhead and serializing overhead for dynamic metadata.
+3. **Dynamic Compilation & Sandboxed Server Scripting**:
+   - FrogFramework features runtime dynamic compilation, metadata compiler pipelines, and sandboxed C# server scripts (`ServerScriptExecutionService` using `CollectibleAssemblyLoadContext` with CPU statement budgets and memory limits).
+   - These dynamic Roslyn compilation and isolation capabilities are designed for a server runtime and are neither secure nor practical to bundle into a browser Wasm sandbox.
+4. **Instant Startup & Minimal Bundle Size**:
+   - Bundling the complete ERP engine, analytical components, and supporting assemblies into Wasm would require users to download tens of megabytes of binaries before seeing their first screen.
+   - Blazor Server delivers near-instant Initial Page Load (First Contentful Paint) because the initial HTML and UI components are rendered directly on the server.
+5. **Operational & Architectural Simplicity**:
+   - With Blazor Server, UI components directly call backend domain stores (`IDocumentStore`, `RoleCatalog`, `Compiler`, `UserContext`) in the same memory space. There is no need to write, version, and maintain duplicate DTOs or API controller layers for internal administrative screens.
+
+> **When would WebAssembly make sense for FrogFrame?**
+> Wasm or hybrid client apps are an excellent fit for specialized **offline-first edge modules** (e.g., an offline field inspection tool or retail POS checkout counter that queues transactions locally and syncs back via REST APIs), or high-concurrency public customer portals where SignalR state management is offloaded to the browser. For the core ERP platform, however, Blazor Server provides superior security, performance, and operational simplicity.
+
+---
+
+### 5. Why not use Entity Framework Core (EF Core)?
 
 While EF Core is the standard ORM in the .NET ecosystem, FrogFramework purposefully chose pure **Npgsql (ADO.NET)** for three technical reasons:
 
@@ -51,7 +75,7 @@ While EF Core is the standard ORM in the .NET ecosystem, FrogFramework purposefu
 
 ---
 
-### 5. Do I need RabbitMQ, Kafka, or Redis?
+### 6. Do I need RabbitMQ, Kafka, or Redis?
 
 **By default, NO.** FrogFramework adheres strictly to a **zero external infrastructure bloat** philosophy.
 
@@ -65,7 +89,7 @@ You do not need to operate or pay for standalone message brokers or distributed 
 
 ---
 
-### 6. Is FrogFramework Production-Ready?
+### 7. Is FrogFramework Production-Ready?
 
 **Honest Answer**: The framework is currently in its active, early development phase and continues to evolve rapidly.
 
@@ -78,7 +102,7 @@ However, the **foundational architecture and core subsystems have been engineere
 
 ---
 
-### 7. Is FrogFramework free and open-source?
+### 8. Is FrogFramework free and open-source?
 
 **Yes!** FrogFramework is open and free to self-host. You have complete control and ownership over the source code and your business data.
 
