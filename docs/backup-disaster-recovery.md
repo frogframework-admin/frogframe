@@ -15,7 +15,9 @@ Operational guide for backing up and restoring FrogFramework environments in pro
 
 ## 2. Backup Scope
 
-All persistent state in FrogFramework resides in PostgreSQL. A single `pg_dump` covers:
+All persistent state in FrogFramework resides in PostgreSQL, **except file contents when `Storage:Provider = S3`**
+(the docker compose default): those are in the object store (bundled SeaweedFS volume `frogframe-seaweedfs`) and must be
+backed up together with the database (see `docs/guides/file-and-image-storage.md` §4). A single `pg_dump` covers:
 - **Documents & Audit**: `frogframe_documents`, `frogframe_audit`
 - **Uploaded Files / Images**: `frogframe_files`
 - **Data Protection Keys (Session Cookies)**: `frogframe_data_protection_keys`

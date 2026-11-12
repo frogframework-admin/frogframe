@@ -43,13 +43,19 @@ public sealed class PostgresFileStore(NpgsqlDataSource db) : IFileStore
         return await r.ReadAsync(ct) ? (Read(r), r.GetFieldValue<byte[]>(11)) : null;
     }
 
-    public async Task<int> PruneOrphansAsync(DateTimeOffset cutoff, CancellationToken ct = default)
+    public async Task<int> PruneOrphansAsync(DateTimeOffset cutoff, CancellationToken ct = default) =>
+        (await PruneOrphansReturningAsync(cutoff, ct)).Count;
+
+    public async Task<IReadOnlyList<FileRecord>> PruneOrphansReturningAsync(DateTimeOffset cutoff, CancellationToken ct = default)
     {
         // Hanya file yang belum pernah ditautkan (doctype kosong) dan sudah lewat batas waktu.
         await using var cmd = db.CreateCommand(
-            "DELETE FROM frogframe_files WHERE id IN (SELECT id FROM frogframe_files WHERE doctype IS NULL AND created_at < $1 LIMIT 500)");
+            $"DELETE FROM frogframe_files WHERE id IN (SELECT id FROM frogframe_files WHERE doctype IS NULL AND created_at < $1 LIMIT 500) RETURNING {InfoColumns}");
         cmd.Parameters.AddWithValue(cutoff);
-        return await cmd.ExecuteNonQueryAsync(ct);
+        var removed = new List<FileRecord>();
+        await using var r = await cmd.ExecuteReaderAsync(ct);
+        while (await r.ReadAsync(ct)) removed.Add(Read(r));
+        return removed;
     }
 
     public async Task AttachAsync(string tenantId, string id, string docType, string docName, string field, CancellationToken ct = default)

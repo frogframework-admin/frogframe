@@ -2,8 +2,9 @@
 #
 #   docker compose -f docker-compose.yml -f docker-compose.demo.yml up -d
 #
-# Adds sample data, demo accounts shown on the login page, and publishes the PostgreSQL port
-# on localhost only (for "dotnet run" with Persistence:Provider=PostgreSql).
+# Adds sample data, demo accounts shown on the login page, and publishes the PostgreSQL port and the
+# SeaweedFS S3 port on localhost only (for "dotnet run" with Persistence:Provider=PostgreSql and
+# Storage:Provider=S3, Storage:S3:ServiceUrl=http://localhost:8333).
 
 services:
   app:
@@ -16,3 +17,7 @@ services:
   postgres:
     ports:
       - "127.0.0.1:5432:5432"
+
+  seaweedfs:
+    ports:
+      - "127.0.0.1:8333:8333"

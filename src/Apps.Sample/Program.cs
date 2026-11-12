@@ -34,6 +34,10 @@ if (usePostgres)
         ?? throw new InvalidOperationException("ConnectionStrings:FrogFrame wajib diisi bila Persistence:Provider = PostgreSql"),
         builder.Configuration.GetConnectionString("FrogFrameSchema"));
 
+// Isi file & lampiran: "Database" (default, kolom bytea) atau "S3" (SeaweedFS/MinIO/Ceph/AWS S3, lihat docs/guides/object-storage.md).
+// Dipanggil SESUDAH provider persistence karena membungkus file store yang terdaftar.
+Framework.Storage.ObjectStorageSetup.AddFrogFrameObjectStorage(builder.Services, builder.Configuration);
+
 // Login: ASP.NET Core Identity (cookie untuk browser, bearer token untuk API). Klaim → UserContext.
 builder.Services.AddFrogFrameworkIdentity();
 

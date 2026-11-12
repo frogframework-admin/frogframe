@@ -39,4 +39,9 @@
     <PackageReference Include="Azure.Identity" Version="1.21.0" />
   </ItemGroup>
 
+  <!-- Object storage (Storage:Provider = S3): S3-compatible servers such as SeaweedFS, MinIO, Ceph RGW, AWS S3. -->
+  <ItemGroup>
+    <PackageReference Include="AWSSDK.S3" Version="4.0.104.8" />
+  </ItemGroup>
+
 </Project>

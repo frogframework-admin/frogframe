@@ -957,6 +957,8 @@ public static class PostgreSqlServiceCollectionExtensions
         services.Replace(ServiceDescriptor.Singleton<Framework.Security.IUserAccountRepository, PostgresUserAccountRepository>());
         services.Replace(ServiceDescriptor.Singleton<Framework.Files.IFileStore, PostgresFileStore>());
         services.Replace(ServiceDescriptor.Singleton<Framework.Files.IAttachmentStore, PostgresAttachmentStore>());
+        // Object storage (Storage:Provider = S3): isi file lama dipindah dari database bila Storage:MigrateExisting = true.
+        services.AddHostedService<PostgresBlobMigrationWorker>();
         services.AddSingleton<DocumentIndexSync>();
         services.Replace(ServiceDescriptor.Singleton<Framework.Security.IApiKeyStore, PostgresApiKeyStore>());
         services.Replace(ServiceDescriptor.Singleton<Framework.Api.IQueryApiStore, PostgresQueryApiStore>());

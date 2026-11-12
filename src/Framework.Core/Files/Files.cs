@@ -36,6 +36,16 @@ public interface IFileStore
     Task AttachAsync(string tenantId, string id, string docType, string docName, string field, CancellationToken ct = default);
     /// <summary>Menghapus file yang tidak pernah ditautkan ke dokumen dan lebih tua dari <paramref name="cutoff"/>. Mengembalikan jumlahnya.</summary>
     Task<int> PruneOrphansAsync(DateTimeOffset cutoff, CancellationToken ct = default);
+
+    /// <summary>
+    /// Seperti <see cref="PruneOrphansAsync"/>, tetapi mengembalikan record yang dihapus (maks. 500 per panggilan),
+    /// supaya isi file di object storage ikut dihapus. Implementasi lama tanpa method ini tetap terkompilasi.
+    /// </summary>
+    async Task<IReadOnlyList<FileRecord>> PruneOrphansReturningAsync(DateTimeOffset cutoff, CancellationToken ct = default)
+    {
+        await PruneOrphansAsync(cutoff, ct);
+        return [];
+    }
 }
 
 public sealed class InMemoryFileStore : IFileStore
@@ -61,11 +71,15 @@ public sealed class InMemoryFileStore : IFileStore
         return Task.CompletedTask;
     }
 
-    public Task<int> PruneOrphansAsync(DateTimeOffset cutoff, CancellationToken ct = default)
+    public async Task<int> PruneOrphansAsync(DateTimeOffset cutoff, CancellationToken ct = default) =>
+        (await PruneOrphansReturningAsync(cutoff, ct)).Count;
+
+    public Task<IReadOnlyList<FileRecord>> PruneOrphansReturningAsync(DateTimeOffset cutoff, CancellationToken ct = default)
     {
-        var orphans = _files.Where(kv => kv.Value.Record.DocType is null && kv.Value.Record.CreatedAt < cutoff).Select(kv => kv.Key).ToList();
-        foreach (var id in orphans) _files.TryRemove(id, out _);
-        return Task.FromResult(orphans.Count);
+        var removed = new List<FileRecord>();
+        foreach (var (id, f) in _files.Where(kv => kv.Value.Record.DocType is null && kv.Value.Record.CreatedAt < cutoff).Take(500).ToList())
+            if (_files.TryRemove(id, out _)) removed.Add(f.Record);
+        return Task.FromResult<IReadOnlyList<FileRecord>>(removed);
     }
 }
 
