@@ -11,6 +11,43 @@ FrogFrame provides runtime extensibility through **Server Scripts** written in C
 | **DocEvent** | Attached to a DocType lifecycle hook stage. | Invoked within `HookRunner` during document mutations (`BeforeValidate`, `BeforeInsert`, `AfterSave`, `BeforeTransition`, `BeforeDelete`, `AfterDelete`, `OnCancel`, `OnAmend`). |
 | **Api** | Custom RPC method callable by authenticated API clients or UI. | Invoked via `POST /api/method/{api_method}` and listed under `GET /api/method`. |
 | **Scheduled** | Background job executed on a recurring cron interval. | Evaluated by `ServerScriptScheduledJob` via `ScheduledJobRunner` and `CronSchedule`. |
+| **Form** (Client Script) | Adjusts a DocType's form while a user works in it: show/hide fields, make them required or read-only, narrow options, fill values. | Run by the form page on `Load` (form opened), `Change` (a field changed; optionally one specific field) and `Validate` (before saving). |
+
+### Client Scripts (type `Form`)
+
+Client Scripts are written in the same sandboxed C# as other scripts and run on the server, as the user working in the form
+(Blazor Server: the "client" is the form, not the browser). They only make the form easier to use; rules that must always
+hold belong in the DocType (required/validation rules) or in a DocEvent script, because API and import calls never run Client Scripts.
+
+```csharp
+// PurchaseRequest, event Change, field "priority"
+var urgent = Form.GetValue("priority") as string == "Tinggi";
+Form.SetHidden("procurement_notes", !urgent);
+Form.SetRequired("justification", urgent);
+Form.SetDescription("justification", urgent ? "Explain why this is urgent." : null);
+if (urgent && string.IsNullOrEmpty(Form.GetValue("justification") as string))
+    Form.SetValue("justification", "Urgent request");
+```
+
+| `Form` member | Effect in the form |
+|---|---|
+| `Event`, `ChangedField`, `IsNew` | Which event is running, which field changed, whether the document is new |
+| `GetValue(field)` / `SetValue(field, value)` | Read / fill a value. `Doc["field"]` works too. Values are normalized by the field type; computed, child-table, read-only-for-the-user and unknown fields are refused |
+| `SetHidden(field, bool)` | Hide (true) or stop hiding (false). Scripts can hide fields but never show fields a metadata rule hides |
+| `SetRequired(field, bool)` | Required in the form: the form refuses to save while it is empty (checked in the form only) |
+| `SetReadOnly(field, bool)` | Lock the field in the form |
+| `SetOptions(field, options)` | Narrow the options of a Select field (only options the metadata allows are kept) |
+| `SetDescription(field, text)` | Show an extra help note under the field, below the metadata description (`null` removes it) |
+| `ShowMessage(text, level)` | Toast; level `info`, `success`, `warning` or `error` (at most 10 per run) |
+| `AddError(field, message)` | Validation error on a field; in `Validate` it stops the save. `throw new ScriptValidationException(msg, field)` does the same |
+
+Rules:
+- Scripts of one event run in name order; each sees the values set by the previous one. A failing script does not stop the others; its error is shown as a warning toast.
+- Values set by a script fire the `Change` event of those fields, up to 3 levels deep.
+- Hidden/required/read-only/options settings stay until a later script changes them or the form is reloaded.
+- Limits: 1 second and 20,000 statements per script. `Docs.GetAsync` works (with the user's permissions); writing documents and `Email` are refused.
+- Only failures are written to the run history (at most once a minute per script), because Client Scripts run on every change.
+- The list of scripts per DocType is cached for 15 seconds; saving a script in the admin page clears the cache at once.
 
 ---
 

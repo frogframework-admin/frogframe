@@ -98,6 +98,9 @@ else
                         case ServerScriptType.Scheduled:
                             <BbBadge Variant="BadgeVariant.Secondary">Scheduled</BbBadge>
                             break;
+                        case ServerScriptType.Form:
+                            <BbBadge Variant="BadgeVariant.Outline">Client Script</BbBadge>
+                            break;
                     }
                 </CellTemplate>
             </BbDataGridPropertyColumn>
@@ -115,6 +118,9 @@ else
                             break;
                         case ServerScriptType.Scheduled:
                             <code>@r.CronExpr</code>
+                            break;
+                        case ServerScriptType.Form:
+                            <span><strong>@r.DocType</strong> &rarr; @FormTargetLabel(r)</span>
                             break;
                     }
                 </CellTemplate>
@@ -251,6 +257,38 @@ else
                         <span style="font-size:.75rem;color:var(--bb-text-muted)">The script runs with this user's permissions. Prefer a dedicated service account with only the roles it needs.</span>
                     </div>
                 </div>
+            }
+            else if (editScriptType == "Form")
+            {
+                <div class="row" style="gap:1rem">
+                    <div style="flex:1">
+                        <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">Reference DocType *</label>
+                        <BbSelect TValue="string" Value="@editDocType" ValueChanged="OnFormDocTypeChanged" Options="DocTypeOptions" />
+                    </div>
+                    <div style="flex:1">
+                        <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">Form Event *</label>
+                        <BbSelect TValue="string" @bind-Value="editFormEvent" Options="FormEventOptions" />
+                    </div>
+                    @if (editFormEvent == "Change")
+                    {
+                        <div style="flex:1">
+                            <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">When field changes</label>
+                            <BbSelect TValue="string" @bind-Value="editFormField" Options="FormFieldOptions" />
+                        </div>
+                    }
+                </div>
+                <BbAlert>
+                    <BbAlertDescription>
+                        Client Scripts run while a user works in the form: <strong>Load</strong> (form opened), <strong>Change</strong> (a field changed)
+                        and <strong>Validate</strong> (before saving). They run on the server as the user, within 1 second and 20,000 statements.
+                        Use <code>Form.SetHidden("field")</code>, <code>Form.SetRequired</code>, <code>Form.SetReadOnly</code>, <code>Form.SetOptions</code>,
+                        <code>Form.SetDescription</code>, <code>Form.SetValue("field", value)</code>, <code>Form.GetValue</code>,
+                        <code>Form.ShowMessage("text", "info|success|warning|error")</code> and <code>Form.AddError("field", "message")</code> (Validate).
+                        Also available: <code>Form.Event</code>, <code>Form.ChangedField</code>, <code>Form.IsNew</code>, <code>Doc</code>, <code>User</code>,
+                        <code>Docs.GetAsync</code> (read only) and <code>Log</code>. Client Scripts only make the form easier to use: rules that must hold
+                        belong in the DocType (required/validation rules) or in a Doc Event script.
+                    </BbAlertDescription>
+                </BbAlert>
             }
 
             <div style="display:flex;align-items:center;gap:.75rem;margin-top:.25rem">
@@ -391,6 +429,8 @@ else
     private string editScriptType = "DocEvent";
     private string editDocType = "";
     private string editDocEvent = "BeforeValidate";
+    private string editFormEvent = "Change";
+    private string editFormField = "*";
     private string editApiMethod = "";
     private string editCronExpr = "0 0 * * *";
     private string editRunAsUserId = "";
@@ -413,15 +453,45 @@ else
         new("", "All Types"),
         new("DocEvent", "Doc Event Scripts"),
         new("Api", "API Method Scripts"),
-        new("Scheduled", "Scheduled Scripts")
+        new("Scheduled", "Scheduled Scripts"),
+        new("Form", "Client Scripts")
     ];
 
     private static readonly IReadOnlyList<SelectOption<string>> ScriptTypeOptions =
     [
         new("DocEvent", "Doc Event (Document Lifecycle)"),
         new("Api", "API Method (RPC POST /api/method)"),
-        new("Scheduled", "Scheduled (Cron Job)")
+        new("Scheduled", "Scheduled (Cron Job)"),
+        new("Form", "Client Script (Form: show/hide fields, fill values)")
     ];
+
+    private static readonly IReadOnlyList<SelectOption<string>> FormEventOptions =
+    [
+        new("Load", "Load (form opened)"),
+        new("Change", "Change (field changed)"),
+        new("Validate", "Validate (before save)")
+    ];
+
+    private IReadOnlyList<SelectOption<string>> FormFieldOptions =>
+        new[] { new SelectOption<string>("*", "Any field") }
+            .Concat(Metadata.Current.TryGet(editDocType, out var m)
+                ? m.Fields.Where(f => !f.Type.Editor.Equals("layout", StringComparison.Ordinal))
+                    .Select(f => new SelectOption<string>(f.Name, $"{f.Label} ({f.Name})"))
+                : Enumerable.Empty<SelectOption<string>>())
+            .ToList();
+
+    private static string FormTargetLabel(ServerScriptDef r) => r.FormEvent switch
+    {
+        FormScriptEvent.Change => string.IsNullOrEmpty(r.FormField) || r.FormField == "*" ? "Change (any field)" : $"Change of {r.FormField}",
+        { } e => e.ToString(),
+        null => "",
+    };
+
+    private void OnFormDocTypeChanged(string val)
+    {
+        editDocType = val;
+        editFormField = "*";
+    }
 
     private static readonly IReadOnlyList<SelectOption<string>> DocEventOptions =
     [
@@ -481,6 +551,8 @@ else
         editScriptType = "DocEvent";
         editDocType = DocTypeOptions.FirstOrDefault()?.Value ?? "";
         editDocEvent = "BeforeValidate";
+        editFormEvent = "Change";
+        editFormField = "*";
         editApiMethod = "";
         editCronExpr = "0 0 * * *";
         editRunAsUserId = "";
@@ -501,6 +573,8 @@ else
         editScriptType = def.ScriptType.ToString();
         editDocType = def.DocType ?? DocTypeOptions.FirstOrDefault()?.Value ?? "";
         editDocEvent = def.DocEvent?.ToString() ?? "BeforeValidate";
+        editFormEvent = def.FormEvent?.ToString() ?? "Change";
+        editFormField = string.IsNullOrEmpty(def.FormField) ? "*" : def.FormField;
         editApiMethod = def.ApiMethod ?? "";
         editCronExpr = def.CronExpr ?? "0 0 * * *";
         editRunAsUserId = def.RunAsUserId ?? "";
@@ -638,14 +712,27 @@ else
             docEvent = parsedEvent;
         }
 
+        FormScriptEvent? formEvent = null;
+        if (scriptType == ServerScriptType.Form)
+        {
+            if (string.IsNullOrWhiteSpace(editDocType) || !Enum.TryParse<FormScriptEvent>(editFormEvent, out var parsedFormEvent))
+            {
+                validationMessages.Add("Client scripts need a DocType and a form event.");
+                return;
+            }
+            formEvent = parsedFormEvent;
+        }
+
         var def = new ServerScriptDef
         {
             Id = id,
             TenantId = tenantId,
             Name = editName.Trim(),
             ScriptType = scriptType,
-            DocType = scriptType == ServerScriptType.DocEvent ? editDocType : null,
+            DocType = scriptType is ServerScriptType.DocEvent or ServerScriptType.Form ? editDocType : null,
             DocEvent = docEvent,
+            FormEvent = formEvent,
+            FormField = formEvent == FormScriptEvent.Change && editFormField != "*" ? editFormField : null,
             ApiMethod = scriptType == ServerScriptType.Api ? editApiMethod.Trim().ToLowerInvariant() : null,
             CronExpr = scriptType == ServerScriptType.Scheduled ? editCronExpr.Trim() : null,
             RunAsUserId = string.IsNullOrWhiteSpace(editRunAsUserId) ? null : editRunAsUserId.Trim(),

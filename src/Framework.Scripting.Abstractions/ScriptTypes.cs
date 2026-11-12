@@ -7,7 +7,20 @@ public enum ServerScriptType
 {
     DocEvent,
     Api,
-    Scheduled
+    Scheduled,
+    /// <summary>Client Script: runs while a user works in a form (load, field change, before save).</summary>
+    Form
+}
+
+/// <summary>When a Client Script (Form script) runs.</summary>
+public enum FormScriptEvent
+{
+    /// <summary>The form is opened (new or existing document).</summary>
+    Load,
+    /// <summary>A field value changed (FormField, or any field when FormField is empty).</summary>
+    Change,
+    /// <summary>The user presses Save. <c>Form.AddError</c> or <c>ScriptValidationException</c> stops the save.</summary>
+    Validate
 }
 
 public enum DocEventStage
@@ -248,6 +261,8 @@ public sealed class ScriptContext
     public required IScriptEmail Email { get; init; }
     public IDictionary<string, object?> Values { get; init; } = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
     public object? Result { get; set; }
+    /// <summary>Client Scripts only: the form the script runs in. Null for server scripts.</summary>
+    public IScriptForm? Form { get; init; }
     public ScriptBudget __budget { get; init; } = new ScriptBudget();
     public CancellationToken CancellationToken { get; init; } = CancellationToken.None;
 }
@@ -269,4 +284,72 @@ public class ScriptValidationException : Exception
 public class ScriptCompilationException(string message, IReadOnlyList<string> diagnostics) : Exception(message)
 {
     public IReadOnlyList<string> Diagnostics { get; } = diagnostics;
+}
+
+/// <summary>
+/// Form API for Client Scripts. Changes are applied to the form the user sees. They are a convenience for the user,
+/// not a security boundary: the server validates every save with the DocType rules, permissions and server scripts.
+/// </summary>
+public interface IScriptForm
+{
+    FormScriptEvent Event { get; }
+    /// <summary>The field that changed (Change event), otherwise null.</summary>
+    string? ChangedField { get; }
+    bool IsNew { get; }
+
+    object? GetValue(string field);
+    /// <summary>Sets a field value (same as <c>Doc["field"] = value</c>). Formula and fetched fields are ignored.</summary>
+    void SetValue(string field, object? value);
+    void SetHidden(string field, bool hidden = true);
+    /// <summary>Shows the field as required and checks it before saving (in the form only).</summary>
+    void SetRequired(string field, bool required = true);
+    void SetReadOnly(string field, bool readOnly = true);
+    /// <summary>Limits the choices of a Select field to these options (must be a subset of the DocType options).</summary>
+    void SetOptions(string field, IEnumerable<string> options);
+    void SetDescription(string field, string? text);
+    /// <summary>Shows a message to the user. Level: "info", "success", "warning" or "error".</summary>
+    void ShowMessage(string message, string level = "info");
+    /// <summary>Validate event: marks the field invalid and stops the save.</summary>
+    void AddError(string field, string message);
+}
+
+public sealed record FormScriptMessage(string Level, string Message);
+
+/// <summary>Collects what a Client Script did; the host applies it to the form.</summary>
+public sealed class ScriptForm(FormScriptEvent formEvent, string? changedField, bool isNew, IDictionary<string, object?> data) : IScriptForm
+{
+    private const int MaxMessages = 10;
+    private const int MaxErrors = 50;
+
+    public FormScriptEvent Event { get; } = formEvent;
+    public string? ChangedField { get; } = changedField;
+    public bool IsNew { get; } = isNew;
+
+    internal Dictionary<string, bool> HiddenFields { get; } = new(StringComparer.Ordinal);
+    internal Dictionary<string, bool> RequiredFields { get; } = new(StringComparer.Ordinal);
+    internal Dictionary<string, bool> ReadOnlyFields { get; } = new(StringComparer.Ordinal);
+    internal Dictionary<string, IReadOnlyList<string>> FieldOptions { get; } = new(StringComparer.Ordinal);
+    internal Dictionary<string, string?> Descriptions { get; } = new(StringComparer.Ordinal);
+    internal List<FormScriptMessage> Messages { get; } = [];
+    internal List<(string Field, string Message)> Errors { get; } = [];
+
+    public object? GetValue(string field) => data.TryGetValue(field, out var v) ? v : null;
+    public void SetValue(string field, object? value) => data[field] = value;
+    public void SetHidden(string field, bool hidden = true) => HiddenFields[field] = hidden;
+    public void SetRequired(string field, bool required = true) => RequiredFields[field] = required;
+    public void SetReadOnly(string field, bool readOnly = true) => ReadOnlyFields[field] = readOnly;
+    public void SetOptions(string field, IEnumerable<string> options) => FieldOptions[field] = options.Take(500).ToList();
+    public void SetDescription(string field, string? text) => Descriptions[field] = text is { Length: > 500 } ? text[..500] : text;
+
+    public void ShowMessage(string message, string level = "info")
+    {
+        if (Messages.Count >= MaxMessages) return;
+        var normalized = level?.ToLowerInvariant() is "success" or "warning" or "error" ? level.ToLowerInvariant() : "info";
+        Messages.Add(new FormScriptMessage(normalized, message is { Length: > 500 } ? message[..500] : message));
+    }
+
+    public void AddError(string field, string message)
+    {
+        if (Errors.Count < MaxErrors) Errors.Add((field ?? "", message is { Length: > 500 } ? message[..500] : message));
+    }
 }

@@ -206,6 +206,7 @@ public static class {{className}}
         var Email = ctx.Email;
         var Values = ctx.Values;
         var CancellationToken = ctx.CancellationToken;
+        var Form = ctx.Form;
         {
 #line 1 "{{ScriptFileName}}"
 {{bodyCode}}

@@ -154,6 +154,8 @@ else if (meta is not null && doc is not null)
         </BbAlert>
     }
 
+    @* Client Scripts: Select options narrowed by a script reach FieldInput through this cascading value. *@
+    <CascadingValue Value="@scriptFormState" IsFixed="true">
     <BbTabs Value="@activeTab" ValueChanged="v => activeTab = v ?? activeTab">
         <BbTabsList>
             @foreach (var t in meta.Layout.Where(TabVisible))
@@ -201,7 +203,7 @@ else if (meta is not null && doc is not null)
                                                         @if (f.Def.Type == "Table")
                                                         {
                                                             <ChildTable Table="f" ChildMeta="Metadata.Current.Get(f.Def.ChildDocType!)" Rows="Rows(f)" Parent="Scope"
-                                                                        ReadOnly="ro" Errors="errors" OnChanged="Changed" />
+                                                                        ReadOnly="ro" Errors="errors" OnChanged="@(() => OnTableChanged(f))" />
                                                         }
                                                         else
                                                         {
@@ -210,6 +212,7 @@ else if (meta is not null && doc is not null)
                                                         }
                                                         @if (err is not null) { <BbFieldError Errors="@(new[] { err })" /> }
                                                         else if (f.Def.Description is not null && !ro) { <BbFieldDescription>@f.Def.Description</BbFieldDescription> }
+                                                        @if (err is null && !ro && scriptNotes.GetValueOrDefault(f.Name) is { Length: > 0 } note) { <BbFieldDescription>@note</BbFieldDescription> }
                                                     </BbField>
                                                 </div>
                                             }
@@ -364,6 +367,7 @@ else if (meta is not null && doc is not null)
             </BbTabsContent>
         }
     </BbTabs>
+    </CascadingValue>
 
     @if (!IsNew && meta?.AllowAutoRepeat == true)
     {
@@ -512,7 +516,16 @@ else if (meta is not null && doc is not null)
         get { var tmp = doc!.Clone(); tmp.Data = model; return DocumentService.ScopeData(tmp); }
     }
 
-    private FieldState State(CompiledField f) => Evaluator.StateOf(f, Scope, User);
+    private FieldState State(CompiledField f)
+    {
+        var st = Evaluator.StateOf(f, Scope, User);
+        // Client Scripts can only add to the metadata rules (hide, require, lock), never undo them:
+        // the server enforces the metadata rules, so loosening them in the UI would only produce save errors.
+        if (scriptHidden.GetValueOrDefault(f.Name)) st = st with { Visible = false };
+        if (scriptRequired.GetValueOrDefault(f.Name)) st = st with { Required = true };
+        if (scriptReadOnly.GetValueOrDefault(f.Name)) st = st with { ReadOnly = true };
+        return st;
+    }
     private bool Readable(CompiledField f) => Perms.CanReadField(User, meta!, f);
     private bool FieldReadOnly(CompiledField f, FieldState st) => !Editable || st.ReadOnly || !Perms.CanWriteField(User, meta!, f)
         || (!IsNew && meta!.Def.Naming.Pattern == $"field:{f.Name}"); // kode = nomor dokumen, tetap setelah disimpan
@@ -619,6 +632,7 @@ else if (meta is not null && doc is not null)
     private async Task Load()
     {
         fatal = null; banner = null; conflict = null; errors.Clear();
+        ClearScriptOverrides();
         await CleanupPresenceAsync();
 
         if (!Metadata.Current.TryGet(DocType, out var m) || m.Def.IsChild) { fatalStatus = 404; fatal = $"DocType '{DocType}' was not found."; return; }
@@ -631,11 +645,18 @@ else if (meta is not null && doc is not null)
             // dan BbTabs memakai nilai awal Value. Tab kosong pada render pertama membuat isi form tersembunyi.
             if (activeTab == "" || (activeTab != HistoryTab && meta.Layout.All(t => t.Title != activeTab)))
                 activeTab = meta.Layout.FirstOrDefault(TabVisible)?.Title ?? "";
-            if (IsNew)
-                foreach (var link in meta.Fields.Where(f => f.Def.Type == "Link" && model.GetValueOrDefault(f.Name) is not null).ToList())
-                    await SetValue(link, model[link.Name]);
+            loadingForm = true;
+            try
+            {
+                if (IsNew)
+                    foreach (var link in meta.Fields.Where(f => f.Def.Type == "Link" && model.GetValueOrDefault(f.Name) is not null).ToList())
+                        await SetValue(link, model[link.Name]);
+            }
+            finally { loadingForm = false; }
             original = Snapshot();
             dirty = false;
+            // Client Scripts (Load) run after the snapshot: values they fill in count as unsaved changes.
+            await RunClientScripts(Framework.Scripting.Abstractions.FormScriptEvent.Load, null);
             actions = IsNew ? [] : await Docs.AvailableActionsAsync(User, doc);
             audit = IsNew ? [] : await Docs.GetAuditAsync(User, DocType, Name);
             attachments = IsNew ? [] : await Attachments.ListAsync(User, DocType, Name);
@@ -677,6 +698,118 @@ else if (meta is not null && doc is not null)
             model[dep.Name] = fetched;
         }
         await Changed();
+        // Client Scripts (Change). Not while the form loads; values set by scripts cascade up to MaxClientScriptDepth.
+        if (!loadingForm) await RunClientScripts(Framework.Scripting.Abstractions.FormScriptEvent.Change, f.Name);
+    }
+
+    private async Task OnTableChanged(CompiledField f)
+    {
+        await Changed();
+        await RunClientScripts(Framework.Scripting.Abstractions.FormScriptEvent.Change, f.Name);
+    }
+
+    // ---------------------------------------------------------------- client scripts
+
+    private const int MaxClientScriptDepth = 3;
+    private int clientScriptDepth;
+    private bool loadingForm;
+    private readonly Dictionary<string, bool> scriptHidden = new();
+    private readonly Dictionary<string, bool> scriptRequired = new();
+    private readonly Dictionary<string, bool> scriptReadOnly = new();
+    private readonly Dictionary<string, string?> scriptNotes = new();
+    private readonly ClientScriptFormState scriptFormState = new();
+
+    private Framework.Scripting.ServerScriptExecutionService? ClientScripts =>
+        Sp.GetService(typeof(Framework.Scripting.ServerScriptExecutionService)) as Framework.Scripting.ServerScriptExecutionService;
+
+    private void ClearScriptOverrides()
+    {
+        scriptHidden.Clear(); scriptRequired.Clear(); scriptReadOnly.Clear(); scriptNotes.Clear();
+        scriptFormState.DocType = DocType;
+        scriptFormState.Options.Clear();
+    }
+
+    /// <summary>
+    /// Runs the Client Scripts of this DocType for one form event and applies the outcome. Values set by a script go
+    /// through SetValue, which fires their own Change event, up to <see cref="MaxClientScriptDepth"/> levels deep.
+    /// Returns the validation errors (only meaningful for the Validate event).
+    /// </summary>
+    private async Task<IReadOnlyList<FieldError>> RunClientScripts(Framework.Scripting.Abstractions.FormScriptEvent evt, string? field)
+    {
+        var service = ClientScripts;
+        var current = meta;
+        if (service is null || current is null || doc is null || clientScriptDepth >= MaxClientScriptDepth) return [];
+        clientScriptDepth++;
+        try
+        {
+            Framework.Scripting.FormScriptOutcome outcome;
+            try
+            {
+                outcome = await service.RunFormEventAsync(User, current.Name, evt, field, model, IsNew, IsNew ? null : Name);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                Toasts.Warning(ex.Message, "Client script");
+                return [];
+            }
+
+            foreach (var (k, v) in outcome.Hidden) scriptHidden[k] = v;
+            foreach (var (k, v) in outcome.Required) scriptRequired[k] = v;
+            foreach (var (k, v) in outcome.ReadOnly) scriptReadOnly[k] = v;
+            foreach (var (k, v) in outcome.Descriptions) scriptNotes[k] = v;
+            foreach (var (k, v) in outcome.Options)
+            {
+                // Only options the metadata allows are kept: the server rejects any other value.
+                if (current.ByName.TryGetValue(k, out var sf) && sf.Def.Options is { Count: > 0 } allowed)
+                    scriptFormState.Options[k] = v.Where(allowed.Contains).Distinct().ToList();
+            }
+
+            foreach (var m in outcome.Messages)
+            {
+                switch (m.Level)
+                {
+                    case "success": Toasts.Success(m.Message); break;
+                    case "warning": Toasts.Warning(m.Message); break;
+                    case "error": Toasts.Error(m.Message); break;
+                    default: Toasts.Info(m.Message); break;
+                }
+            }
+            foreach (var failure in outcome.Failures)
+                Toasts.Warning(failure.Message, $"Client script: {failure.Script}");
+
+            // Values: only while the form can be edited, and only fields the user could type in right now.
+            if (Editable)
+            {
+                foreach (var (name, value) in outcome.Values)
+                {
+                    if (!current.ByName.TryGetValue(name, out var f) || FieldReadOnly(f, Evaluator.StateOf(f, Scope, User))) continue;
+                    await SetValue(f, value);
+                }
+            }
+            return outcome.Errors;
+        }
+        finally
+        {
+            clientScriptDepth--;
+        }
+    }
+
+    /// <summary>Validate event + fields a client script made required. True = the save may go ahead.</summary>
+    private async Task<bool> ClientValidateAsync()
+    {
+        var found = new List<FieldError>(await RunClientScripts(Framework.Scripting.Abstractions.FormScriptEvent.Validate, null));
+        foreach (var (name, required) in scriptRequired)
+        {
+            if (!required || !meta!.ByName.TryGetValue(name, out var f) || !Readable(f)) continue;
+            var st = State(f);
+            if (!st.Visible || FieldReadOnly(f, st)) continue;
+            var value = model.GetValueOrDefault(name);
+            if (value is null || (value is string text && string.IsNullOrWhiteSpace(text)) || value is System.Collections.ICollection { Count: 0 })
+                found.Add(new FieldError(name, $"{f.Label} is required."));
+        }
+        if (found.Count == 0) return true;
+        HandleError(new ValidationFailedException(found));
+        return false;
     }
 
     private async Task Changed()
@@ -722,6 +855,7 @@ else if (meta is not null && doc is not null)
         busy = savingNow = true; errors.Clear(); banner = null; conflict = null;
         try
         {
+            if (!await ClientValidateAsync()) return;
             var payload = BuildPayload();
             if (IsNew)
             {

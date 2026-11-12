@@ -227,6 +227,25 @@
         var n = Field.Type.Normalize(raw);
         return ValueChanged.InvokeAsync(n.Ok ? n.Value : raw);
     }
+    // ---- Client Scripts: Select options narrowed by a script (Form.SetOptions), cascaded by the form page.
+    [CascadingParameter] public ClientScriptFormState? ScriptFormState { get; set; }
+    private CompiledField? scriptSource;
+    private IReadOnlyList<string>? scriptOptions;
+    private CompiledField? scriptField;
+
+    protected override void OnParametersSet()
+    {
+        if (ScriptFormState is null || DocType is null || !string.Equals(ScriptFormState.DocType, DocType, StringComparison.Ordinal)) return;
+        if (!ScriptFormState.Options.TryGetValue(Field.Name, out var options)) return;
+        // Field is the shared compiled metadata: render a copy whose options are narrowed (cached per options list).
+        if (!ReferenceEquals(scriptSource, Field) || !ReferenceEquals(scriptOptions, options) || scriptField is null)
+        {
+            scriptSource = Field;
+            scriptOptions = options;
+            scriptField = ClientScriptFormState.WithOptions(Field, options);
+        }
+        Field = scriptField;
+    }
 
     private Task Emit(string? raw) => Emit((object?)raw);
     private Task SetDate(DateTime? d) => Emit(d?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));

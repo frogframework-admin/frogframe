@@ -11,7 +11,7 @@ public sealed class PostgresServerScriptStore(NpgsqlDataSource db) : IServerScri
         await using var cmd = db.CreateCommand(@"
             SELECT id, tenant_id, name, script_type, doctype, doc_event, api_method,
                    cron_expr, run_as_user_id, is_active, version, current_code,
-                   created_at, modified_at, allowed_roles
+                   created_at, modified_at, allowed_roles, form_event, form_field
             FROM frogframe_server_scripts
             WHERE tenant_id = $1 AND id = $2");
         cmd.Parameters.AddWithValue(tenantId);
@@ -30,7 +30,7 @@ public sealed class PostgresServerScriptStore(NpgsqlDataSource db) : IServerScri
         await using var cmd = db.CreateCommand(@"
             SELECT id, tenant_id, name, script_type, doctype, doc_event, api_method,
                    cron_expr, run_as_user_id, is_active, version, current_code,
-                   created_at, modified_at, allowed_roles
+                   created_at, modified_at, allowed_roles, form_event, form_field
             FROM frogframe_server_scripts
             WHERE tenant_id = $1
             ORDER BY modified_at DESC");
@@ -50,7 +50,7 @@ public sealed class PostgresServerScriptStore(NpgsqlDataSource db) : IServerScri
         await using var cmd = db.CreateCommand(@"
             SELECT id, tenant_id, name, script_type, doctype, doc_event, api_method,
                    cron_expr, run_as_user_id, is_active, version, current_code,
-                   created_at, modified_at, allowed_roles
+                   created_at, modified_at, allowed_roles, form_event, form_field
             FROM frogframe_server_scripts
             WHERE tenant_id = $1 AND is_active = true AND script_type = 'DocEvent'
                   AND doctype = $2 AND doc_event = $3");
@@ -72,7 +72,7 @@ public sealed class PostgresServerScriptStore(NpgsqlDataSource db) : IServerScri
         await using var cmd = db.CreateCommand(@"
             SELECT id, tenant_id, name, script_type, doctype, doc_event, api_method,
                    cron_expr, run_as_user_id, is_active, version, current_code,
-                   created_at, modified_at, allowed_roles
+                   created_at, modified_at, allowed_roles, form_event, form_field
             FROM frogframe_server_scripts
             WHERE tenant_id = $1 AND is_active = true AND script_type = 'Api'
                   AND api_method = $2
@@ -93,7 +93,7 @@ public sealed class PostgresServerScriptStore(NpgsqlDataSource db) : IServerScri
         await using var cmd = db.CreateCommand(@"
             SELECT id, tenant_id, name, script_type, doctype, doc_event, api_method,
                    cron_expr, run_as_user_id, is_active, version, current_code,
-                   created_at, modified_at, allowed_roles
+                   created_at, modified_at, allowed_roles, form_event, form_field
             FROM frogframe_server_scripts
             WHERE tenant_id = $1 AND is_active = true AND script_type = 'Scheduled'
                   AND cron_expr IS NOT NULL AND cron_expr <> ''");
@@ -105,6 +105,25 @@ public sealed class PostgresServerScriptStore(NpgsqlDataSource db) : IServerScri
         {
             list.Add(ReadScript(r));
         }
+        return list;
+    }
+
+    public async Task<IReadOnlyList<ServerScriptDef>> ListFormScriptsAsync(string tenantId, string docType, CancellationToken ct = default)
+    {
+        await using var cmd = db.CreateCommand(@"
+            SELECT id, tenant_id, name, script_type, doctype, doc_event, api_method,
+                   cron_expr, run_as_user_id, is_active, version, current_code,
+                   created_at, modified_at, allowed_roles, form_event, form_field
+            FROM frogframe_server_scripts
+            WHERE tenant_id = $1 AND is_active = true AND script_type = 'Form' AND lower(doctype) = lower($2)
+            ORDER BY name");
+        cmd.Parameters.AddWithValue(tenantId);
+        cmd.Parameters.AddWithValue(docType);
+
+        var list = new List<ServerScriptDef>();
+        await using var r = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+        while (await r.ReadAsync(ct).ConfigureAwait(false))
+            list.Add(ReadScript(r));
         return list;
     }
 
@@ -135,10 +154,12 @@ public sealed class PostgresServerScriptStore(NpgsqlDataSource db) : IServerScri
             INSERT INTO frogframe_server_scripts (
                 id, tenant_id, name, script_type, doctype, doc_event, api_method,
                 cron_expr, run_as_user_id, is_active, version, current_code,
-                created_at, modified_at, allowed_roles
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+                created_at, modified_at, allowed_roles, form_event, form_field
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
             ON CONFLICT (tenant_id, id) DO UPDATE SET
                 allowed_roles = EXCLUDED.allowed_roles,
+                form_event = EXCLUDED.form_event,
+                form_field = EXCLUDED.form_field,
                 name = EXCLUDED.name,
                 script_type = EXCLUDED.script_type,
                 doctype = EXCLUDED.doctype,
@@ -166,6 +187,8 @@ public sealed class PostgresServerScriptStore(NpgsqlDataSource db) : IServerScri
             upsertCmd.Parameters.AddWithValue(def.CreatedAt);
             upsertCmd.Parameters.AddWithValue(DateTimeOffset.UtcNow);
             upsertCmd.Parameters.AddWithValue(def.AllowedRoles.ToArray());
+            upsertCmd.Parameters.AddWithValue((object?)def.FormEvent?.ToString() ?? DBNull.Value);
+            upsertCmd.Parameters.AddWithValue((object?)def.FormField ?? DBNull.Value);
 
             await upsertCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
         }
@@ -326,7 +349,9 @@ public sealed class PostgresServerScriptStore(NpgsqlDataSource db) : IServerScri
             CurrentCode = r.GetString(11),
             CreatedAt = r.GetFieldValue<DateTimeOffset>(12),
             ModifiedAt = r.GetFieldValue<DateTimeOffset>(13),
-            AllowedRoles = r.IsDBNull(14) ? [] : r.GetFieldValue<string[]>(14)
+            AllowedRoles = r.IsDBNull(14) ? [] : r.GetFieldValue<string[]>(14),
+            FormEvent = !r.IsDBNull(15) && Enum.TryParse<FormScriptEvent>(r.GetString(15), ignoreCase: true, out var formEvent) ? formEvent : null,
+            FormField = r.IsDBNull(16) ? null : r.GetString(16)
         };
     }
 }

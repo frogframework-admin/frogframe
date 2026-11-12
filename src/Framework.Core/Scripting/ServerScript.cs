@@ -19,6 +19,10 @@ public record ServerScriptDef
     /// Ignored for DocEvent and Scheduled scripts.
     /// </summary>
     public IReadOnlyList<string> AllowedRoles { get; init; } = [];
+    /// <summary>Client Script (ScriptType Form): the form event that runs it.</summary>
+    public FormScriptEvent? FormEvent { get; init; }
+    /// <summary>Client Script, Change event: the field it reacts to; null = any field.</summary>
+    public string? FormField { get; init; }
     public bool IsActive { get; init; } = true;
     public int Version { get; init; } = 1;
     public string CurrentCode { get; init; } = string.Empty;
@@ -58,6 +62,8 @@ public interface IServerScriptStore
     Task<IReadOnlyList<ServerScriptDef>> ListDocEventScriptsAsync(string tenantId, string docType, DocEventStage docEvent, CancellationToken ct = default);
     Task<ServerScriptDef?> GetApiScriptAsync(string tenantId, string apiMethod, CancellationToken ct = default);
     Task<IReadOnlyList<ServerScriptDef>> ListScheduledScriptsAsync(string tenantId, CancellationToken ct = default);
+    /// <summary>Active Client Scripts (ScriptType Form) of a DocType.</summary>
+    Task<IReadOnlyList<ServerScriptDef>> ListFormScriptsAsync(string tenantId, string docType, CancellationToken ct = default);
     Task SaveAsync(ServerScriptDef def, string code, string userId, CancellationToken ct = default);
     Task SetActiveAsync(string tenantId, string id, bool active, CancellationToken ct = default);
     Task DeleteAsync(string tenantId, string id, CancellationToken ct = default);
@@ -117,6 +123,18 @@ public sealed class InMemoryServerScriptStore : IServerScriptStore
                         s.IsActive &&
                         s.ScriptType == ServerScriptType.Scheduled &&
                         !string.IsNullOrWhiteSpace(s.CronExpr))
+            .ToList();
+        return Task.FromResult<IReadOnlyList<ServerScriptDef>>(list);
+    }
+
+    public Task<IReadOnlyList<ServerScriptDef>> ListFormScriptsAsync(string tenantId, string docType, CancellationToken ct = default)
+    {
+        var list = _scripts.Values
+            .Where(s => s.TenantId == tenantId &&
+                        s.IsActive &&
+                        s.ScriptType == ServerScriptType.Form &&
+                        string.Equals(s.DocType, docType, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(s => s.Name, StringComparer.Ordinal)
             .ToList();
         return Task.FromResult<IReadOnlyList<ServerScriptDef>>(list);
     }

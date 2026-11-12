@@ -28,6 +28,11 @@ public sealed class ServerScriptExecutionService : IDisposable
     private static readonly Limits DocEventLimits = new(TimeSpan.FromSeconds(5), ScriptBudget.DefaultMaxStatements);
     private static readonly Limits ApiLimits = new(TimeSpan.FromSeconds(10), ScriptBudget.DefaultMaxStatements);
     private static readonly Limits ScheduledLimits = new(TimeSpan.FromSeconds(60), 500_000);
+    /// <summary>Client Scripts run while the user waits on every load, change and save: keep them short.</summary>
+    private static readonly Limits FormLimits = new(TimeSpan.FromSeconds(1), 20_000);
+    private static readonly TimeSpan FormScriptListCache = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan FormFailureRecordInterval = TimeSpan.FromSeconds(60);
+    private const int MaxChangedValues = 200;
 
     /// <summary>Extra time given to a script after its deadline before the caller stops waiting for it.</summary>
     private static readonly TimeSpan HardTimeoutGrace = TimeSpan.FromSeconds(1);
@@ -45,6 +50,8 @@ public sealed class ServerScriptExecutionService : IDisposable
         ?? throw new InvalidOperationException("DocumentService is not registered in service provider."));
 
     private readonly ConcurrentDictionary<string, (CompiledScript Script, int Version, string Code)> _cache = new();
+    private readonly ConcurrentDictionary<string, (DateTimeOffset LoadedAt, IReadOnlyList<ServerScriptDef> Scripts)> _formScripts = new();
+    private readonly ConcurrentDictionary<string, DateTimeOffset> _lastFormFailureRecorded = new();
     private bool _disposed;
 
     public ServerScriptExecutionService(
@@ -157,13 +164,95 @@ public sealed class ServerScriptExecutionService : IDisposable
         await ExecuteScriptAsync(script, new Invocation(runAsUser, null, null, null), ServerScriptType.Scheduled, null, ct);
     }
 
+    // ---------------------------------------------------------------- client scripts (forms)
+
+    /// <summary>
+    /// Runs the active Client Scripts of a DocType for one form event, in name order, as <paramref name="user"/>.
+    /// Scripts work on a copy of the form data; the outcome lists changed values and UI changes for the form to apply.
+    /// A failing script does not stop the others; its error is returned in <see cref="FormScriptOutcome.Failures"/>.
+    /// </summary>
+    public async Task<FormScriptOutcome> RunFormEventAsync(UserContext user, string docType, FormScriptEvent formEvent, string? changedField,
+        IDictionary<string, object?> data, bool isNew, string? docName = null, CancellationToken ct = default)
+    {
+        if (!IsEnabled) return FormScriptOutcome.Empty;
+        var scripts = (await ListFormScriptsCachedAsync(user.TenantId, docType, ct))
+            .Where(s => s.FormEvent == formEvent
+                        && (formEvent != FormScriptEvent.Change || string.IsNullOrEmpty(s.FormField) || s.FormField == "*"
+                            || string.Equals(s.FormField, changedField, StringComparison.Ordinal)))
+            .ToList();
+        if (scripts.Count == 0) return FormScriptOutcome.Empty;
+
+        var working = CopyData(data);
+        var form = new ScriptForm(formEvent, changedField, isNew, working);
+        var failures = new List<FormScriptFailure>();
+        var validationErrors = new List<FieldError>();
+
+        foreach (var script in scripts)
+        {
+            try
+            {
+                var doc = new ScriptDoc(working, docType, docName ?? "");
+                await ExecuteScriptAsync(script, new Invocation(user, doc, null, null, form), ServerScriptType.Form, docName, ct);
+            }
+            catch (ValidationFailedException ex)
+            {
+                // ScriptValidationException in a client script = a field error in the form (mainly for Validate).
+                validationErrors.AddRange(ex.Errors);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+            catch (Exception ex)
+            {
+                failures.Add(new FormScriptFailure(script.Name, ex.Message));
+                _logger.LogWarning("Client script {ScriptId} ({Name}) failed on {Event}: {Error}", script.Id, script.Name, formEvent, ex.Message);
+            }
+        }
+
+        // Only values the user could type in this form are passed back: an existing, writable, non-derived field that
+        // is not a child table, normalized by its field type. Everything else is reported as a failure and dropped.
+        var changed = new Dictionary<string, object?>(StringComparer.Ordinal);
+        _metadata.Current.TryGet(docType, out var meta);
+        foreach (var (key, value) in working)
+        {
+            if (data.TryGetValue(key, out var before) && ValueEquals(before, value)) continue;
+            if (changed.Count >= MaxChangedValues) break;
+            if (meta is null || StandardFields.All.Contains(key) || !meta.ByName.TryGetValue(key, out var field)
+                || field.IsDerived || field.Def.Type == "Table" || !_permissions.CanWriteField(user, meta, field))
+            {
+                failures.Add(new FormScriptFailure("form", $"Value of '{key}' cannot be set from a client script; ignored."));
+                continue;
+            }
+            var normalized = field.Type.Normalize(value);
+            if (!normalized.Ok)
+            {
+                failures.Add(new FormScriptFailure("form", $"Value for '{key}' is not valid: {normalized.Error}"));
+                continue;
+            }
+            changed[key] = normalized.Value;
+        }
+
+        validationErrors.AddRange(form.Errors.Select(e => new FieldError(e.Field, e.Message)));
+        return new FormScriptOutcome(changed, form.HiddenFields, form.RequiredFields, form.ReadOnlyFields, form.FieldOptions,
+            form.Descriptions, form.Messages, validationErrors, failures);
+    }
+
+    private async Task<IReadOnlyList<ServerScriptDef>> ListFormScriptsCachedAsync(string tenantId, string docType, CancellationToken ct)
+    {
+        var key = $"{tenantId}:{docType}";
+        if (_formScripts.TryGetValue(key, out var cached) && DateTimeOffset.UtcNow - cached.LoadedAt < FormScriptListCache)
+            return cached.Scripts;
+        var scripts = await _store.ListFormScriptsAsync(tenantId, docType, ct);
+        _formScripts[key] = (DateTimeOffset.UtcNow, scripts);
+        return scripts;
+    }
+
     // ---------------------------------------------------------------- execution
 
     private sealed record Invocation(
         UserContext User,
         ScriptDoc? Doc,
         ScriptDoc? OldDoc,
-        IDictionary<string, object?>? Values);
+        IDictionary<string, object?>? Values,
+        IScriptForm? Form = null);
 
     private async Task<object?> ExecuteScriptAsync(
         ServerScriptDef script, Invocation invocation, ServerScriptType trigger, string? docName, CancellationToken ct)
@@ -172,6 +261,7 @@ public sealed class ServerScriptExecutionService : IDisposable
         {
             ServerScriptType.Api => ApiLimits,
             ServerScriptType.Scheduled => ScheduledLimits,
+            ServerScriptType.Form => FormLimits,
             _ => DocEventLimits,
         };
 
@@ -197,9 +287,15 @@ public sealed class ServerScriptExecutionService : IDisposable
                     Department = user.Attr("department"),
                     Roles = user.Roles.ToList()
                 },
-                Docs = new InternalScriptDocs(() => Docs, user, cts.Token),
+                // Client Scripts run on every load/change/save: they may read documents but not write them or send email.
+                Docs = trigger == ServerScriptType.Form
+                    ? new ReadOnlyScriptDocs(new InternalScriptDocs(() => Docs, user, cts.Token))
+                    : new InternalScriptDocs(() => Docs, user, cts.Token),
                 Log = new ScriptLog(),
-                Email = new InternalScriptEmail(_emailQueue, user.TenantId, cts.Token),
+                Email = trigger == ServerScriptType.Form
+                    ? new UnavailableScriptEmail()
+                    : new InternalScriptEmail(_emailQueue, user.TenantId, cts.Token),
+                Form = invocation.Form,
                 Values = invocation.Values ?? new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase),
                 __budget = new ScriptBudget(limits.MaxStatements, limits.Timeout, cts.Token),
                 CancellationToken = cts.Token
@@ -271,6 +367,15 @@ public sealed class ServerScriptExecutionService : IDisposable
 
     private async Task RecordRunSafeAsync(ServerScriptDef script, string trigger, string? docName, string status, string? error, int durationMs)
     {
+        // Client Scripts run on every change: record only failures, at most once a minute per script.
+        if (trigger == nameof(ServerScriptType.Form))
+        {
+            if (status == "Success") return;
+            var key = $"{script.TenantId}:{script.Id}";
+            var now = DateTimeOffset.UtcNow;
+            if (_lastFormFailureRecorded.TryGetValue(key, out var last) && now - last < FormFailureRecordInterval) return;
+            _lastFormFailureRecorded[key] = now;
+        }
         try
         {
             await _store.RecordRunAsync(new ServerScriptRun
@@ -386,6 +491,8 @@ public sealed class ServerScriptExecutionService : IDisposable
 
     public void Invalidate(string tenantId, string scriptId)
     {
+        foreach (var formKey in _formScripts.Keys.Where(k => k.StartsWith(tenantId + ":", StringComparison.Ordinal)).ToList())
+            _formScripts.TryRemove(formKey, out _);
         var key = $"{tenantId}:{scriptId}";
         if (_cache.TryRemove(key, out var cached))
         {
@@ -461,6 +568,23 @@ public sealed class ServerScriptExecutionService : IDisposable
         }
     }
 
+    /// <summary>Documents facade for Client Scripts: reading is allowed, changing documents is not.</summary>
+    private sealed class ReadOnlyScriptDocs(IScriptDocs inner) : IScriptDocs
+    {
+        private const string Message = "Client scripts can read documents but not change them. Use a server script (DocEvent) instead.";
+        public Task<ScriptDoc?> GetAsync(string docType, string name, CancellationToken ct = default) => inner.GetAsync(docType, name, ct);
+        public Task<ScriptDoc> InsertAsync(string docType, IDictionary<string, object?> data, CancellationToken ct = default) => throw new InvalidOperationException(Message);
+        public Task<ScriptDoc> UpdateAsync(string docType, string name, IDictionary<string, object?> data, CancellationToken ct = default) => throw new InvalidOperationException(Message);
+        public Task DeleteAsync(string docType, string name, CancellationToken ct = default) => throw new InvalidOperationException(Message);
+        public Task<ScriptDoc> RunActionAsync(string docType, string name, string action, string? comment = null, CancellationToken ct = default) => throw new InvalidOperationException(Message);
+    }
+
+    private sealed class UnavailableScriptEmail : IScriptEmail
+    {
+        public Task SendAsync(string to, string subject, string bodyText, string? bodyHtml = null, CancellationToken ct = default) =>
+            throw new InvalidOperationException("Client scripts cannot send email. Use a server script (DocEvent) instead.");
+    }
+
     private sealed class InternalScriptEmail(IEmailQueue? queue, string tenantId, CancellationToken executionToken) : IScriptEmail
     {
         public async Task SendAsync(string to, string subject, string bodyText, string? bodyHtml = null, CancellationToken ct = default)
@@ -478,4 +602,23 @@ public sealed class ServerScriptExecutionService : IDisposable
             await queue.QueueAsync(tenantId, email, ct: linked.Token);
         }
     }
+}
+
+public sealed record FormScriptFailure(string Script, string Message);
+
+/// <summary>What the Client Scripts of one form event changed. Empty when no script ran.</summary>
+public sealed record FormScriptOutcome(
+    IReadOnlyDictionary<string, object?> Values,
+    IReadOnlyDictionary<string, bool> Hidden,
+    IReadOnlyDictionary<string, bool> Required,
+    IReadOnlyDictionary<string, bool> ReadOnly,
+    IReadOnlyDictionary<string, IReadOnlyList<string>> Options,
+    IReadOnlyDictionary<string, string?> Descriptions,
+    IReadOnlyList<FormScriptMessage> Messages,
+    IReadOnlyList<FieldError> Errors,
+    IReadOnlyList<FormScriptFailure> Failures)
+{
+    public static readonly FormScriptOutcome Empty = new(
+        new Dictionary<string, object?>(), new Dictionary<string, bool>(), new Dictionary<string, bool>(), new Dictionary<string, bool>(),
+        new Dictionary<string, IReadOnlyList<string>>(), new Dictionary<string, string?>(), [], [], []);
 }
