@@ -490,18 +490,13 @@ public sealed class DocumentService(
                 foreach (var h in handlers.For<IAfterSave>(p.Meta.Name)) await h.AfterSaveAsync(p.Ctx, ct);
                 RunVisualHooks(p.Meta, "AfterSave", CreateHookContext(p.Ctx), p.Ctx.Previous);
                 await hooks.RunAsync(DocHookStage.AfterSave,
-                    CreateHookContext(p.Meta, user, p.Doc, p.Ctx.Previous, p.Ctx.Events), ct);
+                    CreateHookContext(p.Meta, user, p.Doc, p.Ctx.Previous, p.Ctx.Events, messages: p.Ctx.Messages, extensions: p.Ctx.Extensions), ct);
                 ThrowIfErrors(p.Ctx);
                 uow.Upserts.Add((p.Doc, null));
                 if (p.Meta.Def.Document.TrackChanges) uow.Audits.Add(Audit(p.Doc, user, auditAction, Diff(p.Meta, null, p.Doc)));
                 p.Ctx.Events.Add(Event(p.Doc, EventTypes.DocumentInserted, user));
                 uow.Outbox.AddRange(p.Ctx.Events);
-                if (p.Ctx.Ledger.Count > 0)
-                {
-                    var lines = p.Ctx.Ledger.Select(l => (p.Doc, l)).ToList();
-                    Framework.Accounting.Ledger.ValidateShape(lines);
-                    uow.Ledger.AddRange(lines);
-                }
+                uow.Extensions.AddRange(p.Ctx.Extensions.Select(e => new UnitOfWorkExtension(p.Doc, e)));
                 prepared.Add(p);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
@@ -668,7 +663,7 @@ public sealed class DocumentService(
                     throw new LinkedDocumentException("cancel", meta.Title, name, link.LinkingDocType, link.LinkingDocName, link.FieldLabel);
             }
             foreach (var h in handlers.For<IBeforeCancel>(docType)) await h.BeforeCancelAsync(ctx, ct);
-            var cancelContext = CreateHookContext(meta, user, doc, current, ctx.Events, action, fromState, toState, ctx.Messages, ctx.Ledger);
+            var cancelContext = CreateHookContext(meta, user, doc, current, ctx.Events, action, fromState, toState, ctx.Messages, ctx.Extensions);
             await hooks.RunAsync(DocHookStage.OnCancel, cancelContext, ct);
         }
         ThrowIfErrors(ctx);
@@ -704,7 +699,7 @@ public sealed class DocumentService(
             AmendedFrom = source.Name, Data = Document.DeepCopy(source.Data)
         };
         var ctx = new DocumentContext { Meta = meta, Doc = doc, Previous = source, User = user, Operation = DocumentOperation.Amend, Lookup = new TenantLookup(store, user.TenantId) };
-        var amendContext = CreateHookContext(meta, user, source, null, ctx.Events, messages: ctx.Messages);
+        var amendContext = CreateHookContext(meta, user, source, null, ctx.Events, messages: ctx.Messages, extensions: ctx.Extensions);
         await hooks.RunAsync(DocHookStage.OnAmend, amendContext, ct, amendedDraft: doc);
         var uow = new UnitOfWork();
         uow.Upserts.Add((doc, null));
@@ -892,28 +887,23 @@ public sealed class DocumentService(
         foreach (var h in handlers.For<IAfterSave>(ctx.Meta.Name)) await h.AfterSaveAsync(ctx, ct);
         RunVisualHooks(ctx.Meta, "AfterSave", CreateHookContext(ctx), ctx.Previous);
         await hooks.RunAsync(DocHookStage.AfterSave,
-            CreateHookContext(ctx.Meta, ctx.User, doc, ctx.Previous, ctx.Events, messages: ctx.Messages, ledger: ctx.Ledger), ct);
+            CreateHookContext(ctx.Meta, ctx.User, doc, ctx.Previous, ctx.Events, messages: ctx.Messages, extensions: ctx.Extensions), ct);
         ThrowIfErrors(ctx);
         if (audit is not null && ctx.Meta.Def.Document.TrackChanges) uow.Audits.Add(audit);
         uow.Outbox.AddRange(ctx.Events);
-        if (ctx.Ledger.Count > 0)
-        {
-            var lines = ctx.Ledger.Select(l => (doc, l)).ToList();
-            Framework.Accounting.Ledger.ValidateShape(lines); // seimbang & satu sisi, sebelum menyentuh database
-            uow.Ledger.AddRange(lines);
-        }
+        uow.Extensions.AddRange(ctx.Extensions.Select(e => new UnitOfWorkExtension(doc, e)));
         try { await store.CommitAsync(uow, ct); } // event eksternal baru diproses setelah commit melalui outbox
-        catch (Framework.Accounting.LedgerException ex) { throw new ValidationFailedException([new FieldError("ledger", ex.Message)]); }
+        catch (UnitOfWorkValidationException ex) { throw new ValidationFailedException(ex.Errors); }
         doc.TransientMessages.AddRange(ctx.Messages);
         FrogFrameTelemetry.DocumentOperations.Add(1, new KeyValuePair<string, object?>("doctype", doc.DocType), new KeyValuePair<string, object?>("operation", ctx.Operation.ToString()));
     }
 
     private HookContext CreateHookContext(DocumentContext ctx) =>
-        CreateHookContext(ctx.Meta, ctx.User, ctx.Doc, ctx.Previous, ctx.Events, messages: ctx.Messages, ledger: ctx.Ledger);
+        CreateHookContext(ctx.Meta, ctx.User, ctx.Doc, ctx.Previous, ctx.Events, messages: ctx.Messages, extensions: ctx.Extensions);
 
     private HookContext CreateHookContext(CompiledDocType meta, UserContext user, Document doc, Document? previous,
         List<OutboxMessage> events, string? action = null, string? fromState = null, string? toState = null, List<string>? messages = null,
-        List<Framework.Accounting.LedgerLine>? ledger = null)
+        List<IUnitOfWorkExtension>? extensions = null)
     {
         IDocumentService docs = new HookDocumentReader(this, user);
         return new HookContext
@@ -921,7 +911,7 @@ public sealed class DocumentService(
             User = user, Meta = meta, Doc = doc, Previous = previous,
             Lookup = new HookLookup(docs), Docs = docs, Events = events,
             Messages = messages ?? [],
-            Ledger = ledger ?? [],
+            Extensions = extensions ?? [],
             Action = action, FromState = fromState, ToState = toState,
         };
     }

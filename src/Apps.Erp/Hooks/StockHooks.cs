@@ -241,7 +241,7 @@ public sealed class StockEntryHook(ILedgerReader ledger, IDocumentStore store, T
         d["total_value"] = total;
         var lines = StockPosting.Build(posting);
         if (purpose == "Material Issue") await BudgetControl.CheckAsync(c, m, ledger, lines, d.Str("company"), ct);
-        c.Ledger.AddRange(lines);
+        c.AddLedgers(lines);
     }
 
     public async Task OnCancelAsync(HookContext c, CancellationToken ct)
@@ -303,7 +303,7 @@ public sealed class StockReconciliationHook(ILedgerReader ledger, IDocumentStore
         var diffAccount = d.Str("difference_account") ?? await Stock.SettingAccountAsync(m, "stock_adjustment_account", "Stock adjustment", ct);
         var posting = new Posting(date, d.Str("remarks") ?? $"Stock count {wh} {c.Doc.Name}");
         posting.Dr(inventory, total); posting.Cr(diffAccount, total); // negatif otomatis dibalik oleh Posting
-        c.Ledger.AddRange(StockPosting.Build(posting));
+        c.AddLedgers(StockPosting.Build(posting));
     }
 
     public async Task OnCancelAsync(HookContext c, CancellationToken ct)
@@ -392,7 +392,7 @@ public sealed class GoodsReceiptStockHook(ILedgerReader ledger, IDocumentStore s
         var posting = new Posting(date, $"Goods receipt {c.Doc.Name} ({po.Name})");
         posting.Dr(await Stock.InventoryAccountAsync(m, wh, ct), total);
         posting.Cr(await Stock.SettingAccountAsync(m, "grni_account", "Stock received not billed", ct), total);
-        c.Ledger.AddRange(StockPosting.Build(posting));
+        c.AddLedgers(StockPosting.Build(posting));
     }
 
     public async Task OnCancelAsync(HookContext c, CancellationToken ct)
@@ -453,7 +453,7 @@ public sealed class SalesStockHook(IDocumentStore store) : IBeforeValidate<Sales
             else { posting.Dr(inventory, value, costCenter: cc); posting.Cr(cogs, value, costCenter: cc); }
         }
         plan.Errors.ThrowIfAny();
-        c.Ledger.AddRange(StockPosting.Build(posting));
+        c.AddLedgers(StockPosting.Build(posting));
     }
 
     Task IBeforeValidate<SalesInvoice>.BeforeValidateAsync(HookContext c, CancellationToken ct) => PrepareAsync(c, ct);

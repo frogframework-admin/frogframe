@@ -258,7 +258,7 @@ public sealed class CommissionStatementHook(ILedgerReader ledger, IDocumentStore
         posting.Cr(payable, total, "Employee", d.Str("sales_rep"), "CommissionStatement", c.Doc.Name);
         var lines = posting.Build();
         await BudgetControl.CheckAsync(c, m, ledger, lines, d.Str("company"), ct);
-        c.Ledger.AddRange(lines);
+        c.AddLedgers(lines);
     }
 
     public Task OnCancelAsync(HookContext c, CancellationToken ct) => Reversal.ApplyAsync(c, ledger, new Masters(store, c.Doc.TenantId), clock, ct);

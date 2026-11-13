@@ -1,5 +1,6 @@
 using Framework.Documents;
 using Framework.Metadata;
+using Framework.Persistence;
 using Framework.Security;
 
 namespace Framework.Hooks;
@@ -25,8 +26,7 @@ public sealed class HookContext
     public required IDocumentService Docs { get; init; }
     public required List<OutboxMessage> Events { get; init; }
     public List<string> Messages { get; init; } = [];
-    /// <summary>Hook menambah baris buku besar di sini; disimpan atomik bersama dokumen.</summary>
-    public List<Framework.Accounting.LedgerLine> Ledger { get; init; } = [];
+    public List<IUnitOfWorkExtension> Extensions { get; init; } = [];
     public string? Action { get; init; }
     public string? FromState { get; init; }
     public string? ToState { get; init; }

@@ -233,7 +233,7 @@ internal static class InvoiceCore
         posting.Balance(company.Default("round_off_account"), company.Default("round_off_cost_center"), 1m, "round-off");
         var lines = posting.Build();
         await BudgetControl.CheckAsync(c, m, ledger, lines, company.Name, ct);
-        c.Ledger.AddRange(lines);
+        c.AddLedgers(lines);
     }
 
     public static async Task CheckCreditLimitAsync(HookContext c, IDocumentStore store, ILedgerReader ledger, CancellationToken ct)

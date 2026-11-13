@@ -1,19 +1,36 @@
 using Apps.Erp.Hooks;
 using Apps.Erp.Reports;
+using Apps.Erp.Accounting;
+using Framework.Accounting;
+using Framework.Persistence;
+using Framework.Persistence.PostgreSql;
 using Framework.Web;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Npgsql;
 
 namespace Apps.Erp;
 
 public static class ErpRegistration
 {
+    public static IServiceCollection AddErpAccounting(this IServiceCollection services)
+    {
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IInMemoryUnitOfWorkExtensionHandler, InMemoryLedgerExtensionHandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IPostgresUnitOfWorkExtensionHandler, PostgresLedgerExtensionHandler>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IPostgresMigrationSource>(new EmbeddedPostgresMigrationSource(typeof(ErpRegistration).Assembly)));
+        services.TryAddSingleton<ILedgerReader>(sp => sp.GetService<NpgsqlDataSource>() is { } db
+            ? new PostgresLedgerReader(db)
+            : new InMemoryLedgerReader(sp.GetRequiredService<IDocumentStore>()));
+        return services;
+    }
+
     /// <summary>
     /// Daftarkan semua hook, form action, handler event, job, dan laporan ERP.
     /// Panggil di Program.cs host: builder.Services.AddErpHooks();
-    /// Butuh patch framework patches/0001-ledger-get-balances.patch (ILedgerReader.GetBalancesAsync).
     /// </summary>
     public static IServiceCollection AddErpHooks(this IServiceCollection services)
     {
+        services.AddErpAccounting();
         // CORE
         services.AddDocHook<CurrencyExchangeRate, CurrencyExchangeRateRulesHook>();
         services.AddDocHook<Address, PartyPrimaryHook>();

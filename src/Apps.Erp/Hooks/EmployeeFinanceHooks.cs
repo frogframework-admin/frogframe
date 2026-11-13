@@ -57,7 +57,7 @@ public sealed class EmployeeAdvanceHook(ILedgerReader ledger, IDocumentStore sto
         var posting = new Posting(date, $"Advance {emp.Name}: {d.Str("purpose")}");
         posting.Dr(advance, d.Dec("advance_amount"), "Employee", emp.Name, c.Doc.DocType, c.Doc.Name);
         posting.Cr(payable, d.Dec("advance_amount"), "Employee", emp.Name, c.Doc.DocType, c.Doc.Name);
-        c.Ledger.AddRange(posting.Build());
+        c.AddLedgers(posting.Build());
     }
 
     public async Task OnCancelAsync(HookContext c, CancellationToken ct)
@@ -162,7 +162,7 @@ public sealed class ExpenseClaimHook(ILedgerReader ledger, IDocumentStore store,
         posting.Balance(company.Default("round_off_account"), company.Default("round_off_cost_center"), 1m, "round-off");
         var lines = posting.Build();
         await BudgetControl.CheckAsync(c, m, ledger, lines, company.Name, ct);
-        c.Ledger.AddRange(lines);
+        c.AddLedgers(lines);
     }
 
     public async Task OnCancelAsync(HookContext c, CancellationToken ct)

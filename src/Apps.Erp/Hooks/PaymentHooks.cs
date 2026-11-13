@@ -178,7 +178,7 @@ public sealed class PaymentEntryHook(ILedgerReader ledger, IDocumentStore store,
                 ?? throw Errors.One("to_bank_account", "The target bank account is not linked to a GL account");
             posting.Dr(toGl, B(paid));
             posting.Cr(bankGl, B(paid));
-            c.Ledger.AddRange(posting.Build());
+            c.AddLedgers(posting.Build());
             return;
         }
         if (partyType is null || party is null) throw Errors.One("party", "The party is required");
@@ -216,7 +216,7 @@ public sealed class PaymentEntryHook(ILedgerReader ledger, IDocumentStore store,
             posting.Balance(company.Default("exchange_gain_loss_account"), null, decimal.MaxValue, "exchange gain/loss");
         else
             posting.Balance(company.Default("round_off_account"), company.Default("round_off_cost_center"), 1m, "round-off");
-        c.Ledger.AddRange(posting.Build());
+        c.AddLedgers(posting.Build());
     }
 
     public Task OnCancelAsync(HookContext c, CancellationToken ct) => Reversal.ApplyAsync(c, ledger, new Masters(store, c.Doc.TenantId), clock, ct);
@@ -320,7 +320,7 @@ public sealed class PaymentReconciliationHook(ILedgerReader ledger, IDocumentSto
                 posting.Dr(account, amount, partyType, party, invType, inv);
             }
         }
-        c.Ledger.AddRange(posting.Build());
+        c.AddLedgers(posting.Build());
     }
 
     public Task OnCancelAsync(HookContext c, CancellationToken ct) => Reversal.ApplyAsync(c, ledger, new Masters(store, c.Doc.TenantId), clock, ct);

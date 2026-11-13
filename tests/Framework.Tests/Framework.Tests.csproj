@@ -11,6 +11,7 @@
     <ProjectReference Include="..\..\src\Framework.Scripting.Abstractions\Framework.Scripting.Abstractions.csproj" />
     <ProjectReference Include="..\..\src\Framework.Scripting\Framework.Scripting.csproj" />
     <ProjectReference Include="..\..\src\Framework.Web\Framework.Web.csproj" />
+    <ProjectReference Include="..\..\src\Apps.Erp\Apps.Erp.csproj" />
   </ItemGroup>
 
   <ItemGroup>

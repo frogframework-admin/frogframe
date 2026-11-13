@@ -1,4 +1,5 @@
 using Framework.Metadata;
+using Framework.Persistence;
 using Framework.Security;
 
 namespace Framework.Documents;
@@ -122,8 +123,7 @@ public sealed class DocumentContext
     public List<string> Messages { get; } = [];
     /// <summary>Event domain yang akan ditulis ke outbox dalam transaksi yang sama.</summary>
     public List<OutboxMessage> Events { get; } = [];
-    /// <summary>Baris buku besar yang diajukan hook; ikut ke UnitOfWork bersama dokumen.</summary>
-    public List<Framework.Accounting.LedgerLine> Ledger { get; } = [];
+    public List<IUnitOfWorkExtension> Extensions { get; } = [];
 
     public void AddError(string path, string message) => Errors.Add(new FieldError(path, message));
     public void AddMessage(string message) => Messages.Add(message);

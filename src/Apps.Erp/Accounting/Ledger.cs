@@ -2,9 +2,9 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using Framework.Documents;
+using Framework.Persistence;
 
 namespace Framework.Accounting;
-
 
 /// <summary>
 /// Satu baris buku besar yang diajukan hook (mis. saat dokumen di-submit). Identitas voucher (DocType, nama, versi)
@@ -36,35 +36,24 @@ public interface ILedgerReader
 {
     Task<IReadOnlyList<LedgerEntry>> GetVoucherAsync(string tenantId, string voucherType, string voucherName, CancellationToken ct = default);
     Task<ChainBreak?> VerifyChainAsync(string tenantId, CancellationToken ct = default);
-    /// <summary>Apakah akun sudah pernah menerima posting (akun seperti itu tidak boleh dihapus atau diubah kodenya).</summary>
     Task<bool> AccountUsedAsync(string tenantId, string account, CancellationToken ct = default);
-    /// <summary>Semua baris yang merujuk faktur ini sebagai against voucher (baris piutang/utang faktur + pelunasannya).</summary>
     Task<IReadOnlyList<LedgerEntry>> GetAgainstAsync(string tenantId, string againstType, string againstName, CancellationToken ct = default);
-    /// <summary>
-    /// Σ debit dan Σ kredit per (akun, department) untuk posting_date dalam [from, to]; from null = sejak awal.
-    /// Dipakai tutup buku tahunan, rekonsiliasi bank, nilai buku, dan neraca saldo dari kode server (konsisten, bukan read replica).
-    /// </summary>
     Task<IReadOnlyList<LedgerBalance>> GetBalancesAsync(string tenantId, DateOnly? from, DateOnly to, CancellationToken ct = default);
 }
 
 public sealed class LedgerException(string message) : Exception(message);
 
+public sealed record LedgerPosting(IReadOnlyList<LedgerLine> Lines) : IUnitOfWorkExtension;
+
 public static class Ledger
 {
     public const string PeriodDocType = "AccountingPeriod";
-
-    /// <summary>
-    /// Nilai field <c>status</c> AccountingPeriod yang dianggap terbuka untuk posting.
-    /// "Open" untuk DocType berbahasa Inggris (Apps.Erp), "Terbuka" untuk kompatibilitas Apps.Sample dan data lama.
-    /// </summary>
     public static readonly string[] OpenPeriodStatuses = ["Open", "Terbuka"];
-
-    /// <summary>True bila nilai status periode termasuk <see cref="OpenPeriodStatuses"/>.</summary>
     public static bool IsOpenPeriodStatus(object? status) => status is string s && Array.IndexOf(OpenPeriodStatuses, s) >= 0;
     public const string AccountDocType = "Account";
+    public const string InMemoryEntryDocType = "_ErpLedgerEntry";
     public const string Genesis = "0000000000000000000000000000000000000000000000000000000000000000";
 
-    /// <summary>Validasi yang tidak bergantung pada data: satu sisi, nilai positif, 2 desimal, seimbang per voucher.</summary>
     public static void ValidateShape(IReadOnlyList<(Document Voucher, LedgerLine Line)> lines)
     {
         var errors = new List<FieldError>();
@@ -85,7 +74,6 @@ public static class Ledger
         if (errors.Count > 0) throw new ValidationFailedException(errors);
     }
 
-    /// <summary>Isi kanonik baris untuk hash. Urutan dan format tetap; jangan diubah tanpa migrasi rantai.</summary>
     public static string Canonical(string tenantId, long seq, DateOnly date, string period, string account, decimal debit, decimal credit,
         string voucherType, string voucherName, int voucherVersion, int lineNumber, string? partyType, string? party,
         string? againstType, string? againstName, string? department, string? remarks, Guid? reversalOf) =>
@@ -101,7 +89,6 @@ public static class Ledger
         e.VoucherType, e.VoucherName, e.VoucherVersion, e.LineNumber, e.PartyType, e.Party, e.AgainstVoucherType, e.AgainstVoucherName,
         e.Department, e.Remarks, e.ReversalOf);
 
-    /// <summary>Verifikasi rantai dari daftar baris urut seq (dipakai store in-memory; PostgreSQL memakai logika yang sama).</summary>
     public static ChainBreak? Verify(IEnumerable<LedgerEntry> ordered)
     {
         var prev = Genesis; long expectSeq = 1;
@@ -115,10 +102,6 @@ public static class Ledger
         return null;
     }
 
-    /// <summary>
-    /// Saldo terbuka faktur tidak boleh berbalik tanda (mis. piutang jadi negatif karena kelebihan bayar).
-    /// Dipanggil store di dalam transaksi, di bawah kunci tenant, setelah baris baru ditambahkan.
-    /// </summary>
     public static string? OpenItemViolation(IEnumerable<(string AgainstType, string AgainstName, string Account, string VoucherName, decimal Debit, decimal Credit)> lines,
         IEnumerable<(string AgainstType, string AgainstName, string Account)> touched)
     {
@@ -134,7 +117,6 @@ public static class Ledger
         return null;
     }
 
-    /// <summary>Baris pembalik untuk satu voucher: debit/kredit ditukar dan menunjuk baris aslinya.</summary>
     public static IReadOnlyList<LedgerLine> Reversal(IEnumerable<LedgerEntry> original, DateOnly postingDate) =>
         original.Where(e => e.ReversalOf is null)
             .Select(e => new LedgerLine(postingDate, e.Account, e.Credit, e.Debit, e.PartyType, e.Party, e.AgainstVoucherType, e.AgainstVoucherName,

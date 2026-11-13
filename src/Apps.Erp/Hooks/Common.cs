@@ -288,7 +288,7 @@ internal static class Reversal
         var periods = await m.QueryAsync(Ledger.PeriodDocType, [], ct);
         var stillOpen = periods.Any(p => p.Data.Str("status") == "Open"
             && p.Data.Date("start_date") <= origDate && origDate <= p.Data.Date("end_date"));
-        c.Ledger.AddRange(Ledger.Reversal(original, stillOpen ? origDate : DateOnly.FromDateTime(clock.GetLocalNow().Date)));
+        c.AddLedgers(Ledger.Reversal(original, stillOpen ? origDate : DateOnly.FromDateTime(clock.GetLocalNow().Date)));
     }
 }
 

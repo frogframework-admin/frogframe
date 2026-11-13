@@ -205,6 +205,7 @@ sealed partial class Tests
         services.AddApiMethod<AjukanMassalMethod>();
         services.AddFrogFrameworkIdentity();
         if (PgConnection is not null) services.AddFrogFrameworkPostgreSql(PgConnection);
+        Apps.Erp.ErpRegistration.AddErpAccounting(services);
         if (PgReadOnly is not null) services.AddFrogFrameworkReporting(PgReadOnly, o => o.StatementTimeoutSeconds = 2);
         extra?.Invoke(services);
         // ValidateScopes = perilaku Development: menangkap service ber-scope yang di-resolve dari root provider.

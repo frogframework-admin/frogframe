@@ -191,7 +191,7 @@ public sealed class JournalEntryHook(ILedgerReader ledger, IDocumentStore store,
         posting.Balance(company.Default("round_off_account"), company.Default("round_off_cost_center"), 1m, "round-off");
         var lines = posting.Build();
         await BudgetControl.CheckAsync(c, m, ledger, lines, company.Name, ct);
-        c.Ledger.AddRange(lines);
+        c.AddLedgers(lines);
     }
 
     public async Task OnCancelAsync(HookContext c, CancellationToken ct)

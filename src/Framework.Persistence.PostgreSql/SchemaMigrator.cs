@@ -15,7 +15,7 @@ public sealed class SchemaDataSource(NpgsqlDataSource source, bool owns = false)
     public ValueTask DisposeAsync() => owns ? Source.DisposeAsync() : ValueTask.CompletedTask;
 }
 
-public sealed class SchemaMigrator(SchemaDataSource schema, ILogger<SchemaMigrator> log)
+public sealed class SchemaMigrator(SchemaDataSource schema, ILogger<SchemaMigrator> log, IEnumerable<IPostgresMigrationSource> migrationSources)
 {
     private readonly NpgsqlDataSource db = schema.Source;
     private const long LockKey = 0x46726F674672616D; // "FrogFrame"
@@ -32,7 +32,10 @@ public sealed class SchemaMigrator(SchemaDataSource schema, ILogger<SchemaMigrat
             await using (var r = await cmd.ExecuteReaderAsync(ct))
                 while (await r.ReadAsync(ct)) applied.Add(r.GetInt32(0));
 
-            foreach (var (version, name, sql) in Scripts().Where(s => !applied.Contains(s.Version)))
+            var scripts = Scripts().OrderBy(s => s.Version).ToList();
+            var duplicate = scripts.GroupBy(s => s.Version).FirstOrDefault(g => g.Count() > 1);
+            if (duplicate is not null) throw new InvalidOperationException($"Database migration version {duplicate.Key} is registered more than once.");
+            foreach (var (version, name, sql) in scripts.Where(s => !applied.Contains(s.Version)))
             {
                 await using var tx = await conn.BeginTransactionAsync(ct);
                 await Exec(conn, tx, sql, ct);
@@ -52,16 +55,10 @@ public sealed class SchemaMigrator(SchemaDataSource schema, ILogger<SchemaMigrat
         }
     }
 
-    private static IEnumerable<(int Version, string Name, string Sql)> Scripts()
+    private IEnumerable<PostgresMigration> Scripts()
     {
         var asm = typeof(SchemaMigrator).Assembly;
-        foreach (var res in asm.GetManifestResourceNames().Where(n => n.EndsWith(".sql")).Order())
-        {
-            var file = res.Split('.')[^2];                 // "...Migrations.001_initial.sql" → "001_initial"
-            var version = int.Parse(file[..file.IndexOf('_')]);
-            using var s = new StreamReader(asm.GetManifestResourceStream(res)!);
-            yield return (version, file, s.ReadToEnd());
-        }
+        return new EmbeddedPostgresMigrationSource(asm).GetMigrations().Concat(migrationSources.SelectMany(source => source.GetMigrations()));
     }
 
     private static async Task Exec(NpgsqlConnection conn, NpgsqlTransaction? tx, string sql, CancellationToken ct)

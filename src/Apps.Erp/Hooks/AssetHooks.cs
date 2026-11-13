@@ -195,7 +195,7 @@ public sealed class DepreciationRunHook(ILedgerReader ledger, IDocumentStore sto
             posting.Cr(acc.Accumulated, it.Dec("depreciation_amount"), costCenter: cc, lineRemarks: $"Depreciation {asset.Name}");
         }
         errors.ThrowIfAny();
-        c.Ledger.AddRange(posting.Build());
+        c.AddLedgers(posting.Build());
     }
 
     public Task OnCancelAsync(HookContext c, CancellationToken ct) => Reversal.ApplyAsync(c, ledger, new Masters(store, c.Doc.TenantId), clock, ct);
@@ -247,7 +247,7 @@ public sealed class AssetDisposalHook(ILedgerReader ledger, IDocumentStore store
         posting.Dr(acc.Accumulated, accumulated, costCenter: cc);
         posting.Dr(acc.GainLoss, bookValue, costCenter: cc);
         posting.Cr(acc.FixedAsset, asset.Data.Dec("gross_purchase_amount"), costCenter: cc);
-        c.Ledger.AddRange(posting.Build());
+        c.AddLedgers(posting.Build());
     }
 
     public Task OnCancelAsync(HookContext c, CancellationToken ct) => Reversal.ApplyAsync(c, ledger, new Masters(store, c.Doc.TenantId), clock, ct);

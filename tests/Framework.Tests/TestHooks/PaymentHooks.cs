@@ -90,16 +90,16 @@ public sealed class PaymentEntryHook(ILedgerReader ledger, IDocumentStore store,
         var cash = (string)c.Doc.Data["payment_account"]!;
         var partyType = type == "Pengeluaran" ? "Vendor" : "Customer";
         var paid = allocs.Sum(a => a.Amount);
-        if (type == "Penerimaan") c.Ledger.Add(new(date, cash, paid, 0));
+        if (type == "Penerimaan") c.AddLedger(new(date, cash, paid, 0));
         foreach (var a in allocs)
         {
             // Akun piutang/utang diambil dari baris faktur itu sendiri, agar pelunasan mengenai akun kontrol yang sama.
             var account = (await ledger.GetAgainstAsync(c.Doc.TenantId, vType, a.Invoice, ct)).First(e => e.VoucherName == a.Invoice).Account;
-            c.Ledger.Add(type == "Penerimaan"
+            c.AddLedger(type == "Penerimaan"
                 ? new LedgerLine(date, account, 0, a.Amount, partyType, party, vType, a.Invoice)
                 : new LedgerLine(date, account, a.Amount, 0, partyType, party, vType, a.Invoice));
         }
-        if (type == "Pengeluaran") c.Ledger.Add(new(date, cash, 0, paid));
+        if (type == "Pengeluaran") c.AddLedger(new(date, cash, 0, paid));
     }
 
     public Task OnCancelAsync(HookContext c, CancellationToken ct) => Acc.ReverseAsync(c, ledger, store, clock, ct);

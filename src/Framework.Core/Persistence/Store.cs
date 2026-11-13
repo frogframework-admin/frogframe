@@ -52,15 +52,30 @@ public static class QueryLimits
     public const int CountCap = 10_000;
 }
 
+public interface IUnitOfWorkExtension { }
+
+public interface IInMemoryUnitOfWorkExtensionHandler
+{
+    bool CanHandle(UnitOfWorkExtension extension);
+    IReadOnlyList<Document> Plan(IReadOnlyList<UnitOfWorkExtension> extensions, IReadOnlyList<Document> documents, UnitOfWork uow);
+}
+
+public sealed class UnitOfWorkValidationException(IReadOnlyList<FieldError> errors)
+    : Exception(string.Join("; ", errors.Select(e => e.Message)))
+{
+    public IReadOnlyList<FieldError> Errors { get; } = errors;
+}
+
 public sealed class UnitOfWork
 {
     public List<(Document Doc, int? ExpectedVersion)> Upserts { get; } = [];
     public List<(string TenantId, string DocType, string Name, int ExpectedVersion)> Deletes { get; } = [];
     public List<AuditEntry> Audits { get; } = [];
     public List<OutboxMessage> Outbox { get; } = [];
-    /// <summary>Baris buku besar, ditulis dalam transaksi yang sama dengan dokumen (append-only).</summary>
-    public List<(Document Voucher, Framework.Accounting.LedgerLine Line)> Ledger { get; } = [];
+    public List<UnitOfWorkExtension> Extensions { get; } = [];
 }
+
+public sealed record UnitOfWorkExtension(Document Document, IUnitOfWorkExtension Payload);
 
 public interface IDocumentStore
 {
@@ -103,8 +118,10 @@ public interface INotificationStore
 /// Store in-memory untuk prototipe (strategi "tabel generik + payload", RFC §7A).
 /// Satu lock global mensimulasikan transaksi serializable. Ganti dengan implementasi EF Core/Dapper untuk produksi.
 /// </summary>
-public sealed class InMemoryDocumentStore : IDocumentStore, IOutboxStore, IDatabaseHealthCheck, Framework.Accounting.ILedgerReader
+public sealed class InMemoryDocumentStore(IEnumerable<IInMemoryUnitOfWorkExtensionHandler>? extensionHandlers = null)
+    : IDocumentStore, IOutboxStore, IDatabaseHealthCheck
 {
+    private readonly IReadOnlyList<IInMemoryUnitOfWorkExtensionHandler> _extensionHandlers = extensionHandlers?.ToList() ?? [];
     public string ProviderName => "in-memory";
     public Task<bool> CheckHealthAsync(CancellationToken ct = default) => Task.FromResult(true);
 
@@ -114,7 +131,6 @@ public sealed class InMemoryDocumentStore : IDocumentStore, IOutboxStore, IDatab
     private readonly List<AuditEntry> _audit = [];
     private readonly List<OutboxMessage> _outbox = [];
     private long _auditSeq;
-    private readonly List<Framework.Accounting.LedgerEntry> _ledger = [];
 
     public Task<Document?> GetAsync(string tenantId, string docType, string name, CancellationToken ct = default)
     {
@@ -203,11 +219,32 @@ public sealed class InMemoryDocumentStore : IDocumentStore, IOutboxStore, IDatab
     {
         lock (_gate)
         {
-            // Fase 1: periksa semua prasyarat. Tidak ada perubahan bila satu pun gagal.
-            foreach (var (doc, expected) in uow.Upserts)
+            var documents = _docs.Values.ToDictionary(d => (d.TenantId, d.DocType, d.Name), d => d.Clone());
+            foreach (var (doc, _) in uow.Upserts) documents[(doc.TenantId, doc.DocType, doc.Name)] = doc.Clone();
+            foreach (var (tenant, docType, name, _) in uow.Deletes) documents.Remove((tenant, docType, name));
+
+            var pendingExtensions = uow.Extensions.ToList();
+            var extensionDocuments = new List<Document>();
+            foreach (var handler in _extensionHandlers)
             {
+                var handled = pendingExtensions.Where(handler.CanHandle).ToList();
+                if (handled.Count == 0) continue;
+                var planned = handler.Plan(handled, documents.Values.ToList(), uow);
+                extensionDocuments.AddRange(planned);
+                foreach (var doc in planned) documents[(doc.TenantId, doc.DocType, doc.Name)] = doc.Clone();
+                pendingExtensions.RemoveAll(handled.Contains);
+            }
+            if (pendingExtensions.Count > 0)
+                throw new InvalidOperationException($"No in-memory handler is registered for unit-of-work extension '{pendingExtensions[0].Payload.GetType().Name}'.");
+
+            var upserts = uow.Upserts.Concat(extensionDocuments.Select(doc => (doc, (int?)null))).ToList();
+            var stagedNames = new HashSet<(string TenantId, string DocType, string Name)>();
+            // Fase 1: periksa semua prasyarat. Tidak ada perubahan bila satu pun gagal.
+            foreach (var (doc, expected) in upserts)
+            {
+                var key = (doc.TenantId, doc.DocType, doc.Name);
                 var exists = _docs.TryGetValue((doc.TenantId, doc.DocType, doc.Name), out var current);
-                if (expected is null && exists) throw new InvalidStateException($"Name '{doc.Name}' is already in use.");
+                if (expected is null && (exists || !stagedNames.Add(key))) throw new InvalidStateException($"Name '{doc.Name}' is already in use.");
                 if (expected is not null && (!exists || current!.Version != expected))
                     throw new ConcurrencyException(doc.Name, expected.Value, current?.Version ?? 0);
             }
@@ -216,118 +253,25 @@ public sealed class InMemoryDocumentStore : IDocumentStore, IOutboxStore, IDatab
                 if (!_docs.TryGetValue((tenant, docType, name), out var current) || current.Version != expected)
                     throw new ConcurrencyException(name, expected, current?.Version ?? 0);
             }
-            var ledgerPlan = PlanLedger(uow);
-
             // Fase 2: terapkan.
-            foreach (var (doc, _) in uow.Upserts) _docs[(doc.TenantId, doc.DocType, doc.Name)] = doc.Clone();
+            foreach (var (doc, _) in upserts) _docs[(doc.TenantId, doc.DocType, doc.Name)] = doc.Clone();
             foreach (var (tenant, docType, name, _) in uow.Deletes) _docs.Remove((tenant, docType, name));
             foreach (var a in uow.Audits) _audit.Add(a with { Id = ++_auditSeq });
             _outbox.AddRange(uow.Outbox);
-            _ledger.AddRange(ledgerPlan);
         }
         return Task.CompletedTask;
     }
 
-    /// <summary>Periksa periode & akun lalu siapkan baris buku besar beserta nomor urut dan rantai hash (dipanggil di dalam lock).</summary>
-    private List<Framework.Accounting.LedgerEntry> PlanLedger(UnitOfWork uow)
+    internal void TamperForTest(Func<Document, bool> match, Func<Document, Document?> change)
     {
-        var plan = new List<Framework.Accounting.LedgerEntry>();
-        if (uow.Ledger.Count == 0) return plan;
-        foreach (var tenantGroup in uow.Ledger.GroupBy(x => x.Voucher.TenantId))
+        lock (_gate)
         {
-            var tenant = tenantGroup.Key;
-            var last = _ledger.Where(e => e.TenantId == tenant).OrderBy(e => e.Seq).LastOrDefault();
-            long seq = last?.Seq ?? 0; var prev = last?.EntryHash ?? Framework.Accounting.Ledger.Genesis;
-            foreach (var voucher in tenantGroup.GroupBy(x => (x.Voucher.DocType, x.Voucher.Name, x.Voucher.Version)))
+            foreach (var (key, document) in _docs.Where(pair => match(pair.Value)).ToList())
             {
-                if (_ledger.Any(e => e.TenantId == tenant && e.VoucherType == voucher.Key.DocType && e.VoucherName == voucher.Key.Name && e.VoucherVersion == voucher.Key.Version))
-                    throw new Framework.Accounting.LedgerException($"{voucher.Key.DocType} {voucher.Key.Name} versi {voucher.Key.Version} sudah diposting");
-                var lineNo = 0;
-                foreach (var (doc, l) in voucher)
-                {
-                    var period = OpenPeriod(tenant, l.PostingDate)
-                        ?? throw new Framework.Accounting.LedgerException($"Tanggal posting {l.PostingDate:yyyy-MM-dd} tidak berada di periode akuntansi yang Terbuka (Open)");
-                    CheckAccount(tenant, l.Account);
-                    if (l.ReversalOf is { } rev && (_ledger.All(e => e.Id != rev) || _ledger.Any(e => e.ReversalOf == rev) || plan.Any(e => e.ReversalOf == rev)))
-                        throw new Framework.Accounting.LedgerException("Baris yang dibalik tidak ada atau sudah pernah dibalik");
-                    seq++; lineNo++;
-                    var canon = Framework.Accounting.Ledger.Canonical(tenant, seq, l.PostingDate, period, l.Account, l.Debit, l.Credit,
-                        doc.DocType, doc.Name, doc.Version, lineNo, l.PartyType, l.Party, l.AgainstVoucherType, l.AgainstVoucherName, l.Department, l.Remarks, l.ReversalOf);
-                    var hash = Framework.Accounting.Ledger.Hash(prev, canon);
-                    plan.Add(new(Guid.NewGuid(), tenant, seq, l.PostingDate, period, l.Account, l.Debit, l.Credit, doc.DocType, doc.Name, doc.Version, lineNo,
-                        l.PartyType, l.Party, l.AgainstVoucherType, l.AgainstVoucherName, l.Department, l.Remarks, l.ReversalOf, prev, hash, doc.ModifiedBy, DateTimeOffset.UtcNow));
-                    prev = hash;
-                }
+                _docs.Remove(key);
+                if (change(document.Clone()) is { } updated) _docs[(updated.TenantId, updated.DocType, updated.Name)] = updated.Clone();
             }
         }
-        // Penjaga sisa tagihan: baris pelunasan (against voucher ≠ voucher sendiri) tidak boleh membuat saldo terbuka berbalik tanda.
-        var touched = plan.Where(e => e.AgainstVoucherName is not null && e.AgainstVoucherName != e.VoucherName)
-            .Select(e => (e.AgainstVoucherType!, e.AgainstVoucherName!, e.Account)).ToList();
-        if (touched.Count > 0)
-        {
-            var lines = _ledger.Concat(plan).Where(e => e.AgainstVoucherName is not null)
-                .Select(e => (e.AgainstVoucherType!, e.AgainstVoucherName!, e.Account, e.VoucherName, e.Debit, e.Credit));
-            if (Framework.Accounting.Ledger.OpenItemViolation(lines, touched) is { } v) throw new Framework.Accounting.LedgerException(v);
-        }
-        return plan;
-    }
-
-    private string? OpenPeriod(string tenant, DateOnly date) => _docs.Values
-        .Where(d => d.TenantId == tenant && d.DocType == Framework.Accounting.Ledger.PeriodDocType
-                    && Framework.Accounting.Ledger.IsOpenPeriodStatus(d.Data.GetValueOrDefault("status"))
-                    && d.Data.GetValueOrDefault("start_date") is string a && d.Data.GetValueOrDefault("end_date") is string b
-                    && DateOnly.Parse(a) <= date && date <= DateOnly.Parse(b))
-        .OrderBy(d => d.Name).Select(d => d.Name).FirstOrDefault();
-
-    private void CheckAccount(string tenant, string account)
-    {
-        if (!_docs.TryGetValue((tenant, Framework.Accounting.Ledger.AccountDocType, account), out var acc))
-            throw new Framework.Accounting.LedgerException($"Akun '{account}' tidak ditemukan");
-        if (acc.Data.GetValueOrDefault("is_group") is true) throw new Framework.Accounting.LedgerException($"Akun '{account}' adalah akun induk dan tidak bisa menerima posting");
-        if (acc.Data.GetValueOrDefault("is_active") is false) throw new Framework.Accounting.LedgerException($"Akun '{account}' nonaktif");
-    }
-
-    public Task<IReadOnlyList<Framework.Accounting.LedgerEntry>> GetVoucherAsync(string tenantId, string voucherType, string voucherName, CancellationToken ct = default)
-    {
-        lock (_gate)
-            return Task.FromResult<IReadOnlyList<Framework.Accounting.LedgerEntry>>(_ledger
-                .Where(e => e.TenantId == tenantId && e.VoucherType == voucherType && e.VoucherName == voucherName).OrderBy(e => e.Seq).ToList());
-    }
-
-    public Task<IReadOnlyList<Framework.Accounting.LedgerBalance>> GetBalancesAsync(string tenantId, DateOnly? from, DateOnly to, CancellationToken ct = default)
-    {
-        lock (_gate)
-            return Task.FromResult<IReadOnlyList<Framework.Accounting.LedgerBalance>>(_ledger
-                .Where(e => e.TenantId == tenantId && e.PostingDate <= to && (from == null || e.PostingDate >= from))
-                .GroupBy(e => (e.Account, e.Department))
-                .OrderBy(g => g.Key.Account, StringComparer.Ordinal)
-                .Select(g => new Framework.Accounting.LedgerBalance(g.Key.Account, g.Key.Department, g.Sum(e => e.Debit), g.Sum(e => e.Credit)))
-                .ToList());
-    }
-
-    public Task<Framework.Accounting.ChainBreak?> VerifyChainAsync(string tenantId, CancellationToken ct = default)
-    {
-        lock (_gate) return Task.FromResult(Framework.Accounting.Ledger.Verify(_ledger.Where(e => e.TenantId == tenantId).OrderBy(e => e.Seq).ToList()));
-    }
-
-    public Task<IReadOnlyList<Framework.Accounting.LedgerEntry>> GetAgainstAsync(string tenantId, string againstType, string againstName, CancellationToken ct = default)
-    {
-        lock (_gate)
-            return Task.FromResult<IReadOnlyList<Framework.Accounting.LedgerEntry>>(_ledger
-                .Where(e => e.TenantId == tenantId && e.AgainstVoucherType == againstType && e.AgainstVoucherName == againstName).OrderBy(e => e.Seq).ToList());
-    }
-
-    public Task<bool> AccountUsedAsync(string tenantId, string account, CancellationToken ct = default)
-    {
-        lock (_gate) return Task.FromResult(_ledger.Any(e => e.TenantId == tenantId && e.Account == account));
-    }
-
-    /// <summary>Hanya untuk pengujian: simulasi perubahan langsung di penyimpanan (mengabaikan append-only).</summary>
-    internal void TamperForTest(Func<Framework.Accounting.LedgerEntry, bool> match, Func<Framework.Accounting.LedgerEntry, Framework.Accounting.LedgerEntry?> change)
-    {
-        lock (_gate)
-            for (var i = _ledger.Count - 1; i >= 0; i--)
-                if (match(_ledger[i])) { if (change(_ledger[i]) is { } n) _ledger[i] = n; else _ledger.RemoveAt(i); }
     }
 
     public Task<IReadOnlyList<AuditEntry>> GetAuditAsync(string tenantId, string docType, string name, CancellationToken ct = default)

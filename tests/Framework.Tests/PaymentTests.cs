@@ -120,10 +120,12 @@ sealed partial class Tests
         var fake = new Document { TenantId = "acme", DocType = "PaymentEntry", Name = "PAY-MANUAL-1", Owner = "dewi", ModifiedBy = "dewi", Version = 1,
             Created = DateTimeOffset.UtcNow, Modified = DateTimeOffset.UtcNow, SchemaVersion = 1, Data = new() };
         var uow = new UnitOfWork();
-        uow.Ledger.Add((fake, new LedgerLine(new DateOnly(2026, 11, 20), "1110", 200_000m, 0)));
-        uow.Ledger.Add((fake, new LedgerLine(new DateOnly(2026, 11, 20), "1300", 0, 200_000m, "Customer", "C001", SI, si.Name)));
+        uow.Extensions.Add(new UnitOfWorkExtension(fake, new LedgerPosting([
+            new(new DateOnly(2026, 11, 20), "1110", 200_000m, 0),
+            new(new DateOnly(2026, 11, 20), "1300", 0, 200_000m, "Customer", "C001", SI, si.Name)
+        ])));
         var store = sp.GetRequiredService<Framework.Persistence.IDocumentStore>();
-        var ex = await Assert.Throws<LedgerException>(() => store.CommitAsync(uow), "store menolak pelunasan berlebih");
+        var ex = await Assert.Throws<UnitOfWorkValidationException>(() => store.CommitAsync(uow), "store menolak pelunasan berlebih");
         Assert.True(ex.Message.Contains("sisa tagihan"), ex.Message);
         Assert.Equal(99_900m, await Outstanding(SI, si.Name), "tidak ada yang tersimpan");
     }

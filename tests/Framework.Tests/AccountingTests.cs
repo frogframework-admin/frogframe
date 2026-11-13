@@ -129,13 +129,23 @@ sealed partial class Tests
         var b = await DraftJe("2026-11-06", ("1100", 200m, 0), ("4000", 0, 200m));
         b = await Docs.RunActionAsync(U("dewi"), JE, b.Name, DocActions.Submit, b.Version, null);
 
-        mem.TamperForTest(e => e.VoucherName == a.Name && e.Debit > 0, e => e with { Debit = 999m });
+        void Tamper(Func<LedgerEntry, bool> match, Func<LedgerEntry, LedgerEntry?> change) => mem.TamperForTest(
+            d => d.DocType == Ledger.InMemoryEntryDocType && d.Data.GetValueOrDefault("entry") is LedgerEntry e && match(e),
+            d => change((LedgerEntry)d.Data["entry"]!) is { } entry ? new Document
+            {
+                DocType = d.DocType, Name = d.Name, TenantId = d.TenantId, Owner = d.Owner, DocStatus = d.DocStatus,
+                WorkflowState = d.WorkflowState, Created = d.Created, Modified = d.Modified, ModifiedBy = d.ModifiedBy,
+                Version = d.Version, SchemaVersion = d.SchemaVersion, WorkflowVersion = d.WorkflowVersion,
+                AmendedFrom = d.AmendedFrom, Data = new(d.Data) { ["entry"] = entry }
+            } : null);
+
+        Tamper(e => e.VoucherName == a.Name && e.Debit > 0, e => e with { Debit = 999m });
         var broken = await LedgerReader.VerifyChainAsync("acme");
         Assert.True(broken is not null && broken.Reason.Contains("entry_hash"), "nilai yang diubah terdeteksi: " + broken);
 
-        mem.TamperForTest(e => e.VoucherName == a.Name && e.Debit == 999m, e => e with { Debit = 100m }); // kembalikan
+        Tamper(e => e.VoucherName == a.Name && e.Debit == 999m, e => e with { Debit = 100m }); // kembalikan
         Assert.True(await LedgerReader.VerifyChainAsync("acme") is null, "dikembalikan → utuh lagi");
-        mem.TamperForTest(e => e.VoucherName == a.Name, _ => null); // hapus satu voucher utuh
+        Tamper(e => e.VoucherName == a.Name, _ => null); // hapus satu voucher utuh
         var gap = await LedgerReader.VerifyChainAsync("acme");
         Assert.True(gap is not null && gap.Seq == 1, "voucher yang dihapus utuh terdeteksi: " + gap);
     }

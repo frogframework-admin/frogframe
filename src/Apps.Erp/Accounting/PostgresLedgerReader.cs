@@ -1,7 +1,7 @@
 using Framework.Accounting;
 using Npgsql;
 
-namespace Framework.Persistence.PostgreSql;
+namespace Apps.Erp.Accounting;
 
 public sealed class PostgresLedgerReader(NpgsqlDataSource db) : ILedgerReader
 {
@@ -58,7 +58,6 @@ public sealed class PostgresLedgerReader(NpgsqlDataSource db) : ILedgerReader
         return list;
     }
 
-    /// <summary>Memeriksa seluruh rantai tenant secara berurutan (streaming), melaporkan baris pertama yang rusak.</summary>
     public async Task<ChainBreak?> VerifyChainAsync(string tenantId, CancellationToken ct = default)
     {
         await using var cmd = db.CreateCommand($"SELECT {Cols} FROM frogframe_gl_entries WHERE tenant_id = $1 ORDER BY seq");

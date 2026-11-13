@@ -100,14 +100,14 @@ public sealed class SalesInvoiceHook(ILedgerReader ledger, IDocumentStore store,
         var receivable = InvoiceMath.Require(await c.Docs.GetFieldAsync("Customer", customer, "receivable_account", ct) as string
                                              ?? s.GetValueOrDefault("default_receivable_account") as string, "customer", "Akun piutang");
         var grand = (decimal)c.Doc.Data["grand_total"]!;
-        c.Ledger.Add(new(date, receivable, grand, 0, "Customer", customer, c.Doc.DocType, c.Doc.Name));
+        c.AddLedger(new(date, receivable, grand, 0, "Customer", customer, c.Doc.DocType, c.Doc.Name));
         var disc = lines.Sum(l => l.Discount);
         if (disc > 0)
-            c.Ledger.Add(new(date, InvoiceMath.Require(s.GetValueOrDefault("default_sales_discount_account") as string, "items", "Akun potongan penjualan"), disc, 0));
+            c.AddLedger(new(date, InvoiceMath.Require(s.GetValueOrDefault("default_sales_discount_account") as string, "items", "Akun potongan penjualan"), disc, 0));
         foreach (var g in lines.Where(l => l.Gross > 0).GroupBy(l => (Acc: l.Account ?? s.GetValueOrDefault("default_income_account") as string, l.Department)))
-            c.Ledger.Add(new(date, InvoiceMath.Require(g.Key.Acc, "items", "Akun pendapatan"), 0, g.Sum(l => l.Gross), Department: g.Key.Department));
+            c.AddLedger(new(date, InvoiceMath.Require(g.Key.Acc, "items", "Akun pendapatan"), 0, g.Sum(l => l.Gross), Department: g.Key.Department));
         foreach (var t in taxes.Values.Where(t => t.Amount > 0).GroupBy(t => t.Tax.OutputAccount))
-            c.Ledger.Add(new(date, t.Key, 0, t.Sum(x => x.Amount)));
+            c.AddLedger(new(date, t.Key, 0, t.Sum(x => x.Amount)));
     }
 
     public async Task OnCancelAsync(HookContext c, CancellationToken ct)
@@ -146,10 +146,10 @@ public sealed class PurchaseInvoiceHook(ILedgerReader ledger, IDocumentStore sto
         // Akun utang per pemasok belum ada (Pemasok tetap v1); memakai akun utang default dari Pengaturan Akuntansi.
         var payable = InvoiceMath.Require(s.GetValueOrDefault("default_payable_account") as string, "vendor", "Akun utang");
         foreach (var g in lines.Where(l => l.Net > 0).GroupBy(l => (Acc: l.Account ?? s.GetValueOrDefault("default_expense_account") as string, l.Department)))
-            c.Ledger.Add(new(date, InvoiceMath.Require(g.Key.Acc, "items", "Akun beban"), g.Sum(l => l.Net), 0, Department: g.Key.Department));
+            c.AddLedger(new(date, InvoiceMath.Require(g.Key.Acc, "items", "Akun beban"), g.Sum(l => l.Net), 0, Department: g.Key.Department));
         foreach (var t in taxes.Values.Where(t => t.Amount > 0).GroupBy(t => t.Tax.InputAccount))
-            c.Ledger.Add(new(date, t.Key, t.Sum(x => x.Amount), 0));
-        c.Ledger.Add(new(date, payable, 0, (decimal)c.Doc.Data["grand_total"]!, "Vendor", vendor, c.Doc.DocType, c.Doc.Name));
+            c.AddLedger(new(date, t.Key, t.Sum(x => x.Amount), 0));
+        c.AddLedger(new(date, payable, 0, (decimal)c.Doc.Data["grand_total"]!, "Vendor", vendor, c.Doc.DocType, c.Doc.Name));
     }
 
     public async Task OnCancelAsync(HookContext c, CancellationToken ct)

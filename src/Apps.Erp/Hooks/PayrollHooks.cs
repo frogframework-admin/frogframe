@@ -452,7 +452,7 @@ public sealed class PayrollRunHook(ILedgerReader ledger, IDocumentStore store, T
         if (posting.Difference != 0) throw Errors.One("name", $"Payroll entry is out of balance by {posting.Difference:N2}");
         var lines = posting.Build();
         await BudgetControl.CheckAsync(c, m, ledger, lines, d.Str("company"), ct);
-        c.Ledger.AddRange(lines);
+        c.AddLedgers(lines);
     }
 
     public Task OnCancelAsync(HookContext c, CancellationToken ct) => Reversal.ApplyAsync(c, ledger, new Masters(store, c.Doc.TenantId), clock, ct);

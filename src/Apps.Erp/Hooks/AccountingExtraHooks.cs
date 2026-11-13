@@ -46,7 +46,6 @@ public sealed class PartyPrimaryHook(IDocumentStore store)
 /// <summary>
 /// Tutup buku tahunan: saldo semua akun Laba Rugi tahun buku itu dinolkan ke akun laba ditahan; laba bersih dicatat
 /// di dokumen; tahun buku ditandai Ditutup (lewat event). Satu PCV aktif per tahun buku.
-/// Butuh ILedgerReader.GetBalancesAsync (patches/0001-ledger-get-balances.patch).
 /// </summary>
 public sealed class PeriodClosingVoucherHook(ILedgerReader ledger, IDocumentStore store, TimeProvider clock)
     : IBeforeValidate<PeriodClosingVoucher>, IAfterSave<PeriodClosingVoucher>, IOnCancel<PeriodClosingVoucher>
@@ -90,7 +89,7 @@ public sealed class PeriodClosingVoucherHook(ILedgerReader ledger, IDocumentStor
         if (profit > 0) posting.Cr(closing, profit); else posting.Dr(closing, -profit);
         d["net_profit"] = profit;
         if (posting.Difference != 0) throw Errors.One("name", "The closing entry is out of balance");
-        try { c.Ledger.AddRange(posting.Build()); }
+        try { c.AddLedgers(posting.Build()); }
         catch (ValidationFailedException) { /* tidak ada saldo laba rugi: tetap tutup tahun buku tanpa jurnal */ }
         ErpEvents.Emit(c, ErpEvents.FiscalYearStatus, new() { ["fiscal_year"] = fy.Name, ["status"] = "Closed" });
     }

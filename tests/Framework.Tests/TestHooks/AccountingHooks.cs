@@ -31,7 +31,7 @@ internal static class Acc
         var origDate = original[0].PostingDate;
         var stillOpen = (await PeriodsAsync(store, c.Doc.TenantId, ct)).Any(p => Equals(p.Data.GetValueOrDefault("status"), "Terbuka")
             && Date(p.Data.GetValueOrDefault("start_date")) <= origDate && origDate <= Date(p.Data.GetValueOrDefault("end_date")));
-        c.Ledger.AddRange(Ledger.Reversal(original, stillOpen ? origDate : DateOnly.FromDateTime(clock.GetLocalNow().Date)));
+        c.AddLedgers(Ledger.Reversal(original, stillOpen ? origDate : DateOnly.FromDateTime(clock.GetLocalNow().Date)));
     }
 
     public static async Task<IReadOnlyList<Document>> PeriodsAsync(IDocumentStore store, string tenant, CancellationToken ct) =>
@@ -105,7 +105,7 @@ public sealed class JournalEntryPostingHook(ILedgerReader ledger, IDocumentStore
         var lines = items.Select(i => new LedgerLine(date, (string)i["account"]!, Acc.Dec(i.GetValueOrDefault("debit")), Acc.Dec(i.GetValueOrDefault("credit")),
             Department: i.GetValueOrDefault("department") as string, Remarks: i.GetValueOrDefault("remarks") as string ?? header)).ToList();
         if (lines.Count < 2) throw new ValidationFailedException([new FieldError("items", "Jurnal minimal 2 baris")]);
-        c.Ledger.AddRange(lines);
+        c.AddLedgers(lines);
         return Task.CompletedTask;
     }
 
