@@ -24,7 +24,7 @@ public sealed class EmbeddedPostgresMigrationSource(Assembly assembly) : IPostgr
     {
         foreach (var resource in assembly.GetManifestResourceNames().Where(name => name.EndsWith(".sql", StringComparison.Ordinal)).Order(StringComparer.Ordinal))
         {
-            var name = Path.GetFileNameWithoutExtension(resource);
+            var name = resource.Split('.')[^2];
             var version = int.Parse(name[..name.IndexOf('_')], System.Globalization.CultureInfo.InvariantCulture);
             using var stream = assembly.GetManifestResourceStream(resource)!;
             using var reader = new StreamReader(stream);
