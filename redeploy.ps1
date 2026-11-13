@@ -1,6 +1,6 @@
 # Script to rebuild and redeploy the FrogFrame container upon code changes
 Write-Host "Publishing application (dotnet publish)..." -ForegroundColor Cyan
-dotnet publish src/Apps.Sample/Apps.Sample.csproj -c Release -o ./publish
+dotnet publish src/Apps.Erp/Apps.Erp.csproj -c Release -o ./publish
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Failed to publish application." -ForegroundColor Red

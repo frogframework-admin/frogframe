@@ -1,0 +1,97 @@
+{
+  "name": "LeavePolicy",
+  "version": 1,
+  "title": "Leave Policy",
+  "module": "HR",
+  "description": "Leave entitlement package per employee group (Workday Time Off Plan).",
+  "naming": {
+    "pattern": "field:policy_name"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "policy_name",
+      "type": "Data",
+      "label": "Policy name",
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "details",
+      "type": "Table",
+      "label": "Leave entitlements",
+      "childDocType": "LeavePolicyDetail",
+      "requiredWhen": "true"
+    },
+    {
+      "name": "is_active",
+      "type": "Check",
+      "label": "Active",
+      "default": true,
+      "inListView": true,
+      "column": 2
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "policy_name",
+    "searchFields": [
+      "policy_name"
+    ],
+    "filters": [
+      "is_active"
+    ],
+    "defaultSort": [
+      {
+        "field": "modified",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

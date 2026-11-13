@@ -1,0 +1,163 @@
+{
+  "name": "Budget",
+  "version": 1,
+  "title": "Budget",
+  "module": "ACCOUNTING",
+  "description": "Annual expense budget per account, optionally per cost center (SAP Funds Management / NetSuite Budget). Submit to activate; amend to revise.",
+  "naming": {
+    "pattern": "BUD-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "company",
+      "type": "Link",
+      "label": "Company",
+      "linkTo": "Company",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Budget"
+    },
+    {
+      "name": "fiscal_year",
+      "type": "Link",
+      "label": "Fiscal year",
+      "linkTo": "FiscalYear",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Budget"
+    },
+    {
+      "name": "cost_center",
+      "type": "Link",
+      "label": "Cost center",
+      "linkTo": "CostCenter",
+      "inListView": true,
+      "section": "Budget",
+      "column": 2,
+      "description": "Empty = company-wide (all cost centers together)"
+    },
+    {
+      "name": "control_basis",
+      "type": "Select",
+      "label": "Control against",
+      "requiredWhen": "true",
+      "options": [
+        "Annual budget",
+        "Year-to-date (equal months)"
+      ],
+      "default": "Annual budget",
+      "section": "Control",
+      "description": "Year-to-date = annual × months elapsed / 12 up to the posting month"
+    },
+    {
+      "name": "action_if_exceeded",
+      "type": "Select",
+      "label": "When exceeded",
+      "requiredWhen": "true",
+      "options": [
+        "Warn",
+        "Stop",
+        "Ignore"
+      ],
+      "default": "Warn",
+      "section": "Control",
+      "column": 2,
+      "description": "Checked when invoices, journals, expense claims, and payroll post expense"
+    },
+    {
+      "name": "accounts",
+      "type": "Table",
+      "label": "Accounts",
+      "childDocType": "BudgetAccount",
+      "section": "Accounts"
+    },
+    {
+      "name": "total_budget",
+      "type": "Currency",
+      "label": "Total",
+      "compute": "sum(accounts.annual_amount)",
+      "inListView": true,
+      "section": "Accounts"
+    },
+    {
+      "name": "remarks",
+      "type": "Text",
+      "label": "Remarks",
+      "section": "Accounts"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "fiscal_year",
+    "searchFields": [
+      "name",
+      "fiscal_year"
+    ],
+    "filters": [
+      "company",
+      "fiscal_year",
+      "cost_center"
+    ],
+    "defaultSort": [
+      {
+        "field": "modified",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

@@ -1,0 +1,233 @@
+{
+  "name": "JobOffer",
+  "version": 1,
+  "title": "Job Offer",
+  "module": "HR",
+  "description": "Offer to a candidate (Workday Offer). Workflow: Draft → Sent → Accepted/Declined/Expired. 'Create employee' turns an accepted offer into an Employee.",
+  "naming": {
+    "pattern": "OFR-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "workflow": "JobOfferLifecycle",
+  "fields": [
+    {
+      "name": "job_applicant",
+      "type": "Link",
+      "label": "Applicant",
+      "linkTo": "JobApplicant",
+      "requiredWhen": "true",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Offer"
+    },
+    {
+      "name": "applicant_name",
+      "type": "Data",
+      "label": "Applicant name",
+      "fetchFrom": "job_applicant.applicant_name",
+      "inListView": true,
+      "section": "Offer"
+    },
+    {
+      "name": "job_requisition",
+      "type": "Data",
+      "label": "Requisition",
+      "fetchFrom": "job_applicant.job_requisition",
+      "section": "Offer"
+    },
+    {
+      "name": "offer_date",
+      "type": "Date",
+      "label": "Offer date",
+      "requiredWhen": "true",
+      "default": "$today",
+      "section": "Offer",
+      "column": 2
+    },
+    {
+      "name": "valid_until",
+      "type": "Date",
+      "label": "Valid until",
+      "section": "Offer",
+      "column": 2
+    },
+    {
+      "name": "proposed_start_date",
+      "type": "Date",
+      "label": "Start date",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Offer",
+      "column": 2
+    },
+    {
+      "name": "position",
+      "type": "Link",
+      "label": "Position",
+      "linkTo": "Position",
+      "section": "Job",
+      "description": "Empty = from the requisition (hook)"
+    },
+    {
+      "name": "job_profile",
+      "type": "Link",
+      "label": "Job profile",
+      "linkTo": "JobProfile",
+      "section": "Job"
+    },
+    {
+      "name": "organization_unit",
+      "type": "Link",
+      "label": "Organization unit",
+      "linkTo": "OrganizationUnit",
+      "section": "Job",
+      "column": 2
+    },
+    {
+      "name": "grade",
+      "type": "Link",
+      "label": "Grade",
+      "linkTo": "Grade",
+      "section": "Job",
+      "column": 2
+    },
+    {
+      "name": "employment_type",
+      "type": "Select",
+      "label": "Employment type",
+      "options": [
+        "Permanent (PKWTT)",
+        "Fixed-term (PKWT)",
+        "Casual",
+        "Intern",
+        "Outsourced"
+      ],
+      "section": "Job",
+      "column": 2
+    },
+    {
+      "name": "base_salary",
+      "type": "Currency",
+      "label": "Monthly base salary",
+      "requiredWhen": "true",
+      "min": 0,
+      "permLevel": 1,
+      "section": "Pay"
+    },
+    {
+      "name": "terms",
+      "type": "TextEditor",
+      "label": "Offer terms",
+      "section": "Pay"
+    },
+    {
+      "name": "employee_number",
+      "type": "Data",
+      "label": "Employee number",
+      "requiredWhen": "true",
+      "maxLength": 20,
+      "section": "Hire",
+      "description": "Assigned with the offer; becomes the Employee document name when hired"
+    },
+    {
+      "name": "employee",
+      "type": "Link",
+      "label": "Employee",
+      "linkTo": "Employee",
+      "readOnlyWhen": "true",
+      "section": "Hire",
+      "column": 2,
+      "description": "Set by 'Create employee'"
+    }
+  ],
+  "rules": [
+    {
+      "name": "valid_until_after_offer",
+      "expr": "empty(valid_until) || valid_until >= offer_date",
+      "message": "Valid until must be on or after the offer date",
+      "field": "valid_until"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "write"
+      ],
+      "scope": "all",
+      "permLevel": 1
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "write"
+      ],
+      "scope": "all",
+      "permLevel": 1
+    }
+  ],
+  "listView": {
+    "titleField": "applicant_name",
+    "searchFields": [
+      "name",
+      "applicant_name"
+    ],
+    "filters": [
+      "workflow_state",
+      "proposed_start_date"
+    ],
+    "defaultSort": [
+      {
+        "field": "offer_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

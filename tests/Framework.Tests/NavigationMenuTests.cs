@@ -154,8 +154,8 @@ sealed partial class Tests
         var customMod = new NavigationModule
         {
             TenantId = tenantId,
-            Code = "FINANCE",
-            Name = "Finance",
+            Code = "FINANCE_CUSTOM",
+            Name = "Finance Custom",
             Description = "Financial management",
             Icon = "wallet",
             SortOrder = 25,

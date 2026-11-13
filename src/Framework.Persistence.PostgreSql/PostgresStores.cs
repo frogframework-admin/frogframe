@@ -182,7 +182,7 @@ public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider 
     }
 
     /// <summary>
-    /// Menulis baris buku besar dalam transaksi dokumen: kunci per tenant (urutan seq), periode Terbuka dikunci
+    /// Menulis baris buku besar dalam transaksi dokumen: kunci per tenant (urutan seq), periode Terbuka/Open dikunci
     /// FOR SHARE (penutupan bersamaan menunggu), akun diperiksa, lalu seq dan rantai hash dihitung.
     /// </summary>
     private static async Task WriteLedgerAsync(NpgsqlConnection conn, NpgsqlTransaction tx, UnitOfWork uow, CancellationToken ct)
@@ -197,11 +197,12 @@ public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider 
             foreach (var date in tenantGroup.Select(x => x.Line.PostingDate).Distinct())
             {
                 await using var q = new NpgsqlCommand(
-                    "SELECT name FROM frogframe_documents WHERE tenant_id = $1 AND doctype = $2 AND data->>'status' = 'Terbuka' " +
+                    "SELECT name FROM frogframe_documents WHERE tenant_id = $1 AND doctype = $2 AND data->>'status' = ANY($4) " +
                     "AND (data->>'start_date')::date <= $3 AND (data->>'end_date')::date >= $3 ORDER BY name LIMIT 1 FOR SHARE", conn, tx);
                 q.Parameters.AddWithValue(tenant); q.Parameters.AddWithValue(Framework.Accounting.Ledger.PeriodDocType); q.Parameters.AddWithValue(date);
+                q.Parameters.AddWithValue(Framework.Accounting.Ledger.OpenPeriodStatuses);
                 periods[date] = await q.ExecuteScalarAsync(ct) as string
-                    ?? throw new Framework.Accounting.LedgerException($"Tanggal posting {date:yyyy-MM-dd} tidak berada di periode akuntansi yang Terbuka");
+                    ?? throw new Framework.Accounting.LedgerException($"Tanggal posting {date:yyyy-MM-dd} tidak berada di periode akuntansi yang Terbuka (Open)");
             }
 
             var accounts = tenantGroup.Select(x => x.Line.Account).Distinct().ToArray();

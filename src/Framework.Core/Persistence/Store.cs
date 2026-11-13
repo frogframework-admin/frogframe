@@ -246,7 +246,7 @@ public sealed class InMemoryDocumentStore : IDocumentStore, IOutboxStore, IDatab
                 foreach (var (doc, l) in voucher)
                 {
                     var period = OpenPeriod(tenant, l.PostingDate)
-                        ?? throw new Framework.Accounting.LedgerException($"Tanggal posting {l.PostingDate:yyyy-MM-dd} tidak berada di periode akuntansi yang Terbuka");
+                        ?? throw new Framework.Accounting.LedgerException($"Tanggal posting {l.PostingDate:yyyy-MM-dd} tidak berada di periode akuntansi yang Terbuka (Open)");
                     CheckAccount(tenant, l.Account);
                     if (l.ReversalOf is { } rev && (_ledger.All(e => e.Id != rev) || _ledger.Any(e => e.ReversalOf == rev) || plan.Any(e => e.ReversalOf == rev)))
                         throw new Framework.Accounting.LedgerException("Baris yang dibalik tidak ada atau sudah pernah dibalik");
@@ -274,7 +274,7 @@ public sealed class InMemoryDocumentStore : IDocumentStore, IOutboxStore, IDatab
 
     private string? OpenPeriod(string tenant, DateOnly date) => _docs.Values
         .Where(d => d.TenantId == tenant && d.DocType == Framework.Accounting.Ledger.PeriodDocType
-                    && Equals(d.Data.GetValueOrDefault("status"), "Terbuka")
+                    && Framework.Accounting.Ledger.IsOpenPeriodStatus(d.Data.GetValueOrDefault("status"))
                     && d.Data.GetValueOrDefault("start_date") is string a && d.Data.GetValueOrDefault("end_date") is string b
                     && DateOnly.Parse(a) <= date && date <= DateOnly.Parse(b))
         .OrderBy(d => d.Name).Select(d => d.Name).FirstOrDefault();
@@ -292,6 +292,17 @@ public sealed class InMemoryDocumentStore : IDocumentStore, IOutboxStore, IDatab
         lock (_gate)
             return Task.FromResult<IReadOnlyList<Framework.Accounting.LedgerEntry>>(_ledger
                 .Where(e => e.TenantId == tenantId && e.VoucherType == voucherType && e.VoucherName == voucherName).OrderBy(e => e.Seq).ToList());
+    }
+
+    public Task<IReadOnlyList<Framework.Accounting.LedgerBalance>> GetBalancesAsync(string tenantId, DateOnly? from, DateOnly to, CancellationToken ct = default)
+    {
+        lock (_gate)
+            return Task.FromResult<IReadOnlyList<Framework.Accounting.LedgerBalance>>(_ledger
+                .Where(e => e.TenantId == tenantId && e.PostingDate <= to && (from == null || e.PostingDate >= from))
+                .GroupBy(e => (e.Account, e.Department))
+                .OrderBy(g => g.Key.Account, StringComparer.Ordinal)
+                .Select(g => new Framework.Accounting.LedgerBalance(g.Key.Account, g.Key.Department, g.Sum(e => e.Debit), g.Sum(e => e.Credit)))
+                .ToList());
     }
 
     public Task<Framework.Accounting.ChainBreak?> VerifyChainAsync(string tenantId, CancellationToken ct = default)

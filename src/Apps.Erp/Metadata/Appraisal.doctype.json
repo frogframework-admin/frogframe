@@ -1,0 +1,208 @@
+{
+  "name": "Appraisal",
+  "version": 1,
+  "title": "Appraisal",
+  "module": "HR",
+  "description": "Goal-based performance review: employee self-scores, manager scores and completes (Workday Performance Review). Weighted score 1–5 sets the rating.",
+  "naming": {
+    "pattern": "APR-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "workflow": "AppraisalReview",
+  "fields": [
+    {
+      "name": "employee",
+      "type": "Link",
+      "label": "Employee",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "default": "$employee",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Appraisal"
+    },
+    {
+      "name": "employee_name",
+      "type": "Data",
+      "label": "Employee name",
+      "fetchFrom": "employee.full_name",
+      "inListView": true,
+      "section": "Appraisal"
+    },
+    {
+      "name": "organization_unit",
+      "type": "Data",
+      "label": "Unit",
+      "fetchFrom": "employee.organization_unit",
+      "section": "Appraisal"
+    },
+    {
+      "name": "reviewer",
+      "type": "Data",
+      "label": "Reviewer",
+      "fetchFrom": "employee.reports_to",
+      "section": "Appraisal",
+      "column": 2,
+      "description": "The employee's manager"
+    },
+    {
+      "name": "appraisal_cycle",
+      "type": "Link",
+      "label": "Cycle",
+      "linkTo": "AppraisalCycle",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Appraisal",
+      "column": 2
+    },
+    {
+      "name": "goals",
+      "type": "Table",
+      "label": "Goals",
+      "childDocType": "AppraisalGoal",
+      "requiredWhen": "true",
+      "section": "Goals",
+      "description": "Weights must total 100%"
+    },
+    {
+      "name": "total_weight",
+      "type": "Percent",
+      "label": "Total weight",
+      "compute": "sum(goals.weight)",
+      "section": "Goals"
+    },
+    {
+      "name": "final_score",
+      "type": "Float",
+      "label": "Final score (1–5)",
+      "compute": "sum(goals.weighted_score)",
+      "inListView": true,
+      "section": "Result",
+      "column": 2
+    },
+    {
+      "name": "rating",
+      "type": "Select",
+      "label": "Rating",
+      "options": [
+        "Outstanding",
+        "Exceeds expectations",
+        "Meets expectations",
+        "Needs improvement",
+        "Unsatisfactory"
+      ],
+      "readOnlyWhen": "true",
+      "inListView": true,
+      "section": "Result",
+      "column": 2,
+      "description": "From the final score (hook): ≥4.5, ≥3.5, ≥2.5, ≥1.5, below"
+    },
+    {
+      "name": "self_comments",
+      "type": "Text",
+      "label": "Employee comments",
+      "section": "Result"
+    },
+    {
+      "name": "reviewer_comments",
+      "type": "Text",
+      "label": "Reviewer comments",
+      "section": "Result"
+    },
+    {
+      "name": "development_plan",
+      "type": "Text",
+      "label": "Development plan",
+      "section": "Result"
+    }
+  ],
+  "rules": [
+    {
+      "name": "weights_total_100",
+      "expr": "total_weight == 100",
+      "message": "Goal weights must total 100%",
+      "field": "goals"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Employee",
+      "actions": [
+        "read",
+        "create",
+        "write"
+      ],
+      "scope": "match:employee=employee"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read",
+        "write"
+      ],
+      "scope": "match:reviewer=employee"
+    },
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "employee_name",
+    "searchFields": [
+      "employee",
+      "employee_name"
+    ],
+    "filters": [
+      "appraisal_cycle",
+      "workflow_state",
+      "rating"
+    ],
+    "defaultSort": [
+      {
+        "field": "modified",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

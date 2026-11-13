@@ -1,0 +1,400 @@
+{
+  "name": "SalesCreditNote",
+  "version": 1,
+  "title": "Sales Credit Note",
+  "module": "FINANCE",
+  "description": "Return/discount against a sales invoice (NetSuite Credit Memo). Reduces the original invoice's receivable.",
+  "naming": {
+    "pattern": "SCN-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "company",
+      "type": "Link",
+      "label": "Company",
+      "linkTo": "Company",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Document"
+    },
+    {
+      "name": "customer",
+      "type": "Link",
+      "label": "Customer",
+      "linkTo": "Customer",
+      "requiredWhen": "true",
+      "linkFilters": [
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Document"
+    },
+    {
+      "name": "customer_name",
+      "type": "Data",
+      "label": "Customer name",
+      "fetchFrom": "customer.customer_name",
+      "inListView": true,
+      "section": "Document"
+    },
+    {
+      "name": "posting_date",
+      "type": "Date",
+      "label": "Posting date",
+      "requiredWhen": "true",
+      "default": "$today",
+      "inListView": true,
+      "section": "Document",
+      "column": 2
+    },
+    {
+      "name": "due_date",
+      "type": "Date",
+      "label": "Due date",
+      "inListView": true,
+      "section": "Document",
+      "column": 2,
+      "description": "Follows the original invoice (hook)"
+    },
+    {
+      "name": "currency",
+      "type": "Link",
+      "label": "Currency",
+      "linkTo": "Currency",
+      "requiredWhen": "true",
+      "default": "IDR",
+      "section": "Document",
+      "column": 2
+    },
+    {
+      "name": "exchange_rate",
+      "type": "Float",
+      "label": "Exchange rate",
+      "requiredWhen": "true",
+      "default": 1,
+      "min": 0,
+      "section": "Document",
+      "column": 2
+    },
+    {
+      "name": "debit_to",
+      "type": "Link",
+      "label": "Receivable account",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "account_type",
+          "op": "=",
+          "value": "Receivable"
+        }
+      ],
+      "section": "Accounting",
+      "description": "Empty = from party, group, then company default (set by hook)"
+    },
+    {
+      "name": "cost_center",
+      "type": "Link",
+      "label": "Default cost center",
+      "linkTo": "CostCenter",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        }
+      ],
+      "section": "Accounting"
+    },
+    {
+      "name": "project",
+      "type": "Link",
+      "label": "Project",
+      "linkTo": "Project",
+      "section": "Accounting",
+      "column": 2
+    },
+    {
+      "name": "update_stock",
+      "type": "Check",
+      "label": "Update stock",
+      "default": false,
+      "section": "Stock",
+      "description": "Deliver / take back stock items from the warehouse with this document (cost of goods sold at moving average)"
+    },
+    {
+      "name": "warehouse",
+      "type": "Link",
+      "label": "Warehouse",
+      "linkTo": "Warehouse",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        }
+      ],
+      "requiredWhen": "update_stock",
+      "visibleWhen": "update_stock",
+      "section": "Stock",
+      "column": 2
+    },
+    {
+      "name": "return_against",
+      "type": "Link",
+      "label": "Original invoice",
+      "linkTo": "SalesInvoice",
+      "requiredWhen": "true",
+      "linkFilters": [
+        {
+          "field": "docstatus",
+          "op": "=",
+          "value": 1
+        }
+      ],
+      "lookupDialog": true,
+      "section": "Document",
+      "column": 2
+    },
+    {
+      "name": "reason",
+      "type": "Select",
+      "label": "Reason",
+      "requiredWhen": "true",
+      "options": [
+        "Goods return",
+        "Discount",
+        "Price correction",
+        "Service cancellation"
+      ],
+      "section": "Document",
+      "column": 2
+    },
+    {
+      "name": "items",
+      "type": "Table",
+      "label": "Returned/corrected items",
+      "childDocType": "SalesInvoiceItem",
+      "requiredWhen": "true",
+      "section": "Item",
+      "description": "Enter positive values; the hook posts them as the reverse of the invoice"
+    },
+    {
+      "name": "vat_code",
+      "type": "Link",
+      "label": "VAT code",
+      "linkTo": "TaxCode",
+      "linkFilters": [
+        {
+          "field": "tax_type",
+          "op": "=",
+          "value": "Output VAT"
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "tab": "Tax",
+      "section": "PPN"
+    },
+    {
+      "name": "vat_rate",
+      "type": "Percent",
+      "label": "VAT rate",
+      "fetchFrom": "vat_code.rate",
+      "tab": "Tax",
+      "section": "PPN"
+    },
+    {
+      "name": "vat_dpp_factor",
+      "type": "Float",
+      "label": "Tax base factor",
+      "fetchFrom": "vat_code.dpp_factor",
+      "tab": "Tax",
+      "section": "PPN"
+    },
+    {
+      "name": "tax_base",
+      "type": "Currency",
+      "label": "DPP",
+      "compute": "round(sum(items.taxable_amount) * coalesce(vat_dpp_factor, 1), 2)",
+      "tab": "Tax",
+      "section": "PPN",
+      "column": 2
+    },
+    {
+      "name": "vat_amount",
+      "type": "Currency",
+      "label": "PPN",
+      "compute": "round(tax_base * coalesce(vat_rate, 0) / 100, 2)",
+      "tab": "Tax",
+      "section": "PPN",
+      "column": 2
+    },
+    {
+      "name": "tax_invoice_no",
+      "type": "Data",
+      "label": "Tax invoice no.",
+      "maxLength": 30,
+      "tab": "Tax",
+      "section": "PPN",
+      "column": 2,
+      "noCopy": true
+    },
+    {
+      "name": "total",
+      "type": "Currency",
+      "label": "Total before tax",
+      "compute": "sum(items.amount)",
+      "inListView": true,
+      "section": "Total"
+    },
+    {
+      "name": "grand_total",
+      "type": "Currency",
+      "label": "Total + VAT",
+      "compute": "total + vat_amount",
+      "inListView": true,
+      "section": "Total"
+    },
+    {
+      "name": "base_grand_total",
+      "type": "Currency",
+      "label": "Total (functional currency)",
+      "compute": "round(grand_total * exchange_rate, 2)",
+      "section": "Total",
+      "column": 2
+    },
+    {
+      "name": "outstanding_amount",
+      "type": "Currency",
+      "label": "Outstanding amount",
+      "readOnlyWhen": "true",
+      "noCopy": true,
+      "section": "Total",
+      "column": 2,
+      "description": "Computed from the ledger when the document is opened (OnLoad); not stored. Lists & aging via World 2 reports"
+    },
+    {
+      "name": "payment_status",
+      "type": "Select",
+      "label": "Payment status",
+      "options": [
+        "Unpaid",
+        "Partly Paid",
+        "Paid",
+        "Returned"
+      ],
+      "readOnlyWhen": "true",
+      "noCopy": true,
+      "section": "Total",
+      "column": 2,
+      "description": "Computed when the document is opened (OnLoad)"
+    },
+    {
+      "name": "remarks",
+      "type": "Text",
+      "label": "Notes",
+      "tab": "Other",
+      "section": "Notes"
+    }
+  ],
+  "rules": [
+    {
+      "name": "positive_rate",
+      "expr": "exchange_rate > 0",
+      "message": "Exchange rate must be greater than 0",
+      "field": "exchange_rate"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "customer_name",
+    "searchFields": [
+      "name",
+      "customer_name"
+    ],
+    "filters": [
+      "company",
+      "customer",
+      "reason"
+    ],
+    "defaultSort": [
+      {
+        "field": "posting_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

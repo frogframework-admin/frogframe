@@ -1,0 +1,60 @@
+{
+  "name": "PaymentEntryReference",
+  "version": 1,
+  "title": "Payment Allocation",
+  "module": "FINANCE",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "reference_doctype",
+      "type": "Select",
+      "label": "Document type",
+      "requiredWhen": "true",
+      "options": [
+        "SalesInvoice",
+        "SalesCreditNote",
+        "PurchaseInvoice",
+        "PurchaseDebitNote",
+        "ExpenseClaim",
+        "EmployeeAdvance",
+        "PayrollRun",
+        "CommissionStatement",
+        "JournalEntry"
+      ]
+    },
+    {
+      "name": "reference_name",
+      "type": "DynamicLink",
+      "label": "Document",
+      "requiredWhen": "true",
+      "linkToField": "reference_doctype"
+    },
+    {
+      "name": "due_date",
+      "type": "Date",
+      "label": "Due date",
+      "description": "Set by hook"
+    },
+    {
+      "name": "outstanding_amount",
+      "type": "Currency",
+      "label": "Outstanding amount",
+      "description": "Set by hook on save"
+    },
+    {
+      "name": "allocated_amount",
+      "type": "Currency",
+      "label": "Allocated",
+      "requiredWhen": "true",
+      "min": 0
+    }
+  ],
+  "rules": [
+    {
+      "name": "not_exceeding",
+      "expr": "empty(outstanding_amount) || allocated_amount <= outstanding_amount",
+      "message": "Allocation exceeds the outstanding amount",
+      "field": "allocated_amount"
+    }
+  ]
+}

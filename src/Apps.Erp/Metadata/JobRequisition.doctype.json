@@ -1,0 +1,311 @@
+{
+  "name": "JobRequisition",
+  "version": 1,
+  "title": "Job Requisition",
+  "module": "HR",
+  "description": "Approved request to hire (Workday Job Requisition). Submit = approved and open for applicants.",
+  "naming": {
+    "pattern": "REQ-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "job_title",
+      "type": "Data",
+      "label": "Job title",
+      "requiredWhen": "true",
+      "maxLength": 140,
+      "inListView": true,
+      "section": "Requisition"
+    },
+    {
+      "name": "company",
+      "type": "Link",
+      "label": "Company",
+      "linkTo": "Company",
+      "requiredWhen": "true",
+      "section": "Requisition"
+    },
+    {
+      "name": "organization_unit",
+      "type": "Link",
+      "label": "Organization unit",
+      "linkTo": "OrganizationUnit",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Requisition"
+    },
+    {
+      "name": "position",
+      "type": "Link",
+      "label": "Position",
+      "linkTo": "Position",
+      "linkFilters": [
+        {
+          "field": "status",
+          "op": "=",
+          "value": "Vacant"
+        }
+      ],
+      "lookupDialog": true,
+      "section": "Requisition",
+      "column": 2,
+      "description": "Vacant position to fill (Position staffing model)"
+    },
+    {
+      "name": "job_profile",
+      "type": "Link",
+      "label": "Job profile",
+      "linkTo": "JobProfile",
+      "requiredWhen": "true",
+      "section": "Requisition",
+      "column": 2,
+      "description": "Empty = from the position (hook)"
+    },
+    {
+      "name": "grade",
+      "type": "Link",
+      "label": "Grade",
+      "linkTo": "Grade",
+      "section": "Requisition",
+      "column": 2
+    },
+    {
+      "name": "employment_type",
+      "type": "Select",
+      "label": "Employment type",
+      "requiredWhen": "true",
+      "options": [
+        "Permanent (PKWTT)",
+        "Fixed-term (PKWT)",
+        "Casual",
+        "Intern",
+        "Outsourced"
+      ],
+      "default": "Permanent (PKWTT)",
+      "section": "Requisition",
+      "column": 2
+    },
+    {
+      "name": "reason",
+      "type": "Select",
+      "label": "Reason",
+      "requiredWhen": "true",
+      "options": [
+        "New headcount",
+        "Replacement"
+      ],
+      "default": "New headcount",
+      "section": "Need"
+    },
+    {
+      "name": "replaces",
+      "type": "Link",
+      "label": "Replaces employee",
+      "linkTo": "Employee",
+      "requiredWhen": "reason == 'Replacement'",
+      "visibleWhen": "reason == 'Replacement'",
+      "section": "Need"
+    },
+    {
+      "name": "openings",
+      "type": "Int",
+      "label": "Openings",
+      "requiredWhen": "true",
+      "default": 1,
+      "min": 1,
+      "inListView": true,
+      "section": "Need",
+      "column": 2
+    },
+    {
+      "name": "target_start_date",
+      "type": "Date",
+      "label": "Target start date",
+      "section": "Need",
+      "column": 2
+    },
+    {
+      "name": "hiring_manager",
+      "type": "Link",
+      "label": "Hiring manager",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "lookupDialog": true,
+      "section": "Team"
+    },
+    {
+      "name": "recruiter",
+      "type": "Link",
+      "label": "Recruiter",
+      "linkTo": "Employee",
+      "lookupDialog": true,
+      "section": "Team",
+      "column": 2
+    },
+    {
+      "name": "salary_min",
+      "type": "Currency",
+      "label": "Salary range from",
+      "min": 0,
+      "permLevel": 1,
+      "section": "Budget"
+    },
+    {
+      "name": "salary_max",
+      "type": "Currency",
+      "label": "Salary range to",
+      "min": 0,
+      "permLevel": 1,
+      "section": "Budget",
+      "column": 2
+    },
+    {
+      "name": "description",
+      "type": "TextEditor",
+      "label": "Job description & requirements",
+      "section": "Posting"
+    },
+    {
+      "name": "hired_count",
+      "type": "Int",
+      "label": "Hired",
+      "readOnlyWhen": "true",
+      "inListView": true,
+      "section": "Progress",
+      "description": "Computed when opened"
+    },
+    {
+      "name": "applicant_count",
+      "type": "Int",
+      "label": "Applicants",
+      "readOnlyWhen": "true",
+      "section": "Progress",
+      "column": 2
+    },
+    {
+      "name": "requisition_status",
+      "type": "Select",
+      "label": "Status",
+      "options": [
+        "Draft",
+        "Open",
+        "Filled",
+        "Cancelled"
+      ],
+      "readOnlyWhen": "true",
+      "inListView": true,
+      "section": "Progress",
+      "column": 2,
+      "description": "Computed when opened: Open until hires reach the openings"
+    }
+  ],
+  "rules": [
+    {
+      "name": "salary_range",
+      "expr": "empty(salary_min) || empty(salary_max) || salary_max >= salary_min",
+      "message": "The salary range end must be ≥ the start",
+      "field": "salary_max"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report"
+      ],
+      "scope": "match:organization_unit=department"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read"
+      ],
+      "scope": "match:hiring_manager=employee"
+    },
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "write"
+      ],
+      "scope": "all",
+      "permLevel": 1
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "write"
+      ],
+      "scope": "all",
+      "permLevel": 1
+    }
+  ],
+  "listView": {
+    "titleField": "job_title",
+    "searchFields": [
+      "name",
+      "job_title"
+    ],
+    "filters": [
+      "organization_unit",
+      "requisition_status",
+      "company"
+    ],
+    "defaultSort": [
+      {
+        "field": "modified",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

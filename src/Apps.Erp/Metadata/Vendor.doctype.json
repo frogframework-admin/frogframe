@@ -1,0 +1,331 @@
+{
+  "name": "Vendor",
+  "version": 1,
+  "title": "Supplier",
+  "module": "CORE",
+  "description": "Supplier (NetSuite Vendor / SAP Business Partner supplier).",
+  "naming": {
+    "pattern": "SUPP-{######}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "vendor_name",
+      "type": "Data",
+      "label": "Supplier name",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "General"
+    },
+    {
+      "name": "vendor_type",
+      "type": "Select",
+      "label": "Type",
+      "requiredWhen": "true",
+      "options": [
+        "Company",
+        "Individual",
+        "Government Agency",
+        "BUMN"
+      ],
+      "default": "Company",
+      "inListView": true,
+      "section": "General"
+    },
+    {
+      "name": "vendor_group",
+      "type": "Link",
+      "label": "Supplier group",
+      "linkTo": "VendorGroup",
+      "requiredWhen": "true",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        }
+      ],
+      "inListView": true,
+      "section": "General"
+    },
+    {
+      "name": "is_active",
+      "type": "Check",
+      "label": "Active",
+      "default": true,
+      "inListView": true,
+      "section": "General",
+      "column": 2
+    },
+    {
+      "name": "on_hold",
+      "type": "Check",
+      "label": "Hold payments",
+      "default": false,
+      "section": "General",
+      "column": 2,
+      "description": "Invoices can still be recorded; payments are blocked"
+    },
+    {
+      "name": "email",
+      "type": "Email",
+      "label": "Email",
+      "section": "Contact"
+    },
+    {
+      "name": "phone",
+      "type": "Phone",
+      "label": "Phone",
+      "section": "Contact"
+    },
+    {
+      "name": "primary_contact",
+      "type": "Link",
+      "label": "Primary contact",
+      "linkTo": "Contact",
+      "section": "Contact",
+      "column": 2
+    },
+    {
+      "name": "primary_address",
+      "type": "Link",
+      "label": "Address",
+      "linkTo": "Address",
+      "section": "Contact",
+      "column": 2
+    },
+    {
+      "name": "tax_id_type",
+      "type": "Select",
+      "label": "Tax ID type",
+      "options": [
+        "NPWP",
+        "NIK",
+        "Passport",
+        "Other"
+      ],
+      "default": "NPWP",
+      "tab": "Tax",
+      "section": "Tax"
+    },
+    {
+      "name": "tax_id",
+      "type": "Data",
+      "label": "Tax ID number",
+      "maxLength": 20,
+      "tab": "Tax",
+      "section": "Tax",
+      "requiredWhen": "is_pkp",
+      "description": "16-digit NPWP, NIK, or passport number"
+    },
+    {
+      "name": "nitku",
+      "type": "Data",
+      "label": "NITKU / TKU ID",
+      "maxLength": 22,
+      "pattern": "^[0-9]{22}$",
+      "patternMessage": "22-digit NITKU",
+      "tab": "Tax",
+      "section": "Tax"
+    },
+    {
+      "name": "is_pkp",
+      "type": "Check",
+      "label": "VAT-registered (PKP)",
+      "default": false,
+      "tab": "Tax",
+      "section": "Tax",
+      "column": 2
+    },
+    {
+      "name": "tax_name",
+      "type": "Data",
+      "label": "Name per tax ID",
+      "tab": "Tax",
+      "section": "Tax",
+      "column": 2
+    },
+    {
+      "name": "tax_address",
+      "type": "Link",
+      "label": "Tax address",
+      "linkTo": "Address",
+      "tab": "Tax",
+      "section": "Tax",
+      "column": 2
+    },
+    {
+      "name": "default_withholding",
+      "type": "Select",
+      "label": "Default withholding tax",
+      "options": [
+        "None",
+        "PPh 21",
+        "PPh 22",
+        "PPh 23",
+        "PPh 4(2)",
+        "PPh 26"
+      ],
+      "default": "None",
+      "tab": "Tax",
+      "section": "Withholding"
+    },
+    {
+      "name": "default_currency",
+      "type": "Link",
+      "label": "Currency",
+      "linkTo": "Currency",
+      "default": "IDR",
+      "tab": "Commercial",
+      "section": "Purchase"
+    },
+    {
+      "name": "payment_term",
+      "type": "Link",
+      "label": "Payment terms",
+      "linkTo": "PaymentTerm",
+      "tab": "Commercial",
+      "section": "Purchase",
+      "column": 2
+    },
+    {
+      "name": "payable_account",
+      "type": "Link",
+      "label": "Payable account (override)",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "account_type",
+          "op": "=",
+          "value": "Payable"
+        }
+      ],
+      "tab": "Commercial",
+      "section": "Accounting"
+    },
+    {
+      "name": "is_internal_vendor",
+      "type": "Check",
+      "label": "Intercompany supplier",
+      "default": false,
+      "tab": "Commercial",
+      "section": "Accounting",
+      "column": 2
+    },
+    {
+      "name": "represents_company",
+      "type": "Link",
+      "label": "Represents company",
+      "linkTo": "Company",
+      "requiredWhen": "is_internal_vendor",
+      "visibleWhen": "is_internal_vendor",
+      "tab": "Commercial",
+      "section": "Accounting",
+      "column": 2
+    },
+    {
+      "name": "bank_accounts",
+      "type": "Table",
+      "label": "Bank account",
+      "childDocType": "PartyBankAccount",
+      "tab": "Commercial",
+      "section": "Bank Account"
+    }
+  ],
+  "rules": [
+    {
+      "name": "tax_id_16_digits",
+      "expr": "tax_id_type != 'NPWP' || empty(tax_id) || len(tax_id) == 16",
+      "message": "NPWP must be 16 digits (Coretax format)",
+      "field": "tax_id"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Purchasing",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "vendor_name",
+    "searchFields": [
+      "name",
+      "vendor_name",
+      "tax_id"
+    ],
+    "filters": [
+      "vendor_group",
+      "vendor_type",
+      "is_active",
+      "on_hold"
+    ],
+    "defaultSort": [
+      {
+        "field": "modified",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

@@ -1,0 +1,106 @@
+{
+  "name": "UOM",
+  "version": 1,
+  "title": "UOM",
+  "module": "CORE",
+  "naming": {
+    "pattern": "field:uom_code"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "uom_code",
+      "type": "Data",
+      "label": "UOM code",
+      "requiredWhen": "true",
+      "maxLength": 10,
+      "inListView": true
+    },
+    {
+      "name": "uom_name",
+      "type": "Data",
+      "label": "UOM name",
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "must_be_whole_number",
+      "type": "Check",
+      "label": "Must be a whole number",
+      "default": false,
+      "column": 2
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Purchasing",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "uom_name",
+    "searchFields": [
+      "uom_code",
+      "uom_name"
+    ],
+    "filters": [],
+    "defaultSort": [
+      {
+        "field": "uom_code",
+        "direction": "asc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

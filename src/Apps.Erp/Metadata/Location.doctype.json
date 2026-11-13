@@ -1,0 +1,169 @@
+{
+  "name": "Location",
+  "version": 1,
+  "title": "Location",
+  "module": "CORE",
+  "description": "Physical location: office, branch, warehouse (Workday Location / NetSuite Location). Also an accounting dimension.",
+  "naming": {
+    "pattern": "field:location_code"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "location_code",
+      "type": "Data",
+      "label": "Location code",
+      "requiredWhen": "true",
+      "maxLength": 20,
+      "inListView": true
+    },
+    {
+      "name": "location_name",
+      "type": "Data",
+      "label": "Location name",
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "parent_location",
+      "type": "Link",
+      "label": "Parent location",
+      "linkTo": "Location",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "is_group",
+      "type": "Check",
+      "label": "Group location (region)",
+      "default": false,
+      "column": 2
+    },
+    {
+      "name": "company",
+      "type": "Link",
+      "label": "Company",
+      "linkTo": "Company",
+      "inListView": true,
+      "column": 2
+    },
+    {
+      "name": "is_active",
+      "type": "Check",
+      "label": "Active",
+      "default": true,
+      "inListView": true,
+      "column": 2
+    },
+    {
+      "name": "address",
+      "type": "Text",
+      "label": "Address",
+      "section": "Address"
+    },
+    {
+      "name": "city",
+      "type": "Data",
+      "label": "City/Regency",
+      "inListView": true,
+      "section": "Address",
+      "column": 2
+    },
+    {
+      "name": "province",
+      "type": "Data",
+      "label": "Province",
+      "section": "Address",
+      "column": 2
+    },
+    {
+      "name": "geolocation",
+      "type": "Geolocation",
+      "label": "Geolocation",
+      "section": "Address",
+      "column": 2
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "location_name",
+    "searchFields": [
+      "location_code",
+      "location_name",
+      "city"
+    ],
+    "filters": [
+      "company",
+      "is_group",
+      "is_active"
+    ],
+    "defaultSort": [
+      {
+        "field": "location_code",
+        "direction": "asc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

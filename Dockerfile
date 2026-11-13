@@ -14,4 +14,4 @@ COPY ./publish .
 # Jalankan dengan non-root user bawaan .NET demi keamanan
 USER $APP_UID
 
-ENTRYPOINT ["dotnet", "Apps.Sample.dll"]
+ENTRYPOINT ["dotnet", "Apps.Erp.dll"]

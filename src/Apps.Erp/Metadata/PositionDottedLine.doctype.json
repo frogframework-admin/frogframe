@@ -1,0 +1,34 @@
+{
+  "name": "PositionDottedLine",
+  "version": 1,
+  "title": "Dotted Line",
+  "module": "HR",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "position",
+      "type": "Link",
+      "label": "Functional manager position",
+      "linkTo": "Position",
+      "requiredWhen": "true"
+    },
+    {
+      "name": "relationship",
+      "type": "Select",
+      "label": "Type",
+      "requiredWhen": "true",
+      "options": [
+        "Functional",
+        "Project",
+        "Matrix",
+        "Mentor"
+      ],
+      "default": "Functional"
+    },
+    {
+      "name": "valid_from",
+      "type": "Date",
+      "label": "Effective from"
+    }
+  ]
+}

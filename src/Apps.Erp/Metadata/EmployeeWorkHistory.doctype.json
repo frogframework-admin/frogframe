@@ -1,0 +1,30 @@
+{
+  "name": "EmployeeWorkHistory",
+  "version": 1,
+  "title": "Previous Employment",
+  "module": "HR",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "company_name",
+      "type": "Data",
+      "label": "Company",
+      "requiredWhen": "true"
+    },
+    {
+      "name": "position_title",
+      "type": "Data",
+      "label": "Job"
+    },
+    {
+      "name": "from_date",
+      "type": "Date",
+      "label": "From"
+    },
+    {
+      "name": "to_date",
+      "type": "Date",
+      "label": "To"
+    }
+  ]
+}

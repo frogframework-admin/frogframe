@@ -1,0 +1,73 @@
+{
+  "name": "BankStatementLine",
+  "version": 1,
+  "title": "Bank Statement Line",
+  "module": "FINANCE",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "transaction_date",
+      "type": "Date",
+      "label": "Date",
+      "requiredWhen": "true"
+    },
+    {
+      "name": "description",
+      "type": "Data",
+      "label": "Remarks"
+    },
+    {
+      "name": "bank_reference",
+      "type": "Data",
+      "label": "Bank reference"
+    },
+    {
+      "name": "deposit",
+      "type": "Currency",
+      "label": "Deposit",
+      "default": 0,
+      "min": 0
+    },
+    {
+      "name": "withdrawal",
+      "type": "Currency",
+      "label": "Left",
+      "default": 0,
+      "min": 0
+    },
+    {
+      "name": "matched_voucher_type",
+      "type": "Select",
+      "label": "Voucher type",
+      "options": [
+        "PaymentEntry",
+        "JournalEntry"
+      ]
+    },
+    {
+      "name": "matched_voucher",
+      "type": "DynamicLink",
+      "label": "Voucher",
+      "linkToField": "matched_voucher_type"
+    },
+    {
+      "name": "match_status",
+      "type": "Select",
+      "label": "Status",
+      "options": [
+        "Unmatched",
+        "Matched",
+        "Ignored"
+      ],
+      "default": "Unmatched"
+    }
+  ],
+  "rules": [
+    {
+      "name": "one_side",
+      "expr": "(deposit > 0 && withdrawal == 0) || (withdrawal > 0 && deposit == 0)",
+      "message": "Fill Deposit OR Withdrawal",
+      "field": "deposit"
+    }
+  ]
+}

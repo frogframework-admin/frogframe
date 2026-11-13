@@ -1,0 +1,171 @@
+{
+  "name": "LeaveAllocation",
+  "version": 1,
+  "title": "Leave Allocation",
+  "module": "HR",
+  "description": "Leave balance per employee per period. Created in bulk by the scheduler from LeavePolicy.",
+  "naming": {
+    "pattern": "LAL-{YYYY}-{######}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "employee",
+      "type": "Link",
+      "label": "Employee",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "lookupDialog": true,
+      "inListView": true
+    },
+    {
+      "name": "employee_name",
+      "type": "Data",
+      "label": "Employee name",
+      "fetchFrom": "employee.full_name",
+      "inListView": true
+    },
+    {
+      "name": "leave_type",
+      "type": "Link",
+      "label": "Leave type",
+      "linkTo": "LeaveType",
+      "requiredWhen": "true",
+      "linkFilters": [
+        {
+          "field": "is_annual_quota",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "inListView": true
+    },
+    {
+      "name": "from_date",
+      "type": "Date",
+      "label": "Valid from",
+      "requiredWhen": "true",
+      "inListView": true,
+      "column": 2
+    },
+    {
+      "name": "to_date",
+      "type": "Date",
+      "label": "Valid until",
+      "requiredWhen": "true",
+      "inListView": true,
+      "column": 2
+    },
+    {
+      "name": "leave_policy",
+      "type": "Link",
+      "label": "Policy",
+      "linkTo": "LeavePolicy",
+      "column": 2
+    },
+    {
+      "name": "new_leaves",
+      "type": "Float",
+      "label": "New leaves (days)",
+      "requiredWhen": "true",
+      "min": 0,
+      "section": "Balance"
+    },
+    {
+      "name": "carry_forwarded",
+      "type": "Float",
+      "label": "Carried forward (days)",
+      "default": 0,
+      "min": 0,
+      "section": "Balance"
+    },
+    {
+      "name": "total_leaves",
+      "type": "Float",
+      "label": "Total leaves",
+      "compute": "new_leaves + carry_forwarded",
+      "inListView": true,
+      "section": "Balance",
+      "column": 2
+    }
+  ],
+  "rules": [
+    {
+      "name": "valid_period",
+      "expr": "to_date >= from_date",
+      "message": "The end date must be after the start date",
+      "field": "to_date"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "match:employee=employee"
+    }
+  ],
+  "listView": {
+    "titleField": "employee_name",
+    "searchFields": [
+      "name",
+      "employee_name"
+    ],
+    "filters": [
+      "leave_type",
+      "from_date"
+    ],
+    "defaultSort": [
+      {
+        "field": "from_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

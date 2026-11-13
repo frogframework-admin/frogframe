@@ -1,0 +1,94 @@
+{
+  "name": "Industry",
+  "version": 1,
+  "title": "Industry",
+  "module": "CRM",
+  "naming": {
+    "pattern": "field:industry_name"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "industry_name",
+      "type": "Data",
+      "label": "Industry",
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "is_active",
+      "type": "Check",
+      "label": "Active",
+      "default": true,
+      "inListView": true,
+      "column": 2
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Sales",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "industry_name",
+    "searchFields": [
+      "industry_name"
+    ],
+    "filters": [],
+    "defaultSort": [
+      {
+        "field": "industry_name",
+        "direction": "asc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

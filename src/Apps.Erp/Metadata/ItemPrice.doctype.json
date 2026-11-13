@@ -1,0 +1,172 @@
+{
+  "name": "ItemPrice",
+  "version": 1,
+  "title": "Item Price",
+  "module": "CORE",
+  "description": "Item price per price list (Salesforce PricebookEntry).",
+  "naming": {
+    "pattern": "IP-{######}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "item",
+      "type": "Link",
+      "label": "Item",
+      "linkTo": "Item",
+      "requiredWhen": "true",
+      "lookupDialog": true,
+      "inListView": true
+    },
+    {
+      "name": "item_name",
+      "type": "Data",
+      "label": "Item name",
+      "fetchFrom": "item.item_name",
+      "inListView": true
+    },
+    {
+      "name": "price_list",
+      "type": "Link",
+      "label": "Price list",
+      "linkTo": "PriceList",
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "currency",
+      "type": "Data",
+      "label": "Currency",
+      "fetchFrom": "price_list.currency",
+      "column": 2
+    },
+    {
+      "name": "uom",
+      "type": "Link",
+      "label": "UOM",
+      "linkTo": "UOM",
+      "column": 2,
+      "description": "Empty = item UOM"
+    },
+    {
+      "name": "rate",
+      "type": "Currency",
+      "label": "Price",
+      "requiredWhen": "true",
+      "min": 0,
+      "inListView": true,
+      "column": 2
+    },
+    {
+      "name": "customer",
+      "type": "Link",
+      "label": "Customer only",
+      "linkTo": "Customer",
+      "section": "Validity"
+    },
+    {
+      "name": "vendor",
+      "type": "Link",
+      "label": "Supplier only",
+      "linkTo": "Vendor",
+      "section": "Validity"
+    },
+    {
+      "name": "valid_from",
+      "type": "Date",
+      "label": "Valid from",
+      "section": "Validity",
+      "column": 2
+    },
+    {
+      "name": "valid_to",
+      "type": "Date",
+      "label": "Valid until",
+      "section": "Validity",
+      "column": 2
+    }
+  ],
+  "rules": [
+    {
+      "name": "valid_period",
+      "expr": "empty(valid_from) || empty(valid_to) || valid_to >= valid_from",
+      "message": "The end date must be on or after the start date",
+      "field": "valid_to"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Purchasing",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "item_name",
+    "searchFields": [
+      "item_name"
+    ],
+    "filters": [
+      "price_list",
+      "item",
+      "customer"
+    ],
+    "defaultSort": [
+      {
+        "field": "modified",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

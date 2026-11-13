@@ -1,0 +1,45 @@
+{
+  "name": "EmployeeEducation",
+  "version": 1,
+  "title": "Education History",
+  "module": "HR",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "level",
+      "type": "Select",
+      "label": "Level",
+      "requiredWhen": "true",
+      "options": [
+        "SD",
+        "SMP",
+        "High School",
+        "D1",
+        "D2",
+        "D3",
+        "D4",
+        "Bachelor",
+        "Master",
+        "Doctorate"
+      ]
+    },
+    {
+      "name": "institution",
+      "type": "Data",
+      "label": "Institution",
+      "requiredWhen": "true"
+    },
+    {
+      "name": "major",
+      "type": "Data",
+      "label": "Major"
+    },
+    {
+      "name": "graduation_year",
+      "type": "Int",
+      "label": "Graduation year",
+      "min": 1950,
+      "max": 2100
+    }
+  ]
+}

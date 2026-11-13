@@ -1,0 +1,253 @@
+{
+  "name": "JobApplicant",
+  "version": 1,
+  "title": "Job Applicant",
+  "module": "HR",
+  "description": "Candidate for a requisition (Workday Candidate). Personal data is permission level 1 (HR only), in line with the PDP Law.",
+  "naming": {
+    "pattern": "APP-{YYYY}-{######}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "applicant_name",
+      "type": "Data",
+      "label": "Full name",
+      "requiredWhen": "true",
+      "maxLength": 140,
+      "inListView": true,
+      "section": "Applicant"
+    },
+    {
+      "name": "email",
+      "type": "Email",
+      "label": "Email",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Applicant"
+    },
+    {
+      "name": "mobile",
+      "type": "Phone",
+      "label": "Mobile",
+      "section": "Applicant"
+    },
+    {
+      "name": "job_requisition",
+      "type": "Link",
+      "label": "Job requisition",
+      "linkTo": "JobRequisition",
+      "requiredWhen": "true",
+      "linkFilters": [
+        {
+          "field": "docstatus",
+          "op": "=",
+          "value": 1
+        }
+      ],
+      "inListView": true,
+      "section": "Applicant",
+      "column": 2
+    },
+    {
+      "name": "organization_unit",
+      "type": "Data",
+      "label": "Unit",
+      "fetchFrom": "job_requisition.organization_unit",
+      "section": "Applicant",
+      "column": 2
+    },
+    {
+      "name": "hiring_manager",
+      "type": "Data",
+      "label": "Hiring manager",
+      "fetchFrom": "job_requisition.hiring_manager",
+      "section": "Applicant",
+      "column": 2
+    },
+    {
+      "name": "status",
+      "type": "Select",
+      "label": "Stage",
+      "requiredWhen": "true",
+      "options": [
+        "Applied",
+        "Screening",
+        "Interview",
+        "Offer",
+        "Hired",
+        "Rejected",
+        "Withdrawn"
+      ],
+      "default": "Applied",
+      "inListView": true,
+      "section": "Pipeline",
+      "description": "'Hired' is set by the 'Create employee' action on the job offer"
+    },
+    {
+      "name": "source",
+      "type": "Select",
+      "label": "Source",
+      "options": [
+        "Company website",
+        "Referral",
+        "Job portal",
+        "Agency",
+        "Campus",
+        "Other"
+      ],
+      "section": "Pipeline"
+    },
+    {
+      "name": "referred_by",
+      "type": "Link",
+      "label": "Referred by",
+      "linkTo": "Employee",
+      "visibleWhen": "source == 'Referral'",
+      "section": "Pipeline"
+    },
+    {
+      "name": "rejection_reason",
+      "type": "Text",
+      "label": "Rejection reason",
+      "requiredWhen": "status == 'Rejected'",
+      "visibleWhen": "status == 'Rejected'",
+      "section": "Pipeline",
+      "column": 2
+    },
+    {
+      "name": "employee",
+      "type": "Link",
+      "label": "Employee",
+      "linkTo": "Employee",
+      "section": "Pipeline",
+      "column": 2,
+      "description": "Set by 'Create employee' on the job offer"
+    },
+    {
+      "name": "resume",
+      "type": "Attach",
+      "label": "CV / resume",
+      "section": "Documents"
+    },
+    {
+      "name": "gender",
+      "type": "Select",
+      "label": "Gender",
+      "options": [
+        "Male",
+        "Female"
+      ],
+      "permLevel": 1,
+      "section": "Personal (for hiring)"
+    },
+    {
+      "name": "date_of_birth",
+      "type": "Date",
+      "label": "Date of birth",
+      "permLevel": 1,
+      "section": "Personal (for hiring)",
+      "column": 2
+    },
+    {
+      "name": "expected_salary",
+      "type": "Currency",
+      "label": "Expected salary",
+      "min": 0,
+      "permLevel": 1,
+      "section": "Personal (for hiring)",
+      "column": 2
+    },
+    {
+      "name": "notes",
+      "type": "Text",
+      "label": "Notes",
+      "section": "Documents",
+      "column": 2
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Manager",
+      "actions": [
+        "read"
+      ],
+      "scope": "match:hiring_manager=employee"
+    },
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "write"
+      ],
+      "scope": "all",
+      "permLevel": 1
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "write"
+      ],
+      "scope": "all",
+      "permLevel": 1
+    }
+  ],
+  "listView": {
+    "titleField": "applicant_name",
+    "searchFields": [
+      "applicant_name",
+      "email"
+    ],
+    "filters": [
+      "job_requisition",
+      "status",
+      "source"
+    ],
+    "defaultSort": [
+      {
+        "field": "modified",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

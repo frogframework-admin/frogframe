@@ -43,6 +43,21 @@ public sealed class PostgresLedgerReader(NpgsqlDataSource db) : ILedgerReader
         return (bool)(await cmd.ExecuteScalarAsync(ct))!;
     }
 
+    public async Task<IReadOnlyList<LedgerBalance>> GetBalancesAsync(string tenantId, DateOnly? from, DateOnly to, CancellationToken ct = default)
+    {
+        var sql = "SELECT account_id, department_id, SUM(debit), SUM(credit) FROM frogframe_gl_entries WHERE tenant_id = $1 AND posting_date <= $2"
+                  + (from is null ? "" : " AND posting_date >= $3")
+                  + " GROUP BY account_id, department_id ORDER BY account_id";
+        await using var cmd = db.CreateCommand(sql);
+        cmd.Parameters.AddWithValue(tenantId); cmd.Parameters.AddWithValue(to);
+        if (from is { } f) cmd.Parameters.AddWithValue(f);
+        var list = new List<LedgerBalance>();
+        await using var r = await cmd.ExecuteReaderAsync(ct);
+        while (await r.ReadAsync(ct))
+            list.Add(new(r.GetString(0), r.IsDBNull(1) ? null : r.GetString(1), r.GetDecimal(2), r.GetDecimal(3)));
+        return list;
+    }
+
     /// <summary>Memeriksa seluruh rantai tenant secara berurutan (streaming), melaporkan baris pertama yang rusak.</summary>
     public async Task<ChainBreak?> VerifyChainAsync(string tenantId, CancellationToken ct = default)
     {

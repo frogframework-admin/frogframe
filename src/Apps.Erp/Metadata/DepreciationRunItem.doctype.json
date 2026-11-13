@@ -1,0 +1,40 @@
+{
+  "name": "DepreciationRunItem",
+  "version": 1,
+  "title": "Depreciation Run Item",
+  "module": "FINANCE",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "asset",
+      "type": "Link",
+      "label": "Asset",
+      "linkTo": "Asset",
+      "requiredWhen": "true"
+    },
+    {
+      "name": "asset_name",
+      "type": "Data",
+      "label": "Asset name",
+      "description": "Set by hook"
+    },
+    {
+      "name": "schedule_date",
+      "type": "Date",
+      "label": "Schedule date"
+    },
+    {
+      "name": "cost_center",
+      "type": "Link",
+      "label": "Cost center",
+      "linkTo": "CostCenter"
+    },
+    {
+      "name": "depreciation_amount",
+      "type": "Currency",
+      "label": "Depreciation",
+      "requiredWhen": "true",
+      "min": 0
+    }
+  ]
+}

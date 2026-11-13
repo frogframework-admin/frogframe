@@ -1,0 +1,348 @@
+{
+  "name": "SalesOrder",
+  "version": 1,
+  "title": "Sales Order",
+  "module": "CRM",
+  "description": "Confirmed customer order (Salesforce Order / NetSuite Sales Order). Billed in one or more sales invoices; billing status is computed.",
+  "naming": {
+    "pattern": "SO-{YYYY}-{######}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "company",
+      "type": "Link",
+      "label": "Company",
+      "linkTo": "Company",
+      "requiredWhen": "true",
+      "section": "Order"
+    },
+    {
+      "name": "customer",
+      "type": "Link",
+      "label": "Customer",
+      "linkTo": "Customer",
+      "requiredWhen": "true",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Order"
+    },
+    {
+      "name": "customer_name",
+      "type": "Data",
+      "label": "Customer name",
+      "fetchFrom": "customer.customer_name",
+      "inListView": true,
+      "section": "Order"
+    },
+    {
+      "name": "customer_po_no",
+      "type": "Data",
+      "label": "Customer PO no.",
+      "section": "Order"
+    },
+    {
+      "name": "quotation",
+      "type": "Link",
+      "label": "Quotation",
+      "linkTo": "Quotation",
+      "linkFilters": [
+        {
+          "field": "docstatus",
+          "op": "=",
+          "value": 1
+        }
+      ],
+      "section": "Order",
+      "column": 2
+    },
+    {
+      "name": "order_date",
+      "type": "Date",
+      "label": "Order date",
+      "requiredWhen": "true",
+      "default": "$today",
+      "inListView": true,
+      "section": "Order",
+      "column": 2
+    },
+    {
+      "name": "delivery_date",
+      "type": "Date",
+      "label": "Delivery date",
+      "section": "Order",
+      "column": 2
+    },
+    {
+      "name": "currency",
+      "type": "Link",
+      "label": "Currency",
+      "linkTo": "Currency",
+      "requiredWhen": "true",
+      "default": "IDR",
+      "section": "Order",
+      "column": 2
+    },
+    {
+      "name": "price_list",
+      "type": "Link",
+      "label": "Price list",
+      "linkTo": "PriceList",
+      "linkFilters": [
+        {
+          "field": "price_list_type",
+          "op": "=",
+          "value": "Sales"
+        }
+      ],
+      "section": "Order",
+      "column": 2
+    },
+    {
+      "name": "payment_term",
+      "type": "Link",
+      "label": "Payment terms",
+      "linkTo": "PaymentTerm",
+      "section": "Order",
+      "column": 2
+    },
+    {
+      "name": "items",
+      "type": "Table",
+      "label": "Item",
+      "childDocType": "QuotationItem",
+      "requiredWhen": "true",
+      "section": "Item",
+      "addFromLookup": {
+        "linkField": "item",
+        "map": {
+          "item_name": "item_name",
+          "uom": "uom"
+        },
+        "multiple": true,
+        "buttonLabel": "Add product"
+      }
+    },
+    {
+      "name": "vat_code",
+      "type": "Link",
+      "label": "VAT code",
+      "linkTo": "TaxCode",
+      "linkFilters": [
+        {
+          "field": "tax_type",
+          "op": "=",
+          "value": "Output VAT"
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "section": "Total"
+    },
+    {
+      "name": "vat_rate",
+      "type": "Percent",
+      "label": "VAT rate",
+      "fetchFrom": "vat_code.rate",
+      "section": "Total"
+    },
+    {
+      "name": "vat_dpp_factor",
+      "type": "Float",
+      "label": "Tax base factor",
+      "fetchFrom": "vat_code.dpp_factor",
+      "section": "Total"
+    },
+    {
+      "name": "total",
+      "type": "Currency",
+      "label": "Total before tax",
+      "compute": "sum(items.amount)",
+      "inListView": true,
+      "section": "Total",
+      "column": 2
+    },
+    {
+      "name": "tax_base",
+      "type": "Currency",
+      "label": "DPP",
+      "compute": "round(sum(items.taxable_amount) * coalesce(vat_dpp_factor, 1), 2)",
+      "section": "Total",
+      "column": 2
+    },
+    {
+      "name": "vat_amount",
+      "type": "Currency",
+      "label": "PPN",
+      "compute": "round(tax_base * coalesce(vat_rate, 0) / 100, 2)",
+      "section": "Total",
+      "column": 2
+    },
+    {
+      "name": "grand_total",
+      "type": "Currency",
+      "label": "Total + VAT",
+      "compute": "total + vat_amount",
+      "inListView": true,
+      "section": "Total",
+      "column": 2
+    },
+    {
+      "name": "billed_amount",
+      "type": "Currency",
+      "label": "Billed (before tax)",
+      "readOnlyWhen": "true",
+      "section": "Billing",
+      "description": "Computed when opened from submitted sales invoices"
+    },
+    {
+      "name": "billing_status",
+      "type": "Select",
+      "label": "Billing status",
+      "options": [
+        "Not billed",
+        "Partly billed",
+        "Fully billed"
+      ],
+      "readOnlyWhen": "true",
+      "inListView": true,
+      "section": "Billing",
+      "column": 2
+    },
+    {
+      "name": "terms",
+      "type": "TextEditor",
+      "label": "Terms & conditions",
+      "tab": "Terms",
+      "section": "Terms"
+    },
+    {
+      "name": "sales_rep",
+      "type": "Link",
+      "label": "Owner (sales)",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "default": "$employee",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Owner",
+      "description": "Salesforce: Owner. Decides who can see and edit",
+      "tab": "Other"
+    },
+    {
+      "name": "organization_unit",
+      "type": "Data",
+      "label": "Team/unit",
+      "fetchFrom": "sales_rep.organization_unit",
+      "section": "Owner",
+      "tab": "Other"
+    }
+  ],
+  "rules": [
+    {
+      "name": "delivery_after_order",
+      "expr": "empty(delivery_date) || delivery_date >= order_date",
+      "message": "The delivery date must be on or after the order date",
+      "field": "delivery_date"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Sales",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export",
+        "submit",
+        "cancel",
+        "amend"
+      ],
+      "scope": "match:sales_rep=employee"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export",
+        "submit",
+        "cancel",
+        "amend"
+      ],
+      "scope": "match:organization_unit=department"
+    },
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "customer_name",
+    "searchFields": [
+      "name",
+      "customer_name",
+      "customer_po_no"
+    ],
+    "filters": [
+      "billing_status",
+      "sales_rep",
+      "order_date"
+    ],
+    "defaultSort": [
+      {
+        "field": "order_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

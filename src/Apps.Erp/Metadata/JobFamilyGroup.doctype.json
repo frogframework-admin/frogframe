@@ -1,0 +1,85 @@
+{
+  "name": "JobFamilyGroup",
+  "version": 1,
+  "title": "Job Family Group",
+  "module": "HR",
+  "naming": {
+    "pattern": "field:group_name"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "group_name",
+      "type": "Data",
+      "label": "Group name",
+      "requiredWhen": "true",
+      "inListView": true,
+      "description": "e.g. Technology, Finance, Operations"
+    },
+    {
+      "name": "description",
+      "type": "Text",
+      "label": "Remarks"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "group_name",
+    "searchFields": [
+      "group_name"
+    ],
+    "filters": [],
+    "defaultSort": [
+      {
+        "field": "group_name",
+        "direction": "asc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

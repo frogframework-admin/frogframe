@@ -1,0 +1,249 @@
+{
+  "name": "StockEntry",
+  "version": 1,
+  "title": "Stock Entry",
+  "module": "STOCK",
+  "description": "Stock receipt, issue, or transfer (SAP MIGO 501/201/311 / NetSuite Inventory Adjustment & Transfer). Submit posts the movement and the inventory journal.",
+  "naming": {
+    "pattern": "STE-{YYYY}-{######}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "purpose",
+      "type": "Select",
+      "label": "Purpose",
+      "requiredWhen": "true",
+      "options": [
+        "Material Receipt",
+        "Material Issue",
+        "Material Transfer"
+      ],
+      "default": "Material Issue",
+      "inListView": true,
+      "section": "Entry",
+      "description": "Receipt: opening stock, found items, production output. Issue: consumption, samples, write-off. Transfer: between warehouses"
+    },
+    {
+      "name": "company",
+      "type": "Link",
+      "label": "Company",
+      "linkTo": "Company",
+      "requiredWhen": "true",
+      "section": "Entry"
+    },
+    {
+      "name": "posting_date",
+      "type": "Date",
+      "label": "Posting date",
+      "requiredWhen": "true",
+      "default": "$today",
+      "inListView": true,
+      "section": "Entry",
+      "column": 2
+    },
+    {
+      "name": "from_warehouse",
+      "type": "Link",
+      "label": "From warehouse",
+      "linkTo": "Warehouse",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        }
+      ],
+      "visibleWhen": "purpose != 'Material Receipt'",
+      "section": "Entry",
+      "column": 2
+    },
+    {
+      "name": "to_warehouse",
+      "type": "Link",
+      "label": "To warehouse",
+      "linkTo": "Warehouse",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        }
+      ],
+      "visibleWhen": "purpose != 'Material Issue'",
+      "section": "Entry",
+      "column": 2
+    },
+    {
+      "name": "offset_account",
+      "type": "Link",
+      "label": "Offset account",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "visibleWhen": "purpose != 'Material Transfer'",
+      "section": "Entry",
+      "description": "Empty = Stock Settings stock adjustment. Opening stock: use the opening balance equity account"
+    },
+    {
+      "name": "cost_center",
+      "type": "Link",
+      "label": "Cost center",
+      "linkTo": "CostCenter",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        }
+      ],
+      "section": "Entry",
+      "column": 2
+    },
+    {
+      "name": "items",
+      "type": "Table",
+      "label": "Items",
+      "childDocType": "StockEntryDetail",
+      "requiredWhen": "true",
+      "section": "Items",
+      "addFromLookup": {
+        "linkField": "item",
+        "map": {
+          "item_name": "item_name",
+          "uom": "uom"
+        },
+        "multiple": true,
+        "buttonLabel": "Add item"
+      }
+    },
+    {
+      "name": "total_value",
+      "type": "Currency",
+      "label": "Total value",
+      "readOnlyWhen": "true",
+      "inListView": true,
+      "section": "Items",
+      "description": "Set on submit"
+    },
+    {
+      "name": "remarks",
+      "type": "Text",
+      "label": "Remarks",
+      "section": "Items"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Stock",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Purchasing",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Sales",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "purpose",
+    "searchFields": [
+      "name",
+      "remarks"
+    ],
+    "filters": [
+      "purpose",
+      "posting_date",
+      "company"
+    ],
+    "defaultSort": [
+      {
+        "field": "posting_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

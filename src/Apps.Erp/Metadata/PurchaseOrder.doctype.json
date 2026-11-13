@@ -1,0 +1,320 @@
+{
+  "name": "PurchaseOrder",
+  "version": 1,
+  "title": "Purchase Order",
+  "module": "FINANCE",
+  "description": "Order to a supplier (SAP Purchase Order / NetSuite PO). Received through Goods Receipt, billed through Purchase Invoice (3-way match).",
+  "naming": {
+    "pattern": "PO-{YYYY}-{######}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "company",
+      "type": "Link",
+      "label": "Company",
+      "linkTo": "Company",
+      "requiredWhen": "true",
+      "section": "Order"
+    },
+    {
+      "name": "vendor",
+      "type": "Link",
+      "label": "Supplier",
+      "linkTo": "Vendor",
+      "requiredWhen": "true",
+      "linkFilters": [
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Order"
+    },
+    {
+      "name": "vendor_name",
+      "type": "Data",
+      "label": "Supplier name",
+      "fetchFrom": "vendor.vendor_name",
+      "inListView": true,
+      "section": "Order"
+    },
+    {
+      "name": "purchase_request",
+      "type": "Link",
+      "label": "Purchase request",
+      "linkTo": "PurchaseRequest",
+      "linkFilters": [
+        {
+          "field": "docstatus",
+          "op": "=",
+          "value": 1
+        }
+      ],
+      "section": "Order"
+    },
+    {
+      "name": "order_date",
+      "type": "Date",
+      "label": "Order date",
+      "requiredWhen": "true",
+      "default": "$today",
+      "inListView": true,
+      "section": "Order",
+      "column": 2
+    },
+    {
+      "name": "delivery_date",
+      "type": "Date",
+      "label": "Delivery date",
+      "section": "Order",
+      "column": 2
+    },
+    {
+      "name": "currency",
+      "type": "Link",
+      "label": "Currency",
+      "linkTo": "Currency",
+      "requiredWhen": "true",
+      "default": "IDR",
+      "section": "Order",
+      "column": 2
+    },
+    {
+      "name": "payment_term",
+      "type": "Link",
+      "label": "Payment terms",
+      "linkTo": "PaymentTerm",
+      "section": "Order",
+      "column": 2,
+      "description": "Empty = the supplier's (hook)"
+    },
+    {
+      "name": "items",
+      "type": "Table",
+      "label": "Items",
+      "childDocType": "PurchaseOrderItem",
+      "requiredWhen": "true",
+      "section": "Items",
+      "addFromLookup": {
+        "linkField": "item",
+        "map": {
+          "item_name": "item_name",
+          "uom": "uom"
+        },
+        "multiple": true,
+        "buttonLabel": "Add item"
+      }
+    },
+    {
+      "name": "vat_code",
+      "type": "Link",
+      "label": "VAT code",
+      "linkTo": "TaxCode",
+      "linkFilters": [
+        {
+          "field": "tax_type",
+          "op": "=",
+          "value": "Input VAT"
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "section": "Total"
+    },
+    {
+      "name": "vat_rate",
+      "type": "Percent",
+      "label": "VAT rate",
+      "fetchFrom": "vat_code.rate",
+      "section": "Total"
+    },
+    {
+      "name": "vat_dpp_factor",
+      "type": "Float",
+      "label": "Tax base factor",
+      "fetchFrom": "vat_code.dpp_factor",
+      "section": "Total"
+    },
+    {
+      "name": "total",
+      "type": "Currency",
+      "label": "Total before tax",
+      "compute": "sum(items.amount)",
+      "inListView": true,
+      "section": "Total",
+      "column": 2
+    },
+    {
+      "name": "tax_base",
+      "type": "Currency",
+      "label": "DPP",
+      "compute": "round(sum(items.taxable_amount) * coalesce(vat_dpp_factor, 1), 2)",
+      "section": "Total",
+      "column": 2
+    },
+    {
+      "name": "vat_amount",
+      "type": "Currency",
+      "label": "PPN",
+      "compute": "round(tax_base * coalesce(vat_rate, 0) / 100, 2)",
+      "section": "Total",
+      "column": 2
+    },
+    {
+      "name": "grand_total",
+      "type": "Currency",
+      "label": "Total + VAT",
+      "compute": "total + vat_amount",
+      "inListView": true,
+      "section": "Total",
+      "column": 2
+    },
+    {
+      "name": "received_amount",
+      "type": "Currency",
+      "label": "Received (before tax)",
+      "readOnlyWhen": "true",
+      "section": "Status",
+      "description": "Computed when opened"
+    },
+    {
+      "name": "billed_amount",
+      "type": "Currency",
+      "label": "Billed (before tax)",
+      "readOnlyWhen": "true",
+      "section": "Status"
+    },
+    {
+      "name": "receipt_status",
+      "type": "Select",
+      "label": "Receipt",
+      "options": [
+        "Not received",
+        "Partly received",
+        "Fully received"
+      ],
+      "readOnlyWhen": "true",
+      "inListView": true,
+      "section": "Status",
+      "column": 2
+    },
+    {
+      "name": "billing_status",
+      "type": "Select",
+      "label": "Billing",
+      "options": [
+        "Not billed",
+        "Partly billed",
+        "Fully billed"
+      ],
+      "readOnlyWhen": "true",
+      "inListView": true,
+      "section": "Status",
+      "column": 2
+    },
+    {
+      "name": "terms",
+      "type": "TextEditor",
+      "label": "Terms",
+      "tab": "Terms",
+      "section": "Terms"
+    }
+  ],
+  "rules": [
+    {
+      "name": "delivery_after_order",
+      "expr": "empty(delivery_date) || delivery_date >= order_date",
+      "message": "The delivery date must be on or after the order date",
+      "field": "delivery_date"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Purchasing",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "vendor_name",
+    "searchFields": [
+      "name",
+      "vendor_name"
+    ],
+    "filters": [
+      "receipt_status",
+      "billing_status",
+      "vendor",
+      "order_date"
+    ],
+    "defaultSort": [
+      {
+        "field": "order_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

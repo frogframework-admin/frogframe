@@ -26,7 +26,7 @@ sealed partial class Tests
             ("allocations", new List<Dictionary<string, object?>> { new() { ["voucher_name"] = invoice, ["allocated_amount"] = amount } })));
 
     private async Task<decimal> Outstanding(string type, string name) =>
-        await Apps.Sample.Hooks.OpenItems.OutstandingAsync(LedgerReader, "acme", type, name, default);
+        await Framework.Tests.TestHooks.OpenItems.OutstandingAsync(LedgerReader, "acme", type, name, default);
 
     [Test]
     public async Task Pembayaran_bertahap_melunasi_faktur_dan_sisa_dari_buku_besar()

@@ -1,0 +1,117 @@
+{
+  "name": "Currency",
+  "version": 1,
+  "title": "Currency",
+  "module": "CORE",
+  "naming": {
+    "pattern": "field:currency_code"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "currency_code",
+      "type": "Data",
+      "label": "ISO 4217 code",
+      "requiredWhen": "true",
+      "maxLength": 3,
+      "pattern": "^[A-Z]{3}$",
+      "patternMessage": "3 uppercase letters, e.g. IDR",
+      "inListView": true
+    },
+    {
+      "name": "currency_name",
+      "type": "Data",
+      "label": "Name",
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "symbol",
+      "type": "Data",
+      "label": "Symbol",
+      "maxLength": 10,
+      "inListView": true,
+      "column": 2
+    },
+    {
+      "name": "decimals",
+      "type": "Int",
+      "label": "Decimal places",
+      "default": 2,
+      "min": 0,
+      "max": 4,
+      "column": 2
+    },
+    {
+      "name": "is_active",
+      "type": "Check",
+      "label": "Active",
+      "default": true,
+      "inListView": true,
+      "column": 2
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "currency_name",
+    "searchFields": [
+      "currency_code",
+      "currency_name"
+    ],
+    "filters": [
+      "is_active"
+    ],
+    "defaultSort": [
+      {
+        "field": "currency_code",
+        "direction": "asc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

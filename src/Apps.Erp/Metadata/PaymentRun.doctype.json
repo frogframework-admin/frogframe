@@ -1,0 +1,189 @@
+{
+  "name": "PaymentRun",
+  "version": 1,
+  "title": "Payment Run",
+  "module": "FINANCE",
+  "description": "Batch payment of due supplier invoices, expense claims, advances, and salaries (SAP F110 / NetSuite Pay Bills). Submit creates and submits one Payment Entry per party; the bank transfer list is in the Bank Transfer List report.",
+  "naming": {
+    "pattern": "PRUN-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "company",
+      "type": "Link",
+      "label": "Company",
+      "linkTo": "Company",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Run"
+    },
+    {
+      "name": "bank_account",
+      "type": "Link",
+      "label": "Pay from",
+      "linkTo": "BankAccount",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Run",
+      "linkFilters": [
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "posting_date",
+      "type": "Date",
+      "label": "Payment date",
+      "requiredWhen": "true",
+      "default": "$today",
+      "inListView": true,
+      "section": "Run",
+      "column": 2
+    },
+    {
+      "name": "due_until",
+      "type": "Date",
+      "label": "Include items due until",
+      "section": "Selection",
+      "description": "Used by 'Get open items'"
+    },
+    {
+      "name": "include_vendor_invoices",
+      "type": "Check",
+      "label": "Supplier invoices",
+      "default": true,
+      "section": "Selection"
+    },
+    {
+      "name": "include_expense_claims",
+      "type": "Check",
+      "label": "Expense claims & advances",
+      "default": true,
+      "section": "Selection",
+      "column": 2
+    },
+    {
+      "name": "payroll_run",
+      "type": "Link",
+      "label": "Payroll run (salaries)",
+      "linkTo": "PayrollRun",
+      "linkFilters": [
+        {
+          "field": "docstatus",
+          "op": "=",
+          "value": 1
+        }
+      ],
+      "section": "Selection",
+      "column": 2
+    },
+    {
+      "name": "items",
+      "type": "Table",
+      "label": "Items",
+      "childDocType": "PaymentRunItem",
+      "section": "Items",
+      "description": "Filled by 'Get open items'; remove or reduce lines before submit. One Payment Entry is created per party on submit"
+    },
+    {
+      "name": "total_amount",
+      "type": "Currency",
+      "label": "Total",
+      "compute": "sum(items.amount)",
+      "inListView": true,
+      "section": "Items"
+    },
+    {
+      "name": "party_count",
+      "type": "Int",
+      "label": "Payments",
+      "readOnlyWhen": "true",
+      "section": "Items",
+      "column": 2,
+      "description": "Number of parties (= Payment Entries)"
+    },
+    {
+      "name": "payments_created",
+      "type": "Int",
+      "label": "Payment Entries created",
+      "readOnlyWhen": "true",
+      "section": "Items",
+      "column": 2,
+      "description": "Computed when opened"
+    },
+    {
+      "name": "remarks",
+      "type": "Text",
+      "label": "Remarks",
+      "section": "Items"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "bank_account",
+    "searchFields": [
+      "name"
+    ],
+    "filters": [
+      "company",
+      "bank_account",
+      "posting_date"
+    ],
+    "defaultSort": [
+      {
+        "field": "posting_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

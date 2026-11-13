@@ -1,0 +1,42 @@
+{
+  "name": "BudgetAccount",
+  "version": 1,
+  "title": "Budget Account",
+  "module": "ACCOUNTING",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "account",
+      "type": "Link",
+      "label": "Account",
+      "linkTo": "Account",
+      "requiredWhen": "true",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "report_type",
+          "op": "=",
+          "value": "Profit and Loss"
+        }
+      ],
+      "inListView": true
+    },
+    {
+      "name": "annual_amount",
+      "type": "Currency",
+      "label": "Annual budget",
+      "requiredWhen": "true",
+      "min": 0,
+      "inListView": true
+    }
+  ]
+}

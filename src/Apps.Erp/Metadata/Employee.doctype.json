@@ -1,0 +1,633 @@
+{
+  "name": "Employee",
+  "version": 1,
+  "title": "Employee",
+  "module": "HR",
+  "description": "Worker record (Workday Worker). Job changes go through Job Change, exits through Employee Separation.",
+  "naming": {
+    "pattern": "field:employee_number"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "employee_number",
+      "type": "Data",
+      "label": "Employee number",
+      "requiredWhen": "true",
+      "maxLength": 20,
+      "pattern": "^[A-Za-z0-9.-]{1,20}$",
+      "inListView": true,
+      "section": "Identity",
+      "description": "Also the document name; used on the user account (employee attribute)"
+    },
+    {
+      "name": "full_name",
+      "type": "Data",
+      "label": "Full name",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Identity"
+    },
+    {
+      "name": "preferred_name",
+      "type": "Data",
+      "label": "Preferred name",
+      "section": "Identity"
+    },
+    {
+      "name": "photo",
+      "type": "Image",
+      "label": "Photo",
+      "inListView": true,
+      "section": "Identity",
+      "column": 2
+    },
+    {
+      "name": "gender",
+      "type": "Select",
+      "label": "Gender",
+      "requiredWhen": "true",
+      "options": [
+        "Male",
+        "Female"
+      ],
+      "section": "Identity",
+      "column": 2
+    },
+    {
+      "name": "user_id",
+      "type": "Data",
+      "label": "User account",
+      "section": "Identity",
+      "column": 2,
+      "description": "Linked user id; the user's employee attribute = this employee number"
+    },
+    {
+      "name": "place_of_birth",
+      "type": "Data",
+      "label": "Place of birth",
+      "permLevel": 1,
+      "section": "Personal details"
+    },
+    {
+      "name": "date_of_birth",
+      "type": "Date",
+      "label": "Date of birth",
+      "requiredWhen": "true",
+      "permLevel": 1,
+      "section": "Personal details"
+    },
+    {
+      "name": "marital_status",
+      "type": "Select",
+      "label": "Marital status",
+      "options": [
+        "Single",
+        "Married",
+        "Divorced",
+        "Widowed"
+      ],
+      "permLevel": 1,
+      "section": "Personal details"
+    },
+    {
+      "name": "religion",
+      "type": "Select",
+      "label": "Religion",
+      "options": [
+        "Islam",
+        "Protestant",
+        "Catholic",
+        "Hindu",
+        "Buddhist",
+        "Confucian",
+        "Other"
+      ],
+      "permLevel": 1,
+      "section": "Personal details",
+      "column": 2,
+      "description": "Used for religious holiday allowance (THR) and religious leave"
+    },
+    {
+      "name": "nationality",
+      "type": "Data",
+      "label": "Nationality (ISO)",
+      "default": "ID",
+      "maxLength": 2,
+      "pattern": "^[A-Z]{2}$",
+      "section": "Personal details",
+      "column": 2
+    },
+    {
+      "name": "blood_type",
+      "type": "Select",
+      "label": "Blood type",
+      "options": [
+        "A",
+        "B",
+        "AB",
+        "O"
+      ],
+      "permLevel": 1,
+      "section": "Personal details",
+      "column": 2
+    },
+    {
+      "name": "work_email",
+      "type": "Email",
+      "label": "Work email",
+      "inListView": true,
+      "section": "Contact"
+    },
+    {
+      "name": "personal_email",
+      "type": "Email",
+      "label": "Personal email",
+      "permLevel": 1,
+      "section": "Contact"
+    },
+    {
+      "name": "mobile",
+      "type": "Phone",
+      "label": "Mobile",
+      "section": "Contact",
+      "column": 2
+    },
+    {
+      "name": "current_address",
+      "type": "Text",
+      "label": "Current address",
+      "permLevel": 1,
+      "section": "Contact",
+      "column": 2
+    },
+    {
+      "name": "permanent_address",
+      "type": "Text",
+      "label": "Address per ID card",
+      "permLevel": 1,
+      "section": "Contact",
+      "column": 2
+    },
+    {
+      "name": "company",
+      "type": "Link",
+      "label": "Company",
+      "linkTo": "Company",
+      "requiredWhen": "true",
+      "inListView": true,
+      "tab": "Job",
+      "section": "Placement"
+    },
+    {
+      "name": "organization_unit",
+      "type": "Link",
+      "label": "Organization unit",
+      "linkTo": "OrganizationUnit",
+      "requiredWhen": "true",
+      "lookupDialog": true,
+      "inListView": true,
+      "tab": "Job",
+      "section": "Placement"
+    },
+    {
+      "name": "position",
+      "type": "Link",
+      "label": "Position",
+      "linkTo": "Position",
+      "lookupDialog": true,
+      "tab": "Job",
+      "section": "Placement",
+      "requiredWhen": "org_staffing_model == 'Position' && status != 'Left'"
+    },
+    {
+      "name": "org_staffing_model",
+      "type": "Data",
+      "label": "Unit staffing model",
+      "fetchFrom": "organization_unit.staffing_model",
+      "tab": "Job",
+      "section": "Placement"
+    },
+    {
+      "name": "job_profile",
+      "type": "Link",
+      "label": "Job profile",
+      "linkTo": "JobProfile",
+      "requiredWhen": "true",
+      "lookupDialog": true,
+      "inListView": true,
+      "tab": "Job",
+      "section": "Placement",
+      "column": 2,
+      "description": "Set by hook from the position under the Position model"
+    },
+    {
+      "name": "grade",
+      "type": "Link",
+      "label": "Grade",
+      "linkTo": "Grade",
+      "tab": "Job",
+      "section": "Placement",
+      "column": 2
+    },
+    {
+      "name": "location",
+      "type": "Link",
+      "label": "Work location",
+      "linkTo": "Location",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        }
+      ],
+      "tab": "Job",
+      "section": "Placement",
+      "column": 2
+    },
+    {
+      "name": "cost_center",
+      "type": "Link",
+      "label": "Cost center",
+      "linkTo": "CostCenter",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        }
+      ],
+      "tab": "Job",
+      "section": "Placement",
+      "column": 2,
+      "description": "Empty = from position, then organization unit"
+    },
+    {
+      "name": "reports_to",
+      "type": "Link",
+      "label": "Reports to",
+      "linkTo": "Employee",
+      "lookupDialog": true,
+      "tab": "Job",
+      "section": "Manager & approvers",
+      "description": "Set by hook from the holder of the 'reports to' position; can be overridden"
+    },
+    {
+      "name": "leave_approver",
+      "type": "Link",
+      "label": "Leave approver",
+      "linkTo": "Employee",
+      "lookupDialog": true,
+      "tab": "Job",
+      "section": "Manager & approvers",
+      "column": 2,
+      "description": "Empty = reports-to manager (hook)"
+    },
+    {
+      "name": "expense_approver",
+      "type": "Link",
+      "label": "Expense approver",
+      "linkTo": "Employee",
+      "lookupDialog": true,
+      "tab": "Job",
+      "section": "Manager & approvers",
+      "column": 2,
+      "description": "Empty = reports-to manager (hook)"
+    },
+    {
+      "name": "employment_type",
+      "type": "Select",
+      "label": "Employment type",
+      "requiredWhen": "true",
+      "options": [
+        "Permanent (PKWTT)",
+        "Fixed-term (PKWT)",
+        "Casual",
+        "Intern",
+        "Outsourced"
+      ],
+      "default": "Permanent (PKWTT)",
+      "inListView": true,
+      "tab": "Job",
+      "section": "Employment status"
+    },
+    {
+      "name": "hire_date",
+      "type": "Date",
+      "label": "Date of joining",
+      "requiredWhen": "true",
+      "tab": "Job",
+      "section": "Employment status"
+    },
+    {
+      "name": "original_hire_date",
+      "type": "Date",
+      "label": "Original hire date",
+      "tab": "Job",
+      "section": "Employment status",
+      "description": "For rehired employees (length of service)"
+    },
+    {
+      "name": "probation_end_date",
+      "type": "Date",
+      "label": "Probation end date",
+      "tab": "Job",
+      "section": "Employment status",
+      "column": 2
+    },
+    {
+      "name": "status",
+      "type": "Select",
+      "label": "Status",
+      "requiredWhen": "true",
+      "options": [
+        "Active",
+        "Unpaid leave",
+        "Suspension",
+        "Left"
+      ],
+      "default": "Active",
+      "inListView": true,
+      "tab": "Job",
+      "section": "Employment status",
+      "column": 2
+    },
+    {
+      "name": "separation_date",
+      "type": "Date",
+      "label": "Relieving date",
+      "readOnlyWhen": "true",
+      "noCopy": true,
+      "tab": "Job",
+      "section": "Employment status",
+      "column": 2
+    },
+    {
+      "name": "last_job_change",
+      "type": "Link",
+      "label": "Last Job Change applied",
+      "linkTo": "JobChange",
+      "noCopy": true,
+      "tab": "Job",
+      "section": "Employment status",
+      "column": 2,
+      "description": "Set automatically when a Job Change is applied; prevents an older change overwriting a newer one"
+    },
+    {
+      "name": "last_job_change_date",
+      "type": "Date",
+      "label": "Effective date of last Job Change",
+      "noCopy": true,
+      "tab": "Job",
+      "section": "Employment status",
+      "column": 2
+    },
+    {
+      "name": "holiday_list",
+      "type": "Link",
+      "label": "Holiday list",
+      "linkTo": "HolidayList",
+      "tab": "Job",
+      "section": "Schedule"
+    },
+    {
+      "name": "shift_type",
+      "type": "Link",
+      "label": "Shift type",
+      "linkTo": "ShiftType",
+      "tab": "Job",
+      "section": "Schedule",
+      "column": 2
+    },
+    {
+      "name": "leave_policy",
+      "type": "Link",
+      "label": "Leave policy",
+      "linkTo": "LeavePolicy",
+      "tab": "Job",
+      "section": "Schedule",
+      "column": 2
+    },
+    {
+      "name": "nik",
+      "type": "Data",
+      "label": "National ID (NIK)",
+      "maxLength": 16,
+      "pattern": "^[0-9]{16}$",
+      "patternMessage": "16-digit national ID (NIK)",
+      "permLevel": 1,
+      "tab": "Identity & Tax",
+      "section": "Identity"
+    },
+    {
+      "name": "npwp",
+      "type": "Data",
+      "label": "NPWP",
+      "maxLength": 16,
+      "pattern": "^[0-9]{16}$",
+      "permLevel": 1,
+      "tab": "Identity & Tax",
+      "section": "Identity",
+      "description": "16-digit NPWP; for individual taxpayers usually the same as the NIK"
+    },
+    {
+      "name": "ptkp_status",
+      "type": "Select",
+      "label": "PTKP status",
+      "options": [
+        "TK/0",
+        "TK/1",
+        "TK/2",
+        "TK/3",
+        "K/0",
+        "K/1",
+        "K/2",
+        "K/3"
+      ],
+      "permLevel": 1,
+      "tab": "Identity & Tax",
+      "section": "Tax & BPJS",
+      "column": 2
+    },
+    {
+      "name": "bpjs_health_no",
+      "type": "Data",
+      "label": "BPJS Health no.",
+      "maxLength": 20,
+      "permLevel": 1,
+      "tab": "Identity & Tax",
+      "section": "Tax & BPJS",
+      "column": 2
+    },
+    {
+      "name": "bpjs_employment_no",
+      "type": "Data",
+      "label": "BPJS Employment no.",
+      "maxLength": 20,
+      "permLevel": 1,
+      "tab": "Identity & Tax",
+      "section": "Tax & BPJS",
+      "column": 2
+    },
+    {
+      "name": "identity_documents",
+      "type": "Table",
+      "label": "Identity documents",
+      "childDocType": "EmployeeIdentityDocument",
+      "permLevel": 1,
+      "tab": "Identity & Tax",
+      "section": "Document"
+    },
+    {
+      "name": "bank_accounts",
+      "type": "Table",
+      "label": "Payroll bank account",
+      "childDocType": "PartyBankAccount",
+      "permLevel": 1,
+      "tab": "Identity & Tax",
+      "section": "Bank Account"
+    },
+    {
+      "name": "dependents",
+      "type": "Table",
+      "label": "Family & dependents",
+      "childDocType": "EmployeeDependent",
+      "permLevel": 1,
+      "tab": "Family & History",
+      "section": "Family"
+    },
+    {
+      "name": "emergency_contacts",
+      "type": "Table",
+      "label": "Emergency contacts",
+      "childDocType": "EmployeeEmergencyContact",
+      "tab": "Family & History",
+      "section": "Emergency"
+    },
+    {
+      "name": "education",
+      "type": "Table",
+      "label": "Education",
+      "childDocType": "EmployeeEducation",
+      "tab": "Family & History",
+      "section": "Education"
+    },
+    {
+      "name": "work_history",
+      "type": "Table",
+      "label": "Previous employment",
+      "childDocType": "EmployeeWorkHistory",
+      "tab": "Family & History",
+      "section": "Work history"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "write"
+      ],
+      "scope": "all",
+      "permLevel": 1
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "match:employee_number=employee"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "match:employee_number=employee",
+      "permLevel": 1
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "match:reports_to=employee"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "match:organization_unit=department"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "write"
+      ],
+      "scope": "all",
+      "permLevel": 1
+    }
+  ],
+  "listView": {
+    "titleField": "full_name",
+    "searchFields": [
+      "employee_number",
+      "full_name",
+      "work_email"
+    ],
+    "filters": [
+      "company",
+      "organization_unit",
+      "employment_type",
+      "status"
+    ],
+    "defaultSort": [
+      {
+        "field": "employee_number",
+        "direction": "asc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

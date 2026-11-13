@@ -1,0 +1,63 @@
+{
+  "name": "PaymentReconciliationAllocation",
+  "version": 1,
+  "title": "Payment Reconciliation Allocation",
+  "module": "FINANCE",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "payment_entry",
+      "type": "Link",
+      "label": "Payment (advance)",
+      "linkTo": "PaymentEntry",
+      "requiredWhen": "true",
+      "linkFilters": [
+        {
+          "field": "docstatus",
+          "op": "=",
+          "value": 1
+        }
+      ],
+      "inListView": true
+    },
+    {
+      "name": "invoice_type",
+      "type": "Select",
+      "label": "Invoice type",
+      "requiredWhen": "true",
+      "options": [
+        "SalesInvoice",
+        "PurchaseInvoice"
+      ],
+      "inListView": true
+    },
+    {
+      "name": "invoice",
+      "type": "DynamicLink",
+      "label": "Invoice",
+      "requiredWhen": "true",
+      "linkToField": "invoice_type",
+      "inListView": true
+    },
+    {
+      "name": "payment_unallocated",
+      "type": "Currency",
+      "label": "Advance balance",
+      "description": "Set by hook from the ledger"
+    },
+    {
+      "name": "invoice_outstanding",
+      "type": "Currency",
+      "label": "Invoice outstanding",
+      "description": "Set by hook from the ledger"
+    },
+    {
+      "name": "allocated_amount",
+      "type": "Currency",
+      "label": "Allocated amount",
+      "requiredWhen": "true",
+      "min": 0,
+      "inListView": true
+    }
+  ]
+}

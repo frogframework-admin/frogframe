@@ -1,0 +1,32 @@
+{
+  "name": "SalaryDetail",
+  "version": 1,
+  "title": "Salary Detail",
+  "module": "HR",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "salary_component",
+      "type": "Link",
+      "label": "Component",
+      "linkTo": "SalaryComponent",
+      "requiredWhen": "true",
+      "linkFilters": [
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "inListView": true
+    },
+    {
+      "name": "amount",
+      "type": "Currency",
+      "label": "Amount",
+      "requiredWhen": "true",
+      "min": 0,
+      "inListView": true
+    }
+  ]
+}

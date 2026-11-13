@@ -1,0 +1,178 @@
+{
+  "name": "SalaryComponent",
+  "version": 1,
+  "title": "Salary Component",
+  "module": "HR",
+  "description": "Earning or deduction on a payslip (Workday Pay Component / SAP Wage Type).",
+  "naming": {
+    "pattern": "field:component_name"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "component_name",
+      "type": "Data",
+      "label": "Component name",
+      "requiredWhen": "true",
+      "maxLength": 100,
+      "inListView": true
+    },
+    {
+      "name": "component_type",
+      "type": "Select",
+      "label": "Type",
+      "requiredWhen": "true",
+      "options": [
+        "Earning",
+        "Deduction"
+      ],
+      "default": "Earning",
+      "inListView": true
+    },
+    {
+      "name": "abbreviation",
+      "type": "Data",
+      "label": "Abbreviation",
+      "maxLength": 10,
+      "column": 2
+    },
+    {
+      "name": "is_active",
+      "type": "Check",
+      "label": "Active",
+      "default": true,
+      "inListView": true,
+      "column": 2
+    },
+    {
+      "name": "is_taxable",
+      "type": "Check",
+      "label": "Taxable (PPh 21)",
+      "default": true,
+      "visibleWhen": "component_type == 'Earning'",
+      "section": "Treatment",
+      "description": "Part of gross income for PPh 21"
+    },
+    {
+      "name": "is_regular",
+      "type": "Check",
+      "label": "Regular (fixed every month)",
+      "default": true,
+      "visibleWhen": "component_type == 'Earning'",
+      "section": "Treatment",
+      "description": "Untick for bonus, THR, overtime. Only regular earnings count toward the PPh 21 DTP salary limit"
+    },
+    {
+      "name": "in_bpjs_base",
+      "type": "Check",
+      "label": "Part of BPJS wage base",
+      "default": false,
+      "visibleWhen": "component_type == 'Earning'",
+      "section": "Treatment",
+      "column": 2,
+      "description": "Basic salary + fixed allowances (BPJS wage = upah pokok + tunjangan tetap)"
+    },
+    {
+      "name": "account",
+      "type": "Link",
+      "label": "GL account",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "section": "Treatment",
+      "column": 2,
+      "description": "Earning: expense account (empty = Payroll Settings salary expense). Deduction: the account credited, e.g. employee loan receivable"
+    },
+    {
+      "name": "description",
+      "type": "Text",
+      "label": "Description",
+      "section": "Treatment"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "component_name",
+    "searchFields": [
+      "component_name",
+      "abbreviation"
+    ],
+    "filters": [
+      "component_type",
+      "is_active"
+    ],
+    "defaultSort": [
+      {
+        "field": "component_name",
+        "direction": "asc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

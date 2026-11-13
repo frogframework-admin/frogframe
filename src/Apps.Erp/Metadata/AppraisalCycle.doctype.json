@@ -1,0 +1,129 @@
+{
+  "name": "AppraisalCycle",
+  "version": 1,
+  "title": "Appraisal Cycle",
+  "module": "HR",
+  "description": "Performance review period (Workday Review Template / Cycle).",
+  "naming": {
+    "pattern": "field:cycle_name"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "cycle_name",
+      "type": "Data",
+      "label": "Cycle name",
+      "requiredWhen": "true",
+      "maxLength": 100,
+      "inListView": true,
+      "description": "e.g. 2026 Annual Review"
+    },
+    {
+      "name": "company",
+      "type": "Link",
+      "label": "Company",
+      "linkTo": "Company",
+      "requiredWhen": "true"
+    },
+    {
+      "name": "start_date",
+      "type": "Date",
+      "label": "Review period from",
+      "requiredWhen": "true",
+      "column": 2
+    },
+    {
+      "name": "end_date",
+      "type": "Date",
+      "label": "Review period to",
+      "requiredWhen": "true",
+      "column": 2
+    },
+    {
+      "name": "status",
+      "type": "Select",
+      "label": "Status",
+      "requiredWhen": "true",
+      "options": [
+        "Planned",
+        "In progress",
+        "Closed"
+      ],
+      "default": "Planned",
+      "inListView": true,
+      "column": 2,
+      "description": "Appraisals can only be completed while the cycle is In progress"
+    }
+  ],
+  "rules": [
+    {
+      "name": "valid_period",
+      "expr": "end_date >= start_date",
+      "message": "The end date must be on or after the start date",
+      "field": "end_date"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "cycle_name",
+    "searchFields": [
+      "cycle_name"
+    ],
+    "filters": [
+      "status",
+      "company"
+    ],
+    "defaultSort": [
+      {
+        "field": "start_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

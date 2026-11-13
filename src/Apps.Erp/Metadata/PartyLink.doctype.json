@@ -1,0 +1,28 @@
+{
+  "name": "PartyLink",
+  "version": 1,
+  "title": "Party Link",
+  "module": "CORE",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "link_doctype",
+      "type": "Select",
+      "label": "Type",
+      "requiredWhen": "true",
+      "options": [
+        "Customer",
+        "Vendor",
+        "Company",
+        "Location"
+      ]
+    },
+    {
+      "name": "link_name",
+      "type": "DynamicLink",
+      "label": "Party",
+      "requiredWhen": "true",
+      "linkToField": "link_doctype"
+    }
+  ]
+}

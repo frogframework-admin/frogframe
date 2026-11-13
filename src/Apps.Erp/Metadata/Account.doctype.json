@@ -1,0 +1,268 @@
+{
+  "name": "Account",
+  "version": 1,
+  "title": "Account",
+  "module": "ACCOUNTING",
+  "description": "Chart of accounts shared by all companies in the tenant (SAP chart of accounts / NetSuite Account).",
+  "naming": {
+    "pattern": "field:account_code"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "account_code",
+      "type": "Data",
+      "label": "Account number",
+      "requiredWhen": "true",
+      "maxLength": 20,
+      "pattern": "^[0-9A-Za-z.-]{1,20}$",
+      "inListView": true,
+      "section": "Account"
+    },
+    {
+      "name": "account_name",
+      "type": "Data",
+      "label": "Account name",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Account"
+    },
+    {
+      "name": "parent_account",
+      "type": "Link",
+      "label": "Parent account",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "lookupDialog": true,
+      "section": "Account"
+    },
+    {
+      "name": "is_group",
+      "type": "Check",
+      "label": "Group account",
+      "default": false,
+      "inListView": true,
+      "section": "Account",
+      "column": 2,
+      "description": "Group accounts do not accept postings"
+    },
+    {
+      "name": "is_active",
+      "type": "Check",
+      "label": "Active",
+      "default": true,
+      "inListView": true,
+      "section": "Account",
+      "column": 2
+    },
+    {
+      "name": "root_type",
+      "type": "Select",
+      "label": "Group",
+      "requiredWhen": "true",
+      "options": [
+        "Asset",
+        "Liability",
+        "Equity",
+        "Income",
+        "Expense"
+      ],
+      "inListView": true,
+      "section": "Classification"
+    },
+    {
+      "name": "report_type",
+      "type": "Select",
+      "label": "Reporting",
+      "requiredWhen": "true",
+      "options": [
+        "Balance Sheet",
+        "Profit and Loss"
+      ],
+      "section": "Classification"
+    },
+    {
+      "name": "normal_balance",
+      "type": "Select",
+      "label": "Normal balance",
+      "requiredWhen": "true",
+      "options": [
+        "Debit",
+        "Credit"
+      ],
+      "section": "Classification"
+    },
+    {
+      "name": "account_type",
+      "type": "Select",
+      "label": "Account type",
+      "options": [
+        "Cash",
+        "Bank",
+        "Receivable",
+        "Payable",
+        "Advance",
+        "Inventory",
+        "Prepaid Expense",
+        "Fixed Asset",
+        "Accumulated Depreciation",
+        "Capital Work in Progress",
+        "Tax",
+        "Accrual",
+        "Unearned Revenue",
+        "Capital",
+        "Retained Earnings",
+        "Cost of Goods Sold",
+        "Depreciation Expense",
+        "Exchange Gain/Loss",
+        "Round-off",
+        "Income Summary"
+      ],
+      "inListView": true,
+      "section": "Classification",
+      "column": 2,
+      "description": "Drives account behaviour in transactions (e.g. Receivable requires a party)"
+    },
+    {
+      "name": "account_currency",
+      "type": "Link",
+      "label": "Account currency",
+      "linkTo": "Currency",
+      "section": "Classification",
+      "column": 2,
+      "description": "Empty = company functional currency"
+    },
+    {
+      "name": "is_control_account",
+      "type": "Check",
+      "label": "Control account",
+      "default": false,
+      "section": "Control",
+      "description": "Posted only through invoices/payments/opening entries, not manual journals"
+    },
+    {
+      "name": "is_frozen",
+      "type": "Check",
+      "label": "Frozen",
+      "default": false,
+      "section": "Control",
+      "column": 2,
+      "description": "Only the Finance role can post to a frozen account"
+    },
+    {
+      "name": "requires_cost_center",
+      "type": "Check",
+      "label": "Cost center required",
+      "default": false,
+      "section": "Control",
+      "column": 2
+    },
+    {
+      "name": "tax_report_code",
+      "type": "Data",
+      "label": "Tax return line",
+      "maxLength": 20,
+      "section": "Control",
+      "column": 2,
+      "description": "Mapping to tax return lines (fiscal adjustments)"
+    },
+    {
+      "name": "description",
+      "type": "Text",
+      "label": "Remarks",
+      "section": "Remarks"
+    }
+  ],
+  "rules": [
+    {
+      "name": "report_type_matches_root",
+      "expr": "(root_type in ['Asset', 'Liability', 'Equity'] && report_type == 'Balance Sheet') || (root_type in ['Income', 'Expense'] && report_type == 'Profit and Loss')",
+      "message": "Asset/Liability/Equity go to Balance Sheet; Income/Expense go to Profit and Loss",
+      "field": "report_type"
+    },
+    {
+      "name": "control_account",
+      "expr": "!(account_type in ['Receivable', 'Payable']) || is_control_account",
+      "message": "Receivable/Payable accounts must be marked as control accounts",
+      "field": "is_control_account"
+    },
+    {
+      "name": "group_without_type",
+      "expr": "!is_group || empty(account_type)",
+      "message": "A group account cannot have an account type",
+      "field": "account_type"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "account_name",
+    "searchFields": [
+      "account_code",
+      "account_name"
+    ],
+    "filters": [
+      "root_type",
+      "account_type",
+      "is_group",
+      "is_active"
+    ],
+    "defaultSort": [
+      {
+        "field": "account_code",
+        "direction": "asc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

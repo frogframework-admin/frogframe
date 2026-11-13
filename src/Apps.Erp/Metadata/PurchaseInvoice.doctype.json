@@ -1,0 +1,521 @@
+{
+  "name": "PurchaseInvoice",
+  "version": 1,
+  "title": "Purchase Invoice",
+  "module": "FINANCE",
+  "description": "Supplier bill (NetSuite Vendor Bill / SAP MIRO). Submit: Dr expense/asset & input VAT, Cr payable & withholding tax payable.",
+  "allowAutoRepeat": true,
+  "naming": {
+    "pattern": "PINV-{YYYY}-{######}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "company",
+      "type": "Link",
+      "label": "Company",
+      "linkTo": "Company",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Document"
+    },
+    {
+      "name": "vendor",
+      "type": "Link",
+      "label": "Supplier",
+      "linkTo": "Vendor",
+      "requiredWhen": "true",
+      "linkFilters": [
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Document"
+    },
+    {
+      "name": "vendor_name",
+      "type": "Data",
+      "label": "Supplier name",
+      "fetchFrom": "vendor.vendor_name",
+      "inListView": true,
+      "section": "Document"
+    },
+    {
+      "name": "posting_date",
+      "type": "Date",
+      "label": "Posting date",
+      "requiredWhen": "true",
+      "default": "$today",
+      "inListView": true,
+      "section": "Document",
+      "column": 2
+    },
+    {
+      "name": "due_date",
+      "type": "Date",
+      "label": "Due date",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Document",
+      "column": 2
+    },
+    {
+      "name": "currency",
+      "type": "Link",
+      "label": "Currency",
+      "linkTo": "Currency",
+      "requiredWhen": "true",
+      "default": "IDR",
+      "section": "Document",
+      "column": 2
+    },
+    {
+      "name": "exchange_rate",
+      "type": "Float",
+      "label": "Exchange rate",
+      "requiredWhen": "true",
+      "default": 1,
+      "min": 0,
+      "section": "Document",
+      "column": 2
+    },
+    {
+      "name": "credit_to",
+      "type": "Link",
+      "label": "Payable account",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "account_type",
+          "op": "=",
+          "value": "Payable"
+        }
+      ],
+      "section": "Accounting",
+      "description": "Empty = from party, group, then company default (set by hook)"
+    },
+    {
+      "name": "cost_center",
+      "type": "Link",
+      "label": "Default cost center",
+      "linkTo": "CostCenter",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        }
+      ],
+      "section": "Accounting"
+    },
+    {
+      "name": "project",
+      "type": "Link",
+      "label": "Project",
+      "linkTo": "Project",
+      "section": "Accounting",
+      "column": 2
+    },
+    {
+      "name": "update_stock",
+      "type": "Check",
+      "label": "Update stock",
+      "default": false,
+      "section": "Stock",
+      "description": "Receive stock items into the warehouse with this document (no separate goods receipt)"
+    },
+    {
+      "name": "warehouse",
+      "type": "Link",
+      "label": "Warehouse",
+      "linkTo": "Warehouse",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        }
+      ],
+      "requiredWhen": "update_stock",
+      "visibleWhen": "update_stock",
+      "section": "Stock",
+      "column": 2
+    },
+    {
+      "name": "bill_no",
+      "type": "Data",
+      "label": "Supplier invoice no.",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Document",
+      "column": 2
+    },
+    {
+      "name": "purchase_order",
+      "type": "Link",
+      "label": "Purchase order",
+      "linkTo": "PurchaseOrder",
+      "linkFilters": [
+        {
+          "field": "docstatus",
+          "op": "=",
+          "value": 1
+        }
+      ],
+      "section": "Document",
+      "column": 2,
+      "description": "Items are copied from the order when empty; checked against goods receipts (3-way match)"
+    },
+    {
+      "name": "bill_date",
+      "type": "Date",
+      "label": "Supplier invoice date",
+      "requiredWhen": "true",
+      "section": "Document",
+      "column": 2
+    },
+    {
+      "name": "payment_term",
+      "type": "Link",
+      "label": "Payment terms",
+      "linkTo": "PaymentTerm",
+      "section": "Document",
+      "column": 2
+    },
+    {
+      "name": "on_hold",
+      "type": "Check",
+      "label": "Hold payments",
+      "default": false,
+      "section": "Document",
+      "column": 2
+    },
+    {
+      "name": "items",
+      "type": "Table",
+      "label": "Item",
+      "childDocType": "PurchaseInvoiceItem",
+      "requiredWhen": "true",
+      "section": "Item",
+      "addFromLookup": {
+        "linkField": "item",
+        "map": {
+          "item_name": "item_name",
+          "uom": "uom",
+          "expense_account": "expense_account"
+        },
+        "multiple": true,
+        "buttonLabel": "Add item"
+      }
+    },
+    {
+      "name": "vat_code",
+      "type": "Link",
+      "label": "VAT code",
+      "linkTo": "TaxCode",
+      "linkFilters": [
+        {
+          "field": "tax_type",
+          "op": "=",
+          "value": "Input VAT"
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "tab": "Tax",
+      "section": "PPN"
+    },
+    {
+      "name": "vat_rate",
+      "type": "Percent",
+      "label": "VAT rate",
+      "fetchFrom": "vat_code.rate",
+      "tab": "Tax",
+      "section": "PPN"
+    },
+    {
+      "name": "vat_dpp_factor",
+      "type": "Float",
+      "label": "Tax base factor",
+      "fetchFrom": "vat_code.dpp_factor",
+      "tab": "Tax",
+      "section": "PPN"
+    },
+    {
+      "name": "tax_base",
+      "type": "Currency",
+      "label": "DPP",
+      "compute": "round(sum(items.taxable_amount) * coalesce(vat_dpp_factor, 1), 2)",
+      "tab": "Tax",
+      "section": "PPN",
+      "column": 2
+    },
+    {
+      "name": "vat_amount",
+      "type": "Currency",
+      "label": "PPN",
+      "compute": "round(tax_base * coalesce(vat_rate, 0) / 100, 2)",
+      "tab": "Tax",
+      "section": "PPN",
+      "column": 2
+    },
+    {
+      "name": "tax_invoice_no",
+      "type": "Data",
+      "label": "Tax invoice no.",
+      "maxLength": 30,
+      "tab": "Tax",
+      "section": "PPN",
+      "column": 2,
+      "noCopy": true
+    },
+    {
+      "name": "wht_code",
+      "type": "Link",
+      "label": "Withholding tax code",
+      "linkTo": "TaxCode",
+      "linkFilters": [
+        {
+          "field": "is_withholding",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "tab": "Tax",
+      "section": "PPh"
+    },
+    {
+      "name": "wht_rate",
+      "type": "Percent",
+      "label": "Withholding tax rate",
+      "fetchFrom": "wht_code.rate",
+      "tab": "Tax",
+      "section": "PPh"
+    },
+    {
+      "name": "wht_base",
+      "type": "Currency",
+      "label": "Withholding tax base",
+      "compute": "sum(items.wht_base)",
+      "tab": "Tax",
+      "section": "PPh",
+      "column": 2
+    },
+    {
+      "name": "wht_amount",
+      "type": "Currency",
+      "label": "Tax withheld",
+      "compute": "round(wht_base * coalesce(wht_rate, 0) / 100, 2)",
+      "tab": "Tax",
+      "section": "PPh",
+      "column": 2
+    },
+    {
+      "name": "total",
+      "type": "Currency",
+      "label": "Total before tax",
+      "compute": "sum(items.amount)",
+      "inListView": true,
+      "section": "Total"
+    },
+    {
+      "name": "grand_total",
+      "type": "Currency",
+      "label": "Total + VAT",
+      "compute": "total + vat_amount",
+      "inListView": true,
+      "section": "Total"
+    },
+    {
+      "name": "payable_amount",
+      "type": "Currency",
+      "label": "Payable to supplier",
+      "compute": "grand_total - wht_amount",
+      "inListView": true,
+      "section": "Total"
+    },
+    {
+      "name": "base_grand_total",
+      "type": "Currency",
+      "label": "Total (functional currency)",
+      "compute": "round(grand_total * exchange_rate, 2)",
+      "section": "Total",
+      "column": 2
+    },
+    {
+      "name": "outstanding_amount",
+      "type": "Currency",
+      "label": "Outstanding amount",
+      "readOnlyWhen": "true",
+      "noCopy": true,
+      "section": "Total",
+      "column": 2,
+      "description": "Computed from the ledger when the document is opened (OnLoad); not stored. Lists & aging via World 2 reports"
+    },
+    {
+      "name": "payment_status",
+      "type": "Select",
+      "label": "Payment status",
+      "options": [
+        "Unpaid",
+        "Partly Paid",
+        "Paid",
+        "Returned"
+      ],
+      "readOnlyWhen": "true",
+      "noCopy": true,
+      "section": "Total",
+      "column": 2,
+      "description": "Computed when the document is opened (OnLoad)"
+    },
+    {
+      "name": "payment_schedule",
+      "type": "Table",
+      "label": "Payment schedule",
+      "childDocType": "InvoicePaymentSchedule",
+      "tab": "Terms",
+      "section": "Schedule"
+    },
+    {
+      "name": "remarks",
+      "type": "Text",
+      "label": "Notes",
+      "tab": "Other",
+      "section": "Notes"
+    },
+    {
+      "name": "attachment",
+      "type": "Attach",
+      "label": "Supplier invoice (scan)",
+      "tab": "Other",
+      "section": "Notes",
+      "column": 2
+    }
+  ],
+  "rules": [
+    {
+      "name": "positive_rate",
+      "expr": "exchange_rate > 0",
+      "message": "Exchange rate must be greater than 0",
+      "field": "exchange_rate"
+    },
+    {
+      "name": "due_date_valid",
+      "expr": "due_date >= posting_date",
+      "message": "The due date cannot be before the posting date",
+      "field": "due_date"
+    },
+    {
+      "name": "wht_requires_code",
+      "expr": "wht_base == 0 || !empty(wht_code)",
+      "message": "Some lines are subject to withholding tax: choose a withholding tax code",
+      "field": "wht_code"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Purchasing",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "vendor_name",
+    "searchFields": [
+      "name",
+      "vendor_name",
+      "bill_no",
+      "tax_invoice_no"
+    ],
+    "filters": [
+      "company",
+      "vendor",
+      "posting_date",
+      "on_hold"
+    ],
+    "defaultSort": [
+      {
+        "field": "posting_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

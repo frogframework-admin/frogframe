@@ -1,0 +1,143 @@
+{
+  "name": "CurrencyExchangeRate",
+  "version": 1,
+  "title": "Currency Exchange Rate",
+  "module": "CORE",
+  "description": "Exchange rate per date and rate type (SAP exchange rate type). The Tax Rate is used for foreign-currency VAT.",
+  "naming": {
+    "pattern": "FX-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "rate_date",
+      "type": "Date",
+      "label": "Rate date",
+      "requiredWhen": "true",
+      "default": "$today",
+      "inListView": true
+    },
+    {
+      "name": "rate_type",
+      "type": "Select",
+      "label": "Rate type",
+      "requiredWhen": "true",
+      "options": [
+        "BI Middle Rate",
+        "Tax Rate (KMK)",
+        "Selling",
+        "Buying",
+        "Internal"
+      ],
+      "default": "BI Middle Rate",
+      "inListView": true
+    },
+    {
+      "name": "from_currency",
+      "type": "Link",
+      "label": "From currency",
+      "linkTo": "Currency",
+      "requiredWhen": "true",
+      "inListView": true,
+      "column": 2
+    },
+    {
+      "name": "to_currency",
+      "type": "Link",
+      "label": "To currency",
+      "linkTo": "Currency",
+      "requiredWhen": "true",
+      "default": "IDR",
+      "inListView": true,
+      "column": 2
+    },
+    {
+      "name": "exchange_rate",
+      "type": "Float",
+      "label": "Exchange rate",
+      "requiredWhen": "true",
+      "min": 0,
+      "description": "1 unit 'from' = X units 'to'",
+      "inListView": true,
+      "column": 2
+    }
+  ],
+  "rules": [
+    {
+      "name": "different_currencies",
+      "expr": "from_currency != to_currency",
+      "message": "From and to currencies must differ",
+      "field": "to_currency"
+    },
+    {
+      "name": "positive_rate",
+      "expr": "exchange_rate > 0",
+      "message": "Exchange rate must be greater than 0",
+      "field": "exchange_rate"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "from_currency",
+    "searchFields": [
+      "name"
+    ],
+    "filters": [
+      "rate_date",
+      "rate_type",
+      "from_currency"
+    ],
+    "defaultSort": [
+      {
+        "field": "rate_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

@@ -93,6 +93,26 @@ public static class RoleDefaults
             IsSystem = false,
             CreatedAt = now,
             UpdatedAt = now
+        },
+        new()
+        {
+            Id = $"role_{tenantId}_sales",
+            TenantId = tenantId,
+            Name = "Sales",
+            Description = "Sales division and CRM operations.",
+            IsSystem = false,
+            CreatedAt = now,
+            UpdatedAt = now
+        },
+        new()
+        {
+            Id = $"role_{tenantId}_stock",
+            TenantId = tenantId,
+            Name = "Stock",
+            Description = "Warehouse and inventory operations.",
+            IsSystem = false,
+            CreatedAt = now,
+            UpdatedAt = now
         }
     ];
 }

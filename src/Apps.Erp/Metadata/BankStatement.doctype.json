@@ -1,0 +1,165 @@
+{
+  "name": "BankStatement",
+  "version": 1,
+  "title": "Bank Statement",
+  "module": "FINANCE",
+  "description": "Imported bank statement (SAP Electronic Bank Statement). Matched to vouchers during reconciliation.",
+  "naming": {
+    "pattern": "BST-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "bank_account",
+      "type": "Link",
+      "label": "Bank Account",
+      "linkTo": "BankAccount",
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "company",
+      "type": "Data",
+      "label": "Company",
+      "fetchFrom": "bank_account.company",
+      "inListView": true
+    },
+    {
+      "name": "from_date",
+      "type": "Date",
+      "label": "From",
+      "requiredWhen": "true",
+      "inListView": true,
+      "column": 2
+    },
+    {
+      "name": "to_date",
+      "type": "Date",
+      "label": "To",
+      "requiredWhen": "true",
+      "inListView": true,
+      "column": 2
+    },
+    {
+      "name": "opening_balance",
+      "type": "Currency",
+      "label": "Opening balance",
+      "requiredWhen": "true",
+      "column": 2
+    },
+    {
+      "name": "closing_balance",
+      "type": "Currency",
+      "label": "Closing balance",
+      "requiredWhen": "true",
+      "column": 2
+    },
+    {
+      "name": "lines",
+      "type": "Table",
+      "label": "Transfer",
+      "childDocType": "BankStatementLine",
+      "section": "Transfer",
+      "description": "Import from the bank's transaction file (Excel/CSV)"
+    },
+    {
+      "name": "total_deposit",
+      "type": "Currency",
+      "label": "Total deposits",
+      "compute": "sum(lines.deposit)",
+      "section": "Summary"
+    },
+    {
+      "name": "total_withdrawal",
+      "type": "Currency",
+      "label": "Total withdrawals",
+      "compute": "sum(lines.withdrawal)",
+      "section": "Summary"
+    },
+    {
+      "name": "computed_closing",
+      "type": "Currency",
+      "label": "Computed closing balance",
+      "compute": "opening_balance + total_deposit - total_withdrawal",
+      "section": "Summary",
+      "column": 2
+    }
+  ],
+  "rules": [
+    {
+      "name": "valid_period",
+      "expr": "to_date >= from_date",
+      "message": "The end date must be after the start date",
+      "field": "to_date"
+    },
+    {
+      "name": "balance_matches",
+      "expr": "computed_closing == closing_balance",
+      "message": "Opening balance + movements does not equal closing balance",
+      "field": "closing_balance"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "bank_account",
+    "searchFields": [
+      "name"
+    ],
+    "filters": [
+      "bank_account",
+      "from_date"
+    ],
+    "defaultSort": [
+      {
+        "field": "to_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

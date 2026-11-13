@@ -1,0 +1,38 @@
+{
+  "name": "TerRate",
+  "version": 1,
+  "title": "TER Rate",
+  "module": "HR",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "ter_category",
+      "type": "Select",
+      "label": "TER category",
+      "requiredWhen": "true",
+      "options": [
+        "A",
+        "B",
+        "C"
+      ],
+      "inListView": true
+    },
+    {
+      "name": "up_to",
+      "type": "Currency",
+      "label": "Monthly gross up to",
+      "min": 0,
+      "inListView": true,
+      "description": "Empty or 0 = no upper limit (last bracket)"
+    },
+    {
+      "name": "rate",
+      "type": "Percent",
+      "label": "Rate",
+      "requiredWhen": "true",
+      "min": 0,
+      "max": 100,
+      "inListView": true
+    }
+  ]
+}

@@ -1,0 +1,438 @@
+{
+  "name": "PayrollSettings",
+  "version": 1,
+  "title": "Payroll Settings",
+  "module": "HR",
+  "description": "Statutory rates and accounts for payroll. Values reflect the rules in force in November 2026; verify each year.",
+  "isSingle": true,
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": false
+  },
+  "fields": [
+    {
+      "name": "jht_employer_rate",
+      "type": "Percent",
+      "label": "JHT employer",
+      "default": 3.7,
+      "min": 0,
+      "tab": "BPJS",
+      "section": "BPJS Employment"
+    },
+    {
+      "name": "jht_employee_rate",
+      "type": "Percent",
+      "label": "JHT employee",
+      "default": 2,
+      "min": 0,
+      "tab": "BPJS",
+      "section": "BPJS Employment"
+    },
+    {
+      "name": "jkk_rate",
+      "type": "Percent",
+      "label": "JKK (work accident)",
+      "default": 0.24,
+      "min": 0,
+      "tab": "BPJS",
+      "section": "BPJS Employment",
+      "description": "By risk class: very low 0.24, low 0.54, medium 0.89, high 1.27, very high 1.74"
+    },
+    {
+      "name": "jkm_rate",
+      "type": "Percent",
+      "label": "JKM (death)",
+      "default": 0.3,
+      "min": 0,
+      "tab": "BPJS",
+      "section": "BPJS Employment"
+    },
+    {
+      "name": "jp_employer_rate",
+      "type": "Percent",
+      "label": "JP employer",
+      "default": 2,
+      "min": 0,
+      "tab": "BPJS",
+      "section": "BPJS Employment",
+      "column": 2
+    },
+    {
+      "name": "jp_employee_rate",
+      "type": "Percent",
+      "label": "JP employee",
+      "default": 1,
+      "min": 0,
+      "tab": "BPJS",
+      "section": "BPJS Employment",
+      "column": 2
+    },
+    {
+      "name": "jp_wage_cap",
+      "type": "Currency",
+      "label": "JP wage cap per month",
+      "default": 11086300,
+      "min": 0,
+      "tab": "BPJS",
+      "section": "BPJS Employment",
+      "column": 2,
+      "description": "Adjusted every year by BPJS Ketenagakerjaan (Rp11,086,300 from March 2026)"
+    },
+    {
+      "name": "kes_employer_rate",
+      "type": "Percent",
+      "label": "Employer",
+      "default": 4,
+      "min": 0,
+      "tab": "BPJS",
+      "section": "BPJS Health"
+    },
+    {
+      "name": "kes_employee_rate",
+      "type": "Percent",
+      "label": "Employee",
+      "default": 1,
+      "min": 0,
+      "tab": "BPJS",
+      "section": "BPJS Health"
+    },
+    {
+      "name": "kes_wage_cap",
+      "type": "Currency",
+      "label": "Wage cap per month",
+      "default": 12000000,
+      "min": 0,
+      "tab": "BPJS",
+      "section": "BPJS Health",
+      "column": 2
+    },
+    {
+      "name": "kes_wage_floor",
+      "type": "Currency",
+      "label": "Minimum wage base (UMK)",
+      "min": 0,
+      "tab": "BPJS",
+      "section": "BPJS Health",
+      "column": 2,
+      "description": "Regional minimum wage used when the wage is lower; empty = no floor"
+    },
+    {
+      "name": "position_cost_rate",
+      "type": "Percent",
+      "label": "Position cost (biaya jabatan)",
+      "default": 5,
+      "min": 0,
+      "tab": "PPh 21",
+      "section": "Annual calculation"
+    },
+    {
+      "name": "position_cost_monthly_cap",
+      "type": "Currency",
+      "label": "Position cost cap per month",
+      "default": 500000,
+      "min": 0,
+      "tab": "PPh 21",
+      "section": "Annual calculation",
+      "column": 2,
+      "description": "Rp6,000,000 per year; prorated by months worked"
+    },
+    {
+      "name": "ptkp_rates",
+      "type": "Table",
+      "label": "PTKP and TER category",
+      "childDocType": "PtkpRate",
+      "tab": "PPh 21",
+      "section": "PTKP",
+      "description": "PMK 101/2016; categories per PP 58/2023. Filled automatically on first save"
+    },
+    {
+      "name": "tax_brackets",
+      "type": "Table",
+      "label": "Article 17 rates",
+      "childDocType": "TaxBracket",
+      "tab": "PPh 21",
+      "section": "Article 17",
+      "description": "UU HPP: 5% / 15% / 25% / 30% / 35%. Filled automatically on first save"
+    },
+    {
+      "name": "ter_rates",
+      "type": "Table",
+      "label": "Monthly TER",
+      "childDocType": "TerRate",
+      "tab": "PPh 21",
+      "section": "TER",
+      "description": "PP 58/2023 Lampiran (categories A, B, C). Filled automatically on first save"
+    },
+    {
+      "name": "deduct_unpaid_leave",
+      "type": "Check",
+      "label": "Prorate for unpaid leave",
+      "default": true,
+      "tab": "PPh 21",
+      "section": "Proration",
+      "description": "Approved leave of a type that is not paid reduces payable days"
+    },
+    {
+      "name": "deduct_absence",
+      "type": "Check",
+      "label": "Prorate for absence",
+      "default": false,
+      "tab": "PPh 21",
+      "section": "Proration",
+      "column": 2,
+      "description": "Attendance with status Absent reduces payable days"
+    },
+    {
+      "name": "base_salary_component",
+      "type": "Link",
+      "label": "Base salary component",
+      "linkTo": "SalaryComponent",
+      "linkFilters": [
+        {
+          "field": "component_type",
+          "op": "=",
+          "value": "Earning"
+        }
+      ],
+      "tab": "PPh 21",
+      "section": "Overtime",
+      "description": "Used when an accepted job offer creates the employee's salary assignment"
+    },
+    {
+      "name": "overtime_component",
+      "type": "Link",
+      "label": "Overtime component",
+      "linkTo": "SalaryComponent",
+      "linkFilters": [
+        {
+          "field": "component_type",
+          "op": "=",
+          "value": "Earning"
+        }
+      ],
+      "tab": "PPh 21",
+      "section": "Overtime",
+      "description": "Earning used for approved overtime (taxable, not regular). Empty = overtime is not paid through payroll"
+    },
+    {
+      "name": "dtp_enabled",
+      "type": "Check",
+      "label": "PPh 21 borne by government (DTP)",
+      "default": false,
+      "tab": "PPh 21",
+      "section": "Incentive",
+      "description": "PMK 105/2025 (2026): only for employers in the listed sectors/KLU. The DTP amount is paid to the employee in cash"
+    },
+    {
+      "name": "dtp_gross_limit",
+      "type": "Currency",
+      "label": "DTP regular gross limit per month",
+      "default": 10000000,
+      "min": 0,
+      "tab": "PPh 21",
+      "section": "Incentive",
+      "column": 2
+    },
+    {
+      "name": "dtp_valid_until",
+      "type": "Date",
+      "label": "DTP valid until",
+      "default": "2026-12-31",
+      "tab": "PPh 21",
+      "section": "Incentive",
+      "column": 2
+    },
+    {
+      "name": "salary_expense_account",
+      "type": "Link",
+      "label": "Salary expense",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "root_type",
+          "op": "=",
+          "value": "Expense"
+        }
+      ],
+      "tab": "Accounts",
+      "section": "Accounts",
+      "description": "Used for earnings whose component has no account"
+    },
+    {
+      "name": "employer_contribution_account",
+      "type": "Link",
+      "label": "Employer BPJS expense",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "root_type",
+          "op": "=",
+          "value": "Expense"
+        }
+      ],
+      "tab": "Accounts",
+      "section": "Accounts"
+    },
+    {
+      "name": "salary_payable_account",
+      "type": "Link",
+      "label": "Salary payable",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "root_type",
+          "op": "=",
+          "value": "Liability"
+        }
+      ],
+      "tab": "Accounts",
+      "section": "Accounts",
+      "description": "Per employee (party), against the Payroll Run; paid with Payment Entry"
+    },
+    {
+      "name": "pph21_payable_account",
+      "type": "Link",
+      "label": "PPh 21 payable",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "root_type",
+          "op": "=",
+          "value": "Liability"
+        }
+      ],
+      "tab": "Accounts",
+      "section": "Accounts",
+      "column": 2
+    },
+    {
+      "name": "bpjs_employment_payable_account",
+      "type": "Link",
+      "label": "BPJS Employment payable",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "root_type",
+          "op": "=",
+          "value": "Liability"
+        }
+      ],
+      "tab": "Accounts",
+      "section": "Accounts",
+      "column": 2
+    },
+    {
+      "name": "bpjs_health_payable_account",
+      "type": "Link",
+      "label": "BPJS Health payable",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "root_type",
+          "op": "=",
+          "value": "Liability"
+        }
+      ],
+      "tab": "Accounts",
+      "section": "Accounts",
+      "column": 2
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "write"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "write"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "write"
+      ],
+      "scope": "all"
+    }
+  ],
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "update"
+    ]
+  }
+}

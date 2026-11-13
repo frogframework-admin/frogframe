@@ -1,0 +1,181 @@
+{
+  "name": "StockSettings",
+  "version": 1,
+  "title": "Stock Settings",
+  "module": "STOCK",
+  "description": "Defaults and accounts for perpetual inventory.",
+  "isSingle": true,
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": false
+  },
+  "fields": [
+    {
+      "name": "default_warehouse",
+      "type": "Link",
+      "label": "Default warehouse",
+      "linkTo": "Warehouse",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        }
+      ],
+      "section": "Defaults"
+    },
+    {
+      "name": "allow_negative_stock",
+      "type": "Check",
+      "label": "Allow negative stock",
+      "default": false,
+      "section": "Defaults",
+      "column": 2,
+      "description": "Not recommended: issues beyond the available quantity are valued at the last known rate"
+    },
+    {
+      "name": "inventory_account",
+      "type": "Link",
+      "label": "Inventory",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "account_type",
+          "op": "=",
+          "value": "Inventory"
+        }
+      ],
+      "section": "Accounts"
+    },
+    {
+      "name": "cogs_account",
+      "type": "Link",
+      "label": "Cost of goods sold",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "account_type",
+          "op": "=",
+          "value": "Cost of Goods Sold"
+        }
+      ],
+      "section": "Accounts"
+    },
+    {
+      "name": "stock_adjustment_account",
+      "type": "Link",
+      "label": "Stock adjustment",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "root_type",
+          "op": "=",
+          "value": "Expense"
+        }
+      ],
+      "section": "Accounts",
+      "column": 2,
+      "description": "Stock opname differences and default for material receipts/issues"
+    },
+    {
+      "name": "grni_account",
+      "type": "Link",
+      "label": "Stock received not billed",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "root_type",
+          "op": "=",
+          "value": "Liability"
+        }
+      ],
+      "section": "Accounts",
+      "column": 2,
+      "description": "Goods receipt credits it; the supplier invoice for the order debits it"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Stock",
+      "actions": [
+        "read",
+        "write"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "write"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "write"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    }
+  ],
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "update"
+    ]
+  }
+}

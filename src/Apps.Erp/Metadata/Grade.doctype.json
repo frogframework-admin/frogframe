@@ -1,0 +1,126 @@
+{
+  "name": "Grade",
+  "version": 1,
+  "title": "Grade",
+  "module": "HR",
+  "description": "Compensation grade + pay range per company (Workday Compensation Grade & Grade Profile).",
+  "naming": {
+    "pattern": "field:grade_code"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "grade_code",
+      "type": "Data",
+      "label": "Grade code",
+      "requiredWhen": "true",
+      "maxLength": 10,
+      "inListView": true
+    },
+    {
+      "name": "grade_name",
+      "type": "Data",
+      "label": "Name",
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "grade_level",
+      "type": "Int",
+      "label": "Level",
+      "requiredWhen": "true",
+      "min": 1,
+      "inListView": true,
+      "column": 2,
+      "description": "Higher number = more senior"
+    },
+    {
+      "name": "is_active",
+      "type": "Check",
+      "label": "Active",
+      "default": true,
+      "inListView": true,
+      "column": 2
+    },
+    {
+      "name": "pay_ranges",
+      "type": "Table",
+      "label": "Pay ranges",
+      "childDocType": "GradePayRange",
+      "permLevel": 1,
+      "section": "Compensation"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "write"
+      ],
+      "scope": "all",
+      "permLevel": 1
+    }
+  ],
+  "listView": {
+    "titleField": "grade_name",
+    "searchFields": [
+      "grade_code",
+      "grade_name"
+    ],
+    "filters": [
+      "is_active"
+    ],
+    "defaultSort": [
+      {
+        "field": "grade_level",
+        "direction": "asc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

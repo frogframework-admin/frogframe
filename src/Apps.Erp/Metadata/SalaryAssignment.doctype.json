@@ -1,0 +1,184 @@
+{
+  "name": "SalaryAssignment",
+  "version": 1,
+  "title": "Salary Assignment",
+  "module": "HR",
+  "description": "Pay package per employee from a date (Workday Compensation / SAP infotype 0008).",
+  "naming": {
+    "pattern": "SA-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "employee",
+      "type": "Link",
+      "label": "Employee",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Employee"
+    },
+    {
+      "name": "employee_name",
+      "type": "Data",
+      "label": "Employee name",
+      "fetchFrom": "employee.full_name",
+      "inListView": true,
+      "section": "Employee"
+    },
+    {
+      "name": "company",
+      "type": "Data",
+      "label": "Company",
+      "fetchFrom": "employee.company",
+      "section": "Employee",
+      "column": 2
+    },
+    {
+      "name": "from_date",
+      "type": "Date",
+      "label": "Valid from",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Employee",
+      "column": 2,
+      "description": "The assignment with the latest 'valid from' on or before the period end is used"
+    },
+    {
+      "name": "is_active",
+      "type": "Check",
+      "label": "Active",
+      "default": true,
+      "inListView": true,
+      "section": "Employee",
+      "column": 2
+    },
+    {
+      "name": "earnings",
+      "type": "Table",
+      "label": "Earnings",
+      "childDocType": "SalaryDetail",
+      "section": "Monthly pay",
+      "description": "Fixed monthly earnings; irregular items (bonus, overtime) are added on the payslip"
+    },
+    {
+      "name": "deductions",
+      "type": "Table",
+      "label": "Deductions",
+      "childDocType": "SalaryDetail",
+      "section": "Monthly pay",
+      "description": "Recurring deductions, e.g. loan installment"
+    },
+    {
+      "name": "total_earnings",
+      "type": "Currency",
+      "label": "Total earnings",
+      "compute": "sum(earnings.amount)",
+      "inListView": true,
+      "section": "Monthly pay"
+    },
+    {
+      "name": "bpjs_employment",
+      "type": "Check",
+      "label": "BPJS Employment (JHT, JKK, JKM)",
+      "default": true,
+      "section": "BPJS"
+    },
+    {
+      "name": "pension_member",
+      "type": "Check",
+      "label": "Pension (JP)",
+      "default": true,
+      "section": "BPJS",
+      "description": "Untick when not a JP participant (e.g. past pension age)"
+    },
+    {
+      "name": "bpjs_health",
+      "type": "Check",
+      "label": "BPJS Health",
+      "default": true,
+      "section": "BPJS",
+      "column": 2
+    },
+    {
+      "name": "remarks",
+      "type": "Text",
+      "label": "Remarks",
+      "section": "BPJS",
+      "column": 2
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "match:employee=employee"
+    },
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Finance",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "employee_name",
+    "searchFields": [
+      "employee",
+      "employee_name"
+    ],
+    "filters": [
+      "employee",
+      "is_active",
+      "from_date"
+    ],
+    "defaultSort": [
+      {
+        "field": "from_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

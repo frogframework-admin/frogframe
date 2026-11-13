@@ -1,0 +1,60 @@
+{
+  "name": "AppraisalGoal",
+  "version": 1,
+  "title": "Appraisal Goal",
+  "module": "HR",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "goal",
+      "type": "Data",
+      "label": "Goal / KPI",
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "target",
+      "type": "Data",
+      "label": "Target / measure"
+    },
+    {
+      "name": "weight",
+      "type": "Percent",
+      "label": "Weight (%)",
+      "requiredWhen": "true",
+      "min": 0,
+      "max": 100,
+      "inListView": true
+    },
+    {
+      "name": "self_score",
+      "type": "Int",
+      "label": "Self score (1–5)",
+      "min": 1,
+      "max": 5,
+      "inListView": true,
+      "description": "Filled by the employee"
+    },
+    {
+      "name": "manager_score",
+      "type": "Int",
+      "label": "Manager score (1–5)",
+      "min": 1,
+      "max": 5,
+      "inListView": true,
+      "description": "Filled by the reviewer"
+    },
+    {
+      "name": "weighted_score",
+      "type": "Float",
+      "label": "Weighted",
+      "compute": "round(weight * coalesce(manager_score, 0) / 100, 2)",
+      "inListView": true
+    },
+    {
+      "name": "comments",
+      "type": "Data",
+      "label": "Comments"
+    }
+  ]
+}

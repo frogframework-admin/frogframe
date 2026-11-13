@@ -1,0 +1,148 @@
+{
+  "name": "CustomerGroup",
+  "version": 1,
+  "title": "Customer Group",
+  "module": "CORE",
+  "naming": {
+    "pattern": "field:group_name"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "group_name",
+      "type": "Data",
+      "label": "Group name",
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "parent_customer_group",
+      "type": "Link",
+      "label": "Parent group",
+      "linkTo": "CustomerGroup",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "is_group",
+      "type": "Check",
+      "label": "Parent group",
+      "default": false,
+      "inListView": true,
+      "column": 2
+    },
+    {
+      "name": "default_payment_term",
+      "type": "Link",
+      "label": "Default payment terms",
+      "linkTo": "PaymentTerm",
+      "section": "Default"
+    },
+    {
+      "name": "default_price_list",
+      "type": "Link",
+      "label": "Default price list",
+      "linkTo": "PriceList",
+      "linkFilters": [
+        {
+          "field": "price_list_type",
+          "op": "=",
+          "value": "Sales"
+        }
+      ],
+      "section": "Default"
+    },
+    {
+      "name": "receivable_account",
+      "type": "Link",
+      "label": "Receivable account",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "account_type",
+          "op": "=",
+          "value": "Receivable"
+        }
+      ],
+      "section": "Default",
+      "column": 2
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "group_name",
+    "searchFields": [
+      "group_name"
+    ],
+    "filters": [
+      "is_group"
+    ],
+    "defaultSort": [
+      {
+        "field": "group_name",
+        "direction": "asc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

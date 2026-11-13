@@ -1,0 +1,263 @@
+{
+  "name": "AssetCategory",
+  "version": 1,
+  "title": "Asset Category",
+  "module": "FINANCE",
+  "description": "Asset class (SAP Asset Class / NetSuite FAM Asset Type): method, life, and accounts.",
+  "naming": {
+    "pattern": "field:category_name"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "category_name",
+      "type": "Data",
+      "label": "Category name",
+      "requiredWhen": "true",
+      "inListView": true,
+      "description": "e.g. Vehicles, Office Equipment, Buildings"
+    },
+    {
+      "name": "depreciation_method",
+      "type": "Select",
+      "label": "Depreciation method (book)",
+      "requiredWhen": "true",
+      "options": [
+        "Straight Line",
+        "Declining Balance"
+      ],
+      "default": "Straight Line",
+      "inListView": true
+    },
+    {
+      "name": "useful_life_months",
+      "type": "Int",
+      "label": "Book useful life (months)",
+      "requiredWhen": "true",
+      "min": 1,
+      "inListView": true
+    },
+    {
+      "name": "fiscal_group",
+      "type": "Select",
+      "label": "Asset group (tax)",
+      "inListView": true,
+      "column": 2,
+      "options": [
+        "Group 1",
+        "Group 2",
+        "Group 3",
+        "Group 4",
+        "Permanent building",
+        "Non-permanent building",
+        "Not depreciable"
+      ],
+      "description": "For tax depreciation (tax Finance Book, next phase)"
+    },
+    {
+      "name": "fiscal_method",
+      "type": "Select",
+      "label": "Tax method",
+      "options": [
+        "Straight Line",
+        "Declining Balance"
+      ],
+      "default": "Straight Line",
+      "column": 2
+    },
+    {
+      "name": "is_active",
+      "type": "Check",
+      "label": "Active",
+      "default": true,
+      "inListView": true,
+      "column": 2
+    },
+    {
+      "name": "fixed_asset_account",
+      "type": "Link",
+      "label": "Fixed asset account",
+      "linkTo": "Account",
+      "requiredWhen": "true",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "account_type",
+          "op": "=",
+          "value": "Fixed Asset"
+        }
+      ],
+      "section": "Account"
+    },
+    {
+      "name": "accumulated_depreciation_account",
+      "type": "Link",
+      "label": "Accumulated depreciation account",
+      "linkTo": "Account",
+      "requiredWhen": "true",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "account_type",
+          "op": "=",
+          "value": "Accumulated Depreciation"
+        }
+      ],
+      "section": "Account"
+    },
+    {
+      "name": "depreciation_expense_account",
+      "type": "Link",
+      "label": "Depreciation expense account",
+      "linkTo": "Account",
+      "requiredWhen": "true",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "account_type",
+          "op": "=",
+          "value": "Depreciation Expense"
+        }
+      ],
+      "section": "Account",
+      "column": 2
+    },
+    {
+      "name": "cwip_account",
+      "type": "Link",
+      "label": "Capital work in progress account",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "account_type",
+          "op": "=",
+          "value": "Capital Work in Progress"
+        }
+      ],
+      "section": "Account",
+      "column": 2
+    },
+    {
+      "name": "disposal_gain_loss_account",
+      "type": "Link",
+      "label": "Gain/loss on disposal account",
+      "linkTo": "Account",
+      "requiredWhen": "true",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "section": "Account",
+      "column": 2
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "category_name",
+    "searchFields": [
+      "category_name"
+    ],
+    "filters": [
+      "depreciation_method",
+      "fiscal_group",
+      "is_active"
+    ],
+    "defaultSort": [
+      {
+        "field": "category_name",
+        "direction": "asc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

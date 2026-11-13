@@ -1,0 +1,131 @@
+{
+  "name": "PriceList",
+  "version": 1,
+  "title": "Price List",
+  "module": "CORE",
+  "description": "Salesforce Pricebook2.",
+  "naming": {
+    "pattern": "field:price_list_name"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "price_list_name",
+      "type": "Data",
+      "label": "Price list name",
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "price_list_type",
+      "type": "Select",
+      "label": "Type",
+      "requiredWhen": "true",
+      "options": [
+        "Sales",
+        "Purchase"
+      ],
+      "default": "Sales",
+      "inListView": true
+    },
+    {
+      "name": "currency",
+      "type": "Link",
+      "label": "Currency",
+      "linkTo": "Currency",
+      "requiredWhen": "true",
+      "default": "IDR",
+      "inListView": true,
+      "column": 2
+    },
+    {
+      "name": "price_includes_tax",
+      "type": "Check",
+      "label": "Price includes VAT",
+      "default": false,
+      "column": 2
+    },
+    {
+      "name": "is_active",
+      "type": "Check",
+      "label": "Active",
+      "default": true,
+      "inListView": true,
+      "column": 2
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Purchasing",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "price_list_name",
+    "searchFields": [
+      "price_list_name"
+    ],
+    "filters": [
+      "price_list_type",
+      "is_active"
+    ],
+    "defaultSort": [
+      {
+        "field": "modified",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

@@ -1,0 +1,242 @@
+{
+  "name": "EmployeeAdvance",
+  "version": 1,
+  "title": "Employee Advance",
+  "module": "FINANCE",
+  "description": "Employee cash advance (Workday Spend Authorization + Cash Advance). Paid via Payment Entry, settled through Expense Claim.",
+  "naming": {
+    "pattern": "ADV-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "workflow": "EmployeeAdvanceApproval",
+  "fields": [
+    {
+      "name": "employee",
+      "type": "Link",
+      "label": "Employee",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "default": "$employee",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Request"
+    },
+    {
+      "name": "employee_name",
+      "type": "Data",
+      "label": "Employee name",
+      "fetchFrom": "employee.full_name",
+      "inListView": true,
+      "section": "Request"
+    },
+    {
+      "name": "company",
+      "type": "Data",
+      "label": "Company",
+      "fetchFrom": "employee.company",
+      "section": "Request"
+    },
+    {
+      "name": "expense_approver",
+      "type": "Data",
+      "label": "Approver",
+      "fetchFrom": "employee.expense_approver",
+      "section": "Request"
+    },
+    {
+      "name": "posting_date",
+      "type": "Date",
+      "label": "Date",
+      "requiredWhen": "true",
+      "default": "$today",
+      "inListView": true,
+      "section": "Request",
+      "column": 2
+    },
+    {
+      "name": "purpose",
+      "type": "Data",
+      "label": "Purpose",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Request",
+      "column": 2
+    },
+    {
+      "name": "advance_amount",
+      "type": "Currency",
+      "label": "Requested amount",
+      "requiredWhen": "true",
+      "min": 0,
+      "inListView": true,
+      "section": "Request",
+      "column": 2
+    },
+    {
+      "name": "settle_by_date",
+      "type": "Date",
+      "label": "Settle by",
+      "section": "Request",
+      "column": 2
+    },
+    {
+      "name": "advance_account",
+      "type": "Link",
+      "label": "Advance account",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "account_type",
+          "op": "=",
+          "value": "Advance"
+        }
+      ],
+      "tab": "Actual",
+      "section": "Account",
+      "description": "Empty = company default (hook)"
+    },
+    {
+      "name": "paid_amount",
+      "type": "Currency",
+      "label": "Paid out",
+      "readOnlyWhen": "true",
+      "noCopy": true,
+      "tab": "Actual",
+      "section": "Actual",
+      "description": "Computed from the ledger when opened (OnLoad)"
+    },
+    {
+      "name": "settled_amount",
+      "type": "Currency",
+      "label": "Settled",
+      "readOnlyWhen": "true",
+      "noCopy": true,
+      "tab": "Actual",
+      "section": "Actual"
+    },
+    {
+      "name": "returned_amount",
+      "type": "Currency",
+      "label": "Returned by employee",
+      "readOnlyWhen": "true",
+      "noCopy": true,
+      "tab": "Actual",
+      "section": "Actual",
+      "column": 2
+    },
+    {
+      "name": "advance_status",
+      "type": "Select",
+      "label": "Status",
+      "options": [
+        "Unpaid",
+        "Paid",
+        "Partly Settled",
+        "Completed"
+      ],
+      "readOnlyWhen": "true",
+      "noCopy": true,
+      "tab": "Actual",
+      "section": "Actual",
+      "column": 2,
+      "description": "Computed when opened (OnLoad)"
+    }
+  ],
+  "rules": [
+    {
+      "name": "positive_amount",
+      "expr": "advance_amount > 0",
+      "message": "Amount must be greater than 0",
+      "field": "advance_amount"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Employee",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete"
+      ],
+      "scope": "match:employee=employee"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "match:expense_approver=employee"
+    },
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "write",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "employee_name",
+    "searchFields": [
+      "name",
+      "employee_name",
+      "purpose"
+    ],
+    "filters": [
+      "workflow_state"
+    ],
+    "defaultSort": [
+      {
+        "field": "posting_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

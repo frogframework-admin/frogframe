@@ -1,0 +1,213 @@
+{
+  "name": "Attendance",
+  "version": 1,
+  "title": "Attendance",
+  "module": "HR",
+  "description": "Daily attendance per employee (Workday Time Tracking). Locked once the payslip for its month is submitted.",
+  "naming": {
+    "pattern": "ATT-{YYYY}-{#######}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "employee",
+      "type": "Link",
+      "label": "Employee",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "default": "$employee",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Attendance"
+    },
+    {
+      "name": "employee_name",
+      "type": "Data",
+      "label": "Employee name",
+      "fetchFrom": "employee.full_name",
+      "inListView": true,
+      "section": "Attendance"
+    },
+    {
+      "name": "organization_unit",
+      "type": "Data",
+      "label": "Unit",
+      "fetchFrom": "employee.organization_unit",
+      "section": "Attendance"
+    },
+    {
+      "name": "attendance_date",
+      "type": "Date",
+      "label": "Date",
+      "requiredWhen": "true",
+      "default": "$today",
+      "inListView": true,
+      "section": "Attendance",
+      "column": 2
+    },
+    {
+      "name": "status",
+      "type": "Select",
+      "label": "Status",
+      "requiredWhen": "true",
+      "options": [
+        "Present",
+        "Work from home",
+        "Half day",
+        "Absent",
+        "On leave"
+      ],
+      "default": "Present",
+      "inListView": true,
+      "section": "Attendance",
+      "column": 2
+    },
+    {
+      "name": "shift_type",
+      "type": "Link",
+      "label": "Shift",
+      "linkTo": "ShiftType",
+      "section": "Attendance",
+      "column": 2,
+      "description": "Empty = the employee's shift, then the HR Settings default (hook)"
+    },
+    {
+      "name": "check_in",
+      "type": "Datetime",
+      "label": "Check-in",
+      "section": "Time"
+    },
+    {
+      "name": "check_out",
+      "type": "Datetime",
+      "label": "Check-out",
+      "section": "Time"
+    },
+    {
+      "name": "check_in_location",
+      "type": "Geolocation",
+      "label": "Check-in location",
+      "section": "Time",
+      "column": 2
+    },
+    {
+      "name": "working_hours",
+      "type": "Float",
+      "label": "Working hours",
+      "readOnlyWhen": "true",
+      "section": "Time",
+      "column": 2,
+      "description": "Check-out − check-in − shift break (hook)"
+    },
+    {
+      "name": "late_minutes",
+      "type": "Int",
+      "label": "Late (minutes)",
+      "readOnlyWhen": "true",
+      "inListView": true,
+      "section": "Time",
+      "column": 2,
+      "description": "After the shift start plus grace period (hook)"
+    },
+    {
+      "name": "leave_application",
+      "type": "Link",
+      "label": "Leave application",
+      "linkTo": "LeaveApplication",
+      "readOnlyWhen": "true",
+      "section": "Remarks",
+      "description": "Set by hook when an approved leave covers this date"
+    },
+    {
+      "name": "remarks",
+      "type": "Text",
+      "label": "Remarks",
+      "section": "Remarks",
+      "column": 2
+    }
+  ],
+  "rules": [
+    {
+      "name": "check_out_after_in",
+      "expr": "empty(check_in) || empty(check_out) || check_out > check_in",
+      "message": "Check-out must be after check-in",
+      "field": "check_out"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Employee",
+      "actions": [
+        "read",
+        "create",
+        "write"
+      ],
+      "scope": "match:employee=employee"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "match:organization_unit=department"
+    },
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "employee_name",
+    "searchFields": [
+      "employee",
+      "employee_name"
+    ],
+    "filters": [
+      "attendance_date",
+      "status",
+      "employee"
+    ],
+    "defaultSort": [
+      {
+        "field": "attendance_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

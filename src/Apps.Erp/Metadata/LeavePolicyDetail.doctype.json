@@ -1,0 +1,31 @@
+{
+  "name": "LeavePolicyDetail",
+  "version": 1,
+  "title": "Leave Entitlement",
+  "module": "HR",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "leave_type",
+      "type": "Link",
+      "label": "Leave type",
+      "linkTo": "LeaveType",
+      "requiredWhen": "true"
+    },
+    {
+      "name": "annual_allocation",
+      "type": "Float",
+      "label": "Days per year",
+      "requiredWhen": "true",
+      "min": 0
+    },
+    {
+      "name": "min_service_months",
+      "type": "Int",
+      "label": "After service (months)",
+      "default": 0,
+      "min": 0,
+      "description": "e.g. annual leave after 12 months"
+    }
+  ]
+}

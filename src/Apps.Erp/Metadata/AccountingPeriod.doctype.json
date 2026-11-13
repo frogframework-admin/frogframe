@@ -1,0 +1,181 @@
+{
+  "name": "AccountingPeriod",
+  "version": 1,
+  "title": "Accounting Period",
+  "module": "ACCOUNTING",
+  "description": "Monthly period with locks per subledger like NetSuite period close (AR → AP → assets → GL).",
+  "naming": {
+    "pattern": "field:period_name"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "period_name",
+      "type": "Data",
+      "label": "Period name",
+      "requiredWhen": "true",
+      "pattern": "^[0-9]{4}-[0-9]{2}$",
+      "patternMessage": "Format YYYY-MM, e.g. 2027-01",
+      "inListView": true,
+      "section": "Period"
+    },
+    {
+      "name": "fiscal_year",
+      "type": "Link",
+      "label": "Fiscal year",
+      "linkTo": "FiscalYear",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Period"
+    },
+    {
+      "name": "start_date",
+      "type": "Date",
+      "label": "Start date",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Period",
+      "column": 2
+    },
+    {
+      "name": "end_date",
+      "type": "Date",
+      "label": "End date",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Period",
+      "column": 2
+    },
+    {
+      "name": "status",
+      "type": "Select",
+      "label": "Ledger status",
+      "requiredWhen": "true",
+      "options": [
+        "Open",
+        "Closed"
+      ],
+      "default": "Open",
+      "inListView": true,
+      "section": "Period",
+      "column": 2,
+      "description": "Read by the framework: postings only into Open periods"
+    },
+    {
+      "name": "lock_receivable",
+      "type": "Check",
+      "label": "Receivables lock (AR)",
+      "default": false,
+      "section": "Locks per subledger"
+    },
+    {
+      "name": "lock_payable",
+      "type": "Check",
+      "label": "Payables lock (AP)",
+      "default": false,
+      "section": "Locks per subledger"
+    },
+    {
+      "name": "lock_fixed_asset",
+      "type": "Check",
+      "label": "Fixed asset lock",
+      "default": false,
+      "section": "Locks per subledger",
+      "column": 2
+    },
+    {
+      "name": "lock_payroll",
+      "type": "Check",
+      "label": "Payroll lock",
+      "default": false,
+      "section": "Locks per subledger",
+      "column": 2
+    },
+    {
+      "name": "closed_on",
+      "type": "Datetime",
+      "label": "Closed on",
+      "readOnlyWhen": "true",
+      "section": "Closing"
+    },
+    {
+      "name": "closed_by",
+      "type": "Data",
+      "label": "Closed by",
+      "readOnlyWhen": "true",
+      "section": "Closing",
+      "column": 2
+    }
+  ],
+  "rules": [
+    {
+      "name": "valid_period",
+      "expr": "end_date >= start_date",
+      "message": "The end date must be on or after the start date",
+      "field": "end_date"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "period_name",
+    "searchFields": [
+      "period_name"
+    ],
+    "filters": [
+      "fiscal_year",
+      "status"
+    ],
+    "defaultSort": [
+      {
+        "field": "start_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

@@ -1,0 +1,121 @@
+{
+  "name": "HRSettings",
+  "version": 1,
+  "title": "HR Settings",
+  "module": "HR",
+  "isSingle": true,
+  "naming": {
+    "pattern": "{doctype}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": false
+  },
+  "fields": [
+    {
+      "name": "default_holiday_list",
+      "type": "Link",
+      "label": "Default holiday list",
+      "linkTo": "HolidayList",
+      "section": "Default"
+    },
+    {
+      "name": "default_shift_type",
+      "type": "Link",
+      "label": "Default shift type",
+      "linkTo": "ShiftType",
+      "section": "Default"
+    },
+    {
+      "name": "default_leave_policy",
+      "type": "Link",
+      "label": "Default leave policy",
+      "linkTo": "LeavePolicy",
+      "section": "Default",
+      "column": 2
+    },
+    {
+      "name": "default_probation_months",
+      "type": "Int",
+      "label": "Default probation (months)",
+      "default": 3,
+      "min": 0,
+      "max": 3,
+      "section": "Default",
+      "column": 2
+    },
+    {
+      "name": "retirement_age",
+      "type": "Int",
+      "label": "Retirement age",
+      "min": 40,
+      "max": 70,
+      "section": "Terms",
+      "description": "Align with the collective labour agreement/company regulations"
+    },
+    {
+      "name": "contract_expiry_reminder_days",
+      "type": "Int",
+      "label": "Remind before contract end (days)",
+      "default": 30,
+      "min": 0,
+      "section": "Terms",
+      "column": 2
+    },
+    {
+      "name": "leave_year_start",
+      "type": "Select",
+      "label": "Leave period based on",
+      "options": [
+        "January 1",
+        "Date of joining"
+      ],
+      "default": "January 1",
+      "section": "Terms",
+      "column": 2
+    },
+    {
+      "name": "auto_create_user",
+      "type": "Check",
+      "label": "Create a user account when an employee is created",
+      "default": false,
+      "section": "Terms"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "write"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "write"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    }
+  ],
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "update"
+    ]
+  }
+}

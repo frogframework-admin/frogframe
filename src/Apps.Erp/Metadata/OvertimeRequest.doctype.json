@@ -1,0 +1,192 @@
+{
+  "name": "OvertimeRequest",
+  "version": 1,
+  "title": "Overtime Request",
+  "module": "HR",
+  "description": "Overtime request with approval; approved overtime is paid on the payslip of its month (PP 35/2021: hourly wage = 1/173 of the monthly wage).",
+  "naming": {
+    "pattern": "OT-{YYYY}-{######}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "workflow": "OvertimeApproval",
+  "fields": [
+    {
+      "name": "employee",
+      "type": "Link",
+      "label": "Employee",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "default": "$employee",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Request"
+    },
+    {
+      "name": "employee_name",
+      "type": "Data",
+      "label": "Employee name",
+      "fetchFrom": "employee.full_name",
+      "inListView": true,
+      "section": "Request"
+    },
+    {
+      "name": "approver",
+      "type": "Data",
+      "label": "Approver",
+      "fetchFrom": "employee.leave_approver",
+      "section": "Request",
+      "description": "The employee's leave approver"
+    },
+    {
+      "name": "overtime_date",
+      "type": "Date",
+      "label": "Date",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Overtime",
+      "column": 2
+    },
+    {
+      "name": "day_type",
+      "type": "Select",
+      "label": "Day type",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Overtime",
+      "column": 2,
+      "options": [
+        "Working day",
+        "Rest day or public holiday",
+        "Public holiday on the shortest working day"
+      ],
+      "default": "Working day",
+      "description": "'Shortest working day' applies to 6-day weeks only (PP 35/2021 Art. 31(2)(b))"
+    },
+    {
+      "name": "hours",
+      "type": "Float",
+      "label": "Overtime hours",
+      "requiredWhen": "true",
+      "min": 0.5,
+      "max": 12,
+      "inListView": true,
+      "section": "Overtime",
+      "column": 2
+    },
+    {
+      "name": "reason",
+      "type": "Text",
+      "label": "Work done",
+      "requiredWhen": "true",
+      "section": "Overtime"
+    },
+    {
+      "name": "work_week_days",
+      "type": "Int",
+      "label": "Work week (days)",
+      "readOnlyWhen": "true",
+      "section": "Calculation",
+      "description": "From the shift: 5 or 6 (hook)"
+    },
+    {
+      "name": "weighted_hours",
+      "type": "Float",
+      "label": "Paid hours (× multipliers)",
+      "readOnlyWhen": "true",
+      "inListView": true,
+      "section": "Calculation",
+      "description": "Working day: 1st hour 1.5×, next 2×. Rest day 6-day week: 7 h 2×, 8th 3×, 9–11th 4×; holiday on shortest day: 5 h 2×, 6th 3×, 7–9th 4×; rest day 5-day week: 8 h 2×, 9th 3×, 10–12th 4×"
+    },
+    {
+      "name": "period",
+      "type": "Data",
+      "label": "Payroll period",
+      "readOnlyWhen": "true",
+      "inListView": true,
+      "section": "Calculation",
+      "column": 2,
+      "description": "YYYY-MM of the overtime date"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Employee",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete"
+      ],
+      "scope": "match:employee=employee"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "match:approver=employee"
+    },
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "employee_name",
+    "searchFields": [
+      "name",
+      "employee_name"
+    ],
+    "filters": [
+      "overtime_date",
+      "period",
+      "workflow_state"
+    ],
+    "defaultSort": [
+      {
+        "field": "overtime_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

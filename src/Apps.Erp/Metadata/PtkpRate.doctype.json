@@ -1,0 +1,46 @@
+{
+  "name": "PtkpRate",
+  "version": 1,
+  "title": "PTKP Rate",
+  "module": "HR",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "ptkp_status",
+      "type": "Select",
+      "label": "PTKP status",
+      "requiredWhen": "true",
+      "options": [
+        "TK/0",
+        "TK/1",
+        "TK/2",
+        "TK/3",
+        "K/0",
+        "K/1",
+        "K/2",
+        "K/3"
+      ],
+      "inListView": true
+    },
+    {
+      "name": "amount",
+      "type": "Currency",
+      "label": "PTKP per year",
+      "requiredWhen": "true",
+      "min": 0,
+      "inListView": true
+    },
+    {
+      "name": "ter_category",
+      "type": "Select",
+      "label": "TER category",
+      "requiredWhen": "true",
+      "options": [
+        "A",
+        "B",
+        "C"
+      ],
+      "inListView": true
+    }
+  ]
+}

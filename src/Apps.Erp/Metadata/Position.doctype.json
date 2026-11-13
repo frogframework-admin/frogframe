@@ -1,0 +1,258 @@
+{
+  "name": "Position",
+  "version": 1,
+  "title": "Position",
+  "module": "HR",
+  "description": "Budgeted headcount slot filled by one employee (Workday Position / SAP Position). Hierarchy via 'reports to position'.",
+  "naming": {
+    "pattern": "POS-{######}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "position_title",
+      "type": "Data",
+      "label": "Position title",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Position"
+    },
+    {
+      "name": "job_profile",
+      "type": "Link",
+      "label": "Job profile",
+      "linkTo": "JobProfile",
+      "requiredWhen": "true",
+      "linkFilters": [
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Position"
+    },
+    {
+      "name": "organization_unit",
+      "type": "Link",
+      "label": "Organization unit",
+      "linkTo": "OrganizationUnit",
+      "requiredWhen": "true",
+      "linkFilters": [
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Position"
+    },
+    {
+      "name": "company",
+      "type": "Data",
+      "label": "Company",
+      "fetchFrom": "organization_unit.company",
+      "section": "Position"
+    },
+    {
+      "name": "reports_to_position",
+      "type": "Link",
+      "label": "Reports to position",
+      "linkTo": "Position",
+      "lookupDialog": true,
+      "section": "Position",
+      "column": 2
+    },
+    {
+      "name": "is_manager_position",
+      "type": "Check",
+      "label": "Head position",
+      "default": false,
+      "section": "Position",
+      "column": 2
+    },
+    {
+      "name": "grade",
+      "type": "Link",
+      "label": "Grade",
+      "linkTo": "Grade",
+      "section": "Position",
+      "column": 2,
+      "description": "Empty = job profile default grade (hook)"
+    },
+    {
+      "name": "status",
+      "type": "Select",
+      "label": "Status",
+      "options": [
+        "Vacant",
+        "Filled",
+        "Frozen",
+        "Closed"
+      ],
+      "default": "Vacant",
+      "inListView": true,
+      "section": "Status",
+      "description": "Vacant/Filled updated by hook from employee placement"
+    },
+    {
+      "name": "current_employee",
+      "type": "Link",
+      "label": "Current holder",
+      "linkTo": "Employee",
+      "readOnlyWhen": "true",
+      "noCopy": true,
+      "inListView": true,
+      "section": "Status",
+      "column": 2
+    },
+    {
+      "name": "effective_from",
+      "type": "Date",
+      "label": "Effective from",
+      "requiredWhen": "true",
+      "default": "$today",
+      "section": "Status",
+      "column": 2
+    },
+    {
+      "name": "worker_type",
+      "type": "Select",
+      "label": "Worker type",
+      "options": [
+        "Permanent (PKWTT)",
+        "Fixed-term (PKWT)",
+        "Casual",
+        "Intern",
+        "Outsourced"
+      ],
+      "default": "Permanent (PKWTT)",
+      "section": "Terms"
+    },
+    {
+      "name": "time_type",
+      "type": "Select",
+      "label": "Working time",
+      "options": [
+        "Full-time",
+        "Part-time"
+      ],
+      "default": "Full-time",
+      "section": "Terms"
+    },
+    {
+      "name": "location",
+      "type": "Link",
+      "label": "Location",
+      "linkTo": "Location",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        }
+      ],
+      "section": "Terms",
+      "column": 2
+    },
+    {
+      "name": "cost_center",
+      "type": "Link",
+      "label": "Cost center",
+      "linkTo": "CostCenter",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        }
+      ],
+      "section": "Terms",
+      "column": 2,
+      "description": "Empty = from organization unit"
+    },
+    {
+      "name": "dotted_lines",
+      "type": "Table",
+      "label": "Dotted lines",
+      "childDocType": "PositionDottedLine",
+      "section": "Coordination"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "position_title",
+    "searchFields": [
+      "name",
+      "position_title"
+    ],
+    "filters": [
+      "organization_unit",
+      "job_profile",
+      "status"
+    ],
+    "defaultSort": [
+      {
+        "field": "name",
+        "direction": "asc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

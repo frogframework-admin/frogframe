@@ -1,0 +1,118 @@
+{
+  "name": "Bank",
+  "version": 1,
+  "title": "Bank",
+  "module": "CORE",
+  "naming": {
+    "pattern": "field:bank_code"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "bank_code",
+      "type": "Data",
+      "label": "Bank code",
+      "requiredWhen": "true",
+      "maxLength": 11,
+      "inListView": true,
+      "description": "Bank Indonesia bank code (3 digits) or internal code"
+    },
+    {
+      "name": "bank_name",
+      "type": "Data",
+      "label": "Bank name",
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "swift_code",
+      "type": "Data",
+      "label": "SWIFT/BIC",
+      "maxLength": 11,
+      "pattern": "^[A-Z0-9]{8}([A-Z0-9]{3})?$",
+      "column": 2
+    },
+    {
+      "name": "is_active",
+      "type": "Check",
+      "label": "Active",
+      "default": true,
+      "inListView": true,
+      "column": 2
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "bank_name",
+    "searchFields": [
+      "bank_code",
+      "bank_name"
+    ],
+    "filters": [
+      "is_active"
+    ],
+    "defaultSort": [
+      {
+        "field": "bank_name",
+        "direction": "asc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

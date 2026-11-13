@@ -1,0 +1,97 @@
+{
+  "name": "PurchaseOrderItem",
+  "version": 1,
+  "title": "Purchase Order Item",
+  "module": "FINANCE",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "item",
+      "type": "Link",
+      "label": "Item",
+      "linkTo": "Item",
+      "linkFilters": [
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "is_purchase_item",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "inListView": true
+    },
+    {
+      "name": "item_name",
+      "type": "Data",
+      "label": "Item / service",
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "description",
+      "type": "Data",
+      "label": "Specification"
+    },
+    {
+      "name": "qty",
+      "type": "Float",
+      "label": "Quantity",
+      "requiredWhen": "true",
+      "default": 1,
+      "min": 0,
+      "inListView": true
+    },
+    {
+      "name": "uom",
+      "type": "Link",
+      "label": "UOM",
+      "linkTo": "UOM"
+    },
+    {
+      "name": "rate",
+      "type": "Currency",
+      "label": "Rate",
+      "requiredWhen": "true",
+      "default": 0,
+      "min": 0,
+      "inListView": true
+    },
+    {
+      "name": "discount_percent",
+      "type": "Percent",
+      "label": "Discount (%)",
+      "default": 0,
+      "min": 0,
+      "max": 100
+    },
+    {
+      "name": "amount",
+      "type": "Currency",
+      "label": "Amount",
+      "compute": "round(qty * rate * (1 - discount_percent / 100), 2)",
+      "inListView": true
+    },
+    {
+      "name": "is_vat_applicable",
+      "type": "Check",
+      "label": "Subject to VAT",
+      "default": true
+    },
+    {
+      "name": "taxable_amount",
+      "type": "Currency",
+      "label": "Line tax base",
+      "compute": "amount * is_vat_applicable"
+    },
+    {
+      "name": "cost_center",
+      "type": "Link",
+      "label": "Cost center",
+      "linkTo": "CostCenter"
+    }
+  ]
+}

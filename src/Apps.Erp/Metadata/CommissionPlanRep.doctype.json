@@ -1,0 +1,26 @@
+{
+  "name": "CommissionPlanRep",
+  "version": 1,
+  "title": "Commission Plan Rep",
+  "module": "CRM",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "sales_rep",
+      "type": "Link",
+      "label": "Sales rep",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "rate",
+      "type": "Percent",
+      "label": "Rate override",
+      "min": 0,
+      "max": 100,
+      "inListView": true,
+      "description": "Empty = plan rate"
+    }
+  ]
+}

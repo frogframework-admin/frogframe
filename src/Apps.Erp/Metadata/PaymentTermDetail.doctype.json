@@ -1,0 +1,55 @@
+{
+  "name": "PaymentTermDetail",
+  "version": 1,
+  "title": "Payment Term Detail",
+  "module": "CORE",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "description",
+      "type": "Data",
+      "label": "Remarks",
+      "requiredWhen": "true",
+      "description": "e.g. Down payment, Final payment"
+    },
+    {
+      "name": "invoice_portion",
+      "type": "Percent",
+      "label": "Portion (%)",
+      "requiredWhen": "true",
+      "min": 0,
+      "max": 100
+    },
+    {
+      "name": "due_date_basis",
+      "type": "Select",
+      "label": "Due date based on",
+      "requiredWhen": "true",
+      "options": [
+        "Days after invoice date",
+        "Days after invoice month end"
+      ],
+      "default": "Days after invoice date"
+    },
+    {
+      "name": "credit_days",
+      "type": "Int",
+      "label": "Days",
+      "default": 30,
+      "min": 0
+    },
+    {
+      "name": "discount_percent",
+      "type": "Percent",
+      "label": "Early payment discount (%)",
+      "min": 0,
+      "max": 100
+    },
+    {
+      "name": "discount_days",
+      "type": "Int",
+      "label": "Applies if paid within (days)",
+      "min": 0
+    }
+  ]
+}

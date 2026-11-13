@@ -1,0 +1,225 @@
+{
+  "name": "Campaign",
+  "version": 1,
+  "title": "Campaign",
+  "module": "CRM",
+  "description": "Marketing campaign with cost and results (Salesforce Campaign). Leads and opportunities link to it for ROI.",
+  "naming": {
+    "pattern": "CMP-{YYYY}-{####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "campaign_name",
+      "type": "Data",
+      "label": "Campaign name",
+      "requiredWhen": "true",
+      "maxLength": 140,
+      "inListView": true,
+      "section": "Campaign"
+    },
+    {
+      "name": "campaign_type",
+      "type": "Select",
+      "label": "Type",
+      "requiredWhen": "true",
+      "options": [
+        "Email",
+        "Event",
+        "Webinar",
+        "Advertising",
+        "Social media",
+        "Partner",
+        "Other"
+      ],
+      "default": "Email",
+      "inListView": true,
+      "section": "Campaign"
+    },
+    {
+      "name": "status",
+      "type": "Select",
+      "label": "Status",
+      "requiredWhen": "true",
+      "options": [
+        "Planned",
+        "Active",
+        "Completed",
+        "Aborted"
+      ],
+      "default": "Planned",
+      "inListView": true,
+      "section": "Campaign",
+      "column": 2
+    },
+    {
+      "name": "start_date",
+      "type": "Date",
+      "label": "Start date",
+      "section": "Campaign",
+      "column": 2
+    },
+    {
+      "name": "end_date",
+      "type": "Date",
+      "label": "End date",
+      "section": "Campaign",
+      "column": 2
+    },
+    {
+      "name": "budgeted_cost",
+      "type": "Currency",
+      "label": "Budgeted cost",
+      "min": 0,
+      "section": "Budget & Results"
+    },
+    {
+      "name": "actual_cost",
+      "type": "Currency",
+      "label": "Actual cost",
+      "min": 0,
+      "section": "Budget & Results"
+    },
+    {
+      "name": "expected_revenue",
+      "type": "Currency",
+      "label": "Expected revenue",
+      "min": 0,
+      "section": "Budget & Results"
+    },
+    {
+      "name": "lead_count",
+      "type": "Int",
+      "label": "Leads",
+      "readOnlyWhen": "true",
+      "section": "Budget & Results",
+      "column": 2,
+      "description": "Computed when opened"
+    },
+    {
+      "name": "opportunity_count",
+      "type": "Int",
+      "label": "Opportunities",
+      "readOnlyWhen": "true",
+      "section": "Budget & Results",
+      "column": 2
+    },
+    {
+      "name": "won_amount",
+      "type": "Currency",
+      "label": "Won amount",
+      "readOnlyWhen": "true",
+      "section": "Budget & Results",
+      "column": 2
+    },
+    {
+      "name": "description",
+      "type": "Text",
+      "label": "Description",
+      "section": "Budget & Results"
+    },
+    {
+      "name": "sales_rep",
+      "type": "Link",
+      "label": "Owner (sales)",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "default": "$employee",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Owner",
+      "description": "Salesforce: Owner. Decides who can see and edit"
+    },
+    {
+      "name": "organization_unit",
+      "type": "Data",
+      "label": "Team/unit",
+      "fetchFrom": "sales_rep.organization_unit",
+      "section": "Owner"
+    }
+  ],
+  "rules": [
+    {
+      "name": "valid_period",
+      "expr": "empty(start_date) || empty(end_date) || end_date >= start_date",
+      "message": "The end date must be on or after the start date",
+      "field": "end_date"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Sales",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "match:sales_rep=employee"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "match:organization_unit=department"
+    },
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "campaign_name",
+    "searchFields": [
+      "campaign_name"
+    ],
+    "filters": [
+      "status",
+      "campaign_type",
+      "sales_rep"
+    ],
+    "defaultSort": [
+      {
+        "field": "start_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

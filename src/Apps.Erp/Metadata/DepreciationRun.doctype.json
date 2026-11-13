@@ -1,0 +1,137 @@
+{
+  "name": "DepreciationRun",
+  "version": 1,
+  "title": "Depreciation Run",
+  "module": "FINANCE",
+  "description": "One document per period that posts depreciation for all assets (SAP AFAB / NetSuite Depreciation).",
+  "naming": {
+    "pattern": "DEP-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "company",
+      "type": "Link",
+      "label": "Company",
+      "linkTo": "Company",
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "accounting_period",
+      "type": "Link",
+      "label": "Period",
+      "linkTo": "AccountingPeriod",
+      "requiredWhen": "true",
+      "linkFilters": [
+        {
+          "field": "status",
+          "op": "=",
+          "value": "Open"
+        }
+      ],
+      "inListView": true
+    },
+    {
+      "name": "posting_date",
+      "type": "Date",
+      "label": "Posting date",
+      "requiredWhen": "true",
+      "inListView": true,
+      "column": 2,
+      "description": "Usually the period end"
+    },
+    {
+      "name": "items",
+      "type": "Table",
+      "label": "Assets depreciated",
+      "childDocType": "DepreciationRunItem",
+      "description": "Set by hook: unposted schedule lines up to the posting date"
+    },
+    {
+      "name": "total_depreciation",
+      "type": "Currency",
+      "label": "Total depreciation",
+      "compute": "sum(items.depreciation_amount)",
+      "inListView": true
+    },
+    {
+      "name": "asset_count",
+      "type": "Int",
+      "label": "Asset count",
+      "compute": "len(items)",
+      "column": 2
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "accounting_period",
+    "searchFields": [
+      "name"
+    ],
+    "filters": [
+      "company",
+      "accounting_period"
+    ],
+    "defaultSort": [
+      {
+        "field": "posting_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

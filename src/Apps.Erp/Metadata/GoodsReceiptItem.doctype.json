@@ -1,0 +1,83 @@
+{
+  "name": "GoodsReceiptItem",
+  "version": 1,
+  "title": "Goods Receipt Item",
+  "module": "FINANCE",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "po_line",
+      "type": "Int",
+      "label": "PO line",
+      "requiredWhen": "true",
+      "inListView": true,
+      "description": "Line number on the purchase order (1 = first)"
+    },
+    {
+      "name": "item_name",
+      "type": "Data",
+      "label": "Item / service",
+      "inListView": true,
+      "description": "Set by hook"
+    },
+    {
+      "name": "item",
+      "type": "Link",
+      "label": "Item",
+      "linkTo": "Item",
+      "readOnlyWhen": "true",
+      "description": "Set by hook from the order line"
+    },
+    {
+      "name": "is_stock_item",
+      "type": "Check",
+      "label": "Stock item",
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "valuation_rate",
+      "type": "Currency",
+      "label": "Valuation rate",
+      "readOnlyWhen": "true",
+      "description": "Order net rate in functional currency (set on submit)"
+    },
+    {
+      "name": "amount",
+      "type": "Currency",
+      "label": "Stock value",
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "ordered_qty",
+      "type": "Float",
+      "label": "Ordered",
+      "description": "Set by hook"
+    },
+    {
+      "name": "pending_qty",
+      "type": "Float",
+      "label": "Not yet received",
+      "description": "Set by hook"
+    },
+    {
+      "name": "received_qty",
+      "type": "Float",
+      "label": "Received now",
+      "requiredWhen": "true",
+      "min": 0,
+      "inListView": true
+    },
+    {
+      "name": "rejected_qty",
+      "type": "Float",
+      "label": "Rejected",
+      "default": 0,
+      "min": 0
+    },
+    {
+      "name": "remarks",
+      "type": "Data",
+      "label": "Remarks"
+    }
+  ]
+}

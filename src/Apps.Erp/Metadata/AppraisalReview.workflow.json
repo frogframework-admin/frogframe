@@ -1,0 +1,70 @@
+{
+  "name": "AppraisalReview",
+  "docType": "Appraisal",
+  "version": 1,
+  "initialState": "Draft",
+  "states": [
+    {
+      "name": "Draft",
+      "docStatus": 0,
+      "tone": "neutral"
+    },
+    {
+      "name": "Self review done",
+      "docStatus": 0,
+      "tone": "pending"
+    },
+    {
+      "name": "Completed",
+      "docStatus": 1,
+      "tone": "positive"
+    },
+    {
+      "name": "Cancelled",
+      "docStatus": 2,
+      "tone": "negative"
+    }
+  ],
+  "transitions": [
+    {
+      "from": "Draft",
+      "to": "Self review done",
+      "action": "Submit self review",
+      "allowedRoles": [
+        "Employee",
+        "HR"
+      ],
+      "condition": "employee == user.employee || has_role('HR')"
+    },
+    {
+      "from": "Self review done",
+      "to": "Draft",
+      "action": "Return to employee",
+      "allowedRoles": [
+        "Employee",
+        "HR"
+      ],
+      "condition": "reviewer == user.employee || has_role('HR')",
+      "requireComment": true
+    },
+    {
+      "from": "Self review done",
+      "to": "Completed",
+      "action": "Complete review",
+      "allowedRoles": [
+        "Employee",
+        "HR"
+      ],
+      "condition": "(reviewer == user.employee && employee != user.employee) || has_role('HR')"
+    },
+    {
+      "from": "Completed",
+      "to": "Cancelled",
+      "action": "Cancel",
+      "allowedRoles": [
+        "HR"
+      ],
+      "requireComment": true
+    }
+  ]
+}

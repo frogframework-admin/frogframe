@@ -1,0 +1,175 @@
+{
+  "name": "Warehouse",
+  "version": 1,
+  "title": "Warehouse",
+  "module": "STOCK",
+  "description": "Warehouse or stock location tree (SAP Storage Location / NetSuite Location with inventory).",
+  "naming": {
+    "pattern": "field:warehouse_name"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "warehouse_name",
+      "type": "Data",
+      "label": "Warehouse name",
+      "requiredWhen": "true",
+      "maxLength": 100,
+      "inListView": true
+    },
+    {
+      "name": "parent_warehouse",
+      "type": "Link",
+      "label": "Parent warehouse",
+      "linkTo": "Warehouse",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "inListView": true
+    },
+    {
+      "name": "is_group",
+      "type": "Check",
+      "label": "Group",
+      "default": false,
+      "column": 2
+    },
+    {
+      "name": "company",
+      "type": "Link",
+      "label": "Company",
+      "linkTo": "Company",
+      "requiredWhen": "true",
+      "column": 2
+    },
+    {
+      "name": "location",
+      "type": "Link",
+      "label": "Location",
+      "linkTo": "Location",
+      "column": 2
+    },
+    {
+      "name": "inventory_account",
+      "type": "Link",
+      "label": "Inventory account",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "account_type",
+          "op": "=",
+          "value": "Inventory"
+        }
+      ],
+      "column": 2,
+      "description": "Empty = Stock Settings default"
+    },
+    {
+      "name": "is_active",
+      "type": "Check",
+      "label": "Active",
+      "default": true,
+      "inListView": true,
+      "column": 2
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Stock",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Purchasing",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Sales",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Finance",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "warehouse_name",
+    "searchFields": [
+      "warehouse_name"
+    ],
+    "filters": [
+      "company",
+      "parent_warehouse",
+      "is_group"
+    ],
+    "defaultSort": [
+      {
+        "field": "warehouse_name",
+        "direction": "asc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

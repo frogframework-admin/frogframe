@@ -1,0 +1,47 @@
+{
+  "name": "EmployeeIdentityDocument",
+  "version": 1,
+  "title": "Identity Document",
+  "module": "HR",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "document_type",
+      "type": "Select",
+      "label": "Type",
+      "requiredWhen": "true",
+      "options": [
+        "KTP",
+        "NPWP",
+        "Family Card",
+        "Passport",
+        "SIM",
+        "KITAS/KITAP",
+        "BPJS Health",
+        "BPJS Employment",
+        "Other"
+      ]
+    },
+    {
+      "name": "document_no",
+      "type": "Data",
+      "label": "Number",
+      "requiredWhen": "true"
+    },
+    {
+      "name": "issue_date",
+      "type": "Date",
+      "label": "Issue date"
+    },
+    {
+      "name": "expiry_date",
+      "type": "Date",
+      "label": "Valid until"
+    },
+    {
+      "name": "attachment",
+      "type": "Attach",
+      "label": "Scan"
+    }
+  ]
+}

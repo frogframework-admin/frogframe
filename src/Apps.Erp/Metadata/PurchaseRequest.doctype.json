@@ -1,0 +1,219 @@
+{
+  "name": "PurchaseRequest",
+  "version": 1,
+  "title": "Purchase Request",
+  "module": "FINANCE",
+  "description": "Internal request to buy (SAP Purchase Requisition / NetSuite Purchase Request), approved by the requester's expense approver.",
+  "naming": {
+    "pattern": "PRQ-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "workflow": "PurchaseRequestApproval",
+  "fields": [
+    {
+      "name": "requested_by",
+      "type": "Link",
+      "label": "Requested by",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "default": "$employee",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Request"
+    },
+    {
+      "name": "employee_name",
+      "type": "Data",
+      "label": "Requester name",
+      "fetchFrom": "requested_by.full_name",
+      "section": "Request"
+    },
+    {
+      "name": "approver",
+      "type": "Data",
+      "label": "Approver",
+      "fetchFrom": "requested_by.expense_approver",
+      "section": "Request",
+      "description": "The requester's expense approver"
+    },
+    {
+      "name": "organization_unit",
+      "type": "Data",
+      "label": "Unit",
+      "fetchFrom": "requested_by.organization_unit",
+      "section": "Request"
+    },
+    {
+      "name": "company",
+      "type": "Link",
+      "label": "Company",
+      "linkTo": "Company",
+      "requiredWhen": "true",
+      "section": "Request",
+      "column": 2
+    },
+    {
+      "name": "cost_center",
+      "type": "Link",
+      "label": "Cost center",
+      "linkTo": "CostCenter",
+      "section": "Request",
+      "column": 2,
+      "description": "Empty = the requester's cost center (hook)"
+    },
+    {
+      "name": "required_by",
+      "type": "Date",
+      "label": "Required by",
+      "section": "Request",
+      "column": 2
+    },
+    {
+      "name": "suggested_vendor",
+      "type": "Link",
+      "label": "Suggested supplier",
+      "linkTo": "Vendor",
+      "linkFilters": [
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "section": "Request",
+      "column": 2
+    },
+    {
+      "name": "purpose",
+      "type": "Text",
+      "label": "Purpose",
+      "requiredWhen": "true",
+      "section": "Request"
+    },
+    {
+      "name": "items",
+      "type": "Table",
+      "label": "Items",
+      "childDocType": "PurchaseRequestItem",
+      "requiredWhen": "true",
+      "section": "Items",
+      "addFromLookup": {
+        "linkField": "item",
+        "map": {
+          "item_name": "item_name",
+          "uom": "uom"
+        },
+        "multiple": true,
+        "buttonLabel": "Add item"
+      }
+    },
+    {
+      "name": "total_estimate",
+      "type": "Currency",
+      "label": "Estimated total",
+      "compute": "sum(items.amount)",
+      "inListView": true,
+      "section": "Items"
+    },
+    {
+      "name": "order_status",
+      "type": "Select",
+      "label": "Order status",
+      "options": [
+        "Not ordered",
+        "Partly ordered",
+        "Ordered"
+      ],
+      "readOnlyWhen": "true",
+      "inListView": true,
+      "section": "Items",
+      "column": 2,
+      "description": "Computed when opened from submitted purchase orders"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Employee",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete"
+      ],
+      "scope": "match:requested_by=employee"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "match:approver=employee"
+    },
+    {
+      "role": "Purchasing",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "match:organization_unit=department"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "employee_name",
+    "searchFields": [
+      "name",
+      "employee_name"
+    ],
+    "filters": [
+      "workflow_state",
+      "order_status",
+      "company"
+    ],
+    "defaultSort": [
+      {
+        "field": "modified",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

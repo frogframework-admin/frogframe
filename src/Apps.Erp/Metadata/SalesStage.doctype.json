@@ -1,0 +1,160 @@
+{
+  "name": "SalesStage",
+  "version": 1,
+  "title": "Sales Stage",
+  "module": "CRM",
+  "description": "Opportunity stage with probability and forecast category (Salesforce OpportunityStage).",
+  "naming": {
+    "pattern": "field:stage_name"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "stage_name",
+      "type": "Data",
+      "label": "Stage",
+      "requiredWhen": "true",
+      "inListView": true,
+      "description": "e.g. Qualification, Needs Analysis, Proposal, Negotiation, Won, Lost"
+    },
+    {
+      "name": "sequence",
+      "type": "Int",
+      "label": "Order",
+      "requiredWhen": "true",
+      "min": 1,
+      "inListView": true
+    },
+    {
+      "name": "stage_type",
+      "type": "Select",
+      "label": "Type",
+      "requiredWhen": "true",
+      "options": [
+        "Open",
+        "Won",
+        "Lost"
+      ],
+      "default": "Open",
+      "inListView": true,
+      "column": 2
+    },
+    {
+      "name": "probability",
+      "type": "Percent",
+      "label": "Default probability (%)",
+      "requiredWhen": "true",
+      "min": 0,
+      "max": 100,
+      "inListView": true,
+      "column": 2
+    },
+    {
+      "name": "forecast_category",
+      "type": "Select",
+      "label": "Forecast category",
+      "requiredWhen": "true",
+      "options": [
+        "Pipeline",
+        "Best Case",
+        "Commit",
+        "Closed",
+        "Omitted"
+      ],
+      "default": "Pipeline",
+      "column": 2
+    },
+    {
+      "name": "is_active",
+      "type": "Check",
+      "label": "Active",
+      "default": true,
+      "inListView": true,
+      "column": 2
+    }
+  ],
+  "rules": [
+    {
+      "name": "won_hundred",
+      "expr": "stage_type != 'Won' || (probability == 100 && forecast_category == 'Closed')",
+      "message": "A won stage must be 100% with category Closed",
+      "field": "probability"
+    },
+    {
+      "name": "lost_zero",
+      "expr": "stage_type != 'Lost' || (probability == 0 && forecast_category == 'Omitted')",
+      "message": "A lost stage must be 0% with category Omitted",
+      "field": "probability"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Sales",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "stage_name",
+    "searchFields": [
+      "stage_name"
+    ],
+    "filters": [
+      "stage_type",
+      "is_active"
+    ],
+    "defaultSort": [
+      {
+        "field": "sequence",
+        "direction": "asc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

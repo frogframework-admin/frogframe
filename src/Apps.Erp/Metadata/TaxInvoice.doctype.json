@@ -1,0 +1,272 @@
+{
+  "name": "TaxInvoice",
+  "version": 1,
+  "title": "Tax Invoice",
+  "module": "FINANCE",
+  "description": "Output/input tax invoice register. Created by hook from invoices; number & status synced with Coretax.",
+  "naming": {
+    "pattern": "FP-{YYYY}-{######}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "direction",
+      "type": "Select",
+      "label": "Direction",
+      "requiredWhen": "true",
+      "options": [
+        "Output",
+        "Input"
+      ],
+      "inListView": true,
+      "section": "Invoice"
+    },
+    {
+      "name": "company",
+      "type": "Link",
+      "label": "Company",
+      "linkTo": "Company",
+      "requiredWhen": "true",
+      "section": "Invoice"
+    },
+    {
+      "name": "party_type",
+      "type": "Select",
+      "label": "Party type",
+      "requiredWhen": "true",
+      "options": [
+        "Customer",
+        "Vendor"
+      ],
+      "section": "Invoice"
+    },
+    {
+      "name": "party",
+      "type": "DynamicLink",
+      "label": "Party",
+      "requiredWhen": "true",
+      "linkToField": "party_type",
+      "inListView": true,
+      "section": "Invoice"
+    },
+    {
+      "name": "reference_doctype",
+      "type": "Select",
+      "label": "Source document",
+      "requiredWhen": "true",
+      "options": [
+        "SalesInvoice",
+        "SalesCreditNote",
+        "PurchaseInvoice",
+        "PurchaseDebitNote"
+      ],
+      "section": "Invoice",
+      "column": 2
+    },
+    {
+      "name": "reference_name",
+      "type": "DynamicLink",
+      "label": "Source document no.",
+      "requiredWhen": "true",
+      "linkToField": "reference_doctype",
+      "section": "Invoice",
+      "column": 2
+    },
+    {
+      "name": "transaction_code",
+      "type": "Select",
+      "label": "Transaction code",
+      "requiredWhen": "true",
+      "options": [
+        "01",
+        "02",
+        "03",
+        "04",
+        "05",
+        "06",
+        "07",
+        "08",
+        "09",
+        "10"
+      ],
+      "default": "04",
+      "section": "Invoice",
+      "column": 2,
+      "description": "Tax invoice transaction code; align with Coretax rules"
+    },
+    {
+      "name": "tax_invoice_no",
+      "type": "Data",
+      "label": "Tax invoice number",
+      "maxLength": 30,
+      "inListView": true,
+      "section": "Number & Status"
+    },
+    {
+      "name": "tax_invoice_date",
+      "type": "Date",
+      "label": "Tax invoice date",
+      "inListView": true,
+      "section": "Number & Status"
+    },
+    {
+      "name": "tax_period",
+      "type": "Data",
+      "label": "Tax period",
+      "requiredWhen": "true",
+      "pattern": "^[0-9]{4}-[0-9]{2}$",
+      "patternMessage": "YYYY-MM",
+      "inListView": true,
+      "section": "Number & Status"
+    },
+    {
+      "name": "credited_period",
+      "type": "Data",
+      "label": "Credit period",
+      "pattern": "^[0-9]{4}-[0-9]{2}$",
+      "visibleWhen": "direction == 'Input'",
+      "section": "Number & Status",
+      "column": 2
+    },
+    {
+      "name": "status",
+      "type": "Select",
+      "label": "Coretax status",
+      "options": [
+        "Draft",
+        "Uploaded",
+        "Approved",
+        "Cancelled",
+        "Replaced"
+      ],
+      "default": "Draft",
+      "inListView": true,
+      "section": "Number & Status",
+      "column": 2
+    },
+    {
+      "name": "replaces",
+      "type": "Link",
+      "label": "Replacement for",
+      "linkTo": "TaxInvoice",
+      "section": "Number & Status",
+      "column": 2
+    },
+    {
+      "name": "return_of",
+      "type": "Link",
+      "label": "Original tax invoice (return)",
+      "linkTo": "TaxInvoice",
+      "section": "Number & Status",
+      "column": 2,
+      "visibleWhen": "reference_doctype == 'SalesCreditNote' || reference_doctype == 'PurchaseDebitNote'",
+      "description": "Set by hook for credit/debit notes: the active tax invoice of the original invoice"
+    },
+    {
+      "name": "tax_base",
+      "type": "Currency",
+      "label": "DPP",
+      "requiredWhen": "true",
+      "min": 0,
+      "section": "Value"
+    },
+    {
+      "name": "other_tax_base",
+      "type": "Currency",
+      "label": "Other tax base (DPP nilai lain)",
+      "min": 0,
+      "section": "Value"
+    },
+    {
+      "name": "vat_amount",
+      "type": "Currency",
+      "label": "PPN",
+      "requiredWhen": "true",
+      "min": 0,
+      "section": "Value",
+      "column": 2
+    },
+    {
+      "name": "ppnbm_amount",
+      "type": "Currency",
+      "label": "Luxury Sales Tax (PPnBM)",
+      "default": 0,
+      "min": 0,
+      "section": "Value",
+      "column": 2
+    },
+    {
+      "name": "document",
+      "type": "Attach",
+      "label": "Invoice document (PDF)",
+      "section": "Value",
+      "column": 2
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "party",
+    "searchFields": [
+      "tax_invoice_no",
+      "party"
+    ],
+    "filters": [
+      "direction",
+      "status",
+      "tax_period",
+      "company"
+    ],
+    "defaultSort": [
+      {
+        "field": "tax_invoice_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

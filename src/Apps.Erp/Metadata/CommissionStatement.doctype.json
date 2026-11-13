@@ -1,0 +1,177 @@
+{
+  "name": "CommissionStatement",
+  "version": 1,
+  "title": "Commission Statement",
+  "module": "CRM",
+  "description": "Monthly commission per sales rep from submitted sales invoices and credit notes. Submit accrues Dr commission expense / Cr commission payable (paid with Payment Entry).",
+  "naming": {
+    "pattern": "CMS-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "company",
+      "type": "Link",
+      "label": "Company",
+      "linkTo": "Company",
+      "requiredWhen": "true",
+      "section": "Statement"
+    },
+    {
+      "name": "sales_rep",
+      "type": "Link",
+      "label": "Sales rep",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Statement"
+    },
+    {
+      "name": "commission_plan",
+      "type": "Link",
+      "label": "Commission plan",
+      "linkTo": "CommissionPlan",
+      "requiredWhen": "true",
+      "linkFilters": [
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "section": "Statement",
+      "column": 2
+    },
+    {
+      "name": "period",
+      "type": "Data",
+      "label": "Period",
+      "requiredWhen": "true",
+      "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$",
+      "patternMessage": "YYYY-MM",
+      "inListView": true,
+      "section": "Statement",
+      "column": 2
+    },
+    {
+      "name": "posting_date",
+      "type": "Date",
+      "label": "Posting date",
+      "section": "Statement",
+      "column": 2,
+      "description": "Empty = last day of the period (hook)"
+    },
+    {
+      "name": "rate",
+      "type": "Percent",
+      "label": "Rate",
+      "readOnlyWhen": "true",
+      "section": "Result"
+    },
+    {
+      "name": "lines",
+      "type": "Table",
+      "label": "Invoices and credit notes",
+      "childDocType": "CommissionLine",
+      "section": "Result",
+      "description": "Recomputed by hook on every save"
+    },
+    {
+      "name": "total_base",
+      "type": "Currency",
+      "label": "Commissionable amount",
+      "readOnlyWhen": "true",
+      "section": "Result"
+    },
+    {
+      "name": "total_commission",
+      "type": "Currency",
+      "label": "Commission",
+      "readOnlyWhen": "true",
+      "inListView": true,
+      "section": "Result",
+      "column": 2
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Sales",
+      "actions": [
+        "read"
+      ],
+      "scope": "match:sales_rep=employee"
+    },
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "sales_rep",
+    "searchFields": [
+      "name",
+      "sales_rep"
+    ],
+    "filters": [
+      "period",
+      "sales_rep",
+      "commission_plan"
+    ],
+    "defaultSort": [
+      {
+        "field": "period",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

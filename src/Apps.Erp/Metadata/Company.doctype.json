@@ -1,0 +1,472 @@
+{
+  "name": "Company",
+  "version": 1,
+  "title": "Company",
+  "module": "CORE",
+  "description": "Legal entity (SAP Company Code / NetSuite Subsidiary / Workday Company).",
+  "naming": {
+    "pattern": "field:company_code"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "company_code",
+      "type": "Data",
+      "label": "Company code",
+      "requiredWhen": "true",
+      "maxLength": 10,
+      "pattern": "^[A-Z0-9]{2,10}$",
+      "patternMessage": "2-10 uppercase letters/digits, e.g. BSI",
+      "inListView": true,
+      "section": "Identity"
+    },
+    {
+      "name": "company_name",
+      "type": "Data",
+      "label": "Company name",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Identity"
+    },
+    {
+      "name": "legal_name",
+      "type": "Data",
+      "label": "Legal name",
+      "description": "Per deed of establishment, e.g. PT Contoh Sejahtera Tbk",
+      "section": "Identity"
+    },
+    {
+      "name": "parent_company",
+      "type": "Link",
+      "label": "Parent company",
+      "linkTo": "Company",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "section": "Identity",
+      "column": 2
+    },
+    {
+      "name": "is_group",
+      "type": "Check",
+      "label": "Group company (holding)",
+      "default": false,
+      "section": "Identity",
+      "column": 2
+    },
+    {
+      "name": "logo",
+      "type": "Image",
+      "label": "Logo",
+      "section": "Identity",
+      "column": 2
+    },
+    {
+      "name": "base_currency",
+      "type": "Link",
+      "label": "Functional currency",
+      "linkTo": "Currency",
+      "requiredWhen": "true",
+      "default": "IDR",
+      "inListView": true,
+      "section": "Settings",
+      "column": 1
+    },
+    {
+      "name": "country",
+      "type": "Data",
+      "label": "Country (ISO)",
+      "requiredWhen": "true",
+      "default": "ID",
+      "maxLength": 2,
+      "pattern": "^[A-Z]{2}$",
+      "section": "Settings",
+      "column": 1
+    },
+    {
+      "name": "fiscal_year_start_month",
+      "type": "Int",
+      "label": "Fiscal year start month",
+      "default": 1,
+      "min": 1,
+      "max": 12,
+      "section": "Settings",
+      "column": 2
+    },
+    {
+      "name": "default_holiday_list",
+      "type": "Link",
+      "label": "Default holiday list",
+      "linkTo": "HolidayList",
+      "section": "Settings",
+      "column": 2
+    },
+    {
+      "name": "tax_id",
+      "type": "Data",
+      "label": "NPWP",
+      "maxLength": 16,
+      "pattern": "^[0-9]{16}$",
+      "patternMessage": "16-digit tax ID (NPWP)",
+      "tab": "Tax & Contact",
+      "section": "Tax"
+    },
+    {
+      "name": "nitku",
+      "type": "Data",
+      "label": "Head-office NITKU",
+      "maxLength": 22,
+      "pattern": "^[0-9]{22}$",
+      "patternMessage": "22-digit NITKU",
+      "tab": "Tax & Contact",
+      "section": "Tax"
+    },
+    {
+      "name": "is_pkp",
+      "type": "Check",
+      "label": "VAT-registered (PKP)",
+      "default": true,
+      "tab": "Tax & Contact",
+      "section": "Tax",
+      "column": 2
+    },
+    {
+      "name": "email",
+      "type": "Email",
+      "label": "Email",
+      "tab": "Tax & Contact",
+      "section": "Contact"
+    },
+    {
+      "name": "phone",
+      "type": "Phone",
+      "label": "Phone",
+      "tab": "Tax & Contact",
+      "section": "Contact"
+    },
+    {
+      "name": "website",
+      "type": "Data",
+      "label": "Website",
+      "tab": "Tax & Contact",
+      "section": "Contact",
+      "column": 2
+    },
+    {
+      "name": "default_receivable_account",
+      "type": "Link",
+      "label": "Default receivable account",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "account_type",
+          "op": "=",
+          "value": "Receivable"
+        }
+      ],
+      "tab": "Default Accounts",
+      "section": "Account"
+    },
+    {
+      "name": "default_payable_account",
+      "type": "Link",
+      "label": "Default payable account",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "account_type",
+          "op": "=",
+          "value": "Payable"
+        }
+      ],
+      "tab": "Default Accounts",
+      "section": "Account"
+    },
+    {
+      "name": "default_cash_account",
+      "type": "Link",
+      "label": "Default cash account",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "account_type",
+          "op": "in",
+          "value": [
+            "Cash",
+            "Bank"
+          ]
+        }
+      ],
+      "tab": "Default Accounts",
+      "section": "Account"
+    },
+    {
+      "name": "default_income_account",
+      "type": "Link",
+      "label": "Default income account",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "root_type",
+          "op": "=",
+          "value": "Income"
+        }
+      ],
+      "tab": "Default Accounts",
+      "section": "Account",
+      "column": 2
+    },
+    {
+      "name": "default_expense_account",
+      "type": "Link",
+      "label": "Default expense account",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "root_type",
+          "op": "=",
+          "value": "Expense"
+        }
+      ],
+      "tab": "Default Accounts",
+      "section": "Account",
+      "column": 2
+    },
+    {
+      "name": "retained_earnings_account",
+      "type": "Link",
+      "label": "Retained earnings account",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "account_type",
+          "op": "=",
+          "value": "Retained Earnings"
+        }
+      ],
+      "tab": "Default Accounts",
+      "section": "Account",
+      "column": 2
+    },
+    {
+      "name": "exchange_gain_loss_account",
+      "type": "Link",
+      "label": "Exchange gain/loss account",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "account_type",
+          "op": "=",
+          "value": "Exchange Gain/Loss"
+        }
+      ],
+      "tab": "Default Accounts",
+      "section": "Other Accounts"
+    },
+    {
+      "name": "round_off_account",
+      "type": "Link",
+      "label": "Round-off account",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "account_type",
+          "op": "=",
+          "value": "Round-off"
+        }
+      ],
+      "tab": "Default Accounts",
+      "section": "Other Accounts"
+    },
+    {
+      "name": "default_cost_center",
+      "type": "Link",
+      "label": "Default cost center",
+      "linkTo": "CostCenter",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        }
+      ],
+      "tab": "Default Accounts",
+      "section": "Other Accounts",
+      "column": 2
+    },
+    {
+      "name": "round_off_cost_center",
+      "type": "Link",
+      "label": "Round-off cost center",
+      "linkTo": "CostCenter",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        }
+      ],
+      "tab": "Default Accounts",
+      "section": "Other Accounts",
+      "column": 2
+    },
+    {
+      "name": "is_active",
+      "type": "Check",
+      "label": "Active",
+      "default": true,
+      "inListView": true,
+      "section": "Identity",
+      "column": 2
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "company_name",
+    "searchFields": [
+      "company_code",
+      "company_name",
+      "legal_name"
+    ],
+    "filters": [
+      "is_group",
+      "is_active"
+    ],
+    "defaultSort": [
+      {
+        "field": "company_code",
+        "direction": "asc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

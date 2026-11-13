@@ -1,0 +1,362 @@
+{
+  "name": "PaymentEntry",
+  "version": 1,
+  "title": "Payment",
+  "module": "FINANCE",
+  "description": "Receipts, payments, and internal transfers (NetSuite Customer/Vendor Payment, SAP F-28/F-53).",
+  "naming": {
+    "pattern": "PAY-{YYYY}-{######}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "payment_type",
+      "type": "Select",
+      "label": "Type",
+      "requiredWhen": "true",
+      "options": [
+        "Receive",
+        "Pay",
+        "Internal Transfer"
+      ],
+      "default": "Receive",
+      "inListView": true,
+      "section": "Payment"
+    },
+    {
+      "name": "company",
+      "type": "Link",
+      "label": "Company",
+      "linkTo": "Company",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Payment"
+    },
+    {
+      "name": "posting_date",
+      "type": "Date",
+      "label": "Posting date",
+      "requiredWhen": "true",
+      "default": "$today",
+      "inListView": true,
+      "section": "Payment"
+    },
+    {
+      "name": "mode_of_payment",
+      "type": "Select",
+      "label": "Mode of payment",
+      "options": [
+        "Bank transfer",
+        "Cash",
+        "Cheque/Giro",
+        "Virtual account",
+        "Credit card",
+        "Compensation"
+      ],
+      "default": "Bank transfer",
+      "section": "Payment"
+    },
+    {
+      "name": "party_type",
+      "type": "Select",
+      "label": "Party type",
+      "options": [
+        "Customer",
+        "Vendor",
+        "Employee"
+      ],
+      "requiredWhen": "payment_type != 'Internal Transfer'",
+      "visibleWhen": "payment_type != 'Internal Transfer'",
+      "section": "Party",
+      "column": 2
+    },
+    {
+      "name": "party",
+      "type": "DynamicLink",
+      "label": "Party",
+      "linkToField": "party_type",
+      "requiredWhen": "payment_type != 'Internal Transfer'",
+      "visibleWhen": "payment_type != 'Internal Transfer'",
+      "inListView": true,
+      "section": "Party",
+      "column": 2
+    },
+    {
+      "name": "bank_account",
+      "type": "Link",
+      "label": "Company bank account",
+      "linkTo": "BankAccount",
+      "requiredWhen": "true",
+      "linkFilters": [
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "inListView": true,
+      "section": "Party",
+      "column": 2,
+      "description": "Receiving account (Receive) or source account (Pay/Transfer)"
+    },
+    {
+      "name": "to_bank_account",
+      "type": "Link",
+      "label": "Target account",
+      "linkTo": "BankAccount",
+      "requiredWhen": "payment_type == 'Internal Transfer'",
+      "visibleWhen": "payment_type == 'Internal Transfer'",
+      "section": "Party",
+      "column": 2
+    },
+    {
+      "name": "party_account",
+      "type": "Link",
+      "label": "Receivable/payable account",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "account_type",
+          "op": "in",
+          "value": [
+            "Receivable",
+            "Payable",
+            "Advance"
+          ]
+        }
+      ],
+      "visibleWhen": "payment_type != 'Internal Transfer'",
+      "section": "Party",
+      "column": 2,
+      "description": "Set by hook from the party"
+    },
+    {
+      "name": "currency",
+      "type": "Link",
+      "label": "Currency",
+      "linkTo": "Currency",
+      "requiredWhen": "true",
+      "default": "IDR",
+      "section": "Value"
+    },
+    {
+      "name": "exchange_rate",
+      "type": "Float",
+      "label": "Exchange rate",
+      "requiredWhen": "true",
+      "default": 1,
+      "min": 0,
+      "section": "Value"
+    },
+    {
+      "name": "paid_amount",
+      "type": "Currency",
+      "label": "Paid/received amount",
+      "requiredWhen": "true",
+      "min": 0,
+      "inListView": true,
+      "section": "Value",
+      "column": 2
+    },
+    {
+      "name": "base_paid_amount",
+      "type": "Currency",
+      "label": "Amount (functional)",
+      "compute": "round(paid_amount * exchange_rate, 2)",
+      "section": "Value",
+      "column": 2
+    },
+    {
+      "name": "reference_no",
+      "type": "Data",
+      "label": "Reference/cheque/transfer no.",
+      "requiredWhen": "mode_of_payment == 'Cheque/Giro'",
+      "section": "Value",
+      "column": 2
+    },
+    {
+      "name": "reference_date",
+      "type": "Date",
+      "label": "Reference/cheque due date",
+      "section": "Value",
+      "column": 2
+    },
+    {
+      "name": "references",
+      "type": "Table",
+      "label": "Allocations to documents",
+      "childDocType": "PaymentEntryReference",
+      "section": "Allocation",
+      "visibleWhen": "payment_type != 'Internal Transfer'"
+    },
+    {
+      "name": "deductions",
+      "type": "Table",
+      "label": "Deductions (withholding tax, bank charges)",
+      "childDocType": "PaymentEntryDeduction",
+      "section": "Deductions",
+      "visibleWhen": "payment_type != 'Internal Transfer'"
+    },
+    {
+      "name": "total_allocated",
+      "type": "Currency",
+      "label": "Total allocated",
+      "compute": "sum(references.allocated_amount)",
+      "section": "Summary"
+    },
+    {
+      "name": "total_deductions",
+      "type": "Currency",
+      "label": "Total deductions",
+      "compute": "sum(deductions.amount)",
+      "section": "Summary"
+    },
+    {
+      "name": "unallocated_amount",
+      "type": "Currency",
+      "label": "Unallocated (advance)",
+      "compute": "paid_amount + total_deductions - total_allocated",
+      "inListView": true,
+      "section": "Summary",
+      "column": 2,
+      "description": "Remainder becomes party advance"
+    },
+    {
+      "name": "remarks",
+      "type": "Text",
+      "label": "Notes",
+      "tab": "Other",
+      "section": "Notes"
+    },
+    {
+      "name": "attachment",
+      "type": "Attach",
+      "label": "Transfer receipt",
+      "tab": "Other",
+      "section": "Notes",
+      "column": 2
+    },
+    {
+      "name": "payment_run",
+      "type": "Link",
+      "label": "Payment run",
+      "linkTo": "PaymentRun",
+      "tab": "Other",
+      "section": "Notes",
+      "column": 2,
+      "description": "Set when created by a Payment Run"
+    }
+  ],
+  "rules": [
+    {
+      "name": "positive_rate",
+      "expr": "exchange_rate > 0",
+      "message": "Exchange rate must be greater than 0",
+      "field": "exchange_rate"
+    },
+    {
+      "name": "over_allocation",
+      "expr": "unallocated_amount >= 0",
+      "message": "Total allocated exceeds paid amount + deductions",
+      "field": "references"
+    },
+    {
+      "name": "different_accounts",
+      "expr": "payment_type != 'Internal Transfer' || bank_account != to_bank_account",
+      "message": "Source and target accounts must differ",
+      "field": "to_bank_account"
+    },
+    {
+      "name": "positive_amount",
+      "expr": "paid_amount > 0",
+      "message": "Amount must be greater than 0",
+      "field": "paid_amount"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "party",
+    "searchFields": [
+      "name",
+      "party",
+      "reference_no"
+    ],
+    "filters": [
+      "company",
+      "payment_type",
+      "party_type",
+      "bank_account",
+      "posting_date"
+    ],
+    "defaultSort": [
+      {
+        "field": "posting_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

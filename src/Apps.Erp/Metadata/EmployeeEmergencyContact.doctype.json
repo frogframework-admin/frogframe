@@ -1,0 +1,27 @@
+{
+  "name": "EmployeeEmergencyContact",
+  "version": 1,
+  "title": "Emergency Contact",
+  "module": "HR",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "full_name",
+      "type": "Data",
+      "label": "Name",
+      "requiredWhen": "true"
+    },
+    {
+      "name": "relationship",
+      "type": "Data",
+      "label": "Relationship",
+      "requiredWhen": "true"
+    },
+    {
+      "name": "phone",
+      "type": "Phone",
+      "label": "Phone",
+      "requiredWhen": "true"
+    }
+  ]
+}

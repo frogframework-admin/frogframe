@@ -1,0 +1,158 @@
+{
+  "name": "BankReconciliation",
+  "version": 1,
+  "title": "Bank Reconciliation",
+  "module": "FINANCE",
+  "description": "Reconciles book balance vs bank statement per account per period.",
+  "naming": {
+    "pattern": "BREC-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "bank_account",
+      "type": "Link",
+      "label": "Bank Account",
+      "linkTo": "BankAccount",
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "company",
+      "type": "Data",
+      "label": "Company",
+      "fetchFrom": "bank_account.company"
+    },
+    {
+      "name": "period_end",
+      "type": "Date",
+      "label": "As of date",
+      "requiredWhen": "true",
+      "inListView": true,
+      "column": 2
+    },
+    {
+      "name": "bank_statement",
+      "type": "Link",
+      "label": "Bank statement",
+      "linkTo": "BankStatement",
+      "linkFilters": [
+        {
+          "field": "docstatus",
+          "op": "=",
+          "value": 1
+        }
+      ],
+      "column": 2
+    },
+    {
+      "name": "statement_balance",
+      "type": "Currency",
+      "label": "Statement balance",
+      "requiredWhen": "true",
+      "section": "Balance"
+    },
+    {
+      "name": "book_balance",
+      "type": "Currency",
+      "label": "Book balance",
+      "description": "Set by hook from the ledger as of the date",
+      "section": "Balance"
+    },
+    {
+      "name": "items",
+      "type": "Table",
+      "label": "Vouchers in period",
+      "childDocType": "BankReconciliationItem",
+      "section": "Voucher",
+      "description": "Set by hook; tick those that appear on the bank statement"
+    },
+    {
+      "name": "total_uncleared",
+      "type": "Currency",
+      "label": "Total uncleared",
+      "compute": "sum(items.uncleared_amount)",
+      "section": "Outcome"
+    },
+    {
+      "name": "adjusted_statement_balance",
+      "type": "Currency",
+      "label": "Adjusted bank balance",
+      "compute": "statement_balance + total_uncleared",
+      "section": "Outcome"
+    },
+    {
+      "name": "difference",
+      "type": "Currency",
+      "label": "Difference",
+      "compute": "coalesce(book_balance, 0) - adjusted_statement_balance",
+      "inListView": true,
+      "section": "Outcome",
+      "column": 2,
+      "description": "Must be 0 before submit (checked by hook)"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "bank_account",
+    "searchFields": [
+      "name"
+    ],
+    "filters": [
+      "bank_account",
+      "period_end"
+    ],
+    "defaultSort": [
+      {
+        "field": "period_end",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

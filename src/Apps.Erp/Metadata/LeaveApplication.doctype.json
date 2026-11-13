@@ -1,0 +1,226 @@
+{
+  "name": "LeaveApplication",
+  "version": 1,
+  "title": "Leave Application",
+  "module": "HR",
+  "description": "Leave request approved by the employee's leave approver (Workday Request Time Off).",
+  "naming": {
+    "pattern": "LV-{YYYY}-{######}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "workflow": "LeaveApproval",
+  "fields": [
+    {
+      "name": "employee",
+      "type": "Link",
+      "label": "Employee",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "default": "$employee",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Request"
+    },
+    {
+      "name": "employee_name",
+      "type": "Data",
+      "label": "Employee name",
+      "fetchFrom": "employee.full_name",
+      "inListView": true,
+      "section": "Request"
+    },
+    {
+      "name": "organization_unit",
+      "type": "Data",
+      "label": "Unit",
+      "fetchFrom": "employee.organization_unit",
+      "section": "Request"
+    },
+    {
+      "name": "leave_approver",
+      "type": "Data",
+      "label": "Approver",
+      "fetchFrom": "employee.leave_approver",
+      "inListView": true,
+      "section": "Request",
+      "description": "Taken from the employee record; decides who can approve"
+    },
+    {
+      "name": "leave_type",
+      "type": "Link",
+      "label": "Leave type",
+      "linkTo": "LeaveType",
+      "requiredWhen": "true",
+      "linkFilters": [
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "inListView": true,
+      "section": "Leave",
+      "column": 2
+    },
+    {
+      "name": "requires_attachment",
+      "type": "Check",
+      "label": "Attachment required",
+      "fetchFrom": "leave_type.requires_attachment",
+      "section": "Leave",
+      "column": 2
+    },
+    {
+      "name": "from_date",
+      "type": "Date",
+      "label": "From",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Leave",
+      "column": 2
+    },
+    {
+      "name": "to_date",
+      "type": "Date",
+      "label": "To",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Leave",
+      "column": 2
+    },
+    {
+      "name": "half_day",
+      "type": "Check",
+      "label": "Half day",
+      "default": false,
+      "section": "Leave",
+      "column": 2
+    },
+    {
+      "name": "total_days",
+      "type": "Float",
+      "label": "Working days",
+      "description": "Computed by hook (excluding weekends & holidays)",
+      "inListView": true,
+      "section": "Balance"
+    },
+    {
+      "name": "balance_before",
+      "type": "Float",
+      "label": "Balance before",
+      "description": "Set by hook",
+      "section": "Balance",
+      "column": 2
+    },
+    {
+      "name": "reason",
+      "type": "Text",
+      "label": "Reason",
+      "requiredWhen": "true",
+      "section": "Remarks"
+    },
+    {
+      "name": "attachment",
+      "type": "Attach",
+      "label": "Attachment (e.g. doctor's note)",
+      "requiredWhen": "requires_attachment",
+      "section": "Remarks",
+      "column": 2
+    }
+  ],
+  "rules": [
+    {
+      "name": "valid_period",
+      "expr": "to_date >= from_date",
+      "message": "The end date must be on or after the start date",
+      "field": "to_date"
+    },
+    {
+      "name": "half_day",
+      "expr": "!half_day || to_date == from_date",
+      "message": "Half day only for a single date",
+      "field": "half_day"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Employee",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete"
+      ],
+      "scope": "match:employee=employee"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "match:leave_approver=employee"
+    },
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "employee_name",
+    "searchFields": [
+      "name",
+      "employee_name"
+    ],
+    "filters": [
+      "leave_type",
+      "from_date",
+      "workflow_state"
+    ],
+    "defaultSort": [
+      {
+        "field": "from_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

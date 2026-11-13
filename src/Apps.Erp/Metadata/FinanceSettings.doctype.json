@@ -1,0 +1,133 @@
+{
+  "name": "FinanceSettings",
+  "version": 1,
+  "title": "Finance Settings",
+  "module": "FINANCE",
+  "isSingle": true,
+  "naming": {
+    "pattern": "{doctype}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": false
+  },
+  "fields": [
+    {
+      "name": "default_output_vat",
+      "type": "Link",
+      "label": "Default output VAT",
+      "linkTo": "TaxCode",
+      "linkFilters": [
+        {
+          "field": "tax_type",
+          "op": "=",
+          "value": "Output VAT"
+        }
+      ],
+      "section": "Tax"
+    },
+    {
+      "name": "default_input_vat",
+      "type": "Link",
+      "label": "Default input VAT",
+      "linkTo": "TaxCode",
+      "linkFilters": [
+        {
+          "field": "tax_type",
+          "op": "=",
+          "value": "Input VAT"
+        }
+      ],
+      "section": "Tax"
+    },
+    {
+      "name": "auto_create_tax_invoice",
+      "type": "Check",
+      "label": "Create tax invoice automatically when an invoice is submitted",
+      "default": true,
+      "section": "Tax",
+      "column": 2
+    },
+    {
+      "name": "credit_limit_action",
+      "type": "Select",
+      "label": "When the credit limit is exceeded",
+      "options": [
+        "Warn",
+        "Block"
+      ],
+      "default": "Warn",
+      "section": "Receivable"
+    },
+    {
+      "name": "unique_bill_no_per_vendor",
+      "type": "Check",
+      "label": "Supplier invoice no. must be unique per supplier",
+      "default": true,
+      "section": "Payable",
+      "column": 2
+    },
+    {
+      "name": "three_way_match",
+      "type": "Select",
+      "label": "3-way match (PO, receipt, invoice)",
+      "options": [
+        "Warn",
+        "Stop",
+        "Off"
+      ],
+      "default": "Warn",
+      "section": "Payable",
+      "column": 2,
+      "description": "When a purchase invoice exceeds the received value of its purchase order"
+    },
+    {
+      "name": "depreciation_posting_day",
+      "type": "Select",
+      "label": "Depreciation posting date",
+      "options": [
+        "Month end",
+        "Month start"
+      ],
+      "default": "Month end",
+      "section": "Asset",
+      "column": 2
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "write"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "write"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    }
+  ],
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "update"
+    ]
+  }
+}

@@ -1,0 +1,121 @@
+{
+  "name": "FiscalYear",
+  "version": 1,
+  "title": "Fiscal Year",
+  "module": "ACCOUNTING",
+  "naming": {
+    "pattern": "field:fiscal_year_name"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "fiscal_year_name",
+      "type": "Data",
+      "label": "Fiscal year",
+      "requiredWhen": "true",
+      "pattern": "^[0-9]{4}(/[0-9]{4})?$",
+      "patternMessage": "e.g. 2027 or 2026/2027",
+      "inListView": true
+    },
+    {
+      "name": "start_date",
+      "type": "Date",
+      "label": "Start date",
+      "requiredWhen": "true",
+      "inListView": true,
+      "column": 2
+    },
+    {
+      "name": "end_date",
+      "type": "Date",
+      "label": "End date",
+      "requiredWhen": "true",
+      "inListView": true,
+      "column": 2
+    },
+    {
+      "name": "status",
+      "type": "Select",
+      "label": "Status",
+      "requiredWhen": "true",
+      "options": [
+        "Open",
+        "Closed"
+      ],
+      "default": "Open",
+      "inListView": true,
+      "column": 2,
+      "description": "Closed after the Period Closing Voucher is submitted"
+    }
+  ],
+  "rules": [
+    {
+      "name": "valid_period",
+      "expr": "end_date > start_date",
+      "message": "The end date must be after the start date",
+      "field": "end_date"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "fiscal_year_name",
+    "searchFields": [
+      "fiscal_year_name"
+    ],
+    "filters": [
+      "status"
+    ],
+    "defaultSort": [
+      {
+        "field": "start_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

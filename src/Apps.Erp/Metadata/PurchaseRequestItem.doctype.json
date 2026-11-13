@@ -1,0 +1,75 @@
+{
+  "name": "PurchaseRequestItem",
+  "version": 1,
+  "title": "Purchase Request Item",
+  "module": "FINANCE",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "item",
+      "type": "Link",
+      "label": "Item",
+      "linkTo": "Item",
+      "linkFilters": [
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "is_purchase_item",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "inListView": true
+    },
+    {
+      "name": "item_name",
+      "type": "Data",
+      "label": "Item / service",
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "description",
+      "type": "Data",
+      "label": "Specification"
+    },
+    {
+      "name": "qty",
+      "type": "Float",
+      "label": "Quantity",
+      "requiredWhen": "true",
+      "default": 1,
+      "min": 0,
+      "inListView": true
+    },
+    {
+      "name": "uom",
+      "type": "Link",
+      "label": "UOM",
+      "linkTo": "UOM"
+    },
+    {
+      "name": "estimated_rate",
+      "type": "Currency",
+      "label": "Estimated rate",
+      "default": 0,
+      "min": 0,
+      "inListView": true
+    },
+    {
+      "name": "amount",
+      "type": "Currency",
+      "label": "Estimated amount",
+      "compute": "round(qty * estimated_rate, 2)",
+      "inListView": true
+    },
+    {
+      "name": "required_by",
+      "type": "Date",
+      "label": "Required by"
+    }
+  ]
+}

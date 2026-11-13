@@ -1,0 +1,191 @@
+{
+  "name": "GoodsReceipt",
+  "version": 1,
+  "title": "Goods Receipt",
+  "module": "FINANCE",
+  "description": "Receipt of goods or acceptance of services against a purchase order (SAP MIGO / BAST). No inventory valuation: used for 3-way match.",
+  "naming": {
+    "pattern": "GRN-{YYYY}-{######}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "purchase_order",
+      "type": "Link",
+      "label": "Purchase order",
+      "linkTo": "PurchaseOrder",
+      "requiredWhen": "true",
+      "linkFilters": [
+        {
+          "field": "docstatus",
+          "op": "=",
+          "value": 1
+        }
+      ],
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Receipt"
+    },
+    {
+      "name": "vendor",
+      "type": "Data",
+      "label": "Supplier",
+      "fetchFrom": "purchase_order.vendor",
+      "inListView": true,
+      "section": "Receipt"
+    },
+    {
+      "name": "company",
+      "type": "Data",
+      "label": "Company",
+      "fetchFrom": "purchase_order.company",
+      "section": "Receipt"
+    },
+    {
+      "name": "receipt_date",
+      "type": "Date",
+      "label": "Receipt date",
+      "requiredWhen": "true",
+      "default": "$today",
+      "inListView": true,
+      "section": "Receipt",
+      "column": 2
+    },
+    {
+      "name": "delivery_note_no",
+      "type": "Data",
+      "label": "Supplier delivery note / BAST no.",
+      "section": "Receipt",
+      "column": 2
+    },
+    {
+      "name": "received_by",
+      "type": "Link",
+      "label": "Received by",
+      "linkTo": "Employee",
+      "default": "$employee",
+      "section": "Receipt",
+      "column": 2
+    },
+    {
+      "name": "warehouse",
+      "type": "Link",
+      "label": "Warehouse",
+      "linkTo": "Warehouse",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        }
+      ],
+      "section": "Receipt",
+      "column": 2,
+      "description": "Required when the order has stock items: they are received into stock (Dr inventory / Cr stock received not billed)"
+    },
+    {
+      "name": "items",
+      "type": "Table",
+      "label": "Items",
+      "childDocType": "GoodsReceiptItem",
+      "section": "Items",
+      "description": "Filled from the purchase order's pending quantities when empty (hook)"
+    },
+    {
+      "name": "document",
+      "type": "Attach",
+      "label": "Delivery note / BAST",
+      "section": "Items"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Purchasing",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read",
+        "create",
+        "write"
+      ],
+      "scope": "match:received_by=employee"
+    }
+  ],
+  "listView": {
+    "titleField": "vendor",
+    "searchFields": [
+      "name",
+      "purchase_order",
+      "delivery_note_no"
+    ],
+    "filters": [
+      "purchase_order",
+      "receipt_date"
+    ],
+    "defaultSort": [
+      {
+        "field": "receipt_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

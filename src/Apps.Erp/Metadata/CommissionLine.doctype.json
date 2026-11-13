@@ -1,0 +1,51 @@
+{
+  "name": "CommissionLine",
+  "version": 1,
+  "title": "Commission Line",
+  "module": "CRM",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "voucher_type",
+      "type": "Select",
+      "label": "Document type",
+      "options": [
+        "SalesInvoice",
+        "SalesCreditNote"
+      ],
+      "inListView": true
+    },
+    {
+      "name": "voucher_no",
+      "type": "DynamicLink",
+      "label": "Document",
+      "linkToField": "voucher_type",
+      "inListView": true
+    },
+    {
+      "name": "customer",
+      "type": "Link",
+      "label": "Customer",
+      "linkTo": "Customer"
+    },
+    {
+      "name": "posting_date",
+      "type": "Date",
+      "label": "Date",
+      "inListView": true
+    },
+    {
+      "name": "base_amount",
+      "type": "Currency",
+      "label": "Amount before VAT",
+      "inListView": true,
+      "description": "Negative for credit notes"
+    },
+    {
+      "name": "commission",
+      "type": "Currency",
+      "label": "Commission",
+      "inListView": true
+    }
+  ]
+}

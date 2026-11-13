@@ -1,0 +1,326 @@
+{
+  "name": "Asset",
+  "version": 1,
+  "title": "Fixed Asset",
+  "module": "FINANCE",
+  "description": "Fixed asset register (SAP Asset Master / NetSuite FAM Asset). Submit = asset in use; depreciation via Depreciation Run.",
+  "naming": {
+    "pattern": "AST-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "asset_name",
+      "type": "Data",
+      "label": "Asset name",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Asset"
+    },
+    {
+      "name": "asset_category",
+      "type": "Link",
+      "label": "Category",
+      "linkTo": "AssetCategory",
+      "requiredWhen": "true",
+      "linkFilters": [
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "inListView": true,
+      "section": "Asset"
+    },
+    {
+      "name": "company",
+      "type": "Link",
+      "label": "Company",
+      "linkTo": "Company",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Asset"
+    },
+    {
+      "name": "serial_no",
+      "type": "Data",
+      "label": "Serial / plate no.",
+      "section": "Asset",
+      "column": 2
+    },
+    {
+      "name": "image",
+      "type": "Image",
+      "label": "Photo",
+      "section": "Asset",
+      "column": 2
+    },
+    {
+      "name": "status",
+      "type": "Select",
+      "label": "Status",
+      "options": [
+        "Draft",
+        "Active",
+        "Fully Depreciated",
+        "Disposed"
+      ],
+      "default": "Draft",
+      "readOnlyWhen": "true",
+      "noCopy": true,
+      "inListView": true,
+      "section": "Asset",
+      "column": 2,
+      "description": "Updated by hook"
+    },
+    {
+      "name": "location",
+      "type": "Link",
+      "label": "Location",
+      "linkTo": "Location",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        }
+      ],
+      "section": "Placement"
+    },
+    {
+      "name": "cost_center",
+      "type": "Link",
+      "label": "Cost center",
+      "linkTo": "CostCenter",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        }
+      ],
+      "section": "Placement"
+    },
+    {
+      "name": "custodian",
+      "type": "Link",
+      "label": "Custodian",
+      "linkTo": "Employee",
+      "lookupDialog": true,
+      "section": "Placement",
+      "column": 2
+    },
+    {
+      "name": "purchase_invoice",
+      "type": "Link",
+      "label": "Purchase invoice",
+      "linkTo": "PurchaseInvoice",
+      "tab": "Value & Depreciation",
+      "section": "Acquisition"
+    },
+    {
+      "name": "purchase_date",
+      "type": "Date",
+      "label": "Purchase date",
+      "requiredWhen": "true",
+      "tab": "Value & Depreciation",
+      "section": "Acquisition"
+    },
+    {
+      "name": "available_for_use_date",
+      "type": "Date",
+      "label": "Available-for-use date",
+      "requiredWhen": "true",
+      "tab": "Value & Depreciation",
+      "section": "Acquisition"
+    },
+    {
+      "name": "gross_purchase_amount",
+      "type": "Currency",
+      "label": "Gross purchase amount",
+      "requiredWhen": "true",
+      "min": 0,
+      "inListView": true,
+      "tab": "Value & Depreciation",
+      "section": "Acquisition",
+      "column": 2
+    },
+    {
+      "name": "salvage_value",
+      "type": "Currency",
+      "label": "Salvage value",
+      "default": 0,
+      "min": 0,
+      "tab": "Value & Depreciation",
+      "section": "Acquisition",
+      "column": 2
+    },
+    {
+      "name": "is_existing_asset",
+      "type": "Check",
+      "label": "Existing asset (migration)",
+      "default": false,
+      "tab": "Value & Depreciation",
+      "section": "Acquisition",
+      "column": 2
+    },
+    {
+      "name": "opening_accumulated_depreciation",
+      "type": "Currency",
+      "label": "Opening accumulated depreciation",
+      "default": 0,
+      "min": 0,
+      "visibleWhen": "is_existing_asset",
+      "tab": "Value & Depreciation",
+      "section": "Acquisition",
+      "column": 2
+    },
+    {
+      "name": "depreciation_method",
+      "type": "Data",
+      "label": "Method",
+      "fetchFrom": "asset_category.depreciation_method",
+      "tab": "Value & Depreciation",
+      "section": "Depreciation"
+    },
+    {
+      "name": "useful_life_months",
+      "type": "Int",
+      "label": "Useful life (months)",
+      "fetchFrom": "asset_category.useful_life_months",
+      "tab": "Value & Depreciation",
+      "section": "Depreciation"
+    },
+    {
+      "name": "depreciation_start_date",
+      "type": "Date",
+      "label": "Depreciation start date",
+      "requiredWhen": "true",
+      "tab": "Value & Depreciation",
+      "section": "Depreciation",
+      "column": 2
+    },
+    {
+      "name": "depreciable_amount",
+      "type": "Currency",
+      "label": "Depreciable amount",
+      "compute": "gross_purchase_amount - salvage_value - coalesce(opening_accumulated_depreciation, 0)",
+      "tab": "Value & Depreciation",
+      "section": "Depreciation",
+      "column": 2
+    },
+    {
+      "name": "schedule",
+      "type": "Table",
+      "label": "Depreciation schedule",
+      "childDocType": "AssetDepreciationSchedule",
+      "tab": "Value & Depreciation",
+      "section": "Schedule",
+      "description": "Built by hook on save from method, life, and start date"
+    },
+    {
+      "name": "total_scheduled",
+      "type": "Currency",
+      "label": "Total scheduled",
+      "compute": "sum(schedule.depreciation_amount)",
+      "tab": "Value & Depreciation",
+      "section": "Schedule"
+    }
+  ],
+  "rules": [
+    {
+      "name": "salvage_value_valid",
+      "expr": "salvage_value < gross_purchase_amount",
+      "message": "Salvage value must be less than the gross purchase amount",
+      "field": "salvage_value"
+    },
+    {
+      "name": "start_date_valid",
+      "expr": "depreciation_start_date >= available_for_use_date",
+      "message": "Depreciation starts after the asset is available for use",
+      "field": "depreciation_start_date"
+    },
+    {
+      "name": "schedule_not_exceeding",
+      "expr": "total_scheduled <= depreciable_amount",
+      "message": "Schedule total exceeds the depreciable amount",
+      "field": "schedule"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "asset_name",
+    "searchFields": [
+      "name",
+      "asset_name",
+      "serial_no"
+    ],
+    "filters": [
+      "company",
+      "asset_category",
+      "status",
+      "location"
+    ],
+    "defaultSort": [
+      {
+        "field": "modified",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

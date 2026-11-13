@@ -1,6 +1,6 @@
 using System.Net;
 using System.Text.Json;
-using Apps.Sample.Domain;
+using Framework.Tests.TestDomain;
 using Framework.Api;
 using Framework.Documents;
 using Framework.Persistence;

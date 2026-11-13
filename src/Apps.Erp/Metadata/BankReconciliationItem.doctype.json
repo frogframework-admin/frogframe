@@ -1,0 +1,54 @@
+{
+  "name": "BankReconciliationItem",
+  "version": 1,
+  "title": "Bank Reconciliation Item",
+  "module": "FINANCE",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "voucher_type",
+      "type": "Select",
+      "label": "Voucher type",
+      "requiredWhen": "true",
+      "options": [
+        "PaymentEntry",
+        "JournalEntry"
+      ]
+    },
+    {
+      "name": "voucher_no",
+      "type": "DynamicLink",
+      "label": "Voucher",
+      "requiredWhen": "true",
+      "linkToField": "voucher_type"
+    },
+    {
+      "name": "posting_date",
+      "type": "Date",
+      "label": "Posting date"
+    },
+    {
+      "name": "amount",
+      "type": "Currency",
+      "label": "Amount (+ in / − out)",
+      "requiredWhen": "true"
+    },
+    {
+      "name": "clearance_date",
+      "type": "Date",
+      "label": "Clearance date"
+    },
+    {
+      "name": "is_cleared",
+      "type": "Check",
+      "label": "On bank statement",
+      "default": false
+    },
+    {
+      "name": "uncleared_amount",
+      "type": "Currency",
+      "label": "Uncleared",
+      "compute": "amount * !is_cleared"
+    }
+  ]
+}

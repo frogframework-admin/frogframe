@@ -1,0 +1,79 @@
+{
+  "name": "ExpenseClaimItem",
+  "version": 1,
+  "title": "Expense Claim Item",
+  "module": "FINANCE",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "expense_date",
+      "type": "Date",
+      "label": "Date",
+      "requiredWhen": "true"
+    },
+    {
+      "name": "expense_type",
+      "type": "Link",
+      "label": "Expense type",
+      "linkTo": "ExpenseClaimType",
+      "requiredWhen": "true",
+      "linkFilters": [
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "description",
+      "type": "Data",
+      "label": "Remarks",
+      "requiredWhen": "true"
+    },
+    {
+      "name": "amount",
+      "type": "Currency",
+      "label": "Amount",
+      "requiredWhen": "true",
+      "min": 0
+    },
+    {
+      "name": "receipt",
+      "type": "Attach",
+      "label": "Certificate"
+    },
+    {
+      "name": "cost_center",
+      "type": "Link",
+      "label": "Cost center",
+      "linkTo": "CostCenter",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        }
+      ]
+    },
+    {
+      "name": "account",
+      "type": "Link",
+      "label": "Expense account",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "description": "Set by hook from the expense type"
+    }
+  ]
+}

@@ -1,0 +1,95 @@
+{
+  "name": "AccountingSettings",
+  "version": 1,
+  "title": "Accounting Settings",
+  "module": "ACCOUNTING",
+  "isSingle": true,
+  "naming": {
+    "pattern": "{doctype}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": false
+  },
+  "fields": [
+    {
+      "name": "books_frozen_until",
+      "type": "Date",
+      "label": "Books frozen until",
+      "section": "Control",
+      "description": "Postings on/before this date by System Manager only"
+    },
+    {
+      "name": "allow_future_posting",
+      "type": "Check",
+      "label": "Allow future posting dates",
+      "default": false,
+      "section": "Control"
+    },
+    {
+      "name": "backdate_limit_days",
+      "type": "Int",
+      "label": "Backdating limit (days)",
+      "min": 0,
+      "section": "Control",
+      "column": 2,
+      "description": "Empty = no limit"
+    },
+    {
+      "name": "enforce_cost_center_on_pl",
+      "type": "Check",
+      "label": "Cost center required for profit and loss accounts",
+      "default": true,
+      "section": "Dimensions"
+    },
+    {
+      "name": "default_exchange_rate_type",
+      "type": "Select",
+      "label": "Default exchange rate type",
+      "options": [
+        "BI Middle Rate",
+        "Tax Rate (KMK)",
+        "Internal"
+      ],
+      "default": "BI Middle Rate",
+      "section": "Dimensions",
+      "column": 2
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "write"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "write"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    }
+  ],
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "update"
+    ]
+  }
+}

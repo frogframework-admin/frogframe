@@ -1,0 +1,176 @@
+{
+  "name": "Interview",
+  "version": 1,
+  "title": "Interview",
+  "module": "HR",
+  "description": "One interview round by one interviewer, with feedback (Workday Interview). The interviewer can read and fill their own.",
+  "naming": {
+    "pattern": "INT-{YYYY}-{######}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "job_applicant",
+      "type": "Link",
+      "label": "Applicant",
+      "linkTo": "JobApplicant",
+      "requiredWhen": "true",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Interview"
+    },
+    {
+      "name": "applicant_name",
+      "type": "Data",
+      "label": "Applicant name",
+      "fetchFrom": "job_applicant.applicant_name",
+      "inListView": true,
+      "section": "Interview"
+    },
+    {
+      "name": "job_requisition",
+      "type": "Data",
+      "label": "Requisition",
+      "fetchFrom": "job_applicant.job_requisition",
+      "section": "Interview"
+    },
+    {
+      "name": "round",
+      "type": "Select",
+      "label": "Round",
+      "requiredWhen": "true",
+      "options": [
+        "HR screening",
+        "Technical",
+        "User",
+        "Final"
+      ],
+      "default": "HR screening",
+      "inListView": true,
+      "section": "Interview",
+      "column": 2
+    },
+    {
+      "name": "scheduled_at",
+      "type": "Datetime",
+      "label": "Scheduled at",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Interview",
+      "column": 2
+    },
+    {
+      "name": "interviewer",
+      "type": "Link",
+      "label": "Interviewer",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Interview",
+      "column": 2
+    },
+    {
+      "name": "result",
+      "type": "Select",
+      "label": "Result",
+      "options": [
+        "Pending",
+        "Pass",
+        "Fail"
+      ],
+      "default": "Pending",
+      "inListView": true,
+      "section": "Feedback"
+    },
+    {
+      "name": "rating",
+      "type": "Select",
+      "label": "Rating",
+      "options": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5"
+      ],
+      "section": "Feedback",
+      "description": "1 = poor, 5 = excellent"
+    },
+    {
+      "name": "feedback",
+      "type": "Text",
+      "label": "Feedback",
+      "requiredWhen": "result != 'Pending'",
+      "section": "Feedback",
+      "column": 2
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Employee",
+      "actions": [
+        "read",
+        "write"
+      ],
+      "scope": "match:interviewer=employee"
+    },
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "applicant_name",
+    "searchFields": [
+      "applicant_name"
+    ],
+    "filters": [
+      "round",
+      "result",
+      "interviewer",
+      "scheduled_at"
+    ],
+    "defaultSort": [
+      {
+        "field": "scheduled_at",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

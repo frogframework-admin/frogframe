@@ -1,0 +1,103 @@
+{
+  "name": "QuotationLifecycle",
+  "docType": "Quotation",
+  "version": 1,
+  "initialState": "Draft",
+  "states": [
+    {
+      "name": "Draft",
+      "docStatus": 0,
+      "tone": "neutral"
+    },
+    {
+      "name": "Sent",
+      "docStatus": 1,
+      "tone": "pending"
+    },
+    {
+      "name": "Accepted",
+      "docStatus": 1,
+      "tone": "positive"
+    },
+    {
+      "name": "Billed",
+      "docStatus": 1,
+      "tone": "positive"
+    },
+    {
+      "name": "Rejected",
+      "docStatus": 2,
+      "tone": "negative"
+    },
+    {
+      "name": "Expired",
+      "docStatus": 2,
+      "tone": "negative"
+    },
+    {
+      "name": "Cancelled",
+      "docStatus": 2,
+      "tone": "negative"
+    }
+  ],
+  "transitions": [
+    {
+      "from": "Draft",
+      "to": "Sent",
+      "action": "Send to customer",
+      "allowedRoles": [
+        "Sales",
+        "Manager"
+      ],
+      "condition": "sales_rep == user.employee || has_role('Manager')"
+    },
+    {
+      "from": "Sent",
+      "to": "Accepted",
+      "action": "Customer accepted",
+      "allowedRoles": [
+        "Sales",
+        "Manager"
+      ],
+      "condition": "sales_rep == user.employee || has_role('Manager')"
+    },
+    {
+      "from": "Sent",
+      "to": "Rejected",
+      "action": "Customer rejected",
+      "allowedRoles": [
+        "Sales",
+        "Manager"
+      ],
+      "condition": "sales_rep == user.employee || has_role('Manager')",
+      "requireComment": true
+    },
+    {
+      "from": "Sent",
+      "to": "Expired",
+      "action": "Mark expired",
+      "allowedRoles": [
+        "System Manager",
+        "Manager"
+      ]
+    },
+    {
+      "from": "Accepted",
+      "to": "Billed",
+      "action": "Mark billed",
+      "allowedRoles": [
+        "System Manager",
+        "Finance"
+      ]
+    },
+    {
+      "from": "Accepted",
+      "to": "Cancelled",
+      "action": "Cancel",
+      "allowedRoles": [
+        "Manager"
+      ],
+      "requireComment": true
+    }
+  ]
+}

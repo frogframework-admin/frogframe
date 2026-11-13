@@ -1,0 +1,173 @@
+{
+  "name": "BankAccount",
+  "version": 1,
+  "title": "Bank Account",
+  "module": "FINANCE",
+  "description": "Company bank/cash account (SAP House Bank). Other parties' accounts are on Supplier/Employee.",
+  "naming": {
+    "pattern": "field:bank_account_code"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "bank_account_code",
+      "type": "Data",
+      "label": "Bank account code",
+      "requiredWhen": "true",
+      "maxLength": 30,
+      "inListView": true,
+      "description": "e.g. BCA-IDR-OPS"
+    },
+    {
+      "name": "account_name",
+      "type": "Data",
+      "label": "Bank account name",
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "company",
+      "type": "Link",
+      "label": "Company",
+      "linkTo": "Company",
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "bank",
+      "type": "Link",
+      "label": "Bank",
+      "linkTo": "Bank",
+      "requiredWhen": "true",
+      "inListView": true,
+      "column": 2
+    },
+    {
+      "name": "account_no",
+      "type": "Data",
+      "label": "Bank account number",
+      "requiredWhen": "true",
+      "maxLength": 34,
+      "column": 2
+    },
+    {
+      "name": "branch",
+      "type": "Data",
+      "label": "Branch",
+      "column": 2
+    },
+    {
+      "name": "currency",
+      "type": "Link",
+      "label": "Currency",
+      "linkTo": "Currency",
+      "requiredWhen": "true",
+      "default": "IDR",
+      "section": "Accounting"
+    },
+    {
+      "name": "gl_account",
+      "type": "Link",
+      "label": "GL account",
+      "linkTo": "Account",
+      "requiredWhen": "true",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "account_type",
+          "op": "in",
+          "value": [
+            "Bank",
+            "Cash"
+          ]
+        }
+      ],
+      "section": "Accounting"
+    },
+    {
+      "name": "is_default",
+      "type": "Check",
+      "label": "Primary account",
+      "default": false,
+      "section": "Accounting",
+      "column": 2
+    },
+    {
+      "name": "is_active",
+      "type": "Check",
+      "label": "Active",
+      "default": true,
+      "inListView": true,
+      "section": "Accounting",
+      "column": 2
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "account_name",
+    "searchFields": [
+      "bank_account_code",
+      "account_name",
+      "account_no"
+    ],
+    "filters": [
+      "company",
+      "bank",
+      "is_active"
+    ],
+    "defaultSort": [
+      {
+        "field": "modified",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

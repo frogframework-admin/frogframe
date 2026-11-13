@@ -1,0 +1,330 @@
+{
+  "name": "Item",
+  "version": 1,
+  "title": "Item",
+  "module": "CORE",
+  "description": "Goods or services sold/bought (Salesforce Product2 / NetSuite Item).",
+  "naming": {
+    "pattern": "field:item_code"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "item_code",
+      "type": "Data",
+      "label": "Item code",
+      "requiredWhen": "true",
+      "maxLength": 40,
+      "inListView": true,
+      "section": "General"
+    },
+    {
+      "name": "item_name",
+      "type": "Data",
+      "label": "Item name",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "General"
+    },
+    {
+      "name": "item_type",
+      "type": "Select",
+      "label": "Type",
+      "requiredWhen": "true",
+      "options": [
+        "Goods",
+        "Service",
+        "Expense",
+        "Fixed Asset"
+      ],
+      "default": "Service",
+      "inListView": true,
+      "section": "General",
+      "description": "Expense = non-stock item for purchase invoices"
+    },
+    {
+      "name": "item_group",
+      "type": "Link",
+      "label": "Item group",
+      "linkTo": "ItemGroup",
+      "requiredWhen": "true",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        }
+      ],
+      "inListView": true,
+      "section": "General"
+    },
+    {
+      "name": "uom",
+      "type": "Link",
+      "label": "UOM",
+      "linkTo": "UOM",
+      "requiredWhen": "true",
+      "section": "General",
+      "column": 2
+    },
+    {
+      "name": "image",
+      "type": "Image",
+      "label": "Image",
+      "section": "General",
+      "column": 2
+    },
+    {
+      "name": "is_active",
+      "type": "Check",
+      "label": "Active",
+      "default": true,
+      "inListView": true,
+      "section": "General",
+      "column": 2
+    },
+    {
+      "name": "description",
+      "type": "Text",
+      "label": "Description",
+      "section": "Description"
+    },
+    {
+      "name": "is_sales_item",
+      "type": "Check",
+      "label": "Is sales item",
+      "default": true,
+      "tab": "Sales & Purchasing",
+      "section": "Usage"
+    },
+    {
+      "name": "is_purchase_item",
+      "type": "Check",
+      "label": "Is purchase item",
+      "default": true,
+      "tab": "Sales & Purchasing",
+      "section": "Usage",
+      "column": 2
+    },
+    {
+      "name": "is_stock_item",
+      "type": "Check",
+      "label": "Maintain stock",
+      "default": false,
+      "tab": "Stock",
+      "section": "Stock",
+      "visibleWhen": "item_type == 'Goods'",
+      "description": "Tracked by warehouse with moving-average cost (PSAK 14 weighted average)"
+    },
+    {
+      "name": "default_warehouse",
+      "type": "Link",
+      "label": "Default warehouse",
+      "linkTo": "Warehouse",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        }
+      ],
+      "visibleWhen": "is_stock_item",
+      "tab": "Stock",
+      "section": "Stock"
+    },
+    {
+      "name": "reorder_level",
+      "type": "Float",
+      "label": "Reorder level",
+      "min": 0,
+      "visibleWhen": "is_stock_item",
+      "tab": "Stock",
+      "section": "Stock",
+      "column": 2
+    },
+    {
+      "name": "reorder_qty",
+      "type": "Float",
+      "label": "Reorder quantity",
+      "min": 0,
+      "visibleWhen": "is_stock_item",
+      "tab": "Stock",
+      "section": "Stock",
+      "column": 2
+    },
+    {
+      "name": "income_account",
+      "type": "Link",
+      "label": "Income account",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "root_type",
+          "op": "=",
+          "value": "Income"
+        }
+      ],
+      "tab": "Sales & Purchasing",
+      "section": "Accounting",
+      "description": "Empty = from item group"
+    },
+    {
+      "name": "expense_account",
+      "type": "Link",
+      "label": "Expense account",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "root_type",
+          "op": "=",
+          "value": "Expense"
+        }
+      ],
+      "tab": "Sales & Purchasing",
+      "section": "Accounting",
+      "column": 2
+    },
+    {
+      "name": "tax_category",
+      "type": "Select",
+      "label": "VAT category",
+      "options": [
+        "Subject to VAT",
+        "Exempt",
+        "Not collected",
+        "Not subject to VAT"
+      ],
+      "default": "Subject to VAT",
+      "tab": "Sales & Purchasing",
+      "section": "Tax"
+    },
+    {
+      "name": "withholding_type",
+      "type": "Select",
+      "label": "Service subject to withholding tax",
+      "options": [
+        "None",
+        "PPh 21",
+        "PPh 23",
+        "PPh 4(2)",
+        "PPh 26"
+      ],
+      "default": "None",
+      "tab": "Sales & Purchasing",
+      "section": "Tax",
+      "column": 2
+    },
+    {
+      "name": "tax_item_code",
+      "type": "Data",
+      "label": "e-Faktur goods/service code",
+      "maxLength": 20,
+      "tab": "Sales & Purchasing",
+      "section": "Tax",
+      "column": 2
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Purchasing",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Sales",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "item_name",
+    "searchFields": [
+      "item_code",
+      "item_name"
+    ],
+    "filters": [
+      "item_group",
+      "item_type",
+      "is_active"
+    ],
+    "defaultSort": [
+      {
+        "field": "item_code",
+        "direction": "asc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

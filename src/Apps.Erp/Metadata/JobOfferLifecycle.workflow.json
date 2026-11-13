@@ -1,0 +1,82 @@
+{
+  "name": "JobOfferLifecycle",
+  "docType": "JobOffer",
+  "version": 1,
+  "initialState": "Draft",
+  "states": [
+    {
+      "name": "Draft",
+      "docStatus": 0,
+      "tone": "neutral"
+    },
+    {
+      "name": "Sent",
+      "docStatus": 1,
+      "tone": "pending"
+    },
+    {
+      "name": "Accepted",
+      "docStatus": 1,
+      "tone": "positive"
+    },
+    {
+      "name": "Declined",
+      "docStatus": 1,
+      "tone": "negative"
+    },
+    {
+      "name": "Expired",
+      "docStatus": 1,
+      "tone": "negative"
+    },
+    {
+      "name": "Cancelled",
+      "docStatus": 2,
+      "tone": "negative"
+    }
+  ],
+  "transitions": [
+    {
+      "from": "Draft",
+      "to": "Sent",
+      "action": "Send to candidate",
+      "allowedRoles": [
+        "HR"
+      ]
+    },
+    {
+      "from": "Sent",
+      "to": "Accepted",
+      "action": "Candidate accepted",
+      "allowedRoles": [
+        "HR"
+      ]
+    },
+    {
+      "from": "Sent",
+      "to": "Declined",
+      "action": "Candidate declined",
+      "allowedRoles": [
+        "HR"
+      ],
+      "requireComment": true
+    },
+    {
+      "from": "Sent",
+      "to": "Expired",
+      "action": "Mark expired",
+      "allowedRoles": [
+        "HR"
+      ]
+    },
+    {
+      "from": "Sent",
+      "to": "Cancelled",
+      "action": "Withdraw offer",
+      "allowedRoles": [
+        "HR"
+      ],
+      "requireComment": true
+    }
+  ]
+}

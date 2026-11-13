@@ -1,0 +1,85 @@
+{
+  "name": "PaymentRunItem",
+  "version": 1,
+  "title": "Payment Run Item",
+  "module": "FINANCE",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "party_type",
+      "type": "Select",
+      "label": "Party type",
+      "requiredWhen": "true",
+      "options": [
+        "Vendor",
+        "Employee"
+      ],
+      "inListView": true
+    },
+    {
+      "name": "party",
+      "type": "DynamicLink",
+      "label": "Party",
+      "requiredWhen": "true",
+      "linkToField": "party_type",
+      "inListView": true
+    },
+    {
+      "name": "reference_doctype",
+      "type": "Select",
+      "label": "Document type",
+      "requiredWhen": "true",
+      "options": [
+        "PurchaseInvoice",
+        "ExpenseClaim",
+        "EmployeeAdvance",
+        "PayrollRun"
+      ],
+      "inListView": true
+    },
+    {
+      "name": "reference_name",
+      "type": "DynamicLink",
+      "label": "Document",
+      "requiredWhen": "true",
+      "linkToField": "reference_doctype",
+      "inListView": true
+    },
+    {
+      "name": "due_date",
+      "type": "Date",
+      "label": "Due date",
+      "description": "Set by hook"
+    },
+    {
+      "name": "outstanding_amount",
+      "type": "Currency",
+      "label": "Outstanding",
+      "description": "Set by hook from the ledger"
+    },
+    {
+      "name": "amount",
+      "type": "Currency",
+      "label": "Pay amount",
+      "requiredWhen": "true",
+      "min": 0,
+      "inListView": true
+    },
+    {
+      "name": "bank_name",
+      "type": "Data",
+      "label": "Beneficiary bank",
+      "description": "Set by hook from the party's default bank account"
+    },
+    {
+      "name": "account_no",
+      "type": "Data",
+      "label": "Beneficiary account no."
+    },
+    {
+      "name": "account_holder",
+      "type": "Data",
+      "label": "Beneficiary name"
+    }
+  ]
+}

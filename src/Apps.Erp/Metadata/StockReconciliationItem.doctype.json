@@ -1,0 +1,74 @@
+{
+  "name": "StockReconciliationItem",
+  "version": 1,
+  "title": "Stock Opname Item",
+  "module": "STOCK",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "item",
+      "type": "Link",
+      "label": "Item",
+      "linkTo": "Item",
+      "requiredWhen": "true",
+      "linkFilters": [
+        {
+          "field": "is_stock_item",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "inListView": true
+    },
+    {
+      "name": "item_name",
+      "type": "Data",
+      "label": "Item name",
+      "inListView": true,
+      "description": "Set by hook"
+    },
+    {
+      "name": "current_qty",
+      "type": "Float",
+      "label": "System quantity",
+      "readOnlyWhen": "true",
+      "inListView": true,
+      "description": "Set by hook"
+    },
+    {
+      "name": "current_rate",
+      "type": "Currency",
+      "label": "Current rate",
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "counted_qty",
+      "type": "Float",
+      "label": "Counted quantity",
+      "requiredWhen": "true",
+      "min": 0,
+      "inListView": true
+    },
+    {
+      "name": "new_rate",
+      "type": "Currency",
+      "label": "New valuation rate",
+      "min": 0,
+      "description": "Empty = current rate (opening stock: the cost per unit)"
+    },
+    {
+      "name": "qty_difference",
+      "type": "Float",
+      "label": "Difference",
+      "readOnlyWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "amount_difference",
+      "type": "Currency",
+      "label": "Value difference",
+      "readOnlyWhen": "true",
+      "inListView": true
+    }
+  ]
+}

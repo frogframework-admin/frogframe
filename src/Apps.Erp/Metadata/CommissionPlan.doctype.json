@@ -1,0 +1,182 @@
+{
+  "name": "CommissionPlan",
+  "version": 1,
+  "title": "Commission Plan",
+  "module": "CRM",
+  "description": "Sales commission plan (Salesforce Spiff / NetSuite Commission Schedule): flat rate on invoiced amount, with per-rep overrides.",
+  "naming": {
+    "pattern": "field:plan_name"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "plan_name",
+      "type": "Data",
+      "label": "Plan name",
+      "requiredWhen": "true",
+      "maxLength": 100,
+      "inListView": true,
+      "section": "Plan"
+    },
+    {
+      "name": "rate",
+      "type": "Percent",
+      "label": "Commission rate",
+      "requiredWhen": "true",
+      "min": 0,
+      "max": 100,
+      "inListView": true,
+      "section": "Plan",
+      "description": "Of invoiced amount before VAT, net of credit notes"
+    },
+    {
+      "name": "valid_from",
+      "type": "Date",
+      "label": "Valid from",
+      "requiredWhen": "true",
+      "section": "Plan",
+      "column": 2
+    },
+    {
+      "name": "valid_to",
+      "type": "Date",
+      "label": "Valid to",
+      "section": "Plan",
+      "column": 2
+    },
+    {
+      "name": "is_active",
+      "type": "Check",
+      "label": "Active",
+      "default": true,
+      "inListView": true,
+      "section": "Plan",
+      "column": 2
+    },
+    {
+      "name": "sales_reps",
+      "type": "Table",
+      "label": "Sales reps",
+      "childDocType": "CommissionPlanRep",
+      "section": "Participants"
+    },
+    {
+      "name": "expense_account",
+      "type": "Link",
+      "label": "Commission expense",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "root_type",
+          "op": "=",
+          "value": "Expense"
+        }
+      ],
+      "section": "Accounts"
+    },
+    {
+      "name": "payable_account",
+      "type": "Link",
+      "label": "Commission payable",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "root_type",
+          "op": "=",
+          "value": "Liability"
+        }
+      ],
+      "section": "Accounts",
+      "column": 2
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Sales",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "plan_name",
+    "searchFields": [
+      "plan_name"
+    ],
+    "filters": [
+      "is_active"
+    ],
+    "defaultSort": [
+      {
+        "field": "plan_name",
+        "direction": "asc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

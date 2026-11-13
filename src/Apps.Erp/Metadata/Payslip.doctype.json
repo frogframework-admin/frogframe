@@ -1,0 +1,512 @@
+{
+  "name": "Payslip",
+  "version": 1,
+  "title": "Payslip",
+  "module": "HR",
+  "description": "Monthly pay for one employee: earnings, BPJS, PPh 21 (TER, annual in the last period), net pay. Posted to the ledger by its Payroll Run.",
+  "naming": {
+    "pattern": "PSL-{YYYY}-{######}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "payroll_run",
+      "type": "Link",
+      "label": "Payroll run",
+      "linkTo": "PayrollRun",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Payslip"
+    },
+    {
+      "name": "employee",
+      "type": "Link",
+      "label": "Employee",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Payslip"
+    },
+    {
+      "name": "employee_name",
+      "type": "Data",
+      "label": "Employee name",
+      "fetchFrom": "employee.full_name",
+      "inListView": true,
+      "section": "Payslip"
+    },
+    {
+      "name": "company",
+      "type": "Data",
+      "label": "Company",
+      "readOnlyWhen": "true",
+      "section": "Payslip",
+      "column": 2,
+      "description": "Set by hook from the payroll run"
+    },
+    {
+      "name": "period",
+      "type": "Data",
+      "label": "Period",
+      "readOnlyWhen": "true",
+      "inListView": true,
+      "section": "Payslip",
+      "column": 2
+    },
+    {
+      "name": "salary_assignment",
+      "type": "Link",
+      "label": "Salary assignment",
+      "linkTo": "SalaryAssignment",
+      "readOnlyWhen": "true",
+      "section": "Payslip",
+      "column": 2
+    },
+    {
+      "name": "cost_center",
+      "type": "Link",
+      "label": "Cost center",
+      "linkTo": "CostCenter",
+      "section": "Payslip",
+      "column": 2,
+      "description": "Empty = the employee's cost center"
+    },
+    {
+      "name": "working_days",
+      "type": "Float",
+      "label": "Working days in period",
+      "readOnlyWhen": "true",
+      "tab": "Pay",
+      "section": "Days",
+      "description": "From the employee's holiday list and weekly off (hook, when the payslip is created)"
+    },
+    {
+      "name": "unpaid_leave_days",
+      "type": "Float",
+      "label": "Unpaid leave days",
+      "readOnlyWhen": "true",
+      "tab": "Pay",
+      "section": "Days"
+    },
+    {
+      "name": "absent_days",
+      "type": "Float",
+      "label": "Absent days",
+      "readOnlyWhen": "true",
+      "tab": "Pay",
+      "section": "Days",
+      "column": 2
+    },
+    {
+      "name": "payable_days",
+      "type": "Float",
+      "label": "Payable days",
+      "readOnlyWhen": "true",
+      "tab": "Pay",
+      "section": "Days",
+      "column": 2,
+      "description": "Working days within employment dates − unpaid leave − absence. Regular earnings are prorated by payable ÷ working days"
+    },
+    {
+      "name": "earnings",
+      "type": "Table",
+      "label": "Earnings",
+      "childDocType": "PayslipDetail",
+      "tab": "Pay",
+      "section": "Earnings",
+      "description": "Copied from the salary assignment; add bonus, THR, overtime, or adjust for unpaid leave before submit"
+    },
+    {
+      "name": "deductions",
+      "type": "Table",
+      "label": "Other deductions",
+      "childDocType": "PayslipDetail",
+      "tab": "Pay",
+      "section": "Deductions"
+    },
+    {
+      "name": "gross_earnings",
+      "type": "Currency",
+      "label": "Gross earnings",
+      "readOnlyWhen": "true",
+      "tab": "Pay",
+      "section": "Summary",
+      "inListView": true
+    },
+    {
+      "name": "employee_contributions",
+      "type": "Currency",
+      "label": "Employee BPJS",
+      "readOnlyWhen": "true",
+      "tab": "Pay",
+      "section": "Summary"
+    },
+    {
+      "name": "pph21_withheld",
+      "type": "Currency",
+      "label": "PPh 21 withheld",
+      "readOnlyWhen": "true",
+      "tab": "Pay",
+      "section": "Summary",
+      "description": "PPh 21 minus the DTP part"
+    },
+    {
+      "name": "other_deductions",
+      "type": "Currency",
+      "label": "Other deductions",
+      "readOnlyWhen": "true",
+      "tab": "Pay",
+      "section": "Summary",
+      "column": 2
+    },
+    {
+      "name": "net_pay",
+      "type": "Currency",
+      "label": "Net pay",
+      "readOnlyWhen": "true",
+      "tab": "Pay",
+      "section": "Summary",
+      "column": 2,
+      "inListView": true
+    },
+    {
+      "name": "bpjs_base",
+      "type": "Currency",
+      "label": "BPJS wage base",
+      "readOnlyWhen": "true",
+      "tab": "BPJS",
+      "section": "Base"
+    },
+    {
+      "name": "jp_base",
+      "type": "Currency",
+      "label": "JP base (capped)",
+      "readOnlyWhen": "true",
+      "tab": "BPJS",
+      "section": "Base",
+      "column": 2
+    },
+    {
+      "name": "kes_base",
+      "type": "Currency",
+      "label": "BPJS Health base",
+      "readOnlyWhen": "true",
+      "tab": "BPJS",
+      "section": "Base",
+      "column": 2
+    },
+    {
+      "name": "jht_employee",
+      "type": "Currency",
+      "label": "JHT employee",
+      "readOnlyWhen": "true",
+      "tab": "BPJS",
+      "section": "Employee"
+    },
+    {
+      "name": "jp_employee",
+      "type": "Currency",
+      "label": "JP employee",
+      "readOnlyWhen": "true",
+      "tab": "BPJS",
+      "section": "Employee"
+    },
+    {
+      "name": "kes_employee",
+      "type": "Currency",
+      "label": "BPJS Health employee",
+      "readOnlyWhen": "true",
+      "tab": "BPJS",
+      "section": "Employee"
+    },
+    {
+      "name": "jht_employer",
+      "type": "Currency",
+      "label": "JHT employer",
+      "readOnlyWhen": "true",
+      "tab": "BPJS",
+      "section": "Employer",
+      "column": 2
+    },
+    {
+      "name": "jp_employer",
+      "type": "Currency",
+      "label": "JP employer",
+      "readOnlyWhen": "true",
+      "tab": "BPJS",
+      "section": "Employer",
+      "column": 2
+    },
+    {
+      "name": "jkk",
+      "type": "Currency",
+      "label": "JKK",
+      "readOnlyWhen": "true",
+      "tab": "BPJS",
+      "section": "Employer",
+      "column": 2
+    },
+    {
+      "name": "jkm",
+      "type": "Currency",
+      "label": "JKM",
+      "readOnlyWhen": "true",
+      "tab": "BPJS",
+      "section": "Employer",
+      "column": 2
+    },
+    {
+      "name": "kes_employer",
+      "type": "Currency",
+      "label": "BPJS Health employer",
+      "readOnlyWhen": "true",
+      "tab": "BPJS",
+      "section": "Employer",
+      "column": 2
+    },
+    {
+      "name": "employer_contributions",
+      "type": "Currency",
+      "label": "Total employer BPJS",
+      "readOnlyWhen": "true",
+      "tab": "BPJS",
+      "section": "Employer",
+      "column": 2
+    },
+    {
+      "name": "ptkp_status",
+      "type": "Data",
+      "label": "PTKP status",
+      "readOnlyWhen": "true",
+      "tab": "PPh 21",
+      "section": "Monthly"
+    },
+    {
+      "name": "ter_category",
+      "type": "Data",
+      "label": "TER category",
+      "readOnlyWhen": "true",
+      "tab": "PPh 21",
+      "section": "Monthly"
+    },
+    {
+      "name": "taxable_gross",
+      "type": "Currency",
+      "label": "Gross income (bruto)",
+      "readOnlyWhen": "true",
+      "tab": "PPh 21",
+      "section": "Monthly",
+      "description": "Taxable earnings + employer-paid JKK, JKM, BPJS Health"
+    },
+    {
+      "name": "ter_rate",
+      "type": "Percent",
+      "label": "TER rate",
+      "readOnlyWhen": "true",
+      "tab": "PPh 21",
+      "section": "Monthly",
+      "column": 2
+    },
+    {
+      "name": "pph21",
+      "type": "Currency",
+      "label": "PPh 21",
+      "readOnlyWhen": "true",
+      "tab": "PPh 21",
+      "section": "Monthly",
+      "column": 2,
+      "description": "Negative in the last period = overpaid, refunded to the employee"
+    },
+    {
+      "name": "dtp_eligible",
+      "type": "Check",
+      "label": "DTP eligible",
+      "default": false,
+      "tab": "PPh 21",
+      "section": "Monthly",
+      "column": 2,
+      "description": "Proposed by hook when the payslip is created; untick if the employee does not qualify"
+    },
+    {
+      "name": "pph21_dtp",
+      "type": "Currency",
+      "label": "PPh 21 DTP (paid in cash)",
+      "readOnlyWhen": "true",
+      "tab": "PPh 21",
+      "section": "Monthly",
+      "column": 2
+    },
+    {
+      "name": "is_last_period",
+      "type": "Check",
+      "label": "Last tax period",
+      "readOnlyWhen": "true",
+      "tab": "PPh 21",
+      "section": "Annual",
+      "description": "December, or the month the employee leaves: PPh 21 is recalculated for the year with Article 17 rates"
+    },
+    {
+      "name": "ytd_taxable_gross",
+      "type": "Currency",
+      "label": "Gross income for the year",
+      "readOnlyWhen": "true",
+      "tab": "PPh 21",
+      "section": "Annual",
+      "visibleWhen": "is_last_period"
+    },
+    {
+      "name": "position_cost",
+      "type": "Currency",
+      "label": "Position cost",
+      "readOnlyWhen": "true",
+      "tab": "PPh 21",
+      "section": "Annual",
+      "visibleWhen": "is_last_period"
+    },
+    {
+      "name": "pension_contributions",
+      "type": "Currency",
+      "label": "JHT + JP paid by employee",
+      "readOnlyWhen": "true",
+      "tab": "PPh 21",
+      "section": "Annual",
+      "visibleWhen": "is_last_period"
+    },
+    {
+      "name": "ptkp_amount",
+      "type": "Currency",
+      "label": "PTKP",
+      "readOnlyWhen": "true",
+      "tab": "PPh 21",
+      "section": "Annual",
+      "visibleWhen": "is_last_period",
+      "column": 2
+    },
+    {
+      "name": "pkp",
+      "type": "Currency",
+      "label": "Taxable income (PKP)",
+      "readOnlyWhen": "true",
+      "tab": "PPh 21",
+      "section": "Annual",
+      "visibleWhen": "is_last_period",
+      "column": 2
+    },
+    {
+      "name": "pph21_annual",
+      "type": "Currency",
+      "label": "PPh 21 for the year",
+      "readOnlyWhen": "true",
+      "tab": "PPh 21",
+      "section": "Annual",
+      "visibleWhen": "is_last_period",
+      "column": 2
+    },
+    {
+      "name": "pph21_before",
+      "type": "Currency",
+      "label": "PPh 21 withheld earlier this year",
+      "readOnlyWhen": "true",
+      "tab": "PPh 21",
+      "section": "Annual",
+      "visibleWhen": "is_last_period",
+      "column": 2
+    }
+  ],
+  "rules": [
+    {
+      "name": "net_not_negative",
+      "expr": "empty(net_pay) || net_pay >= 0",
+      "message": "Net pay cannot be negative; reduce other deductions",
+      "field": "deductions"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "match:employee=employee"
+    },
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "employee_name",
+    "searchFields": [
+      "employee",
+      "employee_name",
+      "payroll_run"
+    ],
+    "filters": [
+      "payroll_run",
+      "period",
+      "employee"
+    ],
+    "defaultSort": [
+      {
+        "field": "period",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

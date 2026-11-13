@@ -11,11 +11,10 @@
     <ProjectReference Include="..\..\src\Framework.Scripting.Abstractions\Framework.Scripting.Abstractions.csproj" />
     <ProjectReference Include="..\..\src\Framework.Scripting\Framework.Scripting.csproj" />
     <ProjectReference Include="..\..\src\Framework.Web\Framework.Web.csproj" />
-    <ProjectReference Include="..\..\src\Apps.Sample\Apps.Sample.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="..\..\src\Apps.Sample\Metadata\*.json" Link="Metadata\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="TestMetadata\*.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

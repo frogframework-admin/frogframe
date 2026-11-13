@@ -1,0 +1,281 @@
+{
+  "name": "JobChange",
+  "version": 1,
+  "title": "Job Change",
+  "module": "HR",
+  "description": "One event for promotion/transfer/rotation/reorganization (Workday Change Job). Submit: the hook updates Employee & Position as of the effective date.",
+  "naming": {
+    "pattern": "JC-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "employee",
+      "type": "Link",
+      "label": "Employee",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Change"
+    },
+    {
+      "name": "employee_name",
+      "type": "Data",
+      "label": "Employee name",
+      "fetchFrom": "employee.full_name",
+      "inListView": true,
+      "section": "Change"
+    },
+    {
+      "name": "change_reason",
+      "type": "Select",
+      "label": "Reason",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Change",
+      "options": [
+        "Promotion",
+        "Demotion",
+        "Transfer",
+        "Rotation",
+        "Reorganization",
+        "Employment status change",
+        "Grade adjustment",
+        "Probation completed"
+      ]
+    },
+    {
+      "name": "effective_date",
+      "type": "Date",
+      "label": "Effective date",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Change",
+      "column": 2
+    },
+    {
+      "name": "decree_no",
+      "type": "Data",
+      "label": "Decree no.",
+      "section": "Change",
+      "column": 2
+    },
+    {
+      "name": "current_organization_unit",
+      "type": "Data",
+      "label": "Current organization unit",
+      "fetchFrom": "employee.organization_unit",
+      "section": "Before"
+    },
+    {
+      "name": "new_organization_unit",
+      "type": "Link",
+      "label": "New organization unit",
+      "linkTo": "OrganizationUnit",
+      "section": "After",
+      "lookupDialog": true
+    },
+    {
+      "name": "current_position",
+      "type": "Data",
+      "label": "Current position",
+      "fetchFrom": "employee.position",
+      "section": "Before"
+    },
+    {
+      "name": "new_position",
+      "type": "Link",
+      "label": "New position",
+      "linkTo": "Position",
+      "section": "After",
+      "lookupDialog": true
+    },
+    {
+      "name": "current_job_profile",
+      "type": "Data",
+      "label": "Current job profile",
+      "fetchFrom": "employee.job_profile",
+      "section": "Before"
+    },
+    {
+      "name": "new_job_profile",
+      "type": "Link",
+      "label": "New job profile",
+      "linkTo": "JobProfile",
+      "section": "After"
+    },
+    {
+      "name": "current_grade",
+      "type": "Data",
+      "label": "Current grade",
+      "fetchFrom": "employee.grade",
+      "section": "Before"
+    },
+    {
+      "name": "new_grade",
+      "type": "Link",
+      "label": "New grade",
+      "linkTo": "Grade",
+      "section": "After"
+    },
+    {
+      "name": "current_location",
+      "type": "Data",
+      "label": "Current location",
+      "fetchFrom": "employee.location",
+      "section": "Before"
+    },
+    {
+      "name": "new_location",
+      "type": "Link",
+      "label": "New location",
+      "linkTo": "Location",
+      "section": "After"
+    },
+    {
+      "name": "current_cost_center",
+      "type": "Data",
+      "label": "Current cost center",
+      "fetchFrom": "employee.cost_center",
+      "section": "Before"
+    },
+    {
+      "name": "new_cost_center",
+      "type": "Link",
+      "label": "New cost center",
+      "linkTo": "CostCenter",
+      "section": "After"
+    },
+    {
+      "name": "current_reports_to",
+      "type": "Data",
+      "label": "Current reports to",
+      "fetchFrom": "employee.reports_to",
+      "section": "Before"
+    },
+    {
+      "name": "new_reports_to",
+      "type": "Link",
+      "label": "New reports to",
+      "linkTo": "Employee",
+      "section": "After",
+      "lookupDialog": true
+    },
+    {
+      "name": "current_employment_type",
+      "type": "Data",
+      "label": "Current employment status",
+      "fetchFrom": "employee.employment_type",
+      "section": "Before"
+    },
+    {
+      "name": "new_employment_type",
+      "type": "Select",
+      "label": "New employment status",
+      "options": [
+        "Permanent (PKWTT)",
+        "Fixed-term (PKWT)",
+        "Casual",
+        "Intern",
+        "Outsourced"
+      ],
+      "section": "After"
+    },
+    {
+      "name": "remarks",
+      "type": "Text",
+      "label": "Notes",
+      "tab": "Other",
+      "section": "Notes"
+    },
+    {
+      "name": "attachment",
+      "type": "Attach",
+      "label": "Decree / supporting document",
+      "tab": "Other",
+      "section": "Notes",
+      "column": 2
+    }
+  ],
+  "rules": [
+    {
+      "name": "has_change",
+      "expr": "!empty(new_organization_unit) || !empty(new_position) || !empty(new_job_profile) || !empty(new_grade) || !empty(new_location) || !empty(new_cost_center) || !empty(new_reports_to) || !empty(new_employment_type)",
+      "message": "Fill at least one new value",
+      "field": "change_reason"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "match:employee=employee"
+    }
+  ],
+  "listView": {
+    "titleField": "employee_name",
+    "searchFields": [
+      "name",
+      "employee_name",
+      "decree_no"
+    ],
+    "filters": [
+      "change_reason",
+      "effective_date"
+    ],
+    "defaultSort": [
+      {
+        "field": "effective_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

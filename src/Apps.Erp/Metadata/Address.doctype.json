@@ -1,0 +1,204 @@
+{
+  "name": "Address",
+  "version": 1,
+  "title": "Address",
+  "module": "CORE",
+  "description": "One address can be used by several parties (Customer, Supplier, Company, Location).",
+  "naming": {
+    "pattern": "ADDR-{######}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "address_title",
+      "type": "Data",
+      "label": "Address title",
+      "requiredWhen": "true",
+      "inListView": true,
+      "description": "e.g. Head Office, Cikarang Warehouse"
+    },
+    {
+      "name": "address_type",
+      "type": "Select",
+      "label": "Address type",
+      "requiredWhen": "true",
+      "options": [
+        "Billing",
+        "Shipping",
+        "Office",
+        "Warehouse",
+        "Residence",
+        "Other"
+      ],
+      "default": "Billing",
+      "inListView": true
+    },
+    {
+      "name": "address_line1",
+      "type": "Data",
+      "label": "Address line 1",
+      "requiredWhen": "true"
+    },
+    {
+      "name": "address_line2",
+      "type": "Data",
+      "label": "Address line 2"
+    },
+    {
+      "name": "city",
+      "type": "Data",
+      "label": "City/Regency",
+      "requiredWhen": "true",
+      "inListView": true,
+      "column": 2
+    },
+    {
+      "name": "province",
+      "type": "Data",
+      "label": "Province",
+      "column": 2
+    },
+    {
+      "name": "postal_code",
+      "type": "Data",
+      "label": "Postal code",
+      "maxLength": 10,
+      "pattern": "^[0-9]{5}$",
+      "patternMessage": "5-digit postal code",
+      "column": 2
+    },
+    {
+      "name": "country",
+      "type": "Data",
+      "label": "Country (ISO)",
+      "requiredWhen": "true",
+      "default": "ID",
+      "maxLength": 2,
+      "pattern": "^[A-Z]{2}$",
+      "column": 2
+    },
+    {
+      "name": "phone",
+      "type": "Phone",
+      "label": "Phone",
+      "section": "Contact"
+    },
+    {
+      "name": "email",
+      "type": "Email",
+      "label": "Email",
+      "section": "Contact"
+    },
+    {
+      "name": "is_primary",
+      "type": "Check",
+      "label": "Primary address",
+      "default": false,
+      "section": "Contact",
+      "column": 2
+    },
+    {
+      "name": "is_tax_address",
+      "type": "Check",
+      "label": "Tax address (per tax ID)",
+      "default": false,
+      "section": "Contact",
+      "column": 2
+    },
+    {
+      "name": "links",
+      "type": "Table",
+      "label": "Used by",
+      "childDocType": "PartyLink",
+      "requiredWhen": "true",
+      "section": "Links"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Purchasing",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Sales",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "address_title",
+    "searchFields": [
+      "address_title",
+      "address_line1",
+      "city"
+    ],
+    "filters": [
+      "address_type",
+      "city"
+    ],
+    "defaultSort": [
+      {
+        "field": "modified",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

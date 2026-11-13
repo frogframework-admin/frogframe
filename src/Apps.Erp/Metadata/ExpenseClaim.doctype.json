@@ -1,0 +1,254 @@
+{
+  "name": "ExpenseClaim",
+  "version": 1,
+  "title": "Expense Claim",
+  "module": "FINANCE",
+  "description": "Employee expense reimbursement (Workday Expense Report / NetSuite Expense Report). Approved: Dr expense / Cr employee payable; paid via Payment Entry.",
+  "naming": {
+    "pattern": "EXP-{YYYY}-{######}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "workflow": "ExpenseClaimApproval",
+  "fields": [
+    {
+      "name": "employee",
+      "type": "Link",
+      "label": "Employee",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "default": "$employee",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Claim"
+    },
+    {
+      "name": "employee_name",
+      "type": "Data",
+      "label": "Employee name",
+      "fetchFrom": "employee.full_name",
+      "inListView": true,
+      "section": "Claim"
+    },
+    {
+      "name": "company",
+      "type": "Data",
+      "label": "Company",
+      "fetchFrom": "employee.company",
+      "section": "Claim"
+    },
+    {
+      "name": "expense_approver",
+      "type": "Data",
+      "label": "Approver",
+      "fetchFrom": "employee.expense_approver",
+      "section": "Claim"
+    },
+    {
+      "name": "posting_date",
+      "type": "Date",
+      "label": "Application date",
+      "requiredWhen": "true",
+      "default": "$today",
+      "inListView": true,
+      "section": "Claim",
+      "column": 2
+    },
+    {
+      "name": "purpose",
+      "type": "Data",
+      "label": "Purpose",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Claim",
+      "column": 2,
+      "description": "e.g. Client visit Surabaya"
+    },
+    {
+      "name": "project",
+      "type": "Link",
+      "label": "Project",
+      "linkTo": "Project",
+      "section": "Claim",
+      "column": 2
+    },
+    {
+      "name": "items",
+      "type": "Table",
+      "label": "Expenses",
+      "childDocType": "ExpenseClaimItem",
+      "requiredWhen": "true",
+      "section": "Details"
+    },
+    {
+      "name": "total_claimed",
+      "type": "Currency",
+      "label": "Total claimed",
+      "compute": "sum(items.amount)",
+      "inListView": true,
+      "section": "Total"
+    },
+    {
+      "name": "employee_advance",
+      "type": "Link",
+      "label": "Advance settled",
+      "linkTo": "EmployeeAdvance",
+      "linkFilters": [
+        {
+          "field": "docstatus",
+          "op": "=",
+          "value": 1
+        }
+      ],
+      "section": "Total"
+    },
+    {
+      "name": "advance_settled",
+      "type": "Currency",
+      "label": "Deducted from advance",
+      "default": 0,
+      "min": 0,
+      "section": "Total",
+      "column": 2
+    },
+    {
+      "name": "net_payable",
+      "type": "Currency",
+      "label": "Payable to employee",
+      "compute": "total_claimed - advance_settled",
+      "inListView": true,
+      "section": "Total",
+      "column": 2,
+      "description": "Negative = employee returns the unused advance"
+    },
+    {
+      "name": "payable_account",
+      "type": "Link",
+      "label": "Employee payable account",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "account_type",
+          "op": "=",
+          "value": "Payable"
+        }
+      ],
+      "tab": "Accounting",
+      "section": "Account",
+      "description": "Empty = company default (hook)"
+    },
+    {
+      "name": "payment_status",
+      "type": "Select",
+      "label": "Payment status",
+      "options": [
+        "Unpaid",
+        "Partly Paid",
+        "Paid"
+      ],
+      "readOnlyWhen": "true",
+      "noCopy": true,
+      "tab": "Accounting",
+      "section": "Account",
+      "column": 2,
+      "description": "Computed from the ledger when opened (OnLoad)"
+    }
+  ],
+  "rules": [
+    {
+      "name": "no_advance",
+      "expr": "!empty(employee_advance) || advance_settled == 0",
+      "message": "Choose an advance before entering a deduction",
+      "field": "advance_settled"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Employee",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete"
+      ],
+      "scope": "match:employee=employee"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "match:expense_approver=employee"
+    },
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "write",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "employee_name",
+    "searchFields": [
+      "name",
+      "employee_name",
+      "purpose"
+    ],
+    "filters": [
+      "workflow_state",
+      "posting_date"
+    ],
+    "defaultSort": [
+      {
+        "field": "posting_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

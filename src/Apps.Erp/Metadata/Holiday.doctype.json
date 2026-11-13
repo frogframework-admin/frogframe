@@ -1,0 +1,33 @@
+{
+  "name": "Holiday",
+  "version": 1,
+  "title": "Holiday",
+  "module": "CORE",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "holiday_date",
+      "type": "Date",
+      "label": "Date",
+      "requiredWhen": "true"
+    },
+    {
+      "name": "description",
+      "type": "Data",
+      "label": "Remarks",
+      "requiredWhen": "true"
+    },
+    {
+      "name": "holiday_type",
+      "type": "Select",
+      "label": "Type",
+      "options": [
+        "Public holiday",
+        "Collective leave",
+        "Company holiday",
+        "Weekend"
+      ],
+      "default": "Public holiday"
+    }
+  ]
+}

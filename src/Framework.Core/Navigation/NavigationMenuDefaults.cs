@@ -11,6 +11,10 @@ public static class NavigationMenuDefaults
     public static string ModuleAnalyticsId(string tenantId) => $"mod_{tenantId}_analytics";
     public static string ModuleAdminId(string tenantId) => $"mod_{tenantId}_admin";
     public static string ModuleAccountingId(string tenantId) => $"mod_{tenantId}_accounting";
+    public static string ModuleCoreId(string tenantId) => $"mod_{tenantId}_core";
+    public static string ModuleFinanceId(string tenantId) => $"mod_{tenantId}_finance";
+    public static string ModuleCrmId(string tenantId) => $"mod_{tenantId}_crm";
+    public static string ModuleStockId(string tenantId) => $"mod_{tenantId}_stock";
 
     public static string GroupHrId(string tenantId) => $"grp_{tenantId}_hr";
     public static string GroupPengadaanId(string tenantId) => $"grp_{tenantId}_pengadaan";
@@ -26,6 +30,21 @@ public static class NavigationMenuDefaults
 
     public static IReadOnlyList<NavigationModule> CreateDefaultModules(string tenantId, DateTimeOffset now) =>
     [
+        new()
+        {
+            Id = ModuleCoreId(tenantId),
+            TenantId = tenantId,
+            Code = "CORE",
+            Name = "Core",
+            Description = "Master data, companies, parties, and global settings",
+            Icon = "database",
+            SortOrder = 5,
+            AllowedRoles = [],
+            IsSystem = true,
+            IsActive = true,
+            CreatedAt = now,
+            UpdatedAt = now
+        },
         new()
         {
             Id = ModuleHrId(tenantId),
@@ -66,6 +85,51 @@ public static class NavigationMenuDefaults
             Icon = "calculator",
             SortOrder = 25,
             AllowedRoles = ["Finance"],
+            IsSystem = true,
+            IsActive = true,
+            CreatedAt = now,
+            UpdatedAt = now
+        },
+        new()
+        {
+            Id = ModuleFinanceId(tenantId),
+            TenantId = tenantId,
+            Code = "FINANCE",
+            Name = "Finance",
+            Description = "Invoicing, payments, tax, bank reconciliation, and asset management",
+            Icon = "landmark",
+            SortOrder = 26,
+            AllowedRoles = ["Finance"],
+            IsSystem = true,
+            IsActive = true,
+            CreatedAt = now,
+            UpdatedAt = now
+        },
+        new()
+        {
+            Id = ModuleCrmId(tenantId),
+            TenantId = tenantId,
+            Code = "CRM",
+            Name = "CRM",
+            Description = "Leads, opportunities, quotations, sales orders, and customer relations",
+            Icon = "briefcase",
+            SortOrder = 27,
+            AllowedRoles = ["Sales"],
+            IsSystem = true,
+            IsActive = true,
+            CreatedAt = now,
+            UpdatedAt = now
+        },
+        new()
+        {
+            Id = ModuleStockId(tenantId),
+            TenantId = tenantId,
+            Code = "STOCK",
+            Name = "Stock",
+            Description = "Warehouses, stock entries, reconciliations, and inventory tracking",
+            Icon = "boxes",
+            SortOrder = 28,
+            AllowedRoles = ["Stock", "Purchasing"],
             IsSystem = true,
             IsActive = true,
             CreatedAt = now,

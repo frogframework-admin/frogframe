@@ -1,0 +1,161 @@
+{
+  "name": "PurchaseInvoiceItem",
+  "version": 1,
+  "title": "Purchase Invoice Item",
+  "module": "FINANCE",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "item",
+      "type": "Link",
+      "label": "Item",
+      "linkTo": "Item",
+      "linkFilters": [
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "is_purchase_item",
+          "op": "=",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "item_name",
+      "type": "Data",
+      "label": "Item name",
+      "requiredWhen": "true"
+    },
+    {
+      "name": "description",
+      "type": "Data",
+      "label": "Description"
+    },
+    {
+      "name": "qty",
+      "type": "Float",
+      "label": "Quantity",
+      "requiredWhen": "true",
+      "default": 1,
+      "min": 0
+    },
+    {
+      "name": "uom",
+      "type": "Link",
+      "label": "UOM",
+      "linkTo": "UOM"
+    },
+    {
+      "name": "rate",
+      "type": "Currency",
+      "label": "Rate",
+      "requiredWhen": "true",
+      "default": 0,
+      "min": 0
+    },
+    {
+      "name": "discount_percent",
+      "type": "Percent",
+      "label": "Discount (%)",
+      "default": 0,
+      "min": 0,
+      "max": 100
+    },
+    {
+      "name": "amount",
+      "type": "Currency",
+      "label": "Amount",
+      "compute": "round(qty * rate * (1 - discount_percent / 100), 2)"
+    },
+    {
+      "name": "is_vat_applicable",
+      "type": "Check",
+      "label": "Subject to VAT",
+      "default": true
+    },
+    {
+      "name": "taxable_amount",
+      "type": "Currency",
+      "label": "Line tax base",
+      "compute": "amount * is_vat_applicable"
+    },
+    {
+      "name": "is_wht_applicable",
+      "type": "Check",
+      "label": "Subject to withholding tax",
+      "default": false
+    },
+    {
+      "name": "wht_base",
+      "type": "Currency",
+      "label": "Line withholding tax base",
+      "compute": "amount * is_wht_applicable"
+    },
+    {
+      "name": "expense_account",
+      "type": "Link",
+      "label": "Expense/asset account",
+      "linkTo": "Account",
+      "requiredWhen": "true",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "cost_center",
+      "type": "Link",
+      "label": "Cost center",
+      "linkTo": "CostCenter",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "project",
+      "type": "Link",
+      "label": "Project",
+      "linkTo": "Project"
+    },
+    {
+      "name": "asset_category",
+      "type": "Link",
+      "label": "Asset category (if capitalized)",
+      "linkTo": "AssetCategory"
+    },
+    {
+      "name": "valuation_rate",
+      "type": "Currency",
+      "label": "Valuation rate",
+      "readOnlyWhen": "true",
+      "description": "Stock items with 'Update stock': moving-average cost (sales) or landed rate (purchase), set on submit"
+    },
+    {
+      "name": "stock_amount",
+      "type": "Currency",
+      "label": "Stock value",
+      "readOnlyWhen": "true",
+      "description": "Quantity × valuation rate (functional currency)"
+    }
+  ]
+}

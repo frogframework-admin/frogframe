@@ -1,0 +1,124 @@
+{
+  "name": "AccountingDimension",
+  "version": 1,
+  "title": "Accounting Dimension",
+  "module": "ACCOUNTING",
+  "description": "Registry of dimensions carried to the ledger (NetSuite Segment / SAP ACDOCA). Needs a LedgerLine with generic dimensions.",
+  "naming": {
+    "pattern": "field:dimension_code"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "dimension_code",
+      "type": "Data",
+      "label": "Dimension code",
+      "requiredWhen": "true",
+      "maxLength": 30,
+      "pattern": "^[a-z][a-z0-9_]{1,29}$",
+      "patternMessage": "snake_case, e.g. cost_center",
+      "inListView": true,
+      "description": "Dimension column name in the ledger"
+    },
+    {
+      "name": "label",
+      "type": "Data",
+      "label": "Label",
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "source_doctype",
+      "type": "Select",
+      "label": "Amount source",
+      "requiredWhen": "true",
+      "options": [
+        "CostCenter",
+        "Project",
+        "Location",
+        "Customer",
+        "Vendor"
+      ],
+      "inListView": true,
+      "column": 2
+    },
+    {
+      "name": "mandatory_for_profit_loss",
+      "type": "Check",
+      "label": "Required for profit and loss accounts",
+      "default": false,
+      "column": 2
+    },
+    {
+      "name": "mandatory_for_balance_sheet",
+      "type": "Check",
+      "label": "Required for balance sheet accounts",
+      "default": false,
+      "column": 2
+    },
+    {
+      "name": "is_active",
+      "type": "Check",
+      "label": "Active",
+      "default": true,
+      "inListView": true,
+      "column": 2
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "label",
+    "searchFields": [
+      "dimension_code",
+      "label"
+    ],
+    "filters": [
+      "is_active"
+    ],
+    "defaultSort": [
+      {
+        "field": "dimension_code",
+        "direction": "asc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

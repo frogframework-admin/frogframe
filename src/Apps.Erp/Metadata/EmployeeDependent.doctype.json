@@ -1,0 +1,62 @@
+{
+  "name": "EmployeeDependent",
+  "version": 1,
+  "title": "Dependents",
+  "module": "HR",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "full_name",
+      "type": "Data",
+      "label": "Name",
+      "requiredWhen": "true"
+    },
+    {
+      "name": "relationship",
+      "type": "Select",
+      "label": "Relationship",
+      "requiredWhen": "true",
+      "options": [
+        "Husband",
+        "Wife",
+        "Child",
+        "Parent",
+        "Parent-in-law",
+        "Sibling"
+      ]
+    },
+    {
+      "name": "gender",
+      "type": "Select",
+      "label": "Gender",
+      "options": [
+        "Male",
+        "Female"
+      ]
+    },
+    {
+      "name": "date_of_birth",
+      "type": "Date",
+      "label": "Date of birth"
+    },
+    {
+      "name": "nik",
+      "type": "Data",
+      "label": "NIK",
+      "maxLength": 16,
+      "pattern": "^[0-9]{16}$"
+    },
+    {
+      "name": "is_tax_dependent",
+      "type": "Check",
+      "label": "PTKP dependents",
+      "default": false
+    },
+    {
+      "name": "is_bpjs_dependent",
+      "type": "Check",
+      "label": "BPJS Health member",
+      "default": false
+    }
+  ]
+}

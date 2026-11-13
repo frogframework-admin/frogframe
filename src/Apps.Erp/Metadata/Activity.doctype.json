@@ -1,0 +1,231 @@
+{
+  "name": "Activity",
+  "version": 1,
+  "title": "Activity",
+  "module": "CRM",
+  "description": "Sales calls, meetings, visits, and tasks (Salesforce Task/Event). Email stays with the framework's communications feature.",
+  "allowAutoRepeat": true,
+  "naming": {
+    "pattern": "ACT-{YYYY}-{######}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "activity_type",
+      "type": "Select",
+      "label": "Type",
+      "requiredWhen": "true",
+      "options": [
+        "Phone",
+        "Meeting",
+        "Visit",
+        "Email",
+        "Demo",
+        "Task"
+      ],
+      "default": "Phone",
+      "inListView": true,
+      "section": "Activity"
+    },
+    {
+      "name": "subject",
+      "type": "Data",
+      "label": "Subject",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Activity"
+    },
+    {
+      "name": "reference_doctype",
+      "type": "Select",
+      "label": "Related",
+      "requiredWhen": "true",
+      "options": [
+        "Lead",
+        "Opportunity",
+        "Customer",
+        "Quotation"
+      ],
+      "section": "Activity"
+    },
+    {
+      "name": "reference_name",
+      "type": "DynamicLink",
+      "label": "Document",
+      "requiredWhen": "true",
+      "linkToField": "reference_doctype",
+      "inListView": true,
+      "section": "Activity"
+    },
+    {
+      "name": "contact",
+      "type": "Link",
+      "label": "Contact",
+      "linkTo": "Contact",
+      "section": "Activity"
+    },
+    {
+      "name": "start_at",
+      "type": "Datetime",
+      "label": "Start / due",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Time",
+      "column": 2
+    },
+    {
+      "name": "end_at",
+      "type": "Datetime",
+      "label": "Completed",
+      "section": "Time",
+      "column": 2
+    },
+    {
+      "name": "status",
+      "type": "Select",
+      "label": "Status",
+      "requiredWhen": "true",
+      "options": [
+        "Planned",
+        "Completed",
+        "Cancelled"
+      ],
+      "default": "Planned",
+      "inListView": true,
+      "section": "Time",
+      "column": 2
+    },
+    {
+      "name": "priority",
+      "type": "Select",
+      "label": "Priority",
+      "options": [
+        "Low",
+        "Normal",
+        "High"
+      ],
+      "default": "Normal",
+      "section": "Time",
+      "column": 2
+    },
+    {
+      "name": "assigned_to",
+      "type": "Link",
+      "label": "Assigned to",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "default": "$employee",
+      "lookupDialog": true,
+      "section": "Time",
+      "column": 2
+    },
+    {
+      "name": "organization_unit",
+      "type": "Data",
+      "label": "Team/unit",
+      "fetchFrom": "assigned_to.organization_unit",
+      "section": "Time",
+      "column": 2
+    },
+    {
+      "name": "location",
+      "type": "Geolocation",
+      "label": "Visit location",
+      "visibleWhen": "activity_type == 'Visit'",
+      "section": "Outcome"
+    },
+    {
+      "name": "outcome",
+      "type": "Text",
+      "label": "Outcome / minutes",
+      "requiredWhen": "status == 'Completed'",
+      "section": "Outcome"
+    }
+  ],
+  "rules": [
+    {
+      "name": "valid_time",
+      "expr": "empty(end_at) || end_at >= start_at",
+      "message": "The end time must be after the start time",
+      "field": "end_at"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Sales",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "match:assigned_to=employee"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "match:organization_unit=department"
+    },
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "subject",
+    "searchFields": [
+      "subject",
+      "reference_name"
+    ],
+    "filters": [
+      "activity_type",
+      "status",
+      "assigned_to",
+      "start_at"
+    ],
+    "defaultSort": [
+      {
+        "field": "start_at",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

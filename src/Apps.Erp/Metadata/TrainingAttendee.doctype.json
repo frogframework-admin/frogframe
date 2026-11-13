@@ -1,0 +1,49 @@
+{
+  "name": "TrainingAttendee",
+  "version": 1,
+  "title": "Training Attendee",
+  "module": "HR",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "employee",
+      "type": "Link",
+      "label": "Employee",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "employee_name",
+      "type": "Data",
+      "label": "Name",
+      "inListView": true,
+      "description": "Set by hook"
+    },
+    {
+      "name": "attendance",
+      "type": "Select",
+      "label": "Attendance",
+      "options": [
+        "Invited",
+        "Attended",
+        "Absent"
+      ],
+      "default": "Invited",
+      "inListView": true
+    },
+    {
+      "name": "score",
+      "type": "Float",
+      "label": "Test score",
+      "min": 0,
+      "max": 100,
+      "inListView": true
+    },
+    {
+      "name": "certificate",
+      "type": "Attach",
+      "label": "Certificate"
+    }
+  ]
+}

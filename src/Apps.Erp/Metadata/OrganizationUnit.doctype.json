@@ -1,0 +1,223 @@
+{
+  "name": "OrganizationUnit",
+  "version": 1,
+  "title": "Organization Unit",
+  "module": "HR",
+  "description": "Organization unit/management hierarchy (Workday Supervisory Organization / SAP OM Org Unit). Org chart via OrgTree.",
+  "naming": {
+    "pattern": "field:org_unit_code"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "org_unit_code",
+      "type": "Data",
+      "label": "Unit code",
+      "requiredWhen": "true",
+      "maxLength": 20,
+      "inListView": true,
+      "section": "Unit"
+    },
+    {
+      "name": "org_unit_name",
+      "type": "Data",
+      "label": "Unit name",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Unit"
+    },
+    {
+      "name": "unit_type",
+      "type": "Select",
+      "label": "Unit type",
+      "requiredWhen": "true",
+      "options": [
+        "Board of Directors",
+        "Directorate",
+        "Division",
+        "Department",
+        "Sub-department",
+        "Section",
+        "Team",
+        "Branch"
+      ],
+      "inListView": true,
+      "section": "Unit"
+    },
+    {
+      "name": "parent_org_unit",
+      "type": "Link",
+      "label": "Parent unit",
+      "linkTo": "OrganizationUnit",
+      "lookupDialog": true,
+      "section": "Unit",
+      "column": 2
+    },
+    {
+      "name": "company",
+      "type": "Link",
+      "label": "Company",
+      "linkTo": "Company",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Unit",
+      "column": 2
+    },
+    {
+      "name": "is_active",
+      "type": "Check",
+      "label": "Active",
+      "default": true,
+      "inListView": true,
+      "section": "Unit",
+      "column": 2
+    },
+    {
+      "name": "manager_position",
+      "type": "Link",
+      "label": "Head position",
+      "linkTo": "Position",
+      "linkFilters": [
+        {
+          "field": "is_manager_position",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "section": "Head",
+      "description": "Workday: manager supervisory organization"
+    },
+    {
+      "name": "manager",
+      "type": "Link",
+      "label": "Current head",
+      "linkTo": "Employee",
+      "fetchFrom": "manager_position.current_employee",
+      "section": "Head",
+      "column": 2
+    },
+    {
+      "name": "staffing_model",
+      "type": "Select",
+      "label": "Staffing model",
+      "requiredWhen": "true",
+      "options": [
+        "Position",
+        "Job"
+      ],
+      "default": "Position",
+      "section": "Settings",
+      "description": "Position: each employee fills a Position. Job: a Job Profile is enough (Workday Job Management)"
+    },
+    {
+      "name": "cost_center",
+      "type": "Link",
+      "label": "Default cost center",
+      "linkTo": "CostCenter",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        }
+      ],
+      "section": "Settings"
+    },
+    {
+      "name": "location",
+      "type": "Link",
+      "label": "Primary location",
+      "linkTo": "Location",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        }
+      ],
+      "section": "Settings",
+      "column": 2
+    },
+    {
+      "name": "effective_from",
+      "type": "Date",
+      "label": "Effective from",
+      "requiredWhen": "true",
+      "default": "$today",
+      "section": "Settings",
+      "column": 2
+    },
+    {
+      "name": "description",
+      "type": "Text",
+      "label": "Unit purpose",
+      "section": "Remarks"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "org_unit_name",
+    "searchFields": [
+      "org_unit_code",
+      "org_unit_name"
+    ],
+    "filters": [
+      "company",
+      "unit_type",
+      "parent_org_unit",
+      "is_active"
+    ],
+    "defaultSort": [
+      {
+        "field": "org_unit_code",
+        "direction": "asc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

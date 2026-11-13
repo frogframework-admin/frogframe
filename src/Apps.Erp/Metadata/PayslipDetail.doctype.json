@@ -1,0 +1,58 @@
+{
+  "name": "PayslipDetail",
+  "version": 1,
+  "title": "Payslip Detail",
+  "module": "HR",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "salary_component",
+      "type": "Link",
+      "label": "Component",
+      "linkTo": "SalaryComponent",
+      "requiredWhen": "true",
+      "linkFilters": [
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "inListView": true
+    },
+    {
+      "name": "amount",
+      "type": "Currency",
+      "label": "Amount",
+      "requiredWhen": "true",
+      "min": 0,
+      "inListView": true
+    },
+    {
+      "name": "is_taxable",
+      "type": "Check",
+      "label": "Taxable",
+      "readOnlyWhen": "true",
+      "description": "Set by hook from the component"
+    },
+    {
+      "name": "is_regular",
+      "type": "Check",
+      "label": "Regular",
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "in_bpjs_base",
+      "type": "Check",
+      "label": "BPJS base",
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "account",
+      "type": "Link",
+      "label": "Account",
+      "linkTo": "Account",
+      "readOnlyWhen": "true"
+    }
+  ]
+}

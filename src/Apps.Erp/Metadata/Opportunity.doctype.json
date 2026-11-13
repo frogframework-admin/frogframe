@@ -1,0 +1,352 @@
+{
+  "name": "Opportunity",
+  "version": 1,
+  "title": "Opportunity",
+  "module": "CRM",
+  "description": "Sales opportunity with stage, probability, and forecast (Salesforce Opportunity). Stage history via track changes.",
+  "naming": {
+    "pattern": "OPP-{YYYY}-{######}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "opportunity_name",
+      "type": "Data",
+      "label": "Opportunity name",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Opportunity"
+    },
+    {
+      "name": "customer",
+      "type": "Link",
+      "label": "Customer",
+      "linkTo": "Customer",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Opportunity"
+    },
+    {
+      "name": "customer_name",
+      "type": "Data",
+      "label": "Customer name",
+      "fetchFrom": "customer.customer_name",
+      "section": "Opportunity"
+    },
+    {
+      "name": "lead",
+      "type": "Link",
+      "label": "Lead",
+      "linkTo": "Lead",
+      "lookupDialog": true,
+      "section": "Opportunity",
+      "description": "For opportunities from leads not yet converted"
+    },
+    {
+      "name": "company",
+      "type": "Link",
+      "label": "Our company",
+      "linkTo": "Company",
+      "requiredWhen": "true",
+      "section": "Opportunity"
+    },
+    {
+      "name": "opportunity_type",
+      "type": "Select",
+      "label": "Type",
+      "options": [
+        "New business",
+        "Upsell",
+        "Renewal"
+      ],
+      "default": "New business",
+      "section": "Opportunity",
+      "column": 2
+    },
+    {
+      "name": "lead_source",
+      "type": "Link",
+      "label": "Source",
+      "linkTo": "LeadSource",
+      "section": "Opportunity",
+      "column": 2
+    },
+    {
+      "name": "campaign",
+      "type": "Link",
+      "label": "Campaign",
+      "linkTo": "Campaign",
+      "section": "Opportunity",
+      "column": 2
+    },
+    {
+      "name": "territory",
+      "type": "Link",
+      "label": "Territory",
+      "linkTo": "Territory",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        }
+      ],
+      "section": "Opportunity",
+      "column": 2,
+      "description": "Empty = the customer's territory (hook)"
+    },
+    {
+      "name": "sales_stage",
+      "type": "Link",
+      "label": "Stage",
+      "linkTo": "SalesStage",
+      "requiredWhen": "true",
+      "linkFilters": [
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "inListView": true,
+      "section": "Stage & Amount"
+    },
+    {
+      "name": "stage_type",
+      "type": "Data",
+      "label": "Stage status",
+      "fetchFrom": "sales_stage.stage_type",
+      "inListView": true,
+      "section": "Stage & Amount"
+    },
+    {
+      "name": "probability",
+      "type": "Percent",
+      "label": "Probability (%)",
+      "fetchFrom": "sales_stage.probability",
+      "section": "Stage & Amount"
+    },
+    {
+      "name": "forecast_category",
+      "type": "Data",
+      "label": "Forecast category",
+      "fetchFrom": "sales_stage.forecast_category",
+      "section": "Stage & Amount"
+    },
+    {
+      "name": "expected_close_date",
+      "type": "Date",
+      "label": "Expected close date",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Stage & Amount",
+      "column": 2
+    },
+    {
+      "name": "currency",
+      "type": "Link",
+      "label": "Currency",
+      "linkTo": "Currency",
+      "requiredWhen": "true",
+      "default": "IDR",
+      "section": "Stage & Amount",
+      "column": 2
+    },
+    {
+      "name": "amount",
+      "type": "Currency",
+      "label": "Value",
+      "requiredWhen": "true",
+      "min": 0,
+      "inListView": true,
+      "section": "Stage & Amount",
+      "column": 2,
+      "description": "Set automatically from the product total when there are product lines (hook)"
+    },
+    {
+      "name": "lines_total",
+      "type": "Currency",
+      "label": "Product total",
+      "compute": "sum(lines.amount)",
+      "section": "Stage & Amount",
+      "column": 2
+    },
+    {
+      "name": "weighted_amount",
+      "type": "Currency",
+      "label": "Weighted amount",
+      "compute": "round(amount * coalesce(probability, 0) / 100, 2)",
+      "section": "Stage & Amount",
+      "column": 2
+    },
+    {
+      "name": "next_step",
+      "type": "Data",
+      "label": "Next step",
+      "section": "Follow-up"
+    },
+    {
+      "name": "competitor",
+      "type": "Data",
+      "label": "Competitor",
+      "section": "Follow-up"
+    },
+    {
+      "name": "lost_reason",
+      "type": "Link",
+      "label": "Lost reason",
+      "linkTo": "LostReason",
+      "requiredWhen": "stage_type == 'Lost'",
+      "visibleWhen": "stage_type == 'Lost'",
+      "section": "Follow-up",
+      "column": 2
+    },
+    {
+      "name": "closed_date",
+      "type": "Date",
+      "label": "Close date",
+      "readOnlyWhen": "true",
+      "noCopy": true,
+      "section": "Follow-up",
+      "column": 2,
+      "description": "Set by hook on Won/Lost"
+    },
+    {
+      "name": "sales_rep",
+      "type": "Link",
+      "label": "Owner (sales)",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "default": "$employee",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Owner",
+      "description": "Salesforce: Owner. Decides who can see and edit"
+    },
+    {
+      "name": "organization_unit",
+      "type": "Data",
+      "label": "Team/unit",
+      "fetchFrom": "sales_rep.organization_unit",
+      "section": "Owner"
+    },
+    {
+      "name": "description",
+      "type": "Text",
+      "label": "Needs description",
+      "section": "Notes"
+    },
+    {
+      "name": "lines",
+      "type": "Table",
+      "label": "Product",
+      "childDocType": "OpportunityLine",
+      "tab": "Products & Contacts",
+      "section": "Product",
+      "addFromLookup": {
+        "linkField": "item",
+        "map": {
+          "item_name": "item_name",
+          "uom": "uom"
+        },
+        "multiple": true,
+        "buttonLabel": "Add product"
+      }
+    },
+    {
+      "name": "contact_roles",
+      "type": "Table",
+      "label": "Contacts & roles",
+      "childDocType": "OpportunityContactRole",
+      "tab": "Products & Contacts",
+      "section": "Contact"
+    }
+  ],
+  "rules": [
+    {
+      "name": "party_required",
+      "expr": "!empty(customer) || !empty(lead)",
+      "message": "Fill customer or lead",
+      "field": "customer"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Sales",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "match:sales_rep=employee"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "match:organization_unit=department"
+    },
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "opportunity_name",
+    "searchFields": [
+      "name",
+      "opportunity_name",
+      "customer_name"
+    ],
+    "filters": [
+      "sales_stage",
+      "stage_type",
+      "sales_rep",
+      "expected_close_date"
+    ],
+    "defaultSort": [
+      {
+        "field": "expected_close_date",
+        "direction": "asc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

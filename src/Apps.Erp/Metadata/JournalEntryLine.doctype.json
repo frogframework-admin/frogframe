@@ -1,0 +1,129 @@
+{
+  "name": "JournalEntryLine",
+  "version": 1,
+  "title": "Journal Entry Line",
+  "module": "ACCOUNTING",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "account",
+      "type": "Link",
+      "label": "Account",
+      "linkTo": "Account",
+      "requiredWhen": "true",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "lookupDialog": true,
+      "description": "Control accounts (receivable/payable) only for Opening Entry, checked by hook"
+    },
+    {
+      "name": "account_name",
+      "type": "Data",
+      "label": "Account name",
+      "description": "Set by hook (fetchFrom does not run in child tables)"
+    },
+    {
+      "name": "debit",
+      "type": "Currency",
+      "label": "Debit",
+      "default": 0,
+      "min": 0
+    },
+    {
+      "name": "credit",
+      "type": "Currency",
+      "label": "Credit",
+      "default": 0,
+      "min": 0
+    },
+    {
+      "name": "base_debit",
+      "type": "Currency",
+      "label": "Debit (functional currency)",
+      "compute": "round(debit * parent.exchange_rate, 2)"
+    },
+    {
+      "name": "base_credit",
+      "type": "Currency",
+      "label": "Credit (functional currency)",
+      "compute": "round(credit * parent.exchange_rate, 2)"
+    },
+    {
+      "name": "party_type",
+      "type": "Select",
+      "label": "Party type",
+      "options": [
+        "Customer",
+        "Vendor",
+        "Employee"
+      ]
+    },
+    {
+      "name": "party",
+      "type": "DynamicLink",
+      "label": "Party",
+      "linkToField": "party_type",
+      "requiredWhen": "!empty(party_type)"
+    },
+    {
+      "name": "cost_center",
+      "type": "Link",
+      "label": "Cost center",
+      "linkTo": "CostCenter",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "project",
+      "type": "Link",
+      "label": "Project",
+      "linkTo": "Project"
+    },
+    {
+      "name": "location",
+      "type": "Link",
+      "label": "Location",
+      "linkTo": "Location",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        }
+      ]
+    },
+    {
+      "name": "description",
+      "type": "Data",
+      "label": "Line description"
+    }
+  ],
+  "rules": [
+    {
+      "name": "one_side",
+      "expr": "(debit > 0 && credit == 0) || (credit > 0 && debit == 0)",
+      "message": "Each line has a debit OR a credit",
+      "field": "debit"
+    }
+  ]
+}

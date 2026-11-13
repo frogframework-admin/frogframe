@@ -1,0 +1,34 @@
+{
+  "name": "InvoicePaymentSchedule",
+  "version": 1,
+  "title": "Payment Schedule",
+  "module": "FINANCE",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "due_date",
+      "type": "Date",
+      "label": "Due date",
+      "requiredWhen": "true"
+    },
+    {
+      "name": "description",
+      "type": "Data",
+      "label": "Remarks"
+    },
+    {
+      "name": "invoice_portion",
+      "type": "Percent",
+      "label": "Portion (%)",
+      "min": 0,
+      "max": 100
+    },
+    {
+      "name": "payment_amount",
+      "type": "Currency",
+      "label": "Amount",
+      "requiredWhen": "true",
+      "min": 0
+    }
+  ]
+}

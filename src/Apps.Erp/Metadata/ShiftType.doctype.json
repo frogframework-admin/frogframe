@@ -1,0 +1,140 @@
+{
+  "name": "ShiftType",
+  "version": 1,
+  "title": "Shift Type",
+  "module": "HR",
+  "description": "Standard work schedule (Workday Work Schedule Calendar).",
+  "naming": {
+    "pattern": "field:shift_name"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "shift_name",
+      "type": "Data",
+      "label": "Shift name",
+      "requiredWhen": "true",
+      "inListView": true,
+      "description": "e.g. Office 08-17, Night Shift"
+    },
+    {
+      "name": "start_time",
+      "type": "Time",
+      "label": "Start time",
+      "requiredWhen": "true",
+      "inListView": true,
+      "column": 2
+    },
+    {
+      "name": "end_time",
+      "type": "Time",
+      "label": "End time",
+      "requiredWhen": "true",
+      "inListView": true,
+      "column": 2
+    },
+    {
+      "name": "break_minutes",
+      "type": "Int",
+      "label": "Break (minutes)",
+      "default": 60,
+      "min": 0,
+      "column": 2
+    },
+    {
+      "name": "working_hours_per_day",
+      "type": "Float",
+      "label": "Working hours per day",
+      "requiredWhen": "true",
+      "default": 8,
+      "min": 0,
+      "max": 24
+    },
+    {
+      "name": "working_days_per_week",
+      "type": "Select",
+      "label": "Working days per week",
+      "requiredWhen": "true",
+      "options": [
+        "5",
+        "6"
+      ],
+      "default": "5"
+    },
+    {
+      "name": "late_grace_minutes",
+      "type": "Int",
+      "label": "Late grace (minutes)",
+      "default": 0,
+      "min": 0,
+      "column": 2
+    },
+    {
+      "name": "is_night_shift",
+      "type": "Check",
+      "label": "Night shift (crosses midnight)",
+      "default": false,
+      "column": 2
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "shift_name",
+    "searchFields": [
+      "shift_name"
+    ],
+    "filters": [],
+    "defaultSort": [
+      {
+        "field": "shift_name",
+        "direction": "asc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

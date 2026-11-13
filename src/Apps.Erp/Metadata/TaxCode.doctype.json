@@ -1,0 +1,218 @@
+{
+  "name": "TaxCode",
+  "version": 1,
+  "title": "Tax Code",
+  "module": "FINANCE",
+  "description": "Tax rate and account (SAP Tax Code / NetSuite Tax Code). Shared chart of accounts, so one account per code.",
+  "naming": {
+    "pattern": "field:tax_code"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "tax_code",
+      "type": "Data",
+      "label": "Tax code",
+      "requiredWhen": "true",
+      "maxLength": 20,
+      "inListView": true,
+      "description": "e.g. PPN-12, PPH23-SERVICE"
+    },
+    {
+      "name": "tax_name",
+      "type": "Data",
+      "label": "Name",
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "tax_type",
+      "type": "Select",
+      "label": "Tax type",
+      "requiredWhen": "true",
+      "options": [
+        "Output VAT",
+        "Input VAT",
+        "Luxury Sales Tax (PPnBM)",
+        "PPh 21",
+        "PPh 22",
+        "PPh 23",
+        "PPh 4(2)",
+        "PPh 15",
+        "PPh 26"
+      ],
+      "inListView": true
+    },
+    {
+      "name": "rate",
+      "type": "Percent",
+      "label": "Rate (%)",
+      "requiredWhen": "true",
+      "min": 0,
+      "max": 100,
+      "inListView": true,
+      "column": 2
+    },
+    {
+      "name": "dpp_factor",
+      "type": "Float",
+      "label": "Tax base factor",
+      "default": 1,
+      "min": 0,
+      "max": 1,
+      "column": 2,
+      "description": "Tax base multiplier. 12% VAT on other tax base 11/12 → 0.916667. Verify against current VAT rules"
+    },
+    {
+      "name": "is_withholding",
+      "type": "Check",
+      "label": "Withholding tax (PPh)",
+      "default": false,
+      "inListView": true,
+      "column": 2
+    },
+    {
+      "name": "account",
+      "type": "Link",
+      "label": "Tax account",
+      "linkTo": "Account",
+      "requiredWhen": "true",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "account_type",
+          "op": "=",
+          "value": "Tax"
+        }
+      ],
+      "section": "Account",
+      "description": "Output/Input VAT, or withholding tax payable when we withhold"
+    },
+    {
+      "name": "prepaid_account",
+      "type": "Link",
+      "label": "Prepaid withholding tax account",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "account_type",
+          "op": "=",
+          "value": "Tax"
+        }
+      ],
+      "visibleWhen": "is_withholding",
+      "section": "Account",
+      "column": 2,
+      "description": "Used when the customer withholds tax"
+    },
+    {
+      "name": "tax_object_code",
+      "type": "Data",
+      "label": "Tax object code",
+      "maxLength": 20,
+      "visibleWhen": "is_withholding",
+      "section": "Reporting"
+    },
+    {
+      "name": "is_active",
+      "type": "Check",
+      "label": "Active",
+      "default": true,
+      "inListView": true,
+      "section": "Reporting",
+      "column": 2
+    }
+  ],
+  "rules": [
+    {
+      "name": "withholding_type",
+      "expr": "is_withholding == (tax_type in ['PPh 21', 'PPh 22', 'PPh 23', 'PPh 4(2)', 'PPh 15', 'PPh 26'])",
+      "message": "Tick 'Withholding tax' only for PPh tax types",
+      "field": "is_withholding"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "tax_name",
+    "searchFields": [
+      "tax_code",
+      "tax_name"
+    ],
+    "filters": [
+      "tax_type",
+      "is_withholding",
+      "is_active"
+    ],
+    "defaultSort": [
+      {
+        "field": "tax_code",
+        "direction": "asc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

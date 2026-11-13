@@ -1,0 +1,40 @@
+{
+  "name": "SeparationChecklistItem",
+  "version": 1,
+  "title": "Offboarding Checklist",
+  "module": "HR",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "task",
+      "type": "Data",
+      "label": "Task",
+      "requiredWhen": "true",
+      "description": "e.g. Return laptop, revoke access"
+    },
+    {
+      "name": "responsible",
+      "type": "Select",
+      "label": "Custodian",
+      "requiredWhen": "true",
+      "options": [
+        "HR",
+        "Manager",
+        "IT",
+        "Finance",
+        "General Affairs"
+      ]
+    },
+    {
+      "name": "is_done",
+      "type": "Check",
+      "label": "Completed",
+      "default": false
+    },
+    {
+      "name": "notes",
+      "type": "Data",
+      "label": "Notes"
+    }
+  ]
+}

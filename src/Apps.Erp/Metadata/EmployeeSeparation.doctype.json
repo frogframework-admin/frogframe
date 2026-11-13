@@ -1,0 +1,240 @@
+{
+  "name": "EmployeeSeparation",
+  "version": 1,
+  "title": "Employee Separation",
+  "module": "HR",
+  "description": "Exit event (Workday Terminate). Submit: Employee → Left, Position → Vacant, user account disabled (hook).",
+  "naming": {
+    "pattern": "SEP-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "employee",
+      "type": "Link",
+      "label": "Employee",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Termination"
+    },
+    {
+      "name": "employee_name",
+      "type": "Data",
+      "label": "Employee name",
+      "fetchFrom": "employee.full_name",
+      "inListView": true,
+      "section": "Termination"
+    },
+    {
+      "name": "separation_type",
+      "type": "Select",
+      "label": "Type",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Termination",
+      "options": [
+        "Resignation",
+        "PHK",
+        "Retirement",
+        "Contract end",
+        "Death",
+        "Other"
+      ]
+    },
+    {
+      "name": "notice_date",
+      "type": "Date",
+      "label": "Notice date",
+      "section": "Termination",
+      "column": 2
+    },
+    {
+      "name": "last_working_date",
+      "type": "Date",
+      "label": "Last working date",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Termination",
+      "column": 2
+    },
+    {
+      "name": "reason",
+      "type": "Text",
+      "label": "Reason",
+      "requiredWhen": "true",
+      "section": "Termination"
+    },
+    {
+      "name": "eligible_for_rehire",
+      "type": "Check",
+      "label": "Eligible for rehire",
+      "default": true,
+      "section": "Termination",
+      "column": 2
+    },
+    {
+      "name": "exit_interview_done",
+      "type": "Check",
+      "label": "Exit interview done",
+      "default": false,
+      "section": "Termination",
+      "column": 2
+    },
+    {
+      "name": "checklist",
+      "type": "Table",
+      "label": "Checklist",
+      "childDocType": "SeparationChecklistItem",
+      "section": "Offboarding"
+    },
+    {
+      "name": "severance_pay",
+      "type": "Currency",
+      "label": "Severance pay",
+      "default": 0,
+      "min": 0,
+      "permLevel": 1,
+      "tab": "Employee Entitlements",
+      "section": "Entitlements"
+    },
+    {
+      "name": "service_pay",
+      "type": "Currency",
+      "label": "Long-service pay",
+      "default": 0,
+      "min": 0,
+      "permLevel": 1,
+      "tab": "Employee Entitlements",
+      "section": "Entitlements"
+    },
+    {
+      "name": "compensation_pay",
+      "type": "Currency",
+      "label": "Compensation of rights pay",
+      "default": 0,
+      "min": 0,
+      "permLevel": 1,
+      "tab": "Employee Entitlements",
+      "section": "Entitlements",
+      "column": 2
+    },
+    {
+      "name": "separation_pay",
+      "type": "Currency",
+      "label": "Separation pay",
+      "default": 0,
+      "min": 0,
+      "permLevel": 1,
+      "tab": "Employee Entitlements",
+      "section": "Entitlements",
+      "column": 2
+    },
+    {
+      "name": "total_entitlement",
+      "type": "Currency",
+      "label": "Total leaves",
+      "compute": "severance_pay + service_pay + compensation_pay + separation_pay",
+      "permLevel": 1,
+      "tab": "Employee Entitlements",
+      "section": "Total"
+    },
+    {
+      "name": "attachment",
+      "type": "Attach",
+      "label": "Resignation / termination letter",
+      "tab": "Employee Entitlements",
+      "section": "Total",
+      "column": 2
+    }
+  ],
+  "rules": [
+    {
+      "name": "notice_date_valid",
+      "expr": "empty(notice_date) || last_working_date >= notice_date",
+      "message": "The last working date must be after the notice date",
+      "field": "last_working_date"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "write"
+      ],
+      "scope": "all",
+      "permLevel": 1
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "match:employee=employee"
+    }
+  ],
+  "listView": {
+    "titleField": "employee_name",
+    "searchFields": [
+      "name",
+      "employee_name"
+    ],
+    "filters": [
+      "separation_type",
+      "last_working_date"
+    ],
+    "defaultSort": [
+      {
+        "field": "last_working_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

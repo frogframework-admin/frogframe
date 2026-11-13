@@ -1,0 +1,66 @@
+{
+  "name": "PaymentEntryDeduction",
+  "version": 1,
+  "title": "Payment Deduction",
+  "module": "FINANCE",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "deduction_type",
+      "type": "Select",
+      "label": "Type",
+      "requiredWhen": "true",
+      "options": [
+        "Tax withheld by counterparty",
+        "Bank charges",
+        "Exchange gain/loss",
+        "Round-off",
+        "Other"
+      ]
+    },
+    {
+      "name": "account",
+      "type": "Link",
+      "label": "Account",
+      "linkTo": "Account",
+      "requiredWhen": "true",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "cost_center",
+      "type": "Link",
+      "label": "Cost center",
+      "linkTo": "CostCenter",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        }
+      ]
+    },
+    {
+      "name": "amount",
+      "type": "Currency",
+      "label": "Amount",
+      "requiredWhen": "true",
+      "min": 0
+    },
+    {
+      "name": "description",
+      "type": "Data",
+      "label": "Remarks"
+    }
+  ]
+}

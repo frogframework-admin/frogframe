@@ -1,0 +1,233 @@
+{
+  "name": "EmploymentContract",
+  "version": 1,
+  "title": "Employment Contract",
+  "module": "HR",
+  "description": "Fixed-term (PKWT) / permanent (PKWTT) employment contract (Workday Employee Contract). The hook checks the PKWT duration limit and reminds before it ends.",
+  "naming": {
+    "pattern": "CTR-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "employee",
+      "type": "Link",
+      "label": "Employee",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Contract"
+    },
+    {
+      "name": "employee_name",
+      "type": "Data",
+      "label": "Employee name",
+      "fetchFrom": "employee.full_name",
+      "inListView": true,
+      "section": "Contract"
+    },
+    {
+      "name": "contract_type",
+      "type": "Select",
+      "label": "Contract type",
+      "requiredWhen": "true",
+      "options": [
+        "PKWT",
+        "PKWTT",
+        "Intern",
+        "Casual"
+      ],
+      "inListView": true,
+      "section": "Contract"
+    },
+    {
+      "name": "contract_no",
+      "type": "Data",
+      "label": "Contract number",
+      "inListView": true,
+      "section": "Contract",
+      "column": 2
+    },
+    {
+      "name": "start_date",
+      "type": "Date",
+      "label": "Start",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Contract",
+      "column": 2
+    },
+    {
+      "name": "end_date",
+      "type": "Date",
+      "label": "Expired",
+      "requiredWhen": "contract_type == 'PKWT'",
+      "inListView": true,
+      "section": "Contract",
+      "column": 2
+    },
+    {
+      "name": "probation_months",
+      "type": "Int",
+      "label": "Probation (months)",
+      "min": 0,
+      "max": 3,
+      "visibleWhen": "contract_type == 'PKWTT'",
+      "section": "Terms",
+      "description": "Permanent contracts (PKWTT) only, maximum 3 months"
+    },
+    {
+      "name": "renewal_of",
+      "type": "Link",
+      "label": "Renewal of",
+      "linkTo": "EmploymentContract",
+      "section": "Terms"
+    },
+    {
+      "name": "job_profile",
+      "type": "Data",
+      "label": "Job",
+      "fetchFrom": "employee.job_profile",
+      "section": "Terms",
+      "column": 2
+    },
+    {
+      "name": "basic_salary",
+      "type": "Currency",
+      "label": "Base salary",
+      "min": 0,
+      "permLevel": 1,
+      "section": "Compensation"
+    },
+    {
+      "name": "document",
+      "type": "Attach",
+      "label": "Contract document",
+      "section": "Compensation",
+      "column": 2
+    },
+    {
+      "name": "status",
+      "type": "Select",
+      "label": "Status",
+      "options": [
+        "Active",
+        "Expired",
+        "Renewed",
+        "Terminated"
+      ],
+      "default": "Active",
+      "readOnlyWhen": "true",
+      "noCopy": true,
+      "inListView": true,
+      "section": "Compensation",
+      "column": 2,
+      "description": "Updated by hook/scheduler"
+    }
+  ],
+  "rules": [
+    {
+      "name": "valid_period",
+      "expr": "empty(end_date) || end_date >= start_date",
+      "message": "The end date must be after the start",
+      "field": "end_date"
+    },
+    {
+      "name": "permanent_no_end",
+      "expr": "contract_type != 'PKWTT' || empty(end_date)",
+      "message": "A permanent contract (PKWTT) has no end date",
+      "field": "end_date"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "write"
+      ],
+      "scope": "all",
+      "permLevel": 1
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "match:employee=employee"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "match:employee=employee",
+      "permLevel": 1
+    }
+  ],
+  "listView": {
+    "titleField": "employee_name",
+    "searchFields": [
+      "name",
+      "employee_name",
+      "contract_no"
+    ],
+    "filters": [
+      "contract_type",
+      "status",
+      "end_date"
+    ],
+    "defaultSort": [
+      {
+        "field": "start_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

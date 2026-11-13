@@ -1,0 +1,111 @@
+{
+  "name": "CRMSettings",
+  "version": 1,
+  "title": "CRM Settings",
+  "module": "CRM",
+  "isSingle": true,
+  "naming": {
+    "pattern": "{doctype}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": false
+  },
+  "fields": [
+    {
+      "name": "default_sales_stage",
+      "type": "Link",
+      "label": "Initial opportunity stage",
+      "linkTo": "SalesStage",
+      "section": "Lead & Opportunity"
+    },
+    {
+      "name": "default_customer_group",
+      "type": "Link",
+      "label": "Customer group for converted leads",
+      "linkTo": "CustomerGroup",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        }
+      ],
+      "section": "Lead & Opportunity"
+    },
+    {
+      "name": "create_opportunity_on_convert",
+      "type": "Check",
+      "label": "Lead conversion also creates an opportunity",
+      "default": true,
+      "section": "Lead & Opportunity"
+    },
+    {
+      "name": "duplicate_check",
+      "type": "Select",
+      "label": "Lead/customer duplicate check",
+      "options": [
+        "Email",
+        "Email & mobile",
+        "Company name",
+        "No"
+      ],
+      "default": "Email & mobile",
+      "section": "Lead & Opportunity",
+      "column": 2
+    },
+    {
+      "name": "quotation_validity_days",
+      "type": "Int",
+      "label": "Default quotation validity (days)",
+      "default": 30,
+      "min": 1,
+      "section": "Quotation"
+    },
+    {
+      "name": "stale_opportunity_days",
+      "type": "Int",
+      "label": "Remind about opportunities without activity (days)",
+      "default": 14,
+      "min": 1,
+      "section": "Quotation",
+      "column": 2
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Manager",
+      "actions": [
+        "read",
+        "write"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "write"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    }
+  ],
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "update"
+    ]
+  }
+}

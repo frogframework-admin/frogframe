@@ -1,0 +1,129 @@
+{
+  "name": "PaymentTerm",
+  "version": 1,
+  "title": "Payment Terms",
+  "module": "CORE",
+  "description": "Installment payment terms (NetSuite Terms / SAP Payment Terms).",
+  "naming": {
+    "pattern": "field:term_name"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "term_name",
+      "type": "Data",
+      "label": "Payment terms name",
+      "requiredWhen": "true",
+      "inListView": true,
+      "description": "e.g. NET 30, 30% / 70% down payment"
+    },
+    {
+      "name": "description",
+      "type": "Text",
+      "label": "Remarks"
+    },
+    {
+      "name": "schedule",
+      "type": "Table",
+      "label": "Schedule",
+      "childDocType": "PaymentTermDetail",
+      "requiredWhen": "true"
+    },
+    {
+      "name": "total_portion",
+      "type": "Percent",
+      "label": "Total portion",
+      "compute": "sum(schedule.invoice_portion)",
+      "inListView": true
+    },
+    {
+      "name": "is_active",
+      "type": "Check",
+      "label": "Active",
+      "default": true,
+      "inListView": true,
+      "column": 2
+    }
+  ],
+  "rules": [
+    {
+      "name": "total_hundred",
+      "expr": "total_portion == 100",
+      "message": "Schedule portions must total 100%",
+      "field": "schedule"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Purchasing",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "term_name",
+    "searchFields": [
+      "term_name"
+    ],
+    "filters": [
+      "is_active"
+    ],
+    "defaultSort": [
+      {
+        "field": "term_name",
+        "direction": "asc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

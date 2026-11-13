@@ -5,6 +5,7 @@ using Framework.Documents;
 
 namespace Framework.Accounting;
 
+
 /// <summary>
 /// Satu baris buku besar yang diajukan hook (mis. saat dokumen di-submit). Identitas voucher (DocType, nama, versi)
 /// diisi otomatis dari dokumen yang sedang disimpan. Baris ditulis dalam TRANSAKSI YANG SAMA dengan dokumen.
@@ -22,6 +23,12 @@ public sealed record LedgerEntry(
     string? PartyType, string? Party, string? AgainstVoucherType, string? AgainstVoucherName,
     string? Department, string? Remarks, Guid? ReversalOf, string PrevHash, string EntryHash, string CreatedBy, DateTimeOffset CreatedAt);
 
+/// <summary>Jumlah mutasi satu akun (per department/dimensi) dalam rentang tanggal.</summary>
+public sealed record LedgerBalance(string Account, string? Department, decimal Debit, decimal Credit)
+{
+    public decimal Net => Debit - Credit;
+}
+
 /// <summary>Hasil verifikasi rantai hash: null bila utuh, atau seq pertama yang tidak cocok beserta alasannya.</summary>
 public sealed record ChainBreak(long Seq, string Reason);
 
@@ -33,6 +40,11 @@ public interface ILedgerReader
     Task<bool> AccountUsedAsync(string tenantId, string account, CancellationToken ct = default);
     /// <summary>Semua baris yang merujuk faktur ini sebagai against voucher (baris piutang/utang faktur + pelunasannya).</summary>
     Task<IReadOnlyList<LedgerEntry>> GetAgainstAsync(string tenantId, string againstType, string againstName, CancellationToken ct = default);
+    /// <summary>
+    /// Σ debit dan Σ kredit per (akun, department) untuk posting_date dalam [from, to]; from null = sejak awal.
+    /// Dipakai tutup buku tahunan, rekonsiliasi bank, nilai buku, dan neraca saldo dari kode server (konsisten, bukan read replica).
+    /// </summary>
+    Task<IReadOnlyList<LedgerBalance>> GetBalancesAsync(string tenantId, DateOnly? from, DateOnly to, CancellationToken ct = default);
 }
 
 public sealed class LedgerException(string message) : Exception(message);
@@ -40,6 +52,15 @@ public sealed class LedgerException(string message) : Exception(message);
 public static class Ledger
 {
     public const string PeriodDocType = "AccountingPeriod";
+
+    /// <summary>
+    /// Nilai field <c>status</c> AccountingPeriod yang dianggap terbuka untuk posting.
+    /// "Open" untuk DocType berbahasa Inggris (Apps.Erp), "Terbuka" untuk kompatibilitas Apps.Sample dan data lama.
+    /// </summary>
+    public static readonly string[] OpenPeriodStatuses = ["Open", "Terbuka"];
+
+    /// <summary>True bila nilai status periode termasuk <see cref="OpenPeriodStatuses"/>.</summary>
+    public static bool IsOpenPeriodStatus(object? status) => status is string s && Array.IndexOf(OpenPeriodStatuses, s) >= 0;
     public const string AccountDocType = "Account";
     public const string Genesis = "0000000000000000000000000000000000000000000000000000000000000000";
 

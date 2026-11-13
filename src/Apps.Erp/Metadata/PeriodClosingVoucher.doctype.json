@@ -1,0 +1,147 @@
+{
+  "name": "PeriodClosingVoucher",
+  "version": 1,
+  "title": "Period Closing Voucher",
+  "module": "ACCOUNTING",
+  "description": "Closes profit and loss account balances into retained earnings and closes the fiscal year.",
+  "naming": {
+    "pattern": "PCV-{YYYY}-{####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "company",
+      "type": "Link",
+      "label": "Company",
+      "linkTo": "Company",
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "fiscal_year",
+      "type": "Link",
+      "label": "Fiscal year",
+      "linkTo": "FiscalYear",
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "posting_date",
+      "type": "Date",
+      "label": "Posting date",
+      "requiredWhen": "true",
+      "inListView": true,
+      "description": "Last day of the fiscal year",
+      "column": 2
+    },
+    {
+      "name": "closing_account",
+      "type": "Link",
+      "label": "Retained earnings account",
+      "linkTo": "Account",
+      "requiredWhen": "true",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "account_type",
+          "op": "=",
+          "value": "Retained Earnings"
+        }
+      ],
+      "column": 2
+    },
+    {
+      "name": "remarks",
+      "type": "Text",
+      "label": "Remarks"
+    },
+    {
+      "name": "net_profit",
+      "type": "Currency",
+      "label": "Net profit (loss)",
+      "readOnlyWhen": "true",
+      "description": "Set by hook on submit",
+      "noCopy": true
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "fiscal_year",
+    "searchFields": [
+      "name"
+    ],
+    "filters": [
+      "company",
+      "fiscal_year"
+    ],
+    "defaultSort": [
+      {
+        "field": "posting_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

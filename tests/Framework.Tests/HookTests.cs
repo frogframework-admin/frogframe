@@ -1,4 +1,4 @@
-using Apps.Sample.Hooks;
+using Framework.Tests.TestHooks;
 using Framework.Actions;
 using Framework.Documents;
 using Framework.Hooks;

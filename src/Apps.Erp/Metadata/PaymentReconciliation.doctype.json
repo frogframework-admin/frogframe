@@ -1,0 +1,151 @@
+{
+  "name": "PaymentReconciliation",
+  "version": 1,
+  "title": "Payment Reconciliation",
+  "module": "FINANCE",
+  "description": "Allocates party advances (unallocated payments) to open invoices without moving cash (NetSuite Apply Credit / SAP F-32 / F-44). Submit: Dr/Cr the same control account against the payment and the invoice.",
+  "naming": {
+    "pattern": "PREC-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "company",
+      "type": "Link",
+      "label": "Company",
+      "linkTo": "Company",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Party"
+    },
+    {
+      "name": "party_type",
+      "type": "Select",
+      "label": "Party type",
+      "requiredWhen": "true",
+      "options": [
+        "Customer",
+        "Vendor"
+      ],
+      "inListView": true,
+      "section": "Party"
+    },
+    {
+      "name": "party",
+      "type": "DynamicLink",
+      "label": "Party",
+      "requiredWhen": "true",
+      "linkToField": "party_type",
+      "inListView": true,
+      "section": "Party",
+      "column": 2
+    },
+    {
+      "name": "posting_date",
+      "type": "Date",
+      "label": "Posting date",
+      "requiredWhen": "true",
+      "default": "$today",
+      "inListView": true,
+      "section": "Party",
+      "column": 2
+    },
+    {
+      "name": "receivable_payable_account",
+      "type": "Link",
+      "label": "Receivable/payable account",
+      "linkTo": "Account",
+      "section": "Party",
+      "column": 2,
+      "description": "Set by hook from the payments; all lines must use the same control account"
+    },
+    {
+      "name": "allocations",
+      "type": "Table",
+      "label": "Allocations",
+      "childDocType": "PaymentReconciliationAllocation",
+      "section": "Allocation",
+      "description": "Pick submitted payments with an unallocated (advance) balance and the open invoices they settle"
+    },
+    {
+      "name": "total_allocated",
+      "type": "Currency",
+      "label": "Total allocated",
+      "compute": "sum(allocations.allocated_amount)",
+      "inListView": true,
+      "section": "Allocation"
+    },
+    {
+      "name": "remarks",
+      "type": "Text",
+      "label": "Remarks",
+      "section": "Allocation"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "party",
+    "searchFields": [
+      "name",
+      "party"
+    ],
+    "filters": [
+      "company",
+      "party_type",
+      "party",
+      "posting_date"
+    ],
+    "defaultSort": [
+      {
+        "field": "posting_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

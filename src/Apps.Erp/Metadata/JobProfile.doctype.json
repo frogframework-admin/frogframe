@@ -1,0 +1,167 @@
+{
+  "name": "JobProfile",
+  "version": 1,
+  "title": "Job Profile",
+  "module": "HR",
+  "description": "Generic job definition (Workday Job Profile / SAP Job). A position is its instance.",
+  "naming": {
+    "pattern": "field:job_code"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "job_code",
+      "type": "Data",
+      "label": "Job code",
+      "requiredWhen": "true",
+      "maxLength": 20,
+      "inListView": true,
+      "section": "Job"
+    },
+    {
+      "name": "job_title",
+      "type": "Data",
+      "label": "Job title",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Job"
+    },
+    {
+      "name": "job_family",
+      "type": "Link",
+      "label": "Job family",
+      "linkTo": "JobFamily",
+      "inListView": true,
+      "section": "Job"
+    },
+    {
+      "name": "job_level",
+      "type": "Select",
+      "label": "Management level",
+      "requiredWhen": "true",
+      "options": [
+        "Staff",
+        "Supervisor",
+        "Manager",
+        "Senior Manager",
+        "Director",
+        "Executive"
+      ],
+      "default": "Staff",
+      "inListView": true,
+      "section": "Job",
+      "column": 2
+    },
+    {
+      "name": "default_grade",
+      "type": "Link",
+      "label": "Default grade",
+      "linkTo": "Grade",
+      "linkFilters": [
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "section": "Job",
+      "column": 2
+    },
+    {
+      "name": "is_manager_job",
+      "type": "Check",
+      "label": "Managerial job",
+      "default": false,
+      "section": "Job",
+      "column": 2
+    },
+    {
+      "name": "is_active",
+      "type": "Check",
+      "label": "Active",
+      "default": true,
+      "inListView": true,
+      "section": "Job",
+      "column": 2
+    },
+    {
+      "name": "summary",
+      "type": "TextEditor",
+      "label": "Job description",
+      "tab": "Description",
+      "section": "Description"
+    },
+    {
+      "name": "qualifications",
+      "type": "Text",
+      "label": "Qualification",
+      "tab": "Description",
+      "section": "Qualification"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "job_title",
+    "searchFields": [
+      "job_code",
+      "job_title"
+    ],
+    "filters": [
+      "job_family",
+      "job_level",
+      "is_active"
+    ],
+    "defaultSort": [
+      {
+        "field": "job_code",
+        "direction": "asc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

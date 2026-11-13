@@ -1,0 +1,162 @@
+{
+  "name": "ItemGroup",
+  "version": 1,
+  "title": "Item Group",
+  "module": "CORE",
+  "naming": {
+    "pattern": "field:group_name"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "group_name",
+      "type": "Data",
+      "label": "Group name",
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "parent_item_group",
+      "type": "Link",
+      "label": "Parent group",
+      "linkTo": "ItemGroup",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "is_group",
+      "type": "Check",
+      "label": "Parent group",
+      "default": false,
+      "inListView": true,
+      "column": 2
+    },
+    {
+      "name": "income_account",
+      "type": "Link",
+      "label": "Default income account",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "root_type",
+          "op": "=",
+          "value": "Income"
+        }
+      ],
+      "section": "Default accounts"
+    },
+    {
+      "name": "expense_account",
+      "type": "Link",
+      "label": "Default expense account",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "root_type",
+          "op": "=",
+          "value": "Expense"
+        }
+      ],
+      "section": "Default accounts",
+      "column": 2
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Purchasing",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "group_name",
+    "searchFields": [
+      "group_name"
+    ],
+    "filters": [
+      "is_group"
+    ],
+    "defaultSort": [
+      {
+        "field": "group_name",
+        "direction": "asc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

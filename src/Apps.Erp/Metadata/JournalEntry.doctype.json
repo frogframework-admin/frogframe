@@ -1,0 +1,275 @@
+{
+  "name": "JournalEntry",
+  "version": 1,
+  "title": "Journal Entry",
+  "module": "ACCOUNTING",
+  "description": "Manual journal. Submit posts to the ledger; cancel creates reversing lines.",
+  "allowAutoRepeat": true,
+  "naming": {
+    "pattern": "JV-{YYYY}-{######}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "company",
+      "type": "Link",
+      "label": "Company",
+      "linkTo": "Company",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Journal"
+    },
+    {
+      "name": "voucher_type",
+      "type": "Select",
+      "label": "Voucher type",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Journal",
+      "options": [
+        "Journal Entry",
+        "Adjustment Entry",
+        "Correction Entry",
+        "Opening Balance",
+        "Exchange Rate Entry",
+        "Allocation Entry"
+      ],
+      "default": "Journal Entry"
+    },
+    {
+      "name": "posting_date",
+      "type": "Date",
+      "label": "Posting date",
+      "requiredWhen": "true",
+      "default": "$today",
+      "inListView": true,
+      "section": "Journal"
+    },
+    {
+      "name": "reference_no",
+      "type": "Data",
+      "label": "Reference no.",
+      "section": "Journal",
+      "column": 2
+    },
+    {
+      "name": "reference_date",
+      "type": "Date",
+      "label": "Reference date",
+      "section": "Journal",
+      "column": 2
+    },
+    {
+      "name": "currency",
+      "type": "Link",
+      "label": "Transaction currency",
+      "linkTo": "Currency",
+      "requiredWhen": "true",
+      "default": "IDR",
+      "section": "Journal",
+      "column": 2
+    },
+    {
+      "name": "exchange_rate",
+      "type": "Float",
+      "label": "Exchange rate to functional currency",
+      "requiredWhen": "true",
+      "default": 1,
+      "min": 0,
+      "section": "Journal",
+      "column": 2
+    },
+    {
+      "name": "remarks",
+      "type": "Text",
+      "label": "Description",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Description"
+    },
+    {
+      "name": "accounts",
+      "type": "Table",
+      "label": "Journal lines",
+      "childDocType": "JournalEntryLine",
+      "requiredWhen": "true",
+      "section": "Lines"
+    },
+    {
+      "name": "total_debit",
+      "type": "Currency",
+      "label": "Total debit",
+      "compute": "sum(accounts.debit)",
+      "inListView": true,
+      "section": "Total"
+    },
+    {
+      "name": "total_credit",
+      "type": "Currency",
+      "label": "Total credit",
+      "compute": "sum(accounts.credit)",
+      "section": "Total"
+    },
+    {
+      "name": "difference",
+      "type": "Currency",
+      "label": "Difference",
+      "compute": "sum(accounts.debit) - sum(accounts.credit)",
+      "section": "Total"
+    },
+    {
+      "name": "base_total_debit",
+      "type": "Currency",
+      "label": "Total debit (functional)",
+      "compute": "sum(accounts.base_debit)",
+      "section": "Total",
+      "column": 2
+    },
+    {
+      "name": "base_total_credit",
+      "type": "Currency",
+      "label": "Total credit (functional)",
+      "compute": "sum(accounts.base_credit)",
+      "section": "Total",
+      "column": 2
+    },
+    {
+      "name": "auto_reverse",
+      "type": "Check",
+      "label": "Auto reverse",
+      "default": false,
+      "tab": "Other",
+      "section": "Reversal",
+      "description": "For accruals: a reversing journal is created automatically on the reversal date"
+    },
+    {
+      "name": "reversal_date",
+      "type": "Date",
+      "label": "Reversal date",
+      "requiredWhen": "auto_reverse",
+      "visibleWhen": "auto_reverse",
+      "tab": "Other",
+      "section": "Reversal",
+      "column": 2,
+      "noCopy": true
+    },
+    {
+      "name": "reversal_of",
+      "type": "Link",
+      "label": "Reversal of",
+      "linkTo": "JournalEntry",
+      "readOnlyWhen": "true",
+      "tab": "Other",
+      "section": "Reversal",
+      "column": 2,
+      "noCopy": true
+    },
+    {
+      "name": "supporting_document",
+      "type": "Attach",
+      "label": "Supporting document",
+      "tab": "Other",
+      "section": "Attachment"
+    }
+  ],
+  "rules": [
+    {
+      "name": "balanced",
+      "expr": "sum(accounts.debit) == sum(accounts.credit)",
+      "message": "Journal is not balanced: total debit must equal total credit",
+      "field": "accounts"
+    },
+    {
+      "name": "balanced_functional",
+      "expr": "sum(accounts.base_debit) == sum(accounts.base_credit)",
+      "message": "Journal is not balanced in functional currency (check exchange rate rounding)",
+      "field": "accounts"
+    },
+    {
+      "name": "positive_rate",
+      "expr": "exchange_rate > 0",
+      "message": "Exchange rate must be greater than 0",
+      "field": "exchange_rate"
+    },
+    {
+      "name": "reversal_date_valid",
+      "expr": "!auto_reverse || reversal_date > posting_date",
+      "message": "The reversal date must be after the posting date",
+      "field": "reversal_date"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "remarks",
+    "searchFields": [
+      "name",
+      "reference_no",
+      "remarks"
+    ],
+    "filters": [
+      "company",
+      "voucher_type",
+      "posting_date"
+    ],
+    "defaultSort": [
+      {
+        "field": "posting_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

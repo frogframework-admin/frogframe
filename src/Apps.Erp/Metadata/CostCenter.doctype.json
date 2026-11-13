@@ -1,0 +1,131 @@
+{
+  "name": "CostCenter",
+  "version": 1,
+  "title": "Cost Center",
+  "module": "ACCOUNTING",
+  "description": "Cost center (SAP Cost Center / NetSuite Department). Mandatory dimension for expense accounts when set on the account.",
+  "naming": {
+    "pattern": "field:cost_center_code"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "cost_center_code",
+      "type": "Data",
+      "label": "Cost center code",
+      "requiredWhen": "true",
+      "maxLength": 20,
+      "inListView": true
+    },
+    {
+      "name": "cost_center_name",
+      "type": "Data",
+      "label": "Name",
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "parent_cost_center",
+      "type": "Link",
+      "label": "Parent",
+      "linkTo": "CostCenter",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "is_group",
+      "type": "Check",
+      "label": "Group",
+      "default": false,
+      "inListView": true,
+      "column": 2
+    },
+    {
+      "name": "company",
+      "type": "Link",
+      "label": "Company",
+      "linkTo": "Company",
+      "inListView": true,
+      "column": 2,
+      "description": "Empty = used by all companies"
+    },
+    {
+      "name": "is_active",
+      "type": "Check",
+      "label": "Active",
+      "default": true,
+      "inListView": true,
+      "column": 2
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "cost_center_name",
+    "searchFields": [
+      "cost_center_code",
+      "cost_center_name"
+    ],
+    "filters": [
+      "company",
+      "is_group",
+      "is_active"
+    ],
+    "defaultSort": [
+      {
+        "field": "cost_center_code",
+        "direction": "asc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

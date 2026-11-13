@@ -1,0 +1,183 @@
+{
+  "name": "Contact",
+  "version": 1,
+  "title": "Contact",
+  "module": "CORE",
+  "description": "Person representing a party (Salesforce Contact). Shared by CRM, AR, AP.",
+  "naming": {
+    "pattern": "CONT-{######}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "salutation",
+      "type": "Select",
+      "label": "Salutation",
+      "options": [
+        "Mr.",
+        "Mrs.",
+        "Ms.",
+        "Dr."
+      ]
+    },
+    {
+      "name": "full_name",
+      "type": "Data",
+      "label": "Full name",
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "designation",
+      "type": "Data",
+      "label": "Job",
+      "inListView": true,
+      "column": 2
+    },
+    {
+      "name": "department",
+      "type": "Data",
+      "label": "Department",
+      "column": 2
+    },
+    {
+      "name": "email",
+      "type": "Email",
+      "label": "Email",
+      "inListView": true,
+      "section": "Contact"
+    },
+    {
+      "name": "mobile",
+      "type": "Phone",
+      "label": "Mobile",
+      "section": "Contact"
+    },
+    {
+      "name": "phone",
+      "type": "Phone",
+      "label": "Office phone",
+      "section": "Contact",
+      "column": 2
+    },
+    {
+      "name": "address",
+      "type": "Link",
+      "label": "Address",
+      "linkTo": "Address",
+      "section": "Contact",
+      "column": 2
+    },
+    {
+      "name": "is_primary",
+      "type": "Check",
+      "label": "Primary contact",
+      "default": false,
+      "section": "Contact",
+      "column": 2
+    },
+    {
+      "name": "is_active",
+      "type": "Check",
+      "label": "Active",
+      "default": true,
+      "inListView": true,
+      "section": "Contact",
+      "column": 2
+    },
+    {
+      "name": "links",
+      "type": "Table",
+      "label": "Represents",
+      "childDocType": "PartyLink",
+      "requiredWhen": "true",
+      "section": "Links"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Purchasing",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Sales",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "full_name",
+    "searchFields": [
+      "full_name",
+      "email",
+      "designation"
+    ],
+    "filters": [
+      "is_active"
+    ],
+    "defaultSort": [
+      {
+        "field": "modified",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

@@ -1,0 +1,361 @@
+{
+  "name": "Lead",
+  "version": 1,
+  "title": "Lead",
+  "module": "CRM",
+  "description": "Unqualified prospect (Salesforce Lead). The 'Convert' action creates Customer + Contact + Opportunity.",
+  "naming": {
+    "pattern": "LEAD-{YYYY}-{######}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "salutation",
+      "type": "Select",
+      "label": "Salutation",
+      "options": [
+        "Mr.",
+        "Mrs."
+      ],
+      "section": "Prospect"
+    },
+    {
+      "name": "lead_name",
+      "type": "Data",
+      "label": "Contact name",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Prospect"
+    },
+    {
+      "name": "job_title",
+      "type": "Data",
+      "label": "Job",
+      "section": "Prospect"
+    },
+    {
+      "name": "company_name",
+      "type": "Data",
+      "label": "Company name",
+      "inListView": true,
+      "section": "Prospect",
+      "column": 2,
+      "description": "Empty = individual prospect"
+    },
+    {
+      "name": "industry",
+      "type": "Link",
+      "label": "Industry",
+      "linkTo": "Industry",
+      "linkFilters": [
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "section": "Prospect",
+      "column": 2
+    },
+    {
+      "name": "employee_count",
+      "type": "Select",
+      "label": "Employee count",
+      "options": [
+        "1-10",
+        "11-50",
+        "51-200",
+        "201-1000",
+        ">1000"
+      ],
+      "section": "Prospect",
+      "column": 2
+    },
+    {
+      "name": "email",
+      "type": "Email",
+      "label": "Email",
+      "inListView": true,
+      "section": "Contact"
+    },
+    {
+      "name": "mobile",
+      "type": "Phone",
+      "label": "Mobile",
+      "section": "Contact"
+    },
+    {
+      "name": "phone",
+      "type": "Phone",
+      "label": "Office phone",
+      "section": "Contact"
+    },
+    {
+      "name": "website",
+      "type": "Data",
+      "label": "Website",
+      "section": "Contact",
+      "column": 2
+    },
+    {
+      "name": "city",
+      "type": "Data",
+      "label": "City",
+      "section": "Contact",
+      "column": 2
+    },
+    {
+      "name": "address",
+      "type": "Text",
+      "label": "Address",
+      "section": "Contact",
+      "column": 2
+    },
+    {
+      "name": "lead_source",
+      "type": "Link",
+      "label": "Lead source",
+      "linkTo": "LeadSource",
+      "requiredWhen": "true",
+      "linkFilters": [
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "inListView": true,
+      "section": "Qualification"
+    },
+    {
+      "name": "campaign",
+      "type": "Link",
+      "label": "Campaign",
+      "linkTo": "Campaign",
+      "section": "Qualification"
+    },
+    {
+      "name": "territory",
+      "type": "Link",
+      "label": "Territory",
+      "linkTo": "Territory",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        }
+      ],
+      "section": "Qualification",
+      "column": 2
+    },
+    {
+      "name": "status",
+      "type": "Select",
+      "label": "Status",
+      "requiredWhen": "true",
+      "options": [
+        "New",
+        "Contacted",
+        "Qualified",
+        "Unqualified",
+        "Converted"
+      ],
+      "default": "New",
+      "inListView": true,
+      "section": "Qualification"
+    },
+    {
+      "name": "rating",
+      "type": "Select",
+      "label": "Rating",
+      "options": [
+        "Hot",
+        "Warm",
+        "Cold"
+      ],
+      "default": "Warm",
+      "inListView": true,
+      "section": "Qualification",
+      "column": 2
+    },
+    {
+      "name": "estimated_value",
+      "type": "Currency",
+      "label": "Estimated amount",
+      "min": 0,
+      "section": "Qualification",
+      "column": 2
+    },
+    {
+      "name": "disqualify_reason",
+      "type": "Link",
+      "label": "Disqualification reason",
+      "linkTo": "LostReason",
+      "requiredWhen": "status == 'Unqualified'",
+      "visibleWhen": "status == 'Unqualified'",
+      "section": "Qualification",
+      "column": 2
+    },
+    {
+      "name": "sales_rep",
+      "type": "Link",
+      "label": "Owner (sales)",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "default": "$employee",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Owner",
+      "description": "Salesforce: Owner. Decides who can see and edit"
+    },
+    {
+      "name": "organization_unit",
+      "type": "Data",
+      "label": "Team/unit",
+      "fetchFrom": "sales_rep.organization_unit",
+      "section": "Owner"
+    },
+    {
+      "name": "notes",
+      "type": "Text",
+      "label": "Notes",
+      "section": "Notes"
+    },
+    {
+      "name": "converted_customer",
+      "type": "Link",
+      "label": "Became customer",
+      "linkTo": "Customer",
+      "readOnlyWhen": "true",
+      "noCopy": true,
+      "tab": "Conversion",
+      "section": "Conversion result"
+    },
+    {
+      "name": "converted_contact",
+      "type": "Link",
+      "label": "Became contact",
+      "linkTo": "Contact",
+      "readOnlyWhen": "true",
+      "noCopy": true,
+      "tab": "Conversion",
+      "section": "Conversion result"
+    },
+    {
+      "name": "converted_opportunity",
+      "type": "Link",
+      "label": "Became opportunity",
+      "linkTo": "Opportunity",
+      "readOnlyWhen": "true",
+      "noCopy": true,
+      "tab": "Conversion",
+      "section": "Conversion result",
+      "column": 2
+    },
+    {
+      "name": "converted_on",
+      "type": "Date",
+      "label": "Conversion date",
+      "readOnlyWhen": "true",
+      "noCopy": true,
+      "tab": "Conversion",
+      "section": "Conversion result",
+      "column": 2
+    }
+  ],
+  "rules": [
+    {
+      "name": "has_contact",
+      "expr": "!empty(email) || !empty(mobile) || !empty(phone)",
+      "message": "Fill at least email, mobile, or phone",
+      "field": "email"
+    },
+    {
+      "name": "convert_via_action",
+      "expr": "status != 'Converted' || !empty(converted_customer)",
+      "message": "Converted status only through the Convert action",
+      "field": "status"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Sales",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "match:sales_rep=employee"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "match:organization_unit=department"
+    },
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "lead_name",
+    "searchFields": [
+      "name",
+      "lead_name",
+      "company_name",
+      "email"
+    ],
+    "filters": [
+      "status",
+      "rating",
+      "lead_source",
+      "sales_rep"
+    ],
+    "defaultSort": [
+      {
+        "field": "modified",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

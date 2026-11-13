@@ -1,0 +1,95 @@
+{
+  "name": "JobFamily",
+  "version": 1,
+  "title": "Job Family",
+  "module": "HR",
+  "naming": {
+    "pattern": "field:family_name"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "family_name",
+      "type": "Data",
+      "label": "Job family name",
+      "requiredWhen": "true",
+      "inListView": true,
+      "description": "e.g. Software Engineering, Accounting"
+    },
+    {
+      "name": "job_family_group",
+      "type": "Link",
+      "label": "Group",
+      "linkTo": "JobFamilyGroup",
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "description",
+      "type": "Text",
+      "label": "Remarks"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "family_name",
+    "searchFields": [
+      "family_name"
+    ],
+    "filters": [
+      "job_family_group"
+    ],
+    "defaultSort": [
+      {
+        "field": "family_name",
+        "direction": "asc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

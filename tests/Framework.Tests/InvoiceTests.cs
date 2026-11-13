@@ -110,11 +110,11 @@ sealed partial class Tests
     [Test]
     public Task Pembulatan_pajak_mengikuti_master()
     {
-        var floor = new Apps.Sample.Hooks.TaxInfo("A", 11m, 1m, true, "x", "y");
+        var floor = new Framework.Tests.TestHooks.TaxInfo("A", 11m, 1m, true, "x", "y");
         var half = floor with { FloorRupiah = false };
-        Assert.Equal(1_099m, Apps.Sample.Hooks.InvoiceMath.Tax(9_999.99m, floor), "floor: 1.099,9989 → 1.099");
-        Assert.Equal(1_100.00m, Apps.Sample.Hooks.InvoiceMath.Tax(9_999.99m, half), "half-up 2 desimal: 1.099,9989 → 1.100,00");
-        Assert.Equal(1_100m, Apps.Sample.Hooks.InvoiceMath.Tax(10_000m, floor with { Rate = 12m, Factor = 11m / 12m }), "faktor dasar pengenaan: 12% × 11/12 = 11% efektif dari 10.000 = 1.100");
+        Assert.Equal(1_099m, Framework.Tests.TestHooks.InvoiceMath.Tax(9_999.99m, floor), "floor: 1.099,9989 → 1.099");
+        Assert.Equal(1_100.00m, Framework.Tests.TestHooks.InvoiceMath.Tax(9_999.99m, half), "half-up 2 desimal: 1.099,9989 → 1.100,00");
+        Assert.Equal(1_100m, Framework.Tests.TestHooks.InvoiceMath.Tax(10_000m, floor with { Rate = 12m, Factor = 11m / 12m }), "faktor dasar pengenaan: 12% × 11/12 = 11% efektif dari 10.000 = 1.100");
         return Task.CompletedTask;
     }
 }

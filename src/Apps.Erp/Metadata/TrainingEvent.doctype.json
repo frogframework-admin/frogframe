@@ -1,0 +1,195 @@
+{
+  "name": "TrainingEvent",
+  "version": 1,
+  "title": "Training Event",
+  "module": "HR",
+  "description": "Training session with attendees, attendance, scores, and certificates (Workday Learning). Submit after the event to lock the record.",
+  "naming": {
+    "pattern": "TRN-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "event_name",
+      "type": "Data",
+      "label": "Training",
+      "requiredWhen": "true",
+      "maxLength": 140,
+      "inListView": true,
+      "section": "Training"
+    },
+    {
+      "name": "training_type",
+      "type": "Select",
+      "label": "Type",
+      "requiredWhen": "true",
+      "options": [
+        "Classroom",
+        "Online",
+        "On the job",
+        "External seminar",
+        "Certification"
+      ],
+      "default": "Classroom",
+      "inListView": true,
+      "section": "Training"
+    },
+    {
+      "name": "trainer",
+      "type": "Data",
+      "label": "Trainer / provider",
+      "section": "Training"
+    },
+    {
+      "name": "company",
+      "type": "Link",
+      "label": "Company",
+      "linkTo": "Company",
+      "requiredWhen": "true",
+      "section": "Training",
+      "column": 2
+    },
+    {
+      "name": "start_at",
+      "type": "Datetime",
+      "label": "Start",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Training",
+      "column": 2
+    },
+    {
+      "name": "end_at",
+      "type": "Datetime",
+      "label": "End",
+      "requiredWhen": "true",
+      "section": "Training",
+      "column": 2
+    },
+    {
+      "name": "location",
+      "type": "Data",
+      "label": "Location / link",
+      "section": "Training",
+      "column": 2
+    },
+    {
+      "name": "cost",
+      "type": "Currency",
+      "label": "Total cost",
+      "min": 0,
+      "section": "Training",
+      "column": 2
+    },
+    {
+      "name": "attendees",
+      "type": "Table",
+      "label": "Attendees",
+      "childDocType": "TrainingAttendee",
+      "section": "Attendees"
+    },
+    {
+      "name": "attended_count",
+      "type": "Int",
+      "label": "Attended",
+      "readOnlyWhen": "true",
+      "inListView": true,
+      "section": "Attendees",
+      "description": "Set by hook"
+    },
+    {
+      "name": "description",
+      "type": "TextEditor",
+      "label": "Agenda & materials",
+      "section": "Notes"
+    }
+  ],
+  "rules": [
+    {
+      "name": "end_after_start",
+      "expr": "end_at > start_at",
+      "message": "The end must be after the start",
+      "field": "end_at"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "event_name",
+    "searchFields": [
+      "event_name",
+      "trainer"
+    ],
+    "filters": [
+      "training_type",
+      "start_at",
+      "company"
+    ],
+    "defaultSort": [
+      {
+        "field": "start_at",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

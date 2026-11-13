@@ -1,0 +1,64 @@
+{
+  "name": "GradePayRange",
+  "version": 1,
+  "title": "Grade Pay Range",
+  "module": "HR",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "company",
+      "type": "Link",
+      "label": "Company",
+      "linkTo": "Company",
+      "requiredWhen": "true"
+    },
+    {
+      "name": "currency",
+      "type": "Link",
+      "label": "Currency",
+      "linkTo": "Currency",
+      "requiredWhen": "true",
+      "default": "IDR"
+    },
+    {
+      "name": "min_salary",
+      "type": "Currency",
+      "label": "Minimum",
+      "requiredWhen": "true",
+      "min": 0
+    },
+    {
+      "name": "mid_salary",
+      "type": "Currency",
+      "label": "Midpoint",
+      "min": 0
+    },
+    {
+      "name": "max_salary",
+      "type": "Currency",
+      "label": "Maximum",
+      "requiredWhen": "true",
+      "min": 0
+    },
+    {
+      "name": "valid_from",
+      "type": "Date",
+      "label": "Effective from",
+      "requiredWhen": "true"
+    }
+  ],
+  "rules": [
+    {
+      "name": "valid_range",
+      "expr": "max_salary >= min_salary",
+      "message": "Maximum must be ≥ minimum",
+      "field": "max_salary"
+    },
+    {
+      "name": "midpoint_valid",
+      "expr": "empty(mid_salary) || (mid_salary >= min_salary && mid_salary <= max_salary)",
+      "message": "The midpoint must be between minimum and maximum",
+      "field": "mid_salary"
+    }
+  ]
+}

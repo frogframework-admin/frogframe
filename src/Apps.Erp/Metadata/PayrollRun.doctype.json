@@ -1,0 +1,192 @@
+{
+  "name": "PayrollRun",
+  "version": 1,
+  "title": "Payroll Run",
+  "module": "HR",
+  "description": "Monthly payroll for a company (Workday Pay Run). 'Create payslips' drafts one payslip per employee; submit posts the payroll journal from the submitted payslips.",
+  "naming": {
+    "pattern": "PR-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "company",
+      "type": "Link",
+      "label": "Company",
+      "linkTo": "Company",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Run"
+    },
+    {
+      "name": "period",
+      "type": "Data",
+      "label": "Period",
+      "requiredWhen": "true",
+      "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$",
+      "patternMessage": "YYYY-MM",
+      "inListView": true,
+      "section": "Run"
+    },
+    {
+      "name": "organization_unit",
+      "type": "Link",
+      "label": "Organization unit",
+      "linkTo": "OrganizationUnit",
+      "section": "Run",
+      "description": "Empty = all employees of the company"
+    },
+    {
+      "name": "posting_date",
+      "type": "Date",
+      "label": "Posting date",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Run",
+      "column": 2,
+      "description": "Usually the last day of the period"
+    },
+    {
+      "name": "payment_date",
+      "type": "Date",
+      "label": "Payment date",
+      "section": "Run",
+      "column": 2
+    },
+    {
+      "name": "remarks",
+      "type": "Text",
+      "label": "Remarks",
+      "section": "Run",
+      "column": 2
+    },
+    {
+      "name": "employee_count",
+      "type": "Int",
+      "label": "Payslips",
+      "readOnlyWhen": "true",
+      "inListView": true,
+      "section": "Totals",
+      "description": "Set by hook from submitted payslips"
+    },
+    {
+      "name": "total_gross",
+      "type": "Currency",
+      "label": "Gross earnings",
+      "readOnlyWhen": "true",
+      "section": "Totals",
+      "inListView": true
+    },
+    {
+      "name": "total_employer_contributions",
+      "type": "Currency",
+      "label": "Employer BPJS",
+      "readOnlyWhen": "true",
+      "section": "Totals"
+    },
+    {
+      "name": "total_pph21",
+      "type": "Currency",
+      "label": "PPh 21 withheld",
+      "readOnlyWhen": "true",
+      "section": "Totals",
+      "column": 2
+    },
+    {
+      "name": "total_pph21_dtp",
+      "type": "Currency",
+      "label": "PPh 21 DTP",
+      "readOnlyWhen": "true",
+      "section": "Totals",
+      "column": 2
+    },
+    {
+      "name": "total_net_pay",
+      "type": "Currency",
+      "label": "Net pay",
+      "readOnlyWhen": "true",
+      "section": "Totals",
+      "column": 2,
+      "inListView": true
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "period",
+    "searchFields": [
+      "name",
+      "period"
+    ],
+    "filters": [
+      "company",
+      "period",
+      "organization_unit"
+    ],
+    "defaultSort": [
+      {
+        "field": "period",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

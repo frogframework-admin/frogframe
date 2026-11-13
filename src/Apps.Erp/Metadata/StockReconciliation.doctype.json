@@ -1,0 +1,192 @@
+{
+  "name": "StockReconciliation",
+  "version": 1,
+  "title": "Stock Opname",
+  "module": "STOCK",
+  "description": "Physical stock count per warehouse (SAP MI07 / NetSuite Inventory Count). Submit sets stock to the counted quantity and posts the value difference.",
+  "naming": {
+    "pattern": "SOP-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "company",
+      "type": "Link",
+      "label": "Company",
+      "linkTo": "Company",
+      "requiredWhen": "true",
+      "section": "Count"
+    },
+    {
+      "name": "warehouse",
+      "type": "Link",
+      "label": "Warehouse",
+      "linkTo": "Warehouse",
+      "requiredWhen": "true",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        }
+      ],
+      "inListView": true,
+      "section": "Count"
+    },
+    {
+      "name": "posting_date",
+      "type": "Date",
+      "label": "Count date",
+      "requiredWhen": "true",
+      "default": "$today",
+      "inListView": true,
+      "section": "Count",
+      "column": 2
+    },
+    {
+      "name": "difference_account",
+      "type": "Link",
+      "label": "Difference account",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "section": "Count",
+      "column": 2,
+      "description": "Empty = Stock Settings stock adjustment. First stock take: the opening balance equity account"
+    },
+    {
+      "name": "items",
+      "type": "Table",
+      "label": "Items",
+      "childDocType": "StockReconciliationItem",
+      "section": "Items",
+      "description": "'Fetch items' lists everything in stock in the warehouse; enter the counted quantity"
+    },
+    {
+      "name": "total_difference",
+      "type": "Currency",
+      "label": "Total value difference",
+      "readOnlyWhen": "true",
+      "inListView": true,
+      "section": "Items"
+    },
+    {
+      "name": "remarks",
+      "type": "Text",
+      "label": "Remarks",
+      "section": "Items"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Stock",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Purchasing",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Sales",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "warehouse",
+    "searchFields": [
+      "name",
+      "warehouse"
+    ],
+    "filters": [
+      "warehouse",
+      "posting_date"
+    ],
+    "defaultSort": [
+      {
+        "field": "posting_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

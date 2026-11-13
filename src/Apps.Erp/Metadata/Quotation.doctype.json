@@ -1,0 +1,328 @@
+{
+  "name": "Quotation",
+  "version": 1,
+  "title": "Quotation",
+  "module": "CRM",
+  "description": "Price quotation (Salesforce Quote). Workflow: Draft → Sent → Accepted/Rejected/Expired → Billed. Revisions via amend (versions -1, -2).",
+  "naming": {
+    "pattern": "QTN-{YYYY}-{######}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "workflow": "QuotationLifecycle",
+  "fields": [
+    {
+      "name": "company",
+      "type": "Link",
+      "label": "Company",
+      "linkTo": "Company",
+      "requiredWhen": "true",
+      "section": "Quotation"
+    },
+    {
+      "name": "customer",
+      "type": "Link",
+      "label": "Customer",
+      "linkTo": "Customer",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Quotation"
+    },
+    {
+      "name": "customer_name",
+      "type": "Data",
+      "label": "Customer name",
+      "fetchFrom": "customer.customer_name",
+      "inListView": true,
+      "section": "Quotation"
+    },
+    {
+      "name": "lead",
+      "type": "Link",
+      "label": "Lead",
+      "linkTo": "Lead",
+      "lookupDialog": true,
+      "section": "Quotation"
+    },
+    {
+      "name": "contact",
+      "type": "Link",
+      "label": "Addressed to",
+      "linkTo": "Contact",
+      "section": "Quotation"
+    },
+    {
+      "name": "opportunity",
+      "type": "Link",
+      "label": "Opportunity",
+      "linkTo": "Opportunity",
+      "lookupDialog": true,
+      "section": "Quotation",
+      "column": 2
+    },
+    {
+      "name": "quotation_date",
+      "type": "Date",
+      "label": "Date",
+      "requiredWhen": "true",
+      "default": "$today",
+      "inListView": true,
+      "section": "Quotation",
+      "column": 2
+    },
+    {
+      "name": "valid_until",
+      "type": "Date",
+      "label": "Valid until",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Quotation",
+      "column": 2
+    },
+    {
+      "name": "currency",
+      "type": "Link",
+      "label": "Currency",
+      "linkTo": "Currency",
+      "requiredWhen": "true",
+      "default": "IDR",
+      "section": "Quotation",
+      "column": 2
+    },
+    {
+      "name": "price_list",
+      "type": "Link",
+      "label": "Price list",
+      "linkTo": "PriceList",
+      "linkFilters": [
+        {
+          "field": "price_list_type",
+          "op": "=",
+          "value": "Sales"
+        }
+      ],
+      "section": "Quotation",
+      "column": 2
+    },
+    {
+      "name": "payment_term",
+      "type": "Link",
+      "label": "Payment terms",
+      "linkTo": "PaymentTerm",
+      "section": "Quotation",
+      "column": 2
+    },
+    {
+      "name": "items",
+      "type": "Table",
+      "label": "Item",
+      "childDocType": "QuotationItem",
+      "requiredWhen": "true",
+      "section": "Item",
+      "addFromLookup": {
+        "linkField": "item",
+        "map": {
+          "item_name": "item_name",
+          "uom": "uom"
+        },
+        "multiple": true,
+        "buttonLabel": "Add product"
+      }
+    },
+    {
+      "name": "vat_code",
+      "type": "Link",
+      "label": "VAT code",
+      "linkTo": "TaxCode",
+      "linkFilters": [
+        {
+          "field": "tax_type",
+          "op": "=",
+          "value": "Output VAT"
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "section": "Total"
+    },
+    {
+      "name": "vat_rate",
+      "type": "Percent",
+      "label": "VAT rate",
+      "fetchFrom": "vat_code.rate",
+      "section": "Total"
+    },
+    {
+      "name": "vat_dpp_factor",
+      "type": "Float",
+      "label": "Tax base factor",
+      "fetchFrom": "vat_code.dpp_factor",
+      "section": "Total"
+    },
+    {
+      "name": "total",
+      "type": "Currency",
+      "label": "Total before tax",
+      "compute": "sum(items.amount)",
+      "inListView": true,
+      "section": "Total",
+      "column": 2
+    },
+    {
+      "name": "tax_base",
+      "type": "Currency",
+      "label": "DPP",
+      "compute": "round(sum(items.taxable_amount) * coalesce(vat_dpp_factor, 1), 2)",
+      "section": "Total",
+      "column": 2
+    },
+    {
+      "name": "vat_amount",
+      "type": "Currency",
+      "label": "PPN",
+      "compute": "round(tax_base * coalesce(vat_rate, 0) / 100, 2)",
+      "section": "Total",
+      "column": 2
+    },
+    {
+      "name": "grand_total",
+      "type": "Currency",
+      "label": "Total + VAT",
+      "compute": "total + vat_amount",
+      "inListView": true,
+      "section": "Total",
+      "column": 2
+    },
+    {
+      "name": "terms",
+      "type": "TextEditor",
+      "label": "Terms & conditions",
+      "tab": "Terms",
+      "section": "Terms"
+    },
+    {
+      "name": "sales_rep",
+      "type": "Link",
+      "label": "Owner (sales)",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "default": "$employee",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Owner",
+      "description": "Salesforce: Owner. Decides who can see and edit",
+      "tab": "Other"
+    },
+    {
+      "name": "organization_unit",
+      "type": "Data",
+      "label": "Team/unit",
+      "fetchFrom": "sales_rep.organization_unit",
+      "section": "Owner",
+      "tab": "Other"
+    }
+  ],
+  "rules": [
+    {
+      "name": "party_required",
+      "expr": "!empty(customer) || !empty(lead)",
+      "message": "Fill customer or lead",
+      "field": "customer"
+    },
+    {
+      "name": "validity",
+      "expr": "valid_until >= quotation_date",
+      "message": "Valid until must be after the quotation date",
+      "field": "valid_until"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Sales",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export",
+        "submit",
+        "cancel",
+        "amend"
+      ],
+      "scope": "match:sales_rep=employee"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export",
+        "submit",
+        "cancel",
+        "amend"
+      ],
+      "scope": "match:organization_unit=department"
+    },
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "customer_name",
+    "searchFields": [
+      "name",
+      "customer_name"
+    ],
+    "filters": [
+      "workflow_state",
+      "sales_rep",
+      "quotation_date"
+    ],
+    "defaultSort": [
+      {
+        "field": "quotation_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

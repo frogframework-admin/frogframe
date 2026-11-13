@@ -1,7 +1,7 @@
 using System.Reflection;
 using System.Text.Json;
-using Apps.Sample.Domain;
-using Apps.Sample.Hooks;
+using Framework.Tests.TestDomain;
+using Framework.Tests.TestHooks;
 using Framework.Documents;
 using Framework.Expressions;
 using Framework.Jobs;
@@ -172,7 +172,7 @@ sealed partial class Tests
         {
             ["Print:Letterheads:acme:CompanyName"] = "PT Acme Nusantara Teknologi",
         }).Build());
-        services.AddFrogFramework(o => o.LoadFrom(Path.Combine(AppContext.BaseDirectory, "Metadata")));
+        services.AddFrogFramework(o => o.LoadFrom(Path.Combine(AppContext.BaseDirectory, "TestMetadata")));
         services.AddDocHandler<PurchaseRequestHandler>();
         services.AddDocHook<PurchaseRequest, PurchaseRequestBeforeValidateHook>();
         services.AddDocHook<PurchaseRequest, PurchaseRequestBeforeInsertHook>();

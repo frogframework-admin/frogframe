@@ -1,0 +1,141 @@
+{
+  "name": "HolidayList",
+  "version": 1,
+  "title": "Holiday List",
+  "module": "CORE",
+  "description": "Used by leave, attendance, and working-day calculations (Workday Holiday Calendar).",
+  "naming": {
+    "pattern": "field:holiday_list_name"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "holiday_list_name",
+      "type": "Data",
+      "label": "Holiday list name",
+      "requiredWhen": "true",
+      "inListView": true,
+      "description": "e.g. Public Holidays 2027"
+    },
+    {
+      "name": "from_date",
+      "type": "Date",
+      "label": "From",
+      "requiredWhen": "true",
+      "inListView": true,
+      "column": 2
+    },
+    {
+      "name": "to_date",
+      "type": "Date",
+      "label": "To",
+      "requiredWhen": "true",
+      "inListView": true,
+      "column": 2
+    },
+    {
+      "name": "weekly_off",
+      "type": "Select",
+      "label": "Weekly off",
+      "options": [
+        "Saturday & Sunday",
+        "Sunday",
+        "None"
+      ],
+      "default": "Saturday & Sunday",
+      "column": 2
+    },
+    {
+      "name": "holidays",
+      "type": "Table",
+      "label": "Holidays",
+      "childDocType": "Holiday"
+    },
+    {
+      "name": "total_holidays",
+      "type": "Int",
+      "label": "Number of holidays",
+      "compute": "len(holidays)",
+      "inListView": true
+    }
+  ],
+  "rules": [
+    {
+      "name": "valid_period",
+      "expr": "to_date >= from_date",
+      "message": "The end date must be after the start date",
+      "field": "to_date"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "holiday_list_name",
+    "searchFields": [
+      "holiday_list_name"
+    ],
+    "filters": [],
+    "defaultSort": [
+      {
+        "field": "from_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

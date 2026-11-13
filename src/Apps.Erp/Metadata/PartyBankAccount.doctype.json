@@ -1,0 +1,47 @@
+{
+  "name": "PartyBankAccount",
+  "version": 1,
+  "title": "Party Bank Account",
+  "module": "CORE",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "bank",
+      "type": "Link",
+      "label": "Bank",
+      "linkTo": "Bank",
+      "requiredWhen": "true"
+    },
+    {
+      "name": "account_no",
+      "type": "Data",
+      "label": "Bank account number",
+      "requiredWhen": "true",
+      "maxLength": 34
+    },
+    {
+      "name": "account_holder",
+      "type": "Data",
+      "label": "Account holder name",
+      "requiredWhen": "true"
+    },
+    {
+      "name": "branch",
+      "type": "Data",
+      "label": "Branch"
+    },
+    {
+      "name": "currency",
+      "type": "Link",
+      "label": "Currency",
+      "linkTo": "Currency",
+      "default": "IDR"
+    },
+    {
+      "name": "is_default",
+      "type": "Check",
+      "label": "Primary",
+      "default": false
+    }
+  ]
+}

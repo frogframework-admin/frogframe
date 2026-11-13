@@ -1,0 +1,132 @@
+{
+  "name": "StockEntryDetail",
+  "version": 1,
+  "title": "Stock Entry Detail",
+  "module": "STOCK",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "item",
+      "type": "Link",
+      "label": "Item",
+      "linkTo": "Item",
+      "requiredWhen": "true",
+      "linkFilters": [
+        {
+          "field": "is_stock_item",
+          "op": "=",
+          "value": true
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "inListView": true
+    },
+    {
+      "name": "item_name",
+      "type": "Data",
+      "label": "Item name",
+      "inListView": true,
+      "description": "Set by hook"
+    },
+    {
+      "name": "qty",
+      "type": "Float",
+      "label": "Quantity",
+      "requiredWhen": "true",
+      "min": 0,
+      "inListView": true
+    },
+    {
+      "name": "uom",
+      "type": "Link",
+      "label": "UOM",
+      "linkTo": "UOM"
+    },
+    {
+      "name": "s_warehouse",
+      "type": "Link",
+      "label": "From warehouse",
+      "linkTo": "Warehouse",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        }
+      ],
+      "inListView": true,
+      "description": "Empty = header 'from'"
+    },
+    {
+      "name": "t_warehouse",
+      "type": "Link",
+      "label": "To warehouse",
+      "linkTo": "Warehouse",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        }
+      ],
+      "inListView": true,
+      "description": "Empty = header 'to'"
+    },
+    {
+      "name": "basic_rate",
+      "type": "Currency",
+      "label": "Rate (receipts)",
+      "min": 0,
+      "description": "Cost per unit for material receipts"
+    },
+    {
+      "name": "valuation_rate",
+      "type": "Currency",
+      "label": "Valuation rate",
+      "readOnlyWhen": "true",
+      "description": "Set on submit: moving average (issue/transfer) or the receipt rate"
+    },
+    {
+      "name": "amount",
+      "type": "Currency",
+      "label": "Value",
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "expense_account",
+      "type": "Link",
+      "label": "Expense / offset account",
+      "linkTo": "Account",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        },
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "description": "Issue: account debited (e.g. consumption). Receipt: account credited. Empty = header offset account"
+    },
+    {
+      "name": "cost_center",
+      "type": "Link",
+      "label": "Cost center",
+      "linkTo": "CostCenter",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        }
+      ]
+    }
+  ]
+}

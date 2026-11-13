@@ -1,0 +1,40 @@
+{
+  "name": "AssetDepreciationSchedule",
+  "version": 1,
+  "title": "Depreciation Schedule",
+  "module": "FINANCE",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "schedule_date",
+      "type": "Date",
+      "label": "Date",
+      "requiredWhen": "true"
+    },
+    {
+      "name": "depreciation_amount",
+      "type": "Currency",
+      "label": "Depreciation",
+      "requiredWhen": "true",
+      "min": 0
+    },
+    {
+      "name": "accumulated_depreciation",
+      "type": "Currency",
+      "label": "Accumulated"
+    },
+    {
+      "name": "depreciation_run",
+      "type": "Link",
+      "label": "Posted by",
+      "linkTo": "DepreciationRun",
+      "ignoreLinks": true
+    },
+    {
+      "name": "is_posted",
+      "type": "Check",
+      "label": "Posted",
+      "default": false
+    }
+  ]
+}

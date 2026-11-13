@@ -1,0 +1,36 @@
+{
+  "name": "OpportunityContactRole",
+  "version": 1,
+  "title": "Contact Role",
+  "module": "CRM",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "contact",
+      "type": "Link",
+      "label": "Contact",
+      "linkTo": "Contact",
+      "requiredWhen": "true"
+    },
+    {
+      "name": "role",
+      "type": "Select",
+      "label": "Role",
+      "requiredWhen": "true",
+      "options": [
+        "Decision Maker",
+        "Influencer",
+        "Technical Evaluator",
+        "User",
+        "Procurement",
+        "Other"
+      ]
+    },
+    {
+      "name": "is_primary",
+      "type": "Check",
+      "label": "Primary contact",
+      "default": false
+    }
+  ]
+}

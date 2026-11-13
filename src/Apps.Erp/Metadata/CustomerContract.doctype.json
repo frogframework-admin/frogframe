@@ -1,0 +1,270 @@
+{
+  "name": "CustomerContract",
+  "version": 1,
+  "title": "Customer Contract",
+  "module": "CRM",
+  "description": "Signed customer contract with term and renewal reminder (Salesforce Contract). The daily CRM job reminds the owner before the end date.",
+  "naming": {
+    "pattern": "CON-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "contract_title",
+      "type": "Data",
+      "label": "Title",
+      "requiredWhen": "true",
+      "maxLength": 140,
+      "inListView": true,
+      "section": "Contract"
+    },
+    {
+      "name": "company",
+      "type": "Link",
+      "label": "Company",
+      "linkTo": "Company",
+      "requiredWhen": "true",
+      "section": "Contract"
+    },
+    {
+      "name": "customer",
+      "type": "Link",
+      "label": "Customer",
+      "linkTo": "Customer",
+      "requiredWhen": "true",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Contract"
+    },
+    {
+      "name": "customer_name",
+      "type": "Data",
+      "label": "Customer name",
+      "fetchFrom": "customer.customer_name",
+      "section": "Contract"
+    },
+    {
+      "name": "contract_type",
+      "type": "Select",
+      "label": "Type",
+      "requiredWhen": "true",
+      "options": [
+        "Service",
+        "Subscription",
+        "Supply",
+        "Framework agreement",
+        "Other"
+      ],
+      "default": "Service",
+      "section": "Contract",
+      "column": 2
+    },
+    {
+      "name": "start_date",
+      "type": "Date",
+      "label": "Start date",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Contract",
+      "column": 2
+    },
+    {
+      "name": "end_date",
+      "type": "Date",
+      "label": "End date",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Contract",
+      "column": 2
+    },
+    {
+      "name": "contract_value",
+      "type": "Currency",
+      "label": "Contract value",
+      "min": 0,
+      "inListView": true,
+      "section": "Value"
+    },
+    {
+      "name": "sales_order",
+      "type": "Link",
+      "label": "Sales order",
+      "linkTo": "SalesOrder",
+      "section": "Value",
+      "column": 2
+    },
+    {
+      "name": "renewal_of",
+      "type": "Link",
+      "label": "Renewal of",
+      "linkTo": "CustomerContract",
+      "section": "Renewal"
+    },
+    {
+      "name": "auto_renew",
+      "type": "Check",
+      "label": "Auto-renew",
+      "default": false,
+      "section": "Renewal",
+      "column": 2
+    },
+    {
+      "name": "notice_days",
+      "type": "Int",
+      "label": "Remind before end (days)",
+      "default": 60,
+      "min": 0,
+      "section": "Renewal",
+      "column": 2
+    },
+    {
+      "name": "contract_status",
+      "type": "Select",
+      "label": "Status",
+      "options": [
+        "Draft",
+        "Active",
+        "Expiring soon",
+        "Expired",
+        "Renewed",
+        "Cancelled"
+      ],
+      "readOnlyWhen": "true",
+      "inListView": true,
+      "section": "Renewal",
+      "description": "Computed when opened"
+    },
+    {
+      "name": "document",
+      "type": "Attach",
+      "label": "Signed contract",
+      "tab": "Terms",
+      "section": "Terms"
+    },
+    {
+      "name": "terms",
+      "type": "TextEditor",
+      "label": "Key terms",
+      "tab": "Terms",
+      "section": "Terms"
+    },
+    {
+      "name": "sales_rep",
+      "type": "Link",
+      "label": "Owner (sales)",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "default": "$employee",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Owner",
+      "description": "Salesforce: Owner. Decides who can see and edit",
+      "tab": "Other"
+    },
+    {
+      "name": "organization_unit",
+      "type": "Data",
+      "label": "Team/unit",
+      "fetchFrom": "sales_rep.organization_unit",
+      "section": "Owner",
+      "tab": "Other"
+    }
+  ],
+  "rules": [
+    {
+      "name": "valid_period",
+      "expr": "end_date >= start_date",
+      "message": "The end date must be on or after the start date",
+      "field": "end_date"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Sales",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export",
+        "submit",
+        "cancel",
+        "amend"
+      ],
+      "scope": "match:sales_rep=employee"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export",
+        "submit",
+        "cancel",
+        "amend"
+      ],
+      "scope": "match:organization_unit=department"
+    },
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "contract_title",
+    "searchFields": [
+      "name",
+      "contract_title",
+      "customer_name"
+    ],
+    "filters": [
+      "contract_status",
+      "customer",
+      "sales_rep",
+      "end_date"
+    ],
+    "defaultSort": [
+      {
+        "field": "end_date",
+        "direction": "asc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

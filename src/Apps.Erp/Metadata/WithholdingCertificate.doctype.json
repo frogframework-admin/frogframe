@@ -1,0 +1,206 @@
+{
+  "name": "WithholdingCertificate",
+  "version": 1,
+  "title": "Withholding Tax Certificate",
+  "module": "FINANCE",
+  "description": "Withholding certificates for PPh 23/4(2)/26/15: those we issue, and those we receive from customers (tax credit).",
+  "naming": {
+    "pattern": "BP-{YYYY}-{######}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "direction",
+      "type": "Select",
+      "label": "Direction",
+      "requiredWhen": "true",
+      "options": [
+        "We withhold",
+        "Withheld by counterparty"
+      ],
+      "inListView": true
+    },
+    {
+      "name": "company",
+      "type": "Link",
+      "label": "Company",
+      "linkTo": "Company",
+      "requiredWhen": "true"
+    },
+    {
+      "name": "tax_code",
+      "type": "Link",
+      "label": "Withholding tax code",
+      "linkTo": "TaxCode",
+      "requiredWhen": "true",
+      "linkFilters": [
+        {
+          "field": "is_withholding",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "inListView": true
+    },
+    {
+      "name": "tax_rate",
+      "type": "Percent",
+      "label": "Rate",
+      "fetchFrom": "tax_code.rate"
+    },
+    {
+      "name": "party_type",
+      "type": "Select",
+      "label": "Party type",
+      "requiredWhen": "true",
+      "options": [
+        "Customer",
+        "Vendor"
+      ],
+      "column": 2
+    },
+    {
+      "name": "party",
+      "type": "DynamicLink",
+      "label": "Party",
+      "requiredWhen": "true",
+      "linkToField": "party_type",
+      "inListView": true,
+      "column": 2
+    },
+    {
+      "name": "reference_doctype",
+      "type": "Select",
+      "label": "Source document",
+      "options": [
+        "SalesInvoice",
+        "SalesCreditNote",
+        "PurchaseInvoice",
+        "PurchaseDebitNote",
+        "PaymentEntry"
+      ],
+      "column": 2
+    },
+    {
+      "name": "reference_name",
+      "type": "DynamicLink",
+      "label": "Source document no.",
+      "linkToField": "reference_doctype",
+      "column": 2
+    },
+    {
+      "name": "certificate_no",
+      "type": "Data",
+      "label": "Certificate number",
+      "maxLength": 30,
+      "inListView": true,
+      "section": "Certificate"
+    },
+    {
+      "name": "certificate_date",
+      "type": "Date",
+      "label": "Certificate date",
+      "inListView": true,
+      "section": "Certificate"
+    },
+    {
+      "name": "tax_period",
+      "type": "Data",
+      "label": "Tax period",
+      "requiredWhen": "true",
+      "pattern": "^[0-9]{4}-[0-9]{2}$",
+      "patternMessage": "YYYY-MM",
+      "inListView": true,
+      "section": "Certificate"
+    },
+    {
+      "name": "gross_amount",
+      "type": "Currency",
+      "label": "Gross income",
+      "requiredWhen": "true",
+      "min": 0,
+      "section": "Value"
+    },
+    {
+      "name": "tax_amount",
+      "type": "Currency",
+      "label": "Tax withheld",
+      "compute": "round(gross_amount * coalesce(tax_rate, 0) / 100, 2)",
+      "section": "Value",
+      "column": 2
+    },
+    {
+      "name": "document",
+      "type": "Attach",
+      "label": "Certificate document",
+      "section": "Value",
+      "column": 2
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "party",
+    "searchFields": [
+      "certificate_no",
+      "party"
+    ],
+    "filters": [
+      "direction",
+      "tax_code",
+      "tax_period",
+      "company"
+    ],
+    "defaultSort": [
+      {
+        "field": "certificate_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

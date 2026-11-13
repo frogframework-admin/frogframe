@@ -1,0 +1,157 @@
+{
+  "name": "LeaveType",
+  "version": 1,
+  "title": "Leave Type",
+  "module": "HR",
+  "description": "Leave type (Workday Time Off Type).",
+  "naming": {
+    "pattern": "field:leave_type_name"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "leave_type_name",
+      "type": "Data",
+      "label": "Name",
+      "requiredWhen": "true",
+      "inListView": true,
+      "description": "e.g. Annual Leave, Sick Leave, Maternity Leave, Compassionate Leave"
+    },
+    {
+      "name": "is_paid",
+      "type": "Check",
+      "label": "Paid",
+      "default": true,
+      "inListView": true
+    },
+    {
+      "name": "is_annual_quota",
+      "type": "Check",
+      "label": "Uses quota (allocation)",
+      "default": true,
+      "inListView": true,
+      "description": "Unticked = no balance, e.g. sick leave with a doctor's note"
+    },
+    {
+      "name": "max_consecutive_days",
+      "type": "Int",
+      "label": "Max consecutive days",
+      "min": 0,
+      "column": 2
+    },
+    {
+      "name": "include_holidays",
+      "type": "Check",
+      "label": "Include holidays",
+      "default": false,
+      "column": 2
+    },
+    {
+      "name": "requires_attachment",
+      "type": "Check",
+      "label": "Attachment required",
+      "default": false,
+      "column": 2
+    },
+    {
+      "name": "applicable_gender",
+      "type": "Select",
+      "label": "Applies to",
+      "options": [
+        "All",
+        "Female",
+        "Male"
+      ],
+      "default": "All",
+      "column": 2
+    },
+    {
+      "name": "allow_carry_forward",
+      "type": "Check",
+      "label": "Balance carried to next period",
+      "default": false,
+      "section": "Carry forward"
+    },
+    {
+      "name": "max_carry_forward_days",
+      "type": "Float",
+      "label": "Max carry-forward days",
+      "min": 0,
+      "visibleWhen": "allow_carry_forward",
+      "section": "Carry forward",
+      "column": 2
+    },
+    {
+      "name": "is_active",
+      "type": "Check",
+      "label": "Active",
+      "default": true,
+      "inListView": true,
+      "section": "Carry forward",
+      "column": 2
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "leave_type_name",
+    "searchFields": [
+      "leave_type_name"
+    ],
+    "filters": [
+      "is_paid",
+      "is_active"
+    ],
+    "defaultSort": [
+      {
+        "field": "modified",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

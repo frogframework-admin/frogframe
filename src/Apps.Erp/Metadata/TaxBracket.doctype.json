@@ -1,0 +1,26 @@
+{
+  "name": "TaxBracket",
+  "version": 1,
+  "title": "Tax Bracket",
+  "module": "HR",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "up_to",
+      "type": "Currency",
+      "label": "Annual taxable income up to",
+      "min": 0,
+      "inListView": true,
+      "description": "Empty or 0 = no upper limit (last bracket)"
+    },
+    {
+      "name": "rate",
+      "type": "Percent",
+      "label": "Rate",
+      "requiredWhen": "true",
+      "min": 0,
+      "max": 100,
+      "inListView": true
+    }
+  ]
+}

@@ -1,0 +1,182 @@
+{
+  "name": "Project",
+  "version": 1,
+  "title": "Project",
+  "module": "ACCOUNTING",
+  "description": "Project as an accounting dimension (SAP WBS / NetSuite Project). The full project module comes later.",
+  "naming": {
+    "pattern": "field:project_code"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "project_code",
+      "type": "Data",
+      "label": "Project code",
+      "requiredWhen": "true",
+      "maxLength": 20,
+      "inListView": true
+    },
+    {
+      "name": "project_name",
+      "type": "Data",
+      "label": "Project name",
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "company",
+      "type": "Link",
+      "label": "Company",
+      "linkTo": "Company",
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "customer",
+      "type": "Link",
+      "label": "Customer",
+      "linkTo": "Customer",
+      "lookupDialog": true,
+      "column": 2
+    },
+    {
+      "name": "cost_center",
+      "type": "Link",
+      "label": "Cost center",
+      "linkTo": "CostCenter",
+      "linkFilters": [
+        {
+          "field": "is_group",
+          "op": "=",
+          "value": false
+        }
+      ],
+      "column": 2
+    },
+    {
+      "name": "status",
+      "type": "Select",
+      "label": "Status",
+      "requiredWhen": "true",
+      "options": [
+        "Plan",
+        "In Progress",
+        "On Hold",
+        "Completed",
+        "Cancelled"
+      ],
+      "default": "In Progress",
+      "inListView": true,
+      "column": 2
+    },
+    {
+      "name": "start_date",
+      "type": "Date",
+      "label": "Start date",
+      "section": "Schedule & Value"
+    },
+    {
+      "name": "end_date",
+      "type": "Date",
+      "label": "End date",
+      "section": "Schedule & Value"
+    },
+    {
+      "name": "contract_value",
+      "type": "Currency",
+      "label": "Contract value",
+      "min": 0,
+      "section": "Schedule & Value",
+      "column": 2
+    },
+    {
+      "name": "estimated_cost",
+      "type": "Currency",
+      "label": "Estimated cost",
+      "min": 0,
+      "section": "Schedule & Value",
+      "column": 2
+    }
+  ],
+  "rules": [
+    {
+      "name": "valid_period",
+      "expr": "empty(start_date) || empty(end_date) || end_date >= start_date",
+      "message": "The end date must be after the start date",
+      "field": "end_date"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "project_name",
+    "searchFields": [
+      "project_code",
+      "project_name"
+    ],
+    "filters": [
+      "company",
+      "status",
+      "customer"
+    ],
+    "defaultSort": [
+      {
+        "field": "modified",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

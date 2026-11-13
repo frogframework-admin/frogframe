@@ -1,0 +1,82 @@
+{
+  "name": "GlobalDefaults",
+  "version": 1,
+  "title": "General Settings",
+  "module": "CORE",
+  "description": "Settings that apply to the whole tenant.",
+  "isSingle": true,
+  "naming": {
+    "pattern": "{doctype}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": false
+  },
+  "fields": [
+    {
+      "name": "default_company",
+      "type": "Link",
+      "label": "Default company",
+      "linkTo": "Company"
+    },
+    {
+      "name": "default_currency",
+      "type": "Link",
+      "label": "Default currency",
+      "linkTo": "Currency",
+      "default": "IDR"
+    },
+    {
+      "name": "default_country",
+      "type": "Data",
+      "label": "Default country (ISO)",
+      "default": "ID",
+      "maxLength": 2,
+      "pattern": "^[A-Z]{2}$",
+      "column": 2
+    },
+    {
+      "name": "default_holiday_list",
+      "type": "Link",
+      "label": "Default holiday list",
+      "linkTo": "HolidayList",
+      "column": 2
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "write"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "write"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    }
+  ],
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "update"
+    ]
+  }
+}

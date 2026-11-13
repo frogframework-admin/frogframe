@@ -1,0 +1,192 @@
+{
+  "name": "AssetDisposal",
+  "version": 1,
+  "title": "Asset Disposal",
+  "module": "FINANCE",
+  "description": "Asset sale/write-off (SAP ABAVN). Submit: closes cost & accumulated depreciation, recognizes gain/loss.",
+  "naming": {
+    "pattern": "ADSP-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "asset",
+      "type": "Link",
+      "label": "Asset",
+      "linkTo": "Asset",
+      "requiredWhen": "true",
+      "linkFilters": [
+        {
+          "field": "docstatus",
+          "op": "=",
+          "value": 1
+        }
+      ],
+      "lookupDialog": true,
+      "inListView": true
+    },
+    {
+      "name": "asset_name",
+      "type": "Data",
+      "label": "Asset name",
+      "fetchFrom": "asset.asset_name",
+      "inListView": true
+    },
+    {
+      "name": "company",
+      "type": "Data",
+      "label": "Company",
+      "fetchFrom": "asset.company"
+    },
+    {
+      "name": "disposal_date",
+      "type": "Date",
+      "label": "Disposal date",
+      "requiredWhen": "true",
+      "default": "$today",
+      "inListView": true,
+      "column": 2
+    },
+    {
+      "name": "disposal_type",
+      "type": "Select",
+      "label": "Type",
+      "requiredWhen": "true",
+      "options": [
+        "Sales",
+        "Write-off",
+        "Lost/Damaged",
+        "Donation"
+      ],
+      "inListView": true,
+      "column": 2
+    },
+    {
+      "name": "customer",
+      "type": "Link",
+      "label": "Buyer",
+      "linkTo": "Customer",
+      "visibleWhen": "disposal_type == 'Sales'",
+      "column": 2
+    },
+    {
+      "name": "sale_amount",
+      "type": "Currency",
+      "label": "Sale price (excl. VAT)",
+      "default": 0,
+      "min": 0,
+      "requiredWhen": "disposal_type == 'Sales'",
+      "section": "Value"
+    },
+    {
+      "name": "sales_invoice",
+      "type": "Link",
+      "label": "Sales invoice",
+      "linkTo": "SalesInvoice",
+      "visibleWhen": "disposal_type == 'Sales'",
+      "section": "Value"
+    },
+    {
+      "name": "book_value",
+      "type": "Currency",
+      "label": "Book value at disposal",
+      "description": "Set by hook from the ledger",
+      "section": "Value",
+      "column": 2
+    },
+    {
+      "name": "gain_loss",
+      "type": "Currency",
+      "label": "Gain (loss) on disposal",
+      "compute": "coalesce(sale_amount, 0) - coalesce(book_value, 0)",
+      "inListView": true,
+      "section": "Value",
+      "column": 2
+    },
+    {
+      "name": "remarks",
+      "type": "Text",
+      "label": "Remarks",
+      "section": "Remarks"
+    },
+    {
+      "name": "attachment",
+      "type": "Attach",
+      "label": "Disposal report",
+      "section": "Remarks",
+      "column": 2
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "asset_name",
+    "searchFields": [
+      "name",
+      "asset_name"
+    ],
+    "filters": [
+      "disposal_type",
+      "disposal_date"
+    ],
+    "defaultSort": [
+      {
+        "field": "disposal_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}
