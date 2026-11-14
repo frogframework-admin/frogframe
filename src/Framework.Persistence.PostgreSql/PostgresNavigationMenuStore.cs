@@ -420,14 +420,14 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
             if (moved > 0) added = true;
         }
 
-        // 6. Move/update any legacy widgets menu item to System group with href admin/widgets, and purge old analytic widgets menus
+        // 6. Move/update widgets menu item to Metadata & Customization group with href admin/widgets, sort_order 55 (above Dashboards)
         await using (var updateWidgetCmd = db.CreateCommand(
             "UPDATE frogframe_navigation_menus " +
-            "SET group_id = $2, group_name = 'System', href = 'admin/widgets', icon = 'layout-grid', allowed_roles = $3, sort_order = 118 " +
-            "WHERE tenant_id = $1 AND (id = $4 OR href = 'dashboard/widgets' OR href = 'widgets') AND (group_name <> 'System' OR href <> 'admin/widgets')"))
+            "SET group_id = $2, group_name = 'Metadata & Customization', href = 'admin/widgets', icon = 'layout-grid', allowed_roles = $3, sort_order = 55 " +
+            "WHERE tenant_id = $1 AND (id = $4 OR href = 'admin/widgets' OR href = 'dashboard/widgets' OR href = 'widgets') AND (group_id <> $2 OR group_name <> 'Metadata & Customization' OR sort_order <> 55 OR href <> 'admin/widgets')"))
         {
             updateWidgetCmd.Parameters.AddWithValue(tenantId);
-            updateWidgetCmd.Parameters.AddWithValue(NavigationMenuDefaults.GroupSistemId(tenantId));
+            updateWidgetCmd.Parameters.AddWithValue(NavigationMenuDefaults.GroupAdminMetadataId(tenantId));
             updateWidgetCmd.Parameters.AddWithValue(new string[] { UserContext.SystemManager, UserContext.Administrator });
             updateWidgetCmd.Parameters.AddWithValue($"menu_{tenantId}_widgets");
             var movedWidget = await updateWidgetCmd.ExecuteNonQueryAsync(ct);
@@ -443,14 +443,15 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
             if (delCount > 0) added = true;
         }
 
-        // 7. Ensure menu item for dashboards has title 'Dashboards'
+        // 7. Ensure menu item for dashboards has title 'Dashboards', group 'Metadata & Customization', and sort_order 60
         await using (var updateDashboardsCmd = db.CreateCommand(
             "UPDATE frogframe_navigation_menus " +
-            "SET title = 'Dashboards' " +
-            "WHERE tenant_id = $1 AND (id = $2 OR href = 'admin/dashboards') AND title <> 'Dashboards'"))
+            "SET title = 'Dashboards', group_id = $3, group_name = 'Metadata & Customization', sort_order = 60 " +
+            "WHERE tenant_id = $1 AND (id = $2 OR href = 'admin/dashboards') AND (title <> 'Dashboards' OR group_id <> $3 OR sort_order <> 60)"))
         {
             updateDashboardsCmd.Parameters.AddWithValue(tenantId);
             updateDashboardsCmd.Parameters.AddWithValue($"menu_{tenantId}_dashboards_admin");
+            updateDashboardsCmd.Parameters.AddWithValue(NavigationMenuDefaults.GroupAdminMetadataId(tenantId));
             var renamed = await updateDashboardsCmd.ExecuteNonQueryAsync(ct);
             if (renamed > 0) added = true;
         }

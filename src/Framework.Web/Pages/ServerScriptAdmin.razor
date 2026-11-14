@@ -81,7 +81,7 @@ else
             <AdminGridToolbar TData="ServerScriptDef" Grid="gridMgr" Items="@filteredScripts" FileName="server-scripts" Columns="@ExportColumns" />
         </Toolbar>
         <Columns>
-            <AdminGridSelectColumn TData="ServerScriptDef" Grid="gridMgr" Items="@filteredScripts" />
+            <AdminGridSelectColumn TData="ServerScriptDef" Grid="gridMgr" Items="@filteredScripts" Title="" />
 
             <BbDataGridPropertyColumn TData="ServerScriptDef" TProp="string" Property="r => r.Name" Id="name" Title="Name"
                                       Width="@gridMgr.GetWidth("name", "16rem")" Visible="@gridMgr.IsVisible("name")" Resizable="true" Sortable="true" Filterable="true">

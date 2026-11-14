@@ -49,7 +49,7 @@ public sealed class InMemoryNavigationMenuStore(TimeProvider clock) : INavigatio
                 items[defItem.Id] = defItem;
                 modified = true;
             }
-            else if (existing.IsSystem && (existing.GroupId != defItem.GroupId || existing.GroupName != defItem.GroupName || existing.Href != defItem.Href || !existing.AllowedRoles.SequenceEqual(defItem.AllowedRoles)))
+            else if (existing.IsSystem && (existing.GroupId != defItem.GroupId || existing.GroupName != defItem.GroupName || existing.Href != defItem.Href || existing.SortOrder != defItem.SortOrder || !existing.AllowedRoles.SequenceEqual(defItem.AllowedRoles)))
             {
                 existing.GroupId = defItem.GroupId;
                 existing.GroupName = defItem.GroupName;

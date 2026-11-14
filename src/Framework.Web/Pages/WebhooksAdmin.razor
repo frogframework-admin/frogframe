@@ -91,7 +91,7 @@ else
             <AdminGridToolbar TData="WebhookDef" Grid="gridMgr" Items="@filteredWebhooks" FileName="webhooks" Columns="@ExportColumns" />
         </Toolbar>
         <Columns>
-            <AdminGridSelectColumn TData="WebhookDef" Grid="gridMgr" Items="@filteredWebhooks" />
+            <AdminGridSelectColumn TData="WebhookDef" Grid="gridMgr" Items="@filteredWebhooks" Title="" />
 
             <BbDataGridPropertyColumn TData="WebhookDef" TProp="string" Property="w => w.Name" Id="name" Title="Name"
                                       Width="@gridMgr.GetWidth("name", "16rem")" Visible="@gridMgr.IsVisible("name")" Resizable="true" Sortable="true" Filterable="true">

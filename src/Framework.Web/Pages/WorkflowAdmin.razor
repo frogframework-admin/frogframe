@@ -37,7 +37,7 @@ else
             <AdminGridToolbar TData="WorkflowDef" Grid="gridMgr" Items="@Workflows" FileName="workflows" Columns="@ExportColumns" />
         </Toolbar>
         <Columns>
-            <AdminGridSelectColumn TData="WorkflowDef" Grid="gridMgr" Items="@Workflows" />
+            <AdminGridSelectColumn TData="WorkflowDef" Grid="gridMgr" Items="@Workflows" Title="" />
 
             <BbDataGridPropertyColumn TData="WorkflowDef" TProp="string" Property="w => w.Name" Id="name" Title="Workflow Name"
                                       Width="@gridMgr.GetWidth("name")" Visible="@gridMgr.IsVisible("name")" Resizable="true" Sortable="true" Filterable="true">

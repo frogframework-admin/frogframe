@@ -101,7 +101,7 @@ else
                         <AdminGridToolbar TData="ScheduledJobRunEntry" Grid="gridMgr" Items="@recentRuns" FileName="scheduled-job-runs" Columns="@ExportColumns" />
                     </Toolbar>
                     <Columns>
-                        <AdminGridSelectColumn TData="ScheduledJobRunEntry" Grid="gridMgr" Items="@recentRuns" />
+                        <AdminGridSelectColumn TData="ScheduledJobRunEntry" Grid="gridMgr" Items="@recentRuns" Title="" />
 
                         <BbDataGridPropertyColumn TData="ScheduledJobRunEntry" TProp="string" Property="r => r.JobName" Id="job_name" Title="Job Name"
                                                   Width="@gridMgr.GetWidth("job_name", "14rem")" Visible="@gridMgr.IsVisible("job_name")" Resizable="true" Sortable="true" Filterable="true">

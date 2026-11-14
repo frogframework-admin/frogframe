@@ -70,7 +70,7 @@ else
             <AdminGridToolbar TData="NotificationRule" Grid="gridMgr" Items="@filteredRules" FileName="notification-rules" Columns="@ExportColumns" />
         </Toolbar>
         <Columns>
-            <AdminGridSelectColumn TData="NotificationRule" Grid="gridMgr" Items="@filteredRules" />
+            <AdminGridSelectColumn TData="NotificationRule" Grid="gridMgr" Items="@filteredRules" Title="" />
 
             <BbDataGridPropertyColumn TData="NotificationRule" TProp="string" Property="r => r.Name" Id="name" Title="Rule Name"
                                       Width="@gridMgr.GetWidth("name", "18rem")" Visible="@gridMgr.IsVisible("name")" Resizable="true" Sortable="true" Filterable="true">

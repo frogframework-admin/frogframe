@@ -55,7 +55,7 @@ else
             <AdminGridToolbar TData="NavigationMenuGroup" Grid="gridMgr" Items="@groups" FileName="menu-groups" Columns="@ExportColumns" />
         </Toolbar>
         <Columns>
-            <AdminGridSelectColumn TData="NavigationMenuGroup" Grid="gridMgr" Items="@groups" />
+            <AdminGridSelectColumn TData="NavigationMenuGroup" Grid="gridMgr" Items="@groups" Title="" />
 
             <BbDataGridPropertyColumn TData="NavigationMenuGroup" TProp="int" Property="g => g.SortOrder" Id="order" Title="Order"
                                       Width="@gridMgr.GetWidth("order", "5rem")" Visible="@gridMgr.IsVisible("order")" Resizable="true" Sortable="true">

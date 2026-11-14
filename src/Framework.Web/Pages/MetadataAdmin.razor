@@ -41,7 +41,7 @@ else
             <AdminGridToolbar TData="DocTypeRow" Grid="gridMgr" Items="@docTypes" FileName="doctypes-metadata" Columns="@ExportColumns" />
         </Toolbar>
         <Columns>
-            <AdminGridSelectColumn TData="DocTypeRow" Grid="gridMgr" Items="@docTypes" />
+            <AdminGridSelectColumn TData="DocTypeRow" Grid="gridMgr" Items="@docTypes" Title="" />
 
             <BbDataGridPropertyColumn TData="DocTypeRow" TProp="string" Property="d => d.Title" Id="name" Title="DocType Name"
                                       Width="@gridMgr.GetWidth("name")" Visible="@gridMgr.IsVisible("name")" Resizable="true" Sortable="true" Filterable="true">

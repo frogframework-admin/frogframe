@@ -71,7 +71,7 @@ else
             <AdminGridToolbar TData="AutoRepeatDef" Grid="gridMgr" Items="@filteredRepeats" FileName="auto-repeats" Columns="@ExportColumns" />
         </Toolbar>
         <Columns>
-            <AdminGridSelectColumn TData="AutoRepeatDef" Grid="gridMgr" Items="@filteredRepeats" />
+            <AdminGridSelectColumn TData="AutoRepeatDef" Grid="gridMgr" Items="@filteredRepeats" Title="" />
 
             <BbDataGridPropertyColumn TData="AutoRepeatDef" TProp="string" Property="r => r.Name" Id="name" Title="Name"
                                       Width="@gridMgr.GetWidth("name", "16rem")" Visible="@gridMgr.IsVisible("name")" Resizable="true" Sortable="true" Filterable="true">

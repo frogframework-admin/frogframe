@@ -57,7 +57,7 @@ else
                 <AdminGridToolbar TData="ReportTemplateDef" Grid="gridMgr" Items="@items" FileName="report-templates" Columns="@ExportColumns" />
             </Toolbar>
             <Columns>
-                <AdminGridSelectColumn TData="ReportTemplateDef" Grid="gridMgr" Items="@items" />
+                <AdminGridSelectColumn TData="ReportTemplateDef" Grid="gridMgr" Items="@items" Title="" />
 
                 <BbDataGridPropertyColumn TData="ReportTemplateDef" TProp="string" Property="r => r.Name" Id="name" Title="Report" Sortable="true" Filterable="true"
                                           Width="@gridMgr.GetWidth("name", "16rem")" Visible="@gridMgr.IsVisible("name")" Resizable="true">

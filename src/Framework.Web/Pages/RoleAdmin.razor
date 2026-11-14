@@ -50,7 +50,7 @@ else
             <AdminGridToolbar TData="RoleDef" Grid="gridMgr" Items="@roles" FileName="roles" Columns="@ExportColumns" />
         </Toolbar>
         <Columns>
-            <AdminGridSelectColumn TData="RoleDef" Grid="gridMgr" Items="@roles" />
+            <AdminGridSelectColumn TData="RoleDef" Grid="gridMgr" Items="@roles" Title="" />
 
             <BbDataGridPropertyColumn TData="RoleDef" TProp="string" Property="r => r.Name" Id="name" Title="Role" Sortable="true" Filterable="true"
                                       Width="@gridMgr.GetWidth("name", "16rem")" Visible="@gridMgr.IsVisible("name")" Resizable="true">

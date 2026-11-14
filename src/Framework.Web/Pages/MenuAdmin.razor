@@ -59,7 +59,7 @@ else
             <AdminGridToolbar TData="NavigationMenuItem" Grid="gridMgr" Items="@menus" FileName="navigation-menus" Columns="@ExportColumns" />
         </Toolbar>
         <Columns>
-            <AdminGridSelectColumn TData="NavigationMenuItem" Grid="gridMgr" Items="@menus" />
+            <AdminGridSelectColumn TData="NavigationMenuItem" Grid="gridMgr" Items="@menus" Title="" />
 
             <BbDataGridPropertyColumn TData="NavigationMenuItem" TProp="int" Property="m => m.SortOrder" Id="order" Title="Order"
                                       Width="@gridMgr.GetWidth("order", "5rem")" Visible="@gridMgr.IsVisible("order")" Resizable="true" Sortable="true">

@@ -73,7 +73,7 @@ else
             <AdminGridToolbar TData="EmailAccount" Grid="gridMgr" Items="@accounts" FileName="email-accounts" Columns="@ExportColumns" />
         </Toolbar>
         <Columns>
-            <AdminGridSelectColumn TData="EmailAccount" Grid="gridMgr" Items="@accounts" />
+            <AdminGridSelectColumn TData="EmailAccount" Grid="gridMgr" Items="@accounts" Title="" />
 
             <BbDataGridPropertyColumn TData="EmailAccount" TProp="string" Property="a => a.Name" Id="name" Title="Account Name"
                                       Width="@gridMgr.GetWidth("name", "14rem")" Visible="@gridMgr.IsVisible("name")" Resizable="true" Sortable="true">

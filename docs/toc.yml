@@ -48,6 +48,8 @@
       href: guides/file-and-image-storage.md
     - name: Analytics Engine (World 2 OLAP)
       href: guides/analytics-engine.md
+    - name: End-to-End Implementation Plan
+      href: guides/implementation-plan.md
     - name: Multi-Language UI (Indonesian / English)
       href: guides/multi-language.md
 - name: Architecture & Reliability

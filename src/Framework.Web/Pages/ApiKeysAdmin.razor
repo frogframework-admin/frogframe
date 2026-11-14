@@ -159,7 +159,7 @@ else
             <AdminGridToolbar TData="ApiKey" Grid="gridMgr" Items="@keys" FileName="api-keys" Columns="@ExportColumns" />
         </Toolbar>
         <Columns>
-            <AdminGridSelectColumn TData="ApiKey" Grid="gridMgr" Items="@keys" />
+            <AdminGridSelectColumn TData="ApiKey" Grid="gridMgr" Items="@keys" Title="" />
 
             <BbDataGridPropertyColumn TData="ApiKey" TProp="string" Property="k => k.Name" Id="name" Title="Key Name"
                                       Width="@gridMgr.GetWidth("name")" Visible="@gridMgr.IsVisible("name")" Resizable="true" Sortable="true" Filterable="true">

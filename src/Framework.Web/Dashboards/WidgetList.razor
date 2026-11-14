@@ -49,7 +49,7 @@ else
             <AdminGridToolbar TData="WidgetDef" Grid="gridMgr" Items="@widgets" FileName="widgets" Columns="@ExportColumns" />
         </Toolbar>
         <Columns>
-            <AdminGridSelectColumn TData="WidgetDef" Grid="gridMgr" Items="@widgets" />
+            <AdminGridSelectColumn TData="WidgetDef" Grid="gridMgr" Items="@widgets" Title="" />
 
             <BbDataGridPropertyColumn TData="WidgetDef" TProp="string" Property="w => w.Name" Id="widget" Title="Widget"
                                       Width="@gridMgr.GetWidth("widget")" Visible="@gridMgr.IsVisible("widget")" Resizable="true" Sortable="true" Filterable="true">

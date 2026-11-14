@@ -49,6 +49,12 @@ sealed partial class Tests
 
         var widgets = items.FirstOrDefault(x => x.Href == "admin/widgets");
         Assert.True(widgets is not null && widgets.IsSystem && widgets.AllowedRoles.Contains(UserContext.SystemManager), "Widgets harus di-seed untuk System Manager");
+        Assert.Equal("Metadata & Customization", widgets!.GroupName, "Widgets harus berada di grup Metadata & Customization");
+
+        var dashboards = items.FirstOrDefault(x => x.Href == "admin/dashboards");
+        Assert.True(dashboards is not null, "Dashboards admin menu harus ada");
+        Assert.Equal("Metadata & Customization", dashboards!.GroupName, "Dashboards harus berada di grup Metadata & Customization");
+        Assert.True(widgets.SortOrder < dashboards.SortOrder, "Widgets harus diletakkan di atas Dashboards");
 
         var errorLogs = items.FirstOrDefault(x => x.Href == "admin/error-logs");
         Assert.True(errorLogs is not null && errorLogs.IsSystem && errorLogs.AllowedRoles.Contains(UserContext.SystemManager), "Error Log harus di-seed");

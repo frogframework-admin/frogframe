@@ -53,7 +53,7 @@ else
             <AdminGridToolbar TData="QueryApiDef" Grid="gridMgr" Items="@items" FileName="query-apis" Columns="@ExportColumns" />
         </Toolbar>
         <Columns>
-            <AdminGridSelectColumn TData="QueryApiDef" Grid="gridMgr" Items="@items" />
+            <AdminGridSelectColumn TData="QueryApiDef" Grid="gridMgr" Items="@items" Title="" />
 
             <BbDataGridPropertyColumn TData="QueryApiDef" TProp="string" Property="d => d.Name" Id="api" Title="API"
                                       Width="@gridMgr.GetWidth("api")" Visible="@gridMgr.IsVisible("api")" Resizable="true" Sortable="true" Filterable="true">

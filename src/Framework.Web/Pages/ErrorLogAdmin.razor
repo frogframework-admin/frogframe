@@ -116,7 +116,7 @@ else
             <AdminGridToolbar TData="ErrorLogEntry" Grid="gridMgr" Items="@errors" FileName="error-logs" Columns="@ExportColumns" />
         </Toolbar>
         <Columns>
-            <AdminGridSelectColumn TData="ErrorLogEntry" Grid="gridMgr" Items="@errors" />
+            <AdminGridSelectColumn TData="ErrorLogEntry" Grid="gridMgr" Items="@errors" Title="" />
 
             <BbDataGridPropertyColumn TData="ErrorLogEntry" TProp="DateTimeOffset" Property="r => r.Timestamp" Id="timestamp" Title="Timestamp"
                                       Width="@gridMgr.GetWidth("timestamp", "13rem")" Visible="@gridMgr.IsVisible("timestamp")" Resizable="true" Sortable="true">
