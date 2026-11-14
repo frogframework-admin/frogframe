@@ -151,7 +151,7 @@ public static class SpreadsheetReader
 }
 
 /// <summary>Penulis .xlsx sederhana: judul kolom tebal (wajib bertanda), baris judul dibekukan, dropdown dari sheet
-/// daftar tersembunyi, tanggal sebagai tanggal Excel. Dipakai untuk template impor & laporan baris gagal.</summary>
+/// daftar tersembunyi, tanggal sebagai tanggal Excel. Dipakai untuk template impor &amp; laporan baris gagal.</summary>
 public sealed class XlsxSheet
 {
     public required string Name { get; init; }

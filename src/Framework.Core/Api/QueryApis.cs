@@ -13,7 +13,7 @@ public static class QueryApiOutputs
     public static readonly IReadOnlySet<string> All = new HashSet<string> { Rows, Object, Csv };
 }
 
-/// <summary>Konfigurasi API dari query tersimpan (JSON). Jalur yang sama dengan widget dashboard & template laporan.</summary>
+/// <summary>Konfigurasi API dari query tersimpan (JSON). Jalur yang sama dengan widget dashboard &amp; template laporan.</summary>
 public sealed class QueryApiConfig
 {
     public int SchemaVersion { get; set; } = 1;
@@ -170,7 +170,7 @@ public sealed partial class QueryApiService(IQueryApiStore store, IReportingQuer
         return def;
     }
 
-    /// <summary>Opsi "terbitkan juga sebagai API" dari wizard widget/laporan: query & parameter disalin dan ikut diperbarui
+    /// <summary>Opsi "terbitkan juga sebagai API" dari wizard widget/laporan: query &amp; parameter disalin dan ikut diperbarui
     /// setiap kali sumbernya disimpan. Pengaturan API (keluaran, batas, cache) dari penerbitan sebelumnya dipertahankan.</summary>
     public async Task<QueryApiDef> PublishFromAsync(UserContext u, string sourceRef, string slug, string name, string? description,
         string sql, IReadOnlyList<WidgetParameter> parameters, IReadOnlyList<string> roles, CancellationToken ct = default)

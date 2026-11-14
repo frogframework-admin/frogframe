@@ -104,6 +104,7 @@ public sealed class WebhookDispatcher(
                 // Automatically deactivate webhook
                 var deactivatedWebhook = webhook with { IsActive = false, ModifiedAt = DateTimeOffset.UtcNow };
                 await store.SaveAsync(deactivatedWebhook, ct);
+                logger.LogWarning("Webhook {WebhookId} deactivated after endpoint returned 410 Gone", webhook.Id);
                 FrogFrameTelemetry.WebhooksFailed.Add(1);
             }
             else if (statusCode is 408 or 429 || statusCode >= 500) // Transient failures -> retry

@@ -6,7 +6,7 @@ namespace Framework.Web;
 
 /// <summary>
 /// File laporan yang sudah dibuat di sirkuit Blazor diambil browser lewat /report-downloads/{token}: token acak,
-/// sekali pakai, terikat pengguna & tenant, kedaluwarsa 10 menit. File besar tidak dikirim lewat SignalR dan
+/// sekali pakai, terikat pengguna &amp; tenant, kedaluwarsa 10 menit. File besar tidak dikirim lewat SignalR dan
 /// parameter laporan tidak muncul di URL.
 /// </summary>
 public sealed class ReportDownloads(TimeProvider clock)

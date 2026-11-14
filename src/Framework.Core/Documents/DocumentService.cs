@@ -48,7 +48,7 @@ public sealed class WorkflowEngine(DocumentEvaluator evaluator)
 
 /// <summary>
 /// Application service — satu-satunya jalur untuk membaca/mengubah dokumen (UI dan API sama-sama lewat sini).
-/// Urutan save (RFC §6): metadata aktif → authorize → load & concurrency → normalize → permitted fields →
+/// Urutan save (RFC §6): metadata aktif → authorize → load &amp; concurrency → normalize → permitted fields →
 /// hooks → fetch/compute → validate → persist + audit + outbox dalam satu commit.
 /// </summary>
 public sealed class DocumentService(

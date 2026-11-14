@@ -1066,7 +1066,7 @@ public sealed class MetadataRegistry : IMetadataProvider
     public MetadataSnapshot Current => Volatile.Read(ref _current);
 
     /// <summary>
-    /// Memeriksa metadata yang sedang aktif terhadap master role & modul tenant TANPA mempublikasikan apa pun.
+    /// Memeriksa metadata yang sedang aktif terhadap master role &amp; modul tenant TANPA mempublikasikan apa pun.
     /// Dipakai saat startup untuk melaporkan metadata lama yang tidak lagi cocok dengan master.
     /// </summary>
     public IReadOnlyList<MetadataError> AuditAgainst(MetadataScope scope)
@@ -1143,7 +1143,7 @@ public sealed class MetadataRegistry : IMetadataProvider
             errors.Add(new(draft.Name, "docType", "Pilih DocType sebelum mengaitkan workflow"));
         var (docs, wfs, attached) = WithWorkflow(draft, attach);
         var changes = WorkflowDiff.Compare(existing, draft).ToList();
-        if (attached is not null)
+        if (attached is not null && !string.IsNullOrWhiteSpace(draft.DocType))
             changes.AddRange(MetadataDiff.Compare(_current.Get(draft.DocType).Def, attached)
                 .Select(c => c with { Path = $"{draft.DocType}.{c.Path}", Description = $"{draft.DocType}: {c.Description}" }));
         MetadataSnapshot? snap = null;

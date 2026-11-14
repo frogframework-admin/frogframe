@@ -150,7 +150,7 @@ public static class ServiceCollectionExtensions
         {
             var cfg = sp.GetService<IConfiguration>();
             var smtpHost = cfg?["Email:SmtpHost"];
-            if (!string.IsNullOrWhiteSpace(smtpHost))
+            if (cfg is not null && !string.IsNullOrWhiteSpace(smtpHost))
             {
                 var opts = new SmtpEmailOptions
                 {

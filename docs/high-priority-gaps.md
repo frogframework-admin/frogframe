@@ -118,10 +118,10 @@ In Frappe, base DocType schemas are immutable properties of the application code
 ## 2. Server Scripting & Client Scripting
 
 ### Current State
-Custom business logic in FrogFrame is currently restricted to:
+Custom business logic in FrogFrame was previously restricted to:
 - Declarative expressions (`Compute`, `RuleDef`).
 - Predefined declarative hooks (e.g. `Reject`, `SetField`, `EmitEvent`).
-- Hardcoded C# implementations in `Apps.Sample/Hooks`, which require code modification, compilation, and application redeployment.
+- Hardcoded C# implementations in `Apps.Erp/Hooks`, which require code modification, compilation, and application redeployment.
 
 ### Target Architecture (Frappe Parity)
 Frappe provides **Server Scripts** (restricted Python executed on document events, API endpoints, and scheduled cron jobs) and **Client Scripts** (browser-side JavaScript controlling form behavior and UI interactions).

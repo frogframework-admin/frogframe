@@ -15,11 +15,11 @@ Welcome to the **FrogFramework** developer guides, architectural blueprints, and
 ## Running Locally
 
 ```bash
-# Run the host sample application (opens http://localhost:5080)
-dotnet run --project src/Apps.Sample
+# Run the host ERP application (opens http://localhost:5080)
+dotnet run --project src/Apps.Erp
 
 # Run unit and integration tests
-dotnet test
+dotnet run --project tests/Framework.Tests
 ```
 
 ---
@@ -28,6 +28,7 @@ dotnet test
 
 ### Core Features & Workflows
 - **[DocTypes & Visual Workflows](guides/doctype-and-workflows.md)**: Designing metadata schemas, dynamic UI forms, and state machine workflows.
+- **[DocType & Workflow Catalog](guides/doctype-and-workflow-catalog.md)**: Complete reference of all 146 ERP DocTypes across 7 modules and 8 multi-stage workflows.
 - **[Outbound Webhooks](webhooks.md)**: HMAC-signed, SSRF-protected event dispatching with deduplicated delivery queue and exponential retries.
 - **[Auto Repeat (Recurring Documents)](auto-repeat.md)**: Automated recurring document generation with catch-up logic and concurrency safeguards.
 - **[C# Server Scripts (Roslyn Sandbox)](server-scripts.md)**: In-process sandboxed C# Roslyn compilation for DocEvents, Custom APIs, and Cron jobs.

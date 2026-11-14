@@ -615,7 +615,12 @@ sealed partial class Tests
     public async Task Pg_migrasi_doctype_memvalidasi_jumlah_sebelum_transaksi_dan_menerbitkan_bersama()
     {
         var reg = sp.GetRequiredService<MetadataRegistry>();
-        var source = reg.Current.Get("Vendor");
+        var baseVendor = MetadataJson.ParseDocType(MetadataJson.Serialize(reg.Current.Get("Vendor").Def));
+        baseVendor.Name = "CustomVendorPgMigrate";
+        reg.Publish(baseVendor, "admin", acknowledgeRisk: false);
+        var seeded = await Docs.InsertAsync(U("rina"), "CustomVendorPgMigrate", P(("vendor_name", "PT Migrasi Awal")));
+
+        var source = reg.Current.Get("CustomVendorPgMigrate");
         var draft = MetadataJson.ParseDocType(MetadataJson.Serialize(source.Def));
         draft.Version = source.Version + 1;
         draft.Fields.Add(new FieldDef { Name = "migration_marker", Type = "Data", Label = "Migration marker" });
@@ -631,23 +636,23 @@ sealed partial class Tests
         var preview = reg.PreviewDataMigration(draft);
         Assert.True(preview.Valid && preview.Documents > 0, "preview succeeds for seeded vendor documents");
         var store = sp.GetRequiredService<IDocumentStore>();
-        var before = await store.GetAsync("acme", "Vendor", "VND-0001");
+        var before = await store.GetAsync("acme", "CustomVendorPgMigrate", seeded.Name);
         Assert.True(before is not null && !before.Data.ContainsKey("migration_marker"), "source row not changed by dry-run");
 
         await Assert.Throws<InvalidOperationException>(
             () => Task.Run(() => reg.Publish(draft, "admin", acknowledgeRisk: true, preview.Documents + 1)),
             "changed dry-run count aborts publish");
-        Assert.Equal(source.Version, reg.Current.Get("Vendor").Version, "failed migration leaves active metadata unchanged");
-        var afterFailedPublish = await store.GetAsync("acme", "Vendor", "VND-0001");
+        Assert.Equal(source.Version, reg.Current.Get("CustomVendorPgMigrate").Version, "failed migration leaves active metadata unchanged");
+        var afterFailedPublish = await store.GetAsync("acme", "CustomVendorPgMigrate", seeded.Name);
         Assert.True(afterFailedPublish is not null && !afterFailedPublish.Data.ContainsKey("migration_marker"), "failed publish rolls back document transforms");
 
         reg.Publish(draft, "admin", acknowledgeRisk: true, preview.Documents);
-        var migrated = await store.GetAsync("acme", "Vendor", "VND-0001");
-        Assert.Equal(source.Version + 1, reg.Current.Get("Vendor").Version, "new metadata becomes active");
+        var migrated = await store.GetAsync("acme", "CustomVendorPgMigrate", seeded.Name);
+        Assert.Equal(source.Version + 1, reg.Current.Get("CustomVendorPgMigrate").Version, "new metadata becomes active");
         Assert.True(migrated is not null && Equals(migrated.Data["migration_marker"], "migrated"), "document transformed");
         Assert.Equal(source.Version + 1, migrated!.SchemaVersion, "document records target schema version");
-        Assert.True(reg.Current.Get("Vendor").Def.DataMigration is null, "applied plan is not replayed after publish");
-        Assert.True((await store.GetAuditAsync("acme", "Vendor", "VND-0001")).Any(a => a.Action == "Migrate"), "migration audit is written");
+        Assert.True(reg.Current.Get("CustomVendorPgMigrate").Def.DataMigration is null, "applied plan is not replayed after publish");
+        Assert.True((await store.GetAuditAsync("acme", "CustomVendorPgMigrate", seeded.Name)).Any(a => a.Action == "Migrate"), "migration audit is written");
     }
 
     // ---------------- Report ----------------
@@ -1371,7 +1376,7 @@ sealed partial class Tests
 
         Assert.True((await dash.ListAsync(U("andi"))).All(w => w.Id != saved.Id), "role lain tidak melihat widget");
         var all = await dash.RunWidgetAsync(U("dewi"), reloaded, new DashboardFilters(null, null, null));
-        var it = await dash.RunWidgetAsync(U("dewi"), reloaded, new DashboardFilters(null, null, "Marketing"));
+        var it = await dash.RunWidgetAsync(U("dewi"), reloaded, new DashboardFilters(null, null, "MARKETING"));
         Assert.True(all.Error is null && it.Error is null, "berjalan: " + (all.Error ?? it.Error));
         decimal Sum(WidgetRun r) => r.Result!.Rows.Sum(x => (decimal)x[1]!);
         Assert.True(Sum(it) < Sum(all) && it.Result!.Rows.Count >= 1, "filter global departemen diikat ke parameter");
@@ -1386,10 +1391,10 @@ sealed partial class Tests
     {
         var reg = sp.GetRequiredService<MetadataRegistry>();
         var v2 = MetadataJson.ParseDocType(MetadataJson.Serialize(reg.Current.Get("Vendor").Def));
-        v2.Version = 2; v2.Fields.Add(new FieldDef { Name = "rating", Type = "Int", Label = "Rating" });
+        v2.Version = 2; v2.Fields.Add(new FieldDef { Name = "custom_rating", Type = "Int", Label = "Rating" });
         reg.Publish(v2, "admin", acknowledgeRisk: false);
         await sp.SyncReportingSchemaAsync();
-        var r = await Sql("acme", "SELECT COUNT(*) AS n, MAX(rating) AS r FROM reporting.vendor");
+        var r = await Sql("acme", "SELECT COUNT(*) AS n, MAX(custom_rating) AS r FROM reporting.vendor");
         Assert.True(r.Columns.Any(c => c.Name == "r" && c.Kind == "number"), "kolom baru tersedia sebagai angka");
         var restricted = await Assert.Throws<QueryRejectedException>(() => Sql("acme", "SELECT budget_code FROM reporting.purchase_request"), "field level izin 1");
         Assert.True(restricted.Message.Contains("budget_code"), "field terbatas tidak diekspos");
@@ -1594,11 +1599,11 @@ sealed partial class Tests
         var restarted = await BuildProviderAsync();
         await SeedAsync(restarted);
         var reg2 = restarted.GetRequiredService<MetadataRegistry>();
-        Assert.Equal(2, reg2.Current.Get("Vendor").Version, "versi metadata hasil publish tetap aktif");
+        Assert.Equal(1, reg2.Customization("Vendor")!.Version, "versi customization hasil publish tetap aktif");
         Assert.Equal("Nama perusahaan", reg2.Current.Get("Vendor").ByName["vendor_name"].Label, "definisi v2 dimuat dari database");
         var docs2 = restarted.GetRequiredService<DocumentService>();
         var again = await docs2.GetAsync(U("rina"), "Vendor", vendor.Name);
-        Assert.Equal("PT Setelah Restart", again.Data["vendor_name"], "dokumen tersimpan");
+        Assert.Equal("Pt Setelah Restart", again.Data["vendor_name"], "dokumen tersimpan");
         var employees = await docs2.ListAsync(U("admin"), "Employee", new ListRequest());
         Assert.Equal(8, employees.Total, "seeder tidak mengisi ulang data");
         var pr = await docs2.GetAsync(U("andi"), PR, "PR-2026-00001");

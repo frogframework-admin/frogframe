@@ -1,4 +1,4 @@
-﻿# FrogFramework — Production Readiness Checklist & Operational Roadmap
+# FrogFramework — Production Readiness Checklist & Operational Roadmap
 
 > **Status Reference**: This document serves as the master production readiness checklist, operational gap analysis, and deployment hardening roadmap for **FrogFramework**. It tracks prerequisites required before enterprise production deployments, scaling phases, and Day-2 operations.
 
@@ -23,11 +23,11 @@ The following baseline pillars are already implemented, tested, and passing:
   - Automated build and test on .NET 10 SDK with Release configuration.
   - Integration testing with PostgreSQL 17 alpine service container and reporting read-only role setup.
   - Automated dependency vulnerability checks (`dotnet list package --vulnerable --include-transitive`).
-  - Unit and integration test suite passing (142 In-Memory tests passed; 34 PostgreSQL integration tests passed in CI).
+  - Unit and integration test suite passing (250 In-Memory tests passed; 34 PostgreSQL integration tests passed in CI).
 - [x] **Documentation & Site Deployment (`.github/workflows/deploy-docs.yml`)**:
   - Automated DocFX build and deployment to GitHub Pages.
 - [x] **Modular Enterprise Architecture**:
-  - Clean separation across `Framework.Core`, `Framework.Persistence.PostgreSql`, `Framework.Web`, and `Apps.Sample`.
+  - Clean separation across `Framework.Core`, `Framework.Scripting`, `Framework.Persistence.PostgreSql`, `Framework.Web`, and `Apps.Erp`.
   - Zero external third-party dependencies for OpenXML reporting and SVG chart rendering.
 - [x] **Security Baseline & OWASP Controls**:
   - XML data protection keys persisted in PostgreSQL (`019_data_protection_keys.sql`).

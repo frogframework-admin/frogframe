@@ -5,8 +5,8 @@
 </p>
 
 [![.NET 10](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
-[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL_3.0-blue.svg)](LICENSE)
-[![Build & Test](https://img.shields.io/badge/Tests-152%20Passing-brightgreen.svg)]()
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL_3.0-blue.svg)](https://github.com/frogframework-admin/frogframe/blob/main/LICENSE)
+[![Build & Test](https://img.shields.io/badge/Tests-284%20Passing-brightgreen.svg)]()
 [![Documentation](https://img.shields.io/badge/Docs-DocFX-informational.svg)](docs/index.md)
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/frogframework-admin/frogframe)
 
@@ -84,7 +84,7 @@ Run and explore FrogFramework directly in your browser without local setup:
 
 Once the Codespace opens, start the application via terminal:
 ```bash
-dotnet run --project src/Apps.Sample
+dotnet run --project src/Apps.Erp
 ```
 Codespaces will automatically forward port `5080` and launch the web portal.
 
@@ -95,11 +95,11 @@ Codespaces will automatically forward port `5080` and launch the web portal.
 ### Running Locally (In-Memory Mode)
 
 ```bash
-# Run the host sample application (opens on http://localhost:5080)
-dotnet run --project src/Apps.Sample
+# Run the host ERP application (opens on http://localhost:5080)
+dotnet run --project src/Apps.Erp
 
 # Run the automated test suite
-dotnet test
+dotnet run --project tests/Framework.Tests
 ```
 
 Demo seed data is generated automatically upon startup. Seeding executes through the standard `DocumentService` pipeline, ensuring that validations and workflows are verified during application boot.
@@ -115,7 +115,7 @@ docker compose -f docker-compose.yml -f docker-compose.demo.yml up -d postgres
 
 # 3. Run the application with PostgreSQL provider
 #    (use POSTGRES_PASSWORD / FROGFRAME_RO_PASSWORD from .env in the connection strings)
-dotnet run --project src/Apps.Sample --Persistence:Provider=PostgreSql
+dotnet run --project src/Apps.Erp --Persistence:Provider=PostgreSql
 ```
 
 ### Running with Docker Compose
@@ -144,9 +144,10 @@ FrogFramework is divided into four cleanly decoupled projects:
 FrogFramework/
 ├── src/
 │   ├── Framework.Core/               # Pure domain & metadata compiler (no web dependencies)
+│   ├── Framework.Scripting/          # Sandboxed C# Roslyn server & client scripting
 │   ├── Framework.Persistence.PostgreSql/ # Production storage, index sync & analytics
 │   ├── Framework.Web/                # Blazor UI, Identity, REST endpoints & Adapters
-│   └── Apps.Sample/                  # Sample application host & Procurement/HR pilot
+│   └── Apps.Erp/                     # Enterprise ERP host (146 DocTypes & 8 Workflows)
 ├── tests/
 │   └── Framework.Tests/              # Unit, integration, and benchmark test suite
 └── docs/                             # Technical documentation & guides (DocFX)
@@ -270,4 +271,4 @@ The complete technical documentation, architecture specifications, and .NET API 
 
 ## License
 
-FrogFramework is licensed under the [GNU Affero General Public License v3.0](LICENSE).
+FrogFramework is licensed under the [GNU Affero General Public License v3.0](https://github.com/frogframework-admin/frogframe/blob/main/LICENSE).

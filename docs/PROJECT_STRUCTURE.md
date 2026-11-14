@@ -14,7 +14,7 @@
    - [5.1 `Framework.Core` — Pure Domain & Metadata Engine](#51-frameworkcore--pure-domain--metadata-engine)
    - [5.2 `Framework.Persistence.PostgreSql` — Production Storage & Analytics Engine](#52-frameworkpersistencepostgresql--production-storage--analytics-engine)
    - [5.3 `Framework.Web` — Blazor Blueprint UI, Identity & REST Adapters](#53-frameworkweb--blazor-blueprint-ui-identity--rest-adapters)
-   - [5.4 `Apps.Sample` — Host Application & Procurement/HR Pilot](#54-appssample--host-application--procurementhr-pilot)
+   - [5.4 `Apps.Erp` — Host Application & Enterprise ERP Suite](#54-appserp--host-application--enterprise-erp-suite)
    - [5.5 `Framework.Tests` — Verification & Benchmark Suite](#55-frameworktests--verification--benchmark-suite)
 6. [Deep-Dive into Core Subsystems](#6-deep-dive-into-core-subsystems)
    - [6.1 Metadata Compiler, Versioning & Risk Classification](#61-metadata-compiler-versioning--risk-classification)
@@ -135,22 +135,25 @@ As documented in the *World 2 Analytics Layer Architecture Specification*, JSONB
 
 ## 4. Solution Overview & Dependency Graph
 
-The solution (`FrogFrame.sln`) is organized into **4 source projects** under `src/`, **1 test & benchmark project** under `tests/`, and deployment artifacts under `deploy/`.
+The solution (`FrogFrame.sln`) is organized into **5 source projects** under `src/`, **1 test & benchmark project** under `tests/`, and deployment artifacts under `deploy/`.
 
 ```mermaid
 graph TD
-    Sample["Apps.Sample (Executable Host, Seed Data, Pilot Domain and Metadata)"]
+    Erp["Apps.Erp (Executable Host, Seed Data, 146 DocTypes & 8 Workflows ERP Suite)"]
     Web["Framework.Web (Blazor Blueprint UI, REST APIs, Identity, Dashboards, OpenXML)"]
+    Script["Framework.Scripting (Sandboxed C# Roslyn Engine & Facade)"]
     Pg["Framework.Persistence.PostgreSql (Npgsql Stores, Migrations, Auto-Indexes, Read-Only SQL Executor)"]
     Core["Framework.Core (Pure .NET Domain, Metadata Compiler, AST Expressions, DocumentService)"]
     Tests["Framework.Tests (In-Memory and PostgreSQL Test Suite + 1M-Row Benchmark)"]
 
-    Sample --> Web
-    Sample --> Pg
-    Sample --> Core
+    Erp --> Web
+    Erp --> Pg
+    Erp --> Core
+    Web --> Script
     Web --> Core
+    Script --> Core
     Pg --> Core
-    Tests --> Sample
+    Tests --> Erp
     Tests --> Web
     Tests --> Pg
     Tests --> Core
@@ -158,11 +161,12 @@ graph TD
 
 | Project | Target SDK | Layer / Role | External Dependencies |
 | :--- | :--- | :--- | :--- |
-| **[Framework.Core](file:///d:/Side%20Projects/DocFrame/src/Framework.Core/Framework.Core.csproj)** | `Microsoft.NET.Sdk` (`net10.0`) | Pure Core Domain & Engine | **None** (Zero NuGet packages; pure BCL) |
+| **[Framework.Core](file:///d:/Side%20Projects/DocFrame/src/Framework.Core/Framework.Core.csproj)** | `Microsoft.NET.Sdk` (`net10.0`) | Pure Core Domain & Engine | `MailKit` / `MimeKit` |
+| **[Framework.Scripting](file:///d:/Side%20Projects/DocFrame/src/Framework.Scripting/Framework.Scripting.csproj)** | `Microsoft.NET.Sdk` (`net10.0`) | C# Roslyn Sandboxed Scripting | `Microsoft.CodeAnalysis.CSharp.Scripting` |
 | **[Framework.Persistence.PostgreSql](file:///d:/Side%20Projects/DocFrame/src/Framework.Persistence.PostgreSql/Framework.Persistence.PostgreSql.csproj)** | `Microsoft.NET.Sdk` (`net10.0`) | PostgreSQL Persistence & Analytics | `Npgsql` (10.0.3), `Microsoft.Extensions.Logging.Abstractions` |
 | **[Framework.Web](file:///d:/Side%20Projects/DocFrame/src/Framework.Web/Framework.Web.csproj)** | `Microsoft.NET.Sdk.Razor` (`net10.0`) | Web UI (Blazor Server) & HTTP APIs | `BlazorBlueprint.Components` (4.1.0), ASP.NET Core shared framework |
-| **[Apps.Sample](file:///d:/Side%20Projects/DocFrame/src/Apps.Sample/Apps.Sample.csproj)** | `Microsoft.NET.Sdk.Web` (`net10.0`) | Runnable Host & Sample Pilot App | References `Core`, `Persistence.PostgreSql`, and `Web` |
-| **[Framework.Tests](file:///d:/Side%20Projects/DocFrame/tests/Framework.Tests/Framework.Tests.csproj)** | `Microsoft.NET.Sdk` (`net10.0`) | Automated Tests & Benchmarks | References all 4 `src/` projects |
+| **[Apps.Erp](file:///d:/Side%20Projects/DocFrame/src/Apps.Erp/Apps.Erp.csproj)** | `Microsoft.NET.Sdk.Web` (`net10.0`) | Runnable Host & Enterprise ERP App | References `Core`, `Persistence.PostgreSql`, and `Web` |
+| **[Framework.Tests](file:///d:/Side%20Projects/DocFrame/tests/Framework.Tests/Framework.Tests.csproj)** | `Microsoft.NET.Sdk` (`net10.0`) | Automated Tests & Benchmarks | References all `src/` projects |
 
 ---
 
@@ -338,24 +342,36 @@ src/Framework.Web/
 └── WebServiceCollectionExtensions.cs # AddFrogFrameworkWeb() and MapFrogFramework() setup
 ```
 
-### 5.4 `Apps.Sample` — Host Application & Procurement/HR Pilot
-Located at [src/Apps.Sample](file:///d:/Side%20Projects/DocFrame/src/Apps.Sample), this is the executable entry point that wires the framework together and implements the **Procurement (Pengajuan Pembelian)** and **HR (Karyawan & Departemen)** pilot modules.
+### 5.4 `Apps.Erp` — Host Application & Enterprise ERP Suite
+Located at [src/Apps.Erp](file:///d:/Side%20Projects/DocFrame/src/Apps.Erp), this is the executable entry point that wires the framework together and implements the complete **Enterprise ERP Suite** across 7 modules (`CORE`, `HR`, `PROCUREMENT`, `ACCOUNTING`, `FINANCE`, `CRM`, `STOCK`) with 146 DocTypes and 8 Workflows (see [DocType & Workflow Catalog](guides/doctype-and-workflow-catalog.md)).
 
 ```text
-src/Apps.Sample/
-├── Domain/
-│   └── Procurement.cs           # PurchaseRequestHandler, NpwpValidator, SisaAnggaranMethod, AjukanMassalMethod,
-│                                # PurchaseSummaryReport, PendingApprovalReport, and startup Seeder
-├── Metadata/
-│   ├── Department.doctype.json  # Self-linking hierarchical Department DocType (naming: field:code)
-│   ├── Employee.doctype.json    # Employee DocType with supervisor self-link (atasan_id) and photo (Image)
-│   ├── Product.doctype.json     # Product catalog DocType with image and standard price
-│   ├── PurchaseRequest.doctype.json # Pilot header DocType with child table addFromLookup & printFormat
-│   ├── PurchaseRequestApproval.workflow.json # 2-tier approval workflow (Manager <= 10M, Finance > 10M)
-│   ├── PurchaseRequestItem.doctype.json # Child table DocType (qty * rate compute)
-│   └── Vendor.doctype.json      # Vendor master DocType with custom NPWP validator
-├── Pages/
+src/Apps.Erp/
+├── Accounting/
+│   ├── Ledger.cs                # Double-entry general ledger domain & hash chain verification
+│   ├── InMemoryLedger*.cs       # In-memory ledger store & reader
+│   └── PostgresLedger*.cs       # PostgreSQL append-only ledger extension handler & reader
+├── Components/
+│   ├── Pages/OrgChart.razor     # Interactive Organization Unit & Position hierarchy tree
 │   └── App.razor                # Root HTML document shell loading theme.css, blazorblueprint.css, desk.css
+├── Hooks/
+│   ├── Common.cs                # Shared ERP validation, exchange rate, open-item, and posting helpers
+│   ├── AccountingHooks.cs       # Chart of Accounts, FiscalYear, AccountingPeriod, JournalEntry, Budget
+│   ├── InvoiceHooks.cs          # SalesInvoice, PurchaseInvoice, Credit/Debit Notes, 3-way match
+│   ├── PaymentHooks.cs          # PaymentEntry, BankReconciliation, PaymentRun, Tax & Withholding
+│   ├── ProcurementHooks.cs      # PurchaseRequest, PurchaseOrder, GoodsReceipt
+│   ├── StockHooks.cs            # StockEntry, StockReconciliation, perpetual inventory valuation
+│   ├── HrHooks.cs               # Employee, Position, OrganizationUnit, JobChange, Leave, Attendance
+│   ├── PayrollHooks.cs          # SalaryAssignment, Payslip, PayrollRun (BPJS & PPh 21 TER)
+│   └── CrmHooks.cs              # Lead conversion, Opportunity pipeline, Quotation, SalesOrder, Commission
+├── Metadata/
+│   ├── *.doctype.json           # 146 DocType schemas across CORE, HR, PROCUREMENT, ACCOUNTING, FINANCE, CRM, STOCK
+│   └── *.workflow.json          # 8 multi-stage approval and lifecycle workflows
+├── Migrations/
+│   └── 025_gl_entries.sql       # Immutable general ledger table (frogframe_gl_entries) & hash chain triggers
+├── Reports/
+│   └── ErpReports.cs            # 15 built-in financial, tax, stock, HR,payroll, and CRM reports
+├── ErpRegistration.cs           # AddErpAccounting() and AddErpHooks() DI registration
 ├── Program.cs                   # Application bootstrapper (switches In-Memory vs. PostgreSQL via config)
 ├── appsettings.json             # Default configuration (Persistence, ConnectionStrings, Print, Reports, Import, Api)
 └── appsettings.Development.json # Development overrides (Demo:SeedData = true)
@@ -559,6 +575,7 @@ All migrations live in `src/Framework.Persistence.PostgreSql/Migrations/` and ar
 | `022_notification_rules.sql` | `frogframe_notification_rules` | Configurable event-driven notification rules (in-app, email) triggered on document insert, update, or workflow state transition. |
 | `023_user_preferences.sql` | `frogframe_user_preferences` | User UI preferences (theme, language, default pagination sizes, collapse states). |
 | `024_navigation_module_code.sql` | `frogframe_navigation_modules.code` | Unique module code column on navigation modules. |
+| `025_gl_entries.sql` *(in `Apps.Erp`)* | `frogframe_gl_entries` | Append-only double-entry general ledger table with cryptographic hash chain integrity and immutability triggers. |
 | `026_standalone_dashboards.sql` | `frogframe_dashboards_v2` | Standalone full-page analytics dashboards with custom layouts and grid positioning. |
 | `027_webhooks.sql` | `frogframe_webhooks`, `frogframe_webhook_deliveries` | Outbound HTTP webhooks with HMAC-SHA256 signature, retry queue, and delivery log. |
 | `028_auto_repeat.sql` | `frogframe_auto_repeats`, `frogframe_auto_repeat_runs` | Recurring document scheduler (daily, weekly, monthly, quarterly, yearly auto-generation). |
@@ -671,7 +688,7 @@ All migrations live in `src/Framework.Persistence.PostgreSql/Migrations/` and ar
 ### 9.2 Local Development & Docker Redeployment Workflow
 - **Run Locally (In-Memory)**:
   ```powershell
-  dotnet run --project src/Apps.Sample
+  dotnet run --project src/Apps.Erp
   ```
 - **Run Automated Tests**:
   ```powershell
@@ -682,7 +699,7 @@ All migrations live in `src/Framework.Persistence.PostgreSql/Migrations/` and ar
   ```powershell
   .\redeploy.ps1
   ```
-  *(Under the hood, `redeploy.ps1` runs `dotnet publish src/Apps.Sample/Apps.Sample.csproj -c Release -o ./publish --no-restore -m:1 /p:UseSharedCompilation=false` followed by `docker compose up -d --build app`.)*
+  *(Under the hood, `redeploy.ps1` runs `dotnet publish src/Apps.Erp/Apps.Erp.csproj -c Release -o ./publish` followed by `docker compose up -d --build app`.)*
 
 ---
 
@@ -692,7 +709,7 @@ All migrations live in `src/Framework.Persistence.PostgreSql/Migrations/` and ar
 1. **Via UI (Recommended for System Managers)**:
    Navigate to `/admin/metadata/new`, enter the title and module, choose a template (*Dengan persetujuan*, *Sederhana*, or *Kosong*), design fields in `/admin/metadata/{DocType}/editor`, preview changes, and click **Publikasikan**. The DocType is immediately saved to `frogframe_metadata_versions`, registered in the Master Navigation Menu, indexed by `DocumentIndexSync`, and exposed as `reporting.<doctype>`.
 2. **Via JSON File (For Version-Controlled Base Modules)**:
-   Create `src/Apps.Sample/Metadata/<Name>.doctype.json` (and optional `<Name>Approval.workflow.json`). On startup, `FileMetadataLoader` compiles and publishes any file whose `version` is newer than the database version.
+   Create `src/Apps.Erp/Metadata/<Name>.doctype.json` (and optional `<Name>Approval.workflow.json`). On startup, `FileMetadataLoader` compiles and publishes any file whose `version` is newer than the database version.
 
 ### 10.2 Adding Custom C# Document Lifecycle Logic (`IDocumentHandler`)
 Create a class inheriting `DocumentHandlerBase` (which implements `IBeforeValidate`, `IBeforeSave`, `IAfterSave`, `IBeforeSubmit`, `IAfterSubmit`, `IBeforeCancel`, `IAfterCancel`) and register it in `Program.cs`:

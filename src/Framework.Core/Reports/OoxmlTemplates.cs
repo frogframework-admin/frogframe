@@ -53,7 +53,7 @@ public static class TemplateTags
 
     private static string? Fmt(Match m) => m.Groups["fmt"].Success && m.Groups["fmt"].Value.Trim().Length > 0 ? m.Groups["fmt"].Value.Trim() : null;
 
-    /// <summary>Mencocokkan tag dengan kolom hasil query & parameter. Mengembalikan daftar masalah (kosong = valid).</summary>
+    /// <summary>Mencocokkan tag dengan kolom hasil query &amp; parameter. Mengembalikan daftar masalah (kosong = valid).</summary>
     public static IReadOnlyList<string> Validate(IEnumerable<TemplateTag> tags, IReadOnlyList<ResultColumn> detail,
         IReadOnlyList<ResultColumn>? header, IEnumerable<string> parameters)
     {

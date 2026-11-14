@@ -106,7 +106,7 @@ public sealed class DocumentIndexSync(SchemaDataSource schema, IMetadataProvider
             var existing = new Dictionary<string, bool>(); // nama → valid
             await using (var cmd = new NpgsqlCommand(
                 "SELECT c.relname, i.indisvalid FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid " +
-                "JOIN pg_class t ON t.oid = i.indrelid WHERE t.relname = 'frogframe_documents' AND c.relname LIKE 'ix\\_df\\_%'", conn))
+                "JOIN pg_class t ON t.oid = i.indrelid WHERE t.relname = 'frogframe_documents' AND c.relname LIKE 'ix\\_ff\\_%'", conn))
             await using (var r = await cmd.ExecuteReaderAsync(ct))
                 while (await r.ReadAsync(ct)) existing[r.GetString(0)] = r.GetBoolean(1);
 

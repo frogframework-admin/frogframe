@@ -5,7 +5,7 @@ using Framework.Security;
 namespace Framework.Web.QueryApis;
 
 /// <summary>
-/// Option to "Also publish as API" in the dashboard widget & report template wizard: same query and parameters
+/// Option to "Also publish as API" in the dashboard widget &amp; report template wizard: same query and parameters
 /// published at /api/query/{slug} and updated whenever the source is saved. Checking then unchecking deletes the API.
 /// </summary>
 public sealed class ApiPublishOption

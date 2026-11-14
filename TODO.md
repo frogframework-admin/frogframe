@@ -14,8 +14,8 @@ For full architectural context and runbooks, refer to [Production Readiness Guid
   - NuGet package vulnerability scanning.
 - [x] **Automated Documentation Pipeline** (`.github/workflows/deploy-docs.yml`):
   - DocFX generation and deployment to GitHub Pages.
-- [x] **Clean 4-Project Architecture**:
-  - `Framework.Core`, `Framework.Persistence.PostgreSql`, `Framework.Web`, `Apps.Sample`.
+- [x] **Clean Multi-Project Architecture**:
+  - `Framework.Core`, `Framework.Scripting`, `Framework.Persistence.PostgreSql`, `Framework.Web`, `Apps.Erp`.
 - [x] **OWASP Top 10 Security Hardening**:
   - Data protection key persistence in PostgreSQL, anti-tamper forms, IDOR mitigation, SQL injection prevention.
 - [x] **Distributed Locking & Concurrency Control**:
@@ -77,8 +77,8 @@ For full architectural context and runbooks, refer to [Production Readiness Guid
   - Complete Tenant Provisioning, Role Management, and Operational Troubleshooting Runbooks.
 - [ ] **Formalized Service Level Objectives (SLOs)**:
   - Document availability targets, p95 latency SLOs, and quarterly DR drill schedules.
-- [ ] **Test Badge & Documentation Alignment**:
-  - Synchronize README test badges with latest CI test counts (142 In-Memory + 34 PostgreSQL = 176 total).
+- [x] **Test Badge & Documentation Alignment**:
+  - Synchronize README test badges with latest CI test counts (250 In-Memory + 34 PostgreSQL = 284 total).
 
 ---
 
@@ -99,10 +99,12 @@ For full architectural context and runbooks, refer to [Production Readiness Guid
 
 ### Priority 2: Platform Scalability & Extensibility (P2)
 
-- [ ] **Custom Fields / Customize Form per Tenant**:
-  - Add or reorder DocType fields dynamically from web UI per tenant without modifying base JSON schemas.
-- [ ] **Webhooks Dispatcher**:
-  - Outbox-driven document event payload dispatcher to external webhook URLs with HMAC signatures and auto-retries.
+- [x] **Custom Fields / Customize Form**:
+  - Add or reorder DocType fields dynamically from web UI without modifying base JSON schemas (`033_customizations.sql`).
+- [x] **Webhooks Dispatcher**:
+  - Outbox-driven document event payload dispatcher to external webhook URLs with HMAC signatures and auto-retries (`027_webhooks.sql`).
+- [x] **Auto Repeat & C# Roslyn Server Scripting**:
+  - Recurring documents (`028_auto_repeat.sql`), sandboxed C# Server & Client Scripts (`029_server_scripts.sql`, `034_client_scripts.sql`), and Inbound/Outbound Email Communications (`030_communications.sql`).
 - [ ] **Ad-Hoc Report Builder**:
   - Self-service builder for non-technical users to select columns, sort, filter, and group data into custom saved reports.
 - [ ] **Dynamic Row-Level Security (User Permissions per Record)**:
@@ -128,7 +130,7 @@ For full architectural context and runbooks, refer to [Production Readiness Guid
   - Interactive corporate letterhead manager and visual print template layout editor.
 - [ ] **Social Features**:
   - Color-coded document tags, personal bookmarks/favorites, and Follow Document subscriptions.
-- [ ] **Dynamic Multi-Language (i18n)**:
-  - Runtime UI localization toggle between English and Indonesian.
+- [x] **Dynamic Multi-Language (i18n)**:
+  - Runtime UI localization toggle between English and Indonesian (`035_translations.sql`).
 
 
