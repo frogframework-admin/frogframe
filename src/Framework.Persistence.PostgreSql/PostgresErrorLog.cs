@@ -32,9 +32,9 @@ public sealed class PostgresErrorLogStore(NpgsqlDataSource db) : IErrorLogStore
         await using var cmd = db.CreateCommand(
             "SELECT id, tenant_id, timestamp, method, path, user_id, error_type, message, stack_trace, seen " +
             "FROM frogframe_error_logs " +
-            "WHERE ($1 IS NULL OR tenant_id = $1) " +
+            "WHERE ($1::text IS NULL OR tenant_id = $1) " +
             "ORDER BY timestamp DESC LIMIT $2");
-        cmd.Parameters.AddWithValue((object?)tenantId ?? DBNull.Value);
+        cmd.Parameters.Add(new NpgsqlParameter { Value = (object?)tenantId ?? DBNull.Value, NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Text });
         cmd.Parameters.AddWithValue(limit);
 
         var list = new List<ErrorLogEntry>();
@@ -60,17 +60,17 @@ public sealed class PostgresErrorLogStore(NpgsqlDataSource db) : IErrorLogStore
 
     public async Task MarkSeenAsync(Guid id, string? tenantId = null, CancellationToken ct = default)
     {
-        await using var cmd = db.CreateCommand("UPDATE frogframe_error_logs SET seen = true WHERE id = $1 AND ($2 IS NULL OR tenant_id = $2)");
+        await using var cmd = db.CreateCommand("UPDATE frogframe_error_logs SET seen = true WHERE id = $1 AND ($2::text IS NULL OR tenant_id = $2)");
         cmd.Parameters.AddWithValue(id);
-        cmd.Parameters.AddWithValue((object?)tenantId ?? DBNull.Value);
+        cmd.Parameters.Add(new NpgsqlParameter { Value = (object?)tenantId ?? DBNull.Value, NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Text });
         await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
     }
 
     public async Task ClearAsync(string? tenantId = null, CancellationToken ct = default)
     {
         await using var cmd = db.CreateCommand(
-            "DELETE FROM frogframe_error_logs WHERE ($1 IS NULL OR tenant_id = $1)");
-        cmd.Parameters.AddWithValue((object?)tenantId ?? DBNull.Value);
+            "DELETE FROM frogframe_error_logs WHERE ($1::text IS NULL OR tenant_id = $1)");
+        cmd.Parameters.Add(new NpgsqlParameter { Value = (object?)tenantId ?? DBNull.Value, NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Text });
         await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
     }
 }

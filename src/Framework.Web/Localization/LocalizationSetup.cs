@@ -76,17 +76,25 @@ public static class LocalizationSetup
 
         app.MapGet("/ui/language/{code}", async (HttpContext http, string code, string? returnUrl) =>
         {
-            var language = Languages.Normalize(code);
-            if (language is null) return Results.BadRequest("Unsupported language.");
-            SetCookie(http, language);
-            if (ClaimsUserMapper.ToUserContext(http.User) is { } user)
-            {
-                var prefs = http.RequestServices.GetService<IUserPreferenceStore>();
-                if (prefs is not null) await prefs.SetAsync(user.TenantId, user.Id, PreferenceKey, language, http.RequestAborted);
-            }
+            if (await PersistLanguageAsync(http, code) is null) return Results.BadRequest("Unsupported language.");
             return Results.LocalRedirect(IsLocal(returnUrl) ? returnUrl! : "/");
         });
+        app.MapPost("/ui/language/{code}", async (HttpContext http, string code) =>
+            await PersistLanguageAsync(http, code) is null ? Results.BadRequest("Unsupported language.") : Results.NoContent());
         return app;
+    }
+
+    private static async Task<string?> PersistLanguageAsync(HttpContext http, string code)
+    {
+        var language = Languages.Normalize(code);
+        if (language is null) return null;
+        SetCookie(http, language);
+        if (ClaimsUserMapper.ToUserContext(http.User) is { } user)
+        {
+            var prefs = http.RequestServices.GetService<IUserPreferenceStore>();
+            if (prefs is not null) await prefs.SetAsync(user.TenantId, user.Id, PreferenceKey, language, http.RequestAborted);
+        }
+        return language;
     }
 
     internal static void SetCookie(HttpContext http, string language) =>

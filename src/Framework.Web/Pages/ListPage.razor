@@ -346,13 +346,10 @@ else if (meta is not null)
         colAccessors.Clear();
         ApplyDefaultGrouping();
         if (!Perms.Can(Current.Required, meta, DocActions.Read)) { fatalStatus = 403; fatal = T.Format("You do not have permission to view {0}.", T.Title(meta)); return; }
-        // Single DocType: tidak ada daftar; langsung buka dokumen tunggalnya (atau form baru bila belum ada).
+        // Single DocType: tidak ada daftar; langsung buka dokumen tunggalnya.
         if (meta.Def.IsSingle)
         {
-            var exists = true;
-            try { await Docs.GetAsync(Current.Required, DocType, DocType); }
-            catch (DocumentNotFoundException) { exists = false; }
-            Nav.NavigateTo($"/app/{DocType}/{(exists ? DocType : "new")}", replace: true);
+            Nav.NavigateTo($"/app/{DocType}/{DocType}", replace: true);
             return;
         }
 

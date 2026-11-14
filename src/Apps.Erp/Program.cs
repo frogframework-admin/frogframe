@@ -157,6 +157,19 @@ catch (Exception ex)
 // Akun awal dari konfigurasi "Bootstrap" (pilot / production).
 await BootstrapAdmin.EnsureAsync(app.Services, app.Configuration);
 
+// Pastikan sample demo users ter-seed / tersinkronisasi bila Demo:SeedData aktif atau di Development
+if (app.Environment.IsDevelopment() || app.Configuration.GetValue("Demo:SeedData", false))
+{
+    try
+    {
+        await Framework.Web.Services.DemoUsers.EnsureDemoUsersAsync(app.Services, app.Configuration["Demo:Password"]);
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogWarning(ex, "Gagal seed sample demo users");
+    }
+}
+
 app.Run();
 
 public partial class Program;

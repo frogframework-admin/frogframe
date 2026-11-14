@@ -1,0 +1,73 @@
+@inherits ErrorBoundary
+@using Framework.Observability
+@using Microsoft.Extensions.Logging
+@inject IErrorLogStore ErrorStore
+@inject CurrentUser Current
+@inject NavigationManager Nav
+@inject ILogger<FrogFrameErrorBoundary> Logger
+@inject UiText T
+
+@if (CurrentException is null)
+{
+    @ChildContent
+}
+else
+{
+    <div class="desk-error-boundary-card">
+        <div class="desk-error-header">
+            <div class="desk-error-icon-box">
+                <LucideIcon Name="triangle-alert" Size="28" Class="desk-error-icon" />
+            </div>
+            <div class="desk-error-text">
+                <h3 class="desk-error-title">@T["An error occurred on this page"]</h3>
+                <p class="desk-error-desc">@CurrentException.Message</p>
+            </div>
+        </div>
+        <div class="desk-error-actions">
+            <BbButton Variant="ButtonVariant.Default" OnClick="Recover">
+                <LucideIcon Name="rotate-cw" Size="16" /> @T["Try Again"]
+            </BbButton>
+            <BbButton Variant="ButtonVariant.Outline" OnClick='() => Nav.NavigateTo("/")'>
+                <LucideIcon Name="house" Size="16" /> @T["Back to Home"]
+            </BbButton>
+            @if (Current.User?.IsAdmin == true)
+            {
+                <BbButton Variant="ButtonVariant.Ghost" OnClick='() => Nav.NavigateTo("/admin/error-logs")'>
+                    <LucideIcon Name="file-text" Size="16" /> @T["View in Error Log"]
+                </BbButton>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    protected override async Task OnErrorAsync(Exception exception)
+    {
+        var user = Current.User;
+        var tenantId = user?.TenantId ?? "unknown";
+        var userId = user?.Id;
+        var relativePath = "/" + Nav.ToBaseRelativePath(Nav.Uri).Split('?')[0];
+
+        Logger.LogError(exception, "Unhandled Blazor exception on {Path}", relativePath);
+
+        try
+        {
+            await ErrorStore.LogAsync(new ErrorLogEntry
+            {
+                TenantId = tenantId,
+                UserId = userId,
+                Method = "BLAZOR",
+                Path = relativePath,
+                ErrorType = exception.GetType().FullName ?? exception.GetType().Name,
+                Message = exception.Message,
+                StackTrace = exception.StackTrace,
+                Timestamp = DateTimeOffset.UtcNow,
+                Seen = false
+            });
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to persist error log entry from ErrorBoundary");
+        }
+    }
+}

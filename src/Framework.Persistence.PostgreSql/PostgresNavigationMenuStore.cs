@@ -455,6 +455,16 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
             if (renamed > 0) added = true;
         }
 
+        // 8. Purge legacy Department menu items (replaced by OrganizationUnit)
+        await using (var delDeptCmd = db.CreateCommand(
+            "DELETE FROM frogframe_navigation_menus WHERE tenant_id = $1 AND (href = 'app/Department' OR id = $2)"))
+        {
+            delDeptCmd.Parameters.AddWithValue(tenantId);
+            delDeptCmd.Parameters.AddWithValue($"menu_{tenantId}_department");
+            var delDeptCount = await delDeptCmd.ExecuteNonQueryAsync(ct);
+            if (delDeptCount > 0) added = true;
+        }
+
         seededTenants[tenantId] = true;
         if (added) Changed?.Invoke();
     }

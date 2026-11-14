@@ -74,6 +74,7 @@
             options = found.Select(f => new SelectOption<string>(f.Name, string.IsNullOrEmpty(f.Title) ? f.Name : $"{f.Name} · {f.Title}")).ToList();
         }
         catch (PermissionDeniedException) { options = []; }
+        catch (Exception) { options = []; }
         finally { loading = false; }
     }
 

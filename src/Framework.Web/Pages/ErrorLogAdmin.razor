@@ -22,6 +22,10 @@ else
             <p>Unhandled server exceptions across HTTP endpoints, APIs, and background processes.</p>
         </div>
         <div class="row" style="gap:.5rem">
+            <BbButton Variant="@(showAllTenants ? ButtonVariant.Secondary : ButtonVariant.Outline)" OnClick="ToggleScopeAsync" Disabled="@busy">
+                <LucideIcon Name="@(showAllTenants ? "globe" : "building")" Size="16" />
+                @(showAllTenants ? "Scope: All & System" : $"Scope: {Current.Required.TenantId}")
+            </BbButton>
             <BbButton Variant="ButtonVariant.Outline" OnClick="ReloadAsync" Disabled="@busy">
                 <LucideIcon Name="refresh-cw" Size="16" /> Refresh
             </BbButton>
@@ -125,6 +129,13 @@ else
                 </CellTemplate>
             </BbDataGridPropertyColumn>
 
+            <BbDataGridPropertyColumn TData="ErrorLogEntry" TProp="string" Property="r => r.TenantId" Id="tenant" Title="Tenant"
+                                      Width="@gridMgr.GetWidth("tenant", "7rem")" Visible="@gridMgr.IsVisible("tenant")" Resizable="true" Sortable="true" Filterable="true">
+                <CellTemplate Context="item">
+                    <BbBadge Variant="BadgeVariant.Secondary">@item.TenantId</BbBadge>
+                </CellTemplate>
+            </BbDataGridPropertyColumn>
+
             <BbDataGridPropertyColumn TData="ErrorLogEntry" TProp="string" Property="r => r.Method" Id="method" Title="Method"
                                       Width="@gridMgr.GetWidth("method", "6rem")" Visible="@gridMgr.IsVisible("method")" Resizable="true" Sortable="true">
                 <CellTemplate Context="item">
@@ -186,10 +197,18 @@ else
     private bool busy;
     private Framework.Web.Services.DataGridPreferenceManager<ErrorLogEntry> gridMgr = default!;
 
+    private bool showAllTenants = true;
+
     protected override async Task OnInitializedAsync()
     {
         gridMgr = new(UserPrefs, Current, "grid:admin:errors", StateHasChanged);
         await gridMgr.InitializeAsync();
+        await ReloadAsync();
+    }
+
+    private async Task ToggleScopeAsync()
+    {
+        showAllTenants = !showAllTenants;
         await ReloadAsync();
     }
 
@@ -209,7 +228,7 @@ else
         busy = true;
         try
         {
-            var list = await ErrorStore.GetRecentAsync(Current.Required.TenantId, 100);
+            var list = await ErrorStore.GetRecentAsync(showAllTenants ? null : Current.Required.TenantId, 100);
             errors = list.ToList();
         }
         catch (Exception ex)
@@ -231,7 +250,7 @@ else
     {
         try
         {
-            await ErrorStore.MarkSeenAsync(entry.Id, Current.Required.TenantId);
+            await ErrorStore.MarkSeenAsync(entry.Id, null);
             var idx = errors.FindIndex(e => e.Id == entry.Id);
             if (idx >= 0)
             {
@@ -251,9 +270,10 @@ else
 
     private async Task ClearAllAsync()
     {
+        var scopeDesc = showAllTenants ? "all tenants and system processes" : $"tenant '{Current.Required.TenantId}'";
         var res = await Dialogs.ConfirmAsync(
-            "Clear all error logs?",
-            "All recorded error logs for this tenant will be permanently deleted. This action cannot be undone.",
+            "Clear error logs?",
+            $"All recorded error logs for {scopeDesc} will be permanently deleted. This action cannot be undone.",
             new ConfirmDialogOptions { Destructive = true, ConfirmText = "Clear Logs", CancelText = "Cancel" });
 
         if (!res.Confirmed) return;
@@ -261,7 +281,7 @@ else
         busy = true;
         try
         {
-            await ErrorStore.ClearAsync(Current.Required.TenantId);
+            await ErrorStore.ClearAsync(showAllTenants ? null : Current.Required.TenantId);
             selectedEntry = null;
             await ReloadAsync();
             Toasts.Success("Error logs cleared successfully.", "Cleared");

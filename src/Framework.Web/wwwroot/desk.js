@@ -47,6 +47,15 @@ window.frogframe = window.frogframe || {};
         }, 50);
     };
 
+    window.frogframe.setLanguage = function (code) {
+        if (!code) return;
+        document.documentElement.lang = code;
+        fetch('/ui/language/' + encodeURIComponent(code), {
+            method: 'POST',
+            credentials: 'same-origin'
+        }).catch(function () {});
+    };
+
     window.frogframe.toggleTheme = function () {
         var toggleBtn = document.querySelector('.theme-toggle button');
         if (toggleBtn) {

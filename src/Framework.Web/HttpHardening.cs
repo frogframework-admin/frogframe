@@ -145,7 +145,8 @@ public static class HttpHardeningExtensions
                         var errorStore = context.RequestServices.GetService<IErrorLogStore>();
                         if (errorStore is not null)
                         {
-                            var user = context.RequestServices.GetService<CurrentUser>()?.User;
+                            var user = context.RequestServices.GetService<CurrentUser>()?.User
+                                ?? Framework.Web.Identity.ClaimsUserMapper.ToUserContext(context.User);
                             var tenantId = user?.TenantId ?? context.Request.Headers["X-Tenant-ID"].FirstOrDefault() ?? "unknown";
                             var userId = user?.Id ?? context.User.Identity?.Name;
 

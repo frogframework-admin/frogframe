@@ -133,7 +133,7 @@
         try
         {
             error = null;
-            result = await Docs.ListAsync(Current.Required, Target, new ListRequest(Filters, search, null, null, page, PageSize));
+            result = await Docs.ListAsync(Current.Required, Target, new ListRequest(Filters, search, null, null, page, PageSize), allowAllReadableFields: true);
         }
         catch (Exception ex) when (ex is PermissionDeniedException or InvalidPayloadException or DocumentNotFoundException)
         {

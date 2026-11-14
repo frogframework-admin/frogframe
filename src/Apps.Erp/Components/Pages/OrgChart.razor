@@ -7,7 +7,7 @@
 <header class="page-head">
     <div>
         <h1>Organizational Structure</h1>
-        <p>Built from Department (parent department, head) and Employee (reports to) data. Click a node to view details.</p>
+        <p>Built from Organization Unit (parent unit, head) and Employee (reports to) data. Click a node to view details.</p>
     </div>
 </header>
 
@@ -15,26 +15,26 @@
 {
     <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@error</BbAlertDescription></BbAlert>
 }
-else if (employees is null || departments is null)
+else if (employees is null || orgUnits is null)
 {
     <div class="stack"><BbSkeleton Height="3rem" /><BbSkeleton Height="16rem" /></div>
 }
 else
 {
     <div class="org-stats">
-        <div><strong>@departments.Count</strong><span class="muted small">departments</span></div>
+        <div><strong>@orgUnits.Count</strong><span class="muted small">organization units</span></div>
         <div><strong>@ActiveEmployees.Count</strong><span class="muted small">active employees</span></div>
         <div><strong>@WithoutManager.Count</strong><span class="muted small">without supervisor</span></div>
     </div>
 
     <BbTabs Value="@view" ValueChanged="v => view = v ?? view">
         <BbTabsList>
-            <BbTabsTrigger Value="dept"><LucideIcon Name="building" Size="15" /> By department</BbTabsTrigger>
+            <BbTabsTrigger Value="dept"><LucideIcon Name="building" Size="15" /> By organization unit</BbTabsTrigger>
             <BbTabsTrigger Value="people"><LucideIcon Name="users-round" Size="15" /> Manager – subordinates</BbTabsTrigger>
         </BbTabsList>
         <BbTabsContent Value="dept">
             <BbCard Style="margin-top:.75rem"><BbCardContent><div style="padding-top:1rem">
-                <OrgTree Nodes="DeptNodes" AriaLabel="Department chart" EmptyTitle="No departments found" EmptyText="Add data in HR → Department." />
+                <OrgTree Nodes="DeptNodes" AriaLabel="Organization unit chart" EmptyTitle="No organization units found" EmptyText="Add data in HR → Organization Unit." />
             </div></BbCardContent></BbCard>
         </BbTabsContent>
         <BbTabsContent Value="people">
@@ -50,13 +50,13 @@ else
 }
 
 @code {
-    private IReadOnlyList<Document>? departments, employees;
+    private IReadOnlyList<Document>? orgUnits, employees;
     private string view = "dept";
     private string? error;
     private IReadOnlyList<OrgNode> DeptNodes = [], PeopleNodes = [];
 
-    private List<Document> ActiveEmployees => employees!.Where(e => e.Data.GetValueOrDefault("active") is true).ToList();
-    private List<Document> WithoutManager => ActiveEmployees.Where(e => e.Data.GetValueOrDefault("atasan_id") is not string boss
+    private List<Document> ActiveEmployees => employees!.Where(e => string.Equals(e.Data.GetValueOrDefault("status") as string, "Active", StringComparison.OrdinalIgnoreCase)).ToList();
+    private List<Document> WithoutManager => ActiveEmployees.Where(e => e.Data.GetValueOrDefault("reports_to") is not string boss
         || ActiveEmployees.All(x => x.Name != boss)).ToList();
 
     private static string? Str(Document d, string f) => d.Data.GetValueOrDefault(f) as string;
@@ -66,26 +66,26 @@ else
         try
         {
             // Lewat DocumentService: tenant, cakupan data, dan field terbatas tetap berlaku.
-            departments = await Docs.QueryForReportAsync(Current.Required, "Department", [], DocActions.Read);
+            orgUnits = await Docs.QueryForReportAsync(Current.Required, "OrganizationUnit", [], DocActions.Read);
             employees = await Docs.QueryForReportAsync(Current.Required, "Employee", [], DocActions.Read);
         }
         catch (PermissionDeniedException ex) { error = ex.Message; return; }
 
         var byId = employees.ToDictionary(e => e.Name);
         var me = Current.Required.Attr("employee");
-        DeptNodes = departments.Select(d =>
+        DeptNodes = orgUnits.Select(d =>
         {
-            var head = Str(d, "head") is { } h && byId.TryGetValue(h, out var e) ? e : null;
-            var count = ActiveEmployees.Count(x => Str(x, "department") == d.Name);
-            return new OrgNode(d.Name, Str(d, "parent_department"), Str(d, "department_name") ?? d.Name,
-                head is null ? "Kepala belum ditentukan" : $"{Str(head, "employee_name")} · {Str(head, "jabatan")}",
-                $"{d.Name} · {count} karyawan", head is null ? null : Str(head, "foto"), $"/app/Department/{d.Name}",
-                Highlight: me is not null && byId.TryGetValue(me, out var self) && Str(self, "department") == d.Name);
+            var head = Str(d, "manager") is { } h && byId.TryGetValue(h, out var e) ? e : null;
+            var count = ActiveEmployees.Count(x => Str(x, "organization_unit") == d.Name);
+            return new OrgNode(d.Name, Str(d, "parent_org_unit"), Str(d, "org_unit_name") ?? d.Name,
+                head is null ? "Head not assigned" : $"{Str(head, "employee_name")} · {Str(head, "designation")}",
+                $"{d.Name} · {count} employees", head is null ? null : Str(head, "foto"), $"/app/OrganizationUnit/{d.Name}",
+                Highlight: me is not null && byId.TryGetValue(me, out var self) && Str(self, "organization_unit") == d.Name);
         }).ToList();
 
-        var deptName = departments.ToDictionary(d => d.Name, d => Str(d, "department_name") ?? d.Name);
-        PeopleNodes = ActiveEmployees.Select(e => new OrgNode(e.Name, Str(e, "atasan_id"), Str(e, "employee_name") ?? e.Name,
-            Str(e, "jabatan"), Str(e, "department") is { } dc ? deptName.GetValueOrDefault(dc, dc) : null,
+        var unitName = orgUnits.ToDictionary(d => d.Name, d => Str(d, "org_unit_name") ?? d.Name);
+        PeopleNodes = ActiveEmployees.Select(e => new OrgNode(e.Name, Str(e, "reports_to"), Str(e, "employee_name") ?? e.Name,
+            Str(e, "designation"), Str(e, "organization_unit") is { } dc ? unitName.GetValueOrDefault(dc, dc) : null,
             Str(e, "foto"), $"/app/Employee/{e.Name}", Highlight: e.Name == me)).ToList();
     }
 }

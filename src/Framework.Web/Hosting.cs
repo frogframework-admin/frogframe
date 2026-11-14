@@ -355,6 +355,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<ITenantProvider, DefaultTenantProvider>();
         services.TryAddSingleton<IScheduledJobLogStore, InMemoryScheduledJobLogStore>();
         services.TryAddSingleton<IErrorLogStore, InMemoryErrorLogStore>();
+        services.AddSingleton<Microsoft.Extensions.Logging.ILoggerProvider, Framework.Web.Observability.ErrorLogLoggerProvider>();
         services.AddSingleton<ScheduledJobRunner>();
         services.AddHostedService<SchedulerWorker>();
 

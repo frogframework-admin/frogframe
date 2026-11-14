@@ -1,21 +1,22 @@
-@* Pilihan bahasa UI (Indonesia/Inggris). Memuat ulang halaman lewat /ui/language/{code}, yang menyimpan pilihan
-   di cookie dan di preferensi pengguna, karena bahasa sebuah sirkuit Blazor ditentukan saat sirkuit dibuat. *@
+@* UI language switcher (Indonesian/English). Updates UiText immediately in the active circuit
+   and persists the selection to cookie and user preferences without reloading the page. *@
 @inject UiText T
-@inject NavigationManager Nav
+@inject IJSRuntime JS
 
 <span class="lang-switch" role="group" aria-label="@(T["Language"])">
     @foreach (var (langCode, name) in Languages.Supported)
     {
         var active = langCode == T.Language;
-        <a href="@Href(langCode)" class="lang-switch-item @(active ? "active" : "")" title="@name" lang="@langCode"
-           aria-current="@(active ? "true" : null)" data-enhance-nav="false">@langCode.ToUpperInvariant()</a>
+        <button type="button" class="lang-switch-item @(active ? "active" : "")" title="@name" lang="@langCode"
+                aria-pressed="@(active ? "true" : "false")" @onclick="() => SelectAsync(langCode)">@langCode.ToUpperInvariant()</button>
     }
 </span>
 
 @code {
-    private string Href(string code)
+    private async Task SelectAsync(string code)
     {
-        var relative = "/" + Nav.ToBaseRelativePath(Nav.Uri);
-        return $"/ui/language/{code}?returnUrl={Uri.EscapeDataString(relative)}";
+        if (!T.SetLanguage(code)) return;
+        try { await JS.InvokeVoidAsync("frogframe.setLanguage", code); }
+        catch { /* ignore in non-interactive or disconnected circuits */ }
     }
 }

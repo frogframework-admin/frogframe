@@ -516,8 +516,11 @@ else if (meta is not null && doc is not null)
     private UserContext User => Current.Required;
 
     private bool Editable => doc is not null && doc.DocStatus == DocStatus.Draft &&
-        (IsNew ? Perms.Can(User, meta!, DocActions.Create)
-               : Perms.Can(User, meta!, DocActions.Write) && Perms.InScope(User, meta!, DocActions.Write, doc.Owner, doc.Data));
+        (meta?.Def.IsSingle == true
+            ? Perms.Can(User, meta!, DocActions.Write) && Perms.InScope(User, meta!, DocActions.Write, doc.Owner, doc.Data)
+            : IsNew
+                ? Perms.Can(User, meta!, DocActions.Create)
+                : Perms.Can(User, meta!, DocActions.Write) && Perms.InScope(User, meta!, DocActions.Write, doc.Owner, doc.Data));
 
     private Dictionary<string, object?> Scope
     {
@@ -689,7 +692,7 @@ else if (meta is not null && doc is not null)
         meta = m;
         try
         {
-            doc = IsNew ? Docs.New(User, DocType) : await Docs.GetAsync(User, DocType, Name);
+            doc = !meta.Def.IsSingle && Name == "new" ? Docs.New(User, DocType) : await Docs.GetAsync(User, DocType, meta.Def.IsSingle ? meta.Name : Name);
             model = Document.DeepCopy(doc.Data);
             // Pilih tab aktif SEBELUM await berikutnya: dengan database sungguhan Blazor bisa merender di tengah Load,
             // dan BbTabs memakai nilai awal Value. Tab kosong pada render pertama membuat isi form tersembunyi.
@@ -907,6 +910,15 @@ else if (meta is not null && doc is not null)
         {
             if (!await ClientValidateAsync()) return;
             var payload = BuildPayload();
+            if (meta?.Def.IsSingle == true)
+            {
+                var saved = await Docs.SetSingleAsync(User, DocType, payload);
+                if (saved.TransientMessages.Count > 0)
+                    foreach (var msg in saved.TransientMessages) Toasts.Info(T.Message(msg));
+                await Load();
+                Toasts.Success(T["Changes saved."], meta.Title);
+                return;
+            }
             if (IsNew)
             {
                 var saved = await Docs.InsertAsync(User, DocType, payload);

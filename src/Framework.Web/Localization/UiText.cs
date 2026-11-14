@@ -14,7 +14,18 @@ namespace Framework.Localization;
 /// </summary>
 public sealed class UiText(TranslationCatalog catalog, Framework.Web.CurrentUser current)
 {
-    public string Language { get; } = Languages.FromCulture(CultureInfo.CurrentUICulture);
+    public string Language { get; private set; } = Languages.FromCulture(CultureInfo.CurrentUICulture);
+    public event Action? Changed;
+
+    public bool SetLanguage(string? language)
+    {
+        var normalized = Languages.Normalize(language);
+        if (normalized is null || normalized == Language) return false;
+        Language = normalized;
+        CultureInfo.CurrentUICulture = new CultureInfo(Languages.UiCultureName(normalized));
+        Changed?.Invoke();
+        return true;
+    }
 
     private string? Tenant => current.User?.TenantId;
 

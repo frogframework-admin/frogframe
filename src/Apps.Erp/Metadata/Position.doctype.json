@@ -237,7 +237,8 @@
     "filters": [
       "organization_unit",
       "job_profile",
-      "status"
+      "status",
+      "is_manager_position"
     ],
     "defaultSort": [
       {

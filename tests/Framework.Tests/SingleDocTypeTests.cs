@@ -94,4 +94,33 @@ sealed partial class Tests
         Assert.Equal("4000", (string)acmeDoc.Data["default_income_account"]!, "acme terisolasi");
         Assert.Equal("4100", (string)globexDoc.Data["default_income_account"]!, "globex terisolasi");
     }
+
+    [Test]
+    public async Task Single_doctype_non_admin_read_and_write_permissions()
+    {
+        await SeedLedgerAsync();
+        var employee = U("andi"); // Role: Employee -> has read on AccountingSettings
+        var finance = U("dewi");  // Role: Finance -> has read & write on AccountingSettings
+
+        // 1. Employee with read permission can get single defaults without needing Create permission
+        var employeeLoaded = await Docs.GetAsync(employee, "AccountingSettings", "AccountingSettings");
+        Assert.Equal("AccountingSettings", employeeLoaded.Name, "Employee can read single default");
+
+        // 2. Employee cannot write
+        await Assert.Throws<PermissionDeniedException>(async () =>
+        {
+            await Docs.SetSingleAsync(employee, "AccountingSettings", new Dictionary<string, object?> { ["default_expense_account"] = "5000" });
+        }, "Employee without write permission should be rejected");
+
+        // 3. Finance with write permission can save
+        var saved = await Docs.SetSingleAsync(finance, "AccountingSettings", new Dictionary<string, object?>
+        {
+            ["default_expense_account"] = "5000"
+        });
+        Assert.Equal("5000", (string)saved.Data["default_expense_account"]!, "Finance can save single doctype");
+
+        // 4. Employee can read updated value
+        var readAfter = await Docs.GetAsync(employee, "AccountingSettings", "AccountingSettings");
+        Assert.Equal("5000", (string)readAfter.Data["default_expense_account"]!, "Employee can read updated single doctype");
+    }
 }

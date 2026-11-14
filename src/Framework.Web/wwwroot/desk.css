@@ -216,11 +216,16 @@ h1:focus {
 .lang-switch-item {
   padding: 0.2rem 0.45rem;
   border-radius: 0.3rem;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
   font-size: 0.75rem;
   font-weight: 600;
+  line-height: 1.2;
   letter-spacing: 0.02em;
-  color: rgba(255, 255, 255, 0.8);
+  color: rgba(255, 255, 255, 0.85);
   text-decoration: none;
+  transition: background-color 0.16s ease, color 0.16s ease;
 }
 
 .lang-switch-item:hover {
@@ -229,7 +234,7 @@ h1:focus {
 }
 
 .lang-switch-item.active {
-  color: var(--topbar-bg, #1f2937);
+  color: var(--brand-strong, #1859c5);
   background: #ffffff;
 }
 
@@ -352,10 +357,14 @@ h1:focus {
   bottom: 0 !important;
   width: auto !important;
   height: 18rem !important;
+  border: none !important;
+  box-shadow: none !important;
   background-image: var(--wave-image) !important;
   background-repeat: no-repeat !important;
   background-size: 100% 100% !important;
   background-position: left bottom !important;
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 28%) !important;
+  mask-image: linear-gradient(180deg, transparent 0%, #000 28%) !important;
   pointer-events: none !important;
   z-index: 0 !important;
   opacity: 0.95 !important;
@@ -5516,3 +5525,66 @@ aside[data-state="collapsed"] .sidebar-user-chevron {
 .dark .bb\:bg-alert-success-bg {
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
 }
+
+/* Blazor Error Boundary Card */
+.desk-error-boundary-card {
+  margin: 2rem auto;
+  max-width: 48rem;
+  padding: 2rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.desk-error-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.desk-error-icon-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--destructive);
+  flex-shrink: 0;
+}
+
+.desk-error-text {
+  flex: 1;
+}
+
+.desk-error-title {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.desk-error-desc {
+  margin: 0;
+  font-size: 0.925rem;
+  color: var(--muted-foreground);
+  line-height: 1.5;
+  word-break: break-word;
+  background: var(--muted);
+  padding: 0.75rem 1rem;
+  border-radius: calc(var(--radius) - 2px);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.desk-error-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+

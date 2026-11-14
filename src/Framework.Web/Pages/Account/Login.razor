@@ -66,9 +66,22 @@
             @if (Env.IsDevelopment() || Config.GetValue<bool>("Demo:ShowAccounts"))
             {
                 <details class="auth-demo" open>
-                    <summary>Demo accounts (development / demo environment only)</summary>
-                    <p>Password for all accounts: <code>@(Config["Demo:Password"] ?? "FrogFrame#2026")</code></p>
-                    <p><code>andi</code> · <code>sari</code> requester · <code>budi</code> · <code>maya</code> manager · <code>dewi</code> finance · <code>rina</code> procurement · <code>admin</code> System Manager · <code>tono</code> globex tenant</p>
+                    <summary>Demo accounts (click to autofill)</summary>
+                    <p style="margin-bottom:0.5rem;">Password for all accounts: <code>@(Config["Demo:Password"] ?? "FrogFrame#2026")</code></p>
+                    <div style="display:flex;flex-direction:column;gap:0.35rem;max-height:14rem;overflow-y:auto;padding-right:0.25rem;">
+                        @foreach (var p in Framework.Web.Services.DemoUsers.All)
+                        {
+                            <button type="button" 
+                                    style="display:flex;align-items:center;justify-content:space-between;text-align:left;background:transparent;border:1px solid var(--border);border-radius:4px;padding:0.25rem 0.5rem;font-size:0.75rem;cursor:pointer;width:100%;color:inherit;"
+                                    onclick="document.getElementById('username').value='@p.UserName'; document.getElementById('password').value='@(Config["Demo:Password"] ?? "FrogFrame#2026")';">
+                                <div>
+                                    <code style="font-weight:600;">@p.UserName</code>
+                                    <span style="opacity:0.75;margin-left:0.35rem;">@p.FullName</span>
+                                </div>
+                                <span style="font-size:0.7rem;opacity:0.65;">@string.Join(", ", p.Roles)</span>
+                            </button>
+                        }
+                    </div>
                 </details>
             }
 

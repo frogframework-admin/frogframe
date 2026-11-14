@@ -135,7 +135,6 @@
       "role": "Finance",
       "actions": [
         "read",
-        "create",
         "write"
       ],
       "scope": "all"
@@ -144,8 +143,14 @@
       "role": "System Manager",
       "actions": [
         "read",
-        "create",
         "write"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
       ],
       "scope": "all"
     }

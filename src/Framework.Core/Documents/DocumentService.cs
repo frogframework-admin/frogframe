@@ -105,13 +105,16 @@ public sealed class DocumentService(
     public Document New(UserContext user, string docType)
     {
         var meta = TopLevel(docType);
-        permissions.Demand(user, meta, DocActions.Create);
+        if (meta.Def.IsSingle)
+            permissions.Demand(user, meta, DocActions.Read);
+        else
+            permissions.Demand(user, meta, DocActions.Create);
         var data = new Dictionary<string, object?>();
         evaluator.ApplyDefaults(meta, data, user);
         evaluator.ApplyCompute(meta, data, user, Resolve);
         return new Document
         {
-            DocType = docType, Name = "", TenantId = user.TenantId, Owner = user.Id, Version = 0,
+            DocType = docType, Name = meta.Def.IsSingle ? meta.Name : "", TenantId = user.TenantId, Owner = user.Id, Version = 0,
             SchemaVersion = meta.Version, WorkflowState = meta.Workflow?.Def.InitialState, Data = data
         };
     }
@@ -201,7 +204,7 @@ public sealed class DocumentService(
         return copy;
     }
 
-    public async Task<ListResponse> ListAsync(UserContext user, string docType, ListRequest req, CancellationToken ct = default)
+    public async Task<ListResponse> ListAsync(UserContext user, string docType, ListRequest req, CancellationToken ct = default, bool allowAllReadableFields = false)
     {
         var meta = TopLevel(docType);
         permissions.Demand(user, meta, DocActions.Read);
@@ -209,7 +212,9 @@ public sealed class DocumentService(
 
         bool Readable(string field) => StandardFields.Queryable.Contains(field) ||
             (meta.ByName.TryGetValue(field, out var f) && permissions.CanReadField(user, meta, f));
-        var filterable = new HashSet<string>(lv.Filters.Concat(meta.ListColumns).Concat(StandardFields.Queryable));
+        var filterable = allowAllReadableFields
+            ? new HashSet<string>(meta.Fields.Where(f => meta.IsQueryable(f.Name) && Readable(f.Name)).Select(f => f.Name).Concat(StandardFields.Queryable))
+            : new HashSet<string>(lv.Filters.Concat(meta.ListColumns).Concat(StandardFields.Queryable));
 
         var filters = new List<FilterClause>();
         foreach (var f in req.Filters ?? [])
@@ -337,7 +342,7 @@ public sealed class DocumentService(
         permissions.Demand(user, meta, DocActions.Read);
         // Filter hanya mempersempit hasil; server tetap memeriksa filter field saat dokumen disimpan.
         var all = (LinkFiltersFor(target, sourceDocType, sourceField) ?? []).Concat(filters ?? []).ToList();
-        var res = await ListAsync(user, target, new ListRequest(Filters: all.Count > 0 ? all : null, Search: q, PageSize: 10, SortField: null), ct);
+        var res = await ListAsync(user, target, new ListRequest(Filters: all.Count > 0 ? all : null, Search: q, PageSize: 10, SortField: null), ct, allowAllReadableFields: true);
         return res.Items.Select(i => new LinkOption((string)i[StandardFields.Name]!, i.GetValueOrDefault("_title")?.ToString())).ToList();
     }
 
@@ -425,7 +430,15 @@ public sealed class DocumentService(
     private async Task<PreparedInsert> PrepareInsertAsync(UserContext user, string docType, IDictionary<string, object?> payload, bool allocateName, CancellationToken ct)
     {
         var meta = TopLevel(docType);
-        permissions.Demand(user, meta, DocActions.Create);
+        if (meta.Def.IsSingle)
+        {
+            if (!permissions.Can(user, meta, DocActions.Write) && !permissions.Can(user, meta, DocActions.Create))
+                throw new PermissionDeniedException($"You do not have 'write' permission for {meta.Title}.");
+        }
+        else
+        {
+            permissions.Demand(user, meta, DocActions.Create);
+        }
         var lookup = new TenantLookup(store, user.TenantId);
         var now = clock.GetUtcNow();
 
@@ -446,8 +459,10 @@ public sealed class DocumentService(
         RunVisualHooks(meta, "BeforeInsert", CreateHookContext(ctx), null);
         await hooks.RunAsync(DocHookStage.BeforeInsert, CreateHookContext(ctx), ct);
 
-        if (!permissions.InScope(user, meta, DocActions.Create, draft.Owner, draft.Data))
-            throw new PermissionDeniedException("Document is outside the scope of data you are allowed to create.");
+        if (!permissions.InScope(user, meta, meta.Def.IsSingle ? DocActions.Write : DocActions.Create, draft.Owner, draft.Data))
+            throw new PermissionDeniedException(meta.Def.IsSingle
+                ? $"Document is outside the scope of data you are allowed to modify."
+                : "Document is outside the scope of data you are allowed to create.");
 
         if (meta.Def.IsSingle && await store.GetAsync(user.TenantId, docType, meta.Name, ct) is not null)
             throw new ValidationFailedException([new FieldError(StandardFields.Name, $"{meta.Title} hanya boleh satu per tenant dan sudah ada. Buka dan ubah dokumen yang ada.")]);

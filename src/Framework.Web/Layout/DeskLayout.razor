@@ -40,7 +40,7 @@
                             </BbSidebarMenuButton>
                         </BbSidebarMenuItem>
                         <BbSidebarMenuItem>
-                            <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="inbox" Match="NavLinkMatch.Prefix" Tooltip="@(T["Inbox"])">
+                            <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="/inbox" Match="NavLinkMatch.Prefix" Tooltip="@(T["Inbox"])">
                                 <LucideIcon Name="inbox" Size="18" /><span>@T["Inbox"]</span>
                             </BbSidebarMenuButton>
                             @if (unread > 0)
@@ -70,6 +70,7 @@
 
                     var moduleDocs = ReadableDocTypes(u)
                         .Where(d => !d.Def.IsChild && BelongsToModule(d, activeMod, visibleModules))
+                        .Where(d => !moduleGroups.Any(grp => visibleMenus.Any(m => (m.GroupId == grp.Id || (string.IsNullOrWhiteSpace(m.GroupId) && string.Equals(m.GroupName, grp.Name, StringComparison.OrdinalIgnoreCase))) && string.Equals(m.Href?.TrimStart('/'), $"app/{d.Name}", StringComparison.OrdinalIgnoreCase))))
                         .OrderBy(d => d.Def.Title)
                         .ToList();
                     if (moduleDocs.Count > 0)
@@ -264,7 +265,9 @@
             }
             else
             {
-                @Body
+                <FrogFrameErrorBoundary @ref="errorBoundary">
+                    <div @key="T.Language" style="display:contents">@Body</div>
+                </FrogFrameErrorBoundary>
             }
         </main>
         <div class="bottom-full-wave" aria-hidden="true"></div>
@@ -360,6 +363,7 @@
     private bool isProfileOpen;
     private bool isAwesomebarOpen;
     private DotNetObjectReference<DeskLayout>? dotNetRef;
+    private FrogFrameErrorBoundary? errorBoundary;
 
     private void OpenUserProfile() => isProfileOpen = true;
 
@@ -408,6 +412,7 @@
         Current.Changed += OnUserChanged;
         Current.ModuleChanged += OnModuleChanged;
         MenuStore.Changed += OnMenusChanged;
+        T.Changed += OnLanguageChanged;
         Nav.LocationChanged += OnLocationChanged;
         if (Current.User is null) { RedirectToLogin(); return; }
         RefreshUnread();
@@ -418,6 +423,7 @@
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
+        errorBoundary?.Recover();
         if (Current.User is { } u)
         {
             SyncModuleWithRoute(u);
@@ -458,6 +464,15 @@
         var rel = Nav.ToBaseRelativePath(Nav.Uri).Trim('/');
         if (string.IsNullOrEmpty(rel)) return;
 
+        // Inbox and account profile routes are global utilities, they should not switch the active module.
+        if (rel.Equals("inbox", StringComparison.OrdinalIgnoreCase)
+            || rel.StartsWith("inbox/", StringComparison.OrdinalIgnoreCase)
+            || rel.Equals("account", StringComparison.OrdinalIgnoreCase)
+            || rel.StartsWith("account/", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
         var parts = rel.Split('/', StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length >= 2 && parts[0].Equals("app", StringComparison.OrdinalIgnoreCase))
         {
@@ -474,7 +489,9 @@
             }
         }
 
-        var matchedMenu = navMenus.FirstOrDefault(m => !string.IsNullOrEmpty(m.Href) && rel.StartsWith(m.Href.Trim('/'), StringComparison.OrdinalIgnoreCase));
+        var matchedMenu = navMenus.FirstOrDefault(m => !string.IsNullOrEmpty(m.Href)
+            && !string.Equals(m.Href.Trim('/'), "inbox", StringComparison.OrdinalIgnoreCase)
+            && (rel.Equals(m.Href.Trim('/'), StringComparison.OrdinalIgnoreCase) || rel.StartsWith(m.Href.Trim('/') + "/", StringComparison.OrdinalIgnoreCase)));
         if (matchedMenu is not null)
         {
             var grp = navGroups.FirstOrDefault(g => g.Id == matchedMenu.GroupId || string.Equals(g.Name, matchedMenu.GroupName, StringComparison.OrdinalIgnoreCase));
@@ -834,8 +851,11 @@
         Current.Changed -= OnUserChanged;
         Current.ModuleChanged -= OnModuleChanged;
         MenuStore.Changed -= OnMenusChanged;
+        T.Changed -= OnLanguageChanged;
         Nav.LocationChanged -= OnLocationChanged;
         timer?.Dispose();
         dotNetRef?.Dispose();
     }
+
+    private void OnLanguageChanged() => _ = InvokeAsync(StateHasChanged);
 }

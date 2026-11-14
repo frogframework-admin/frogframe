@@ -18,13 +18,15 @@ public static class DemoAccounts
 {
     public static readonly (string Id, string Name, string Tenant, string Department, string? Employee, string[] Roles)[] All =
     [
-        ("andi", "Andi Pratama", "acme", "IT", "EMP-0001", ["Employee"]),
-        ("sari", "Sari Wulandari", "acme", "MARKETING", "EMP-0002", ["Employee"]),
+        ("andi", "Andi Pratama", "acme", "IT", "EMP-0001", ["Employee", "User"]),
+        ("sari", "Sari Wulandari", "acme", "MARKETING", "EMP-0002", ["Employee", "Sales"]),
         ("budi", "Budi Santoso", "acme", "IT", "EMP-0003", ["Employee", "Manager"]),
-        ("maya", "Maya Lestari", "acme", "MARKETING", "EMP-0004", ["Employee", "Manager"]),
+        ("maya", "Maya Lestari", "acme", "MARKETING", "EMP-0004", ["Employee", "Manager", "Sales"]),
         ("dewi", "Dewi Anggraini", "acme", "FINANCE", "EMP-0005", ["Employee", "Finance"]),
-        ("rina", "Rina Kusuma", "acme", "OPERASIONAL", "EMP-0006", ["Employee", "Procurement"]),
-        ("admin", "Admin Sistem", "acme", "IT", null, [UserContext.SystemManager]),
+        ("rina", "Rina Kusuma", "acme", "PURCHASING", "EMP-0006", ["Employee", "Purchasing", "Procurement"]),
+        ("citra", "Citra Handayani", "acme", "HR", "EMP-0009", ["Employee", "HR"]),
+        ("joko", "Joko Prasetyo", "acme", "WAREHOUSE", "EMP-0010", ["Employee", "Stock"]),
+        ("admin", "Admin Sistem", "acme", "IT", null, [UserContext.SystemManager, UserContext.Administrator]),
         ("tono", "Tono Wijaya", "globex", "IT", "EMP-0001", ["Employee", "Manager"]),
     ];
 
