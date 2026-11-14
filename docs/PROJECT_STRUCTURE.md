@@ -223,21 +223,33 @@ Located at [src/Framework.Persistence.PostgreSql](file:///d:/Side%20Projects/Doc
 
 ```text
 src/Framework.Persistence.PostgreSql/
-├── Migrations/                  # Embedded SQL schema migrations (001_initial.sql .. 014_roles.sql)
+├── Migrations/                  # Embedded SQL schema migrations (001_initial.sql .. 035_translations.sql)
 │   ├── 001_initial.sql          # Core tables: documents, series, audit, outbox, notifications, metadata_versions
-│   ├── 002_user_accounts.sql    # frogframe_users (Identity accounts, password hash, security stamp, lockout)
-│   ├── 003_workflows.sql        # frogframe_workflow_versions (versioned workflow definitions)
-│   ├── 004_files.sql            # frogframe_files (binary image blobs, sha256, content_type)
-│   ├── 005_dashboards.sql       # frogframe_dashboard_widgets, frogframe_dashboards, frogframe_reporting_sessions
-│   ├── 006_report_templates.sql # frogframe_report_templates (.xlsx/.docx binary templates + JSON config)
-│   ├── 007_api_keys.sql         # frogframe_api_keys (SHA-256 secret hash, scopes, allowed_ips)
-│   ├── 008_query_apis.sql       # frogframe_query_apis (saved SQL endpoints, linked source widget/report)
-│   ├── 009_imports.sql          # frogframe_imports (Excel/CSV import history & failed-row file blob)
-│   ├── 010_list_sort_index.sql  # Composite index (tenant_id, doctype, modified DESC, name)
-│   ├── 011_outbox_retention_index.sql # Partial index on processed_at for fast hourly retention cleanup
-│   ├── 012_AnalyticsLogicalReplica.sql # Reference script for logical replica setup
+│   ├── 002_users.sql            # frogframe_users (Identity accounts, password hash, security stamp, lockout)
+│   ├── 003_workflow_versions.sql # frogframe_workflow_versions (versioned workflow definitions)
+│   ├── 004_files.sql            # frogframe_files (binary image/file blobs, sha256, content_type)
+│   ├── 005_dashboards.sql       # frogframe_dashboard_widgets, frogframe_dashboards, reporting schema
+│   ├── 006_search_indexes.sql   # pg_trgm trigram GIN search index on document names
+│   ├── 007_list_order_index.sql # Composite index (tenant_id, doctype, modified DESC, name)
+│   ├── 008_outbox_retention.sql # Partial index on processed_at for fast hourly retention cleanup
+│   ├── 009_report_templates.sql # frogframe_report_templates (.xlsx/.docx binary templates + JSON config)
+│   ├── 010_api_keys.sql         # frogframe_api_keys (SHA-256 secret hash, scopes, allowed_ips)
+│   ├── 011_query_apis.sql       # frogframe_query_apis (saved SQL endpoints, linked source widget/report)
+│   ├── 012_imports.sql          # frogframe_imports (Excel/CSV import history & failed-row file blob)
 │   ├── 013_navigation_menus.sql # frogframe_navigation_menus + hierarchical seed items
-│   └── 014_roles.sql            # frogframe_roles + seed roles (Administrator, User, HR, Purchasing)
+│   ├── 014_roles.sql            # frogframe_roles + seed roles (Administrator, User, HR, Purchasing, Payroll)
+│   ├── 015_modules_and_menu_groups.sql # frogframe_navigation_modules & menu groups
+│   ├── 018_scheduled_jobs.sql   # frogframe_scheduled_job_runs audit trail
+│   ├── 019_data_protection_keys.sql # ASP.NET Core Data Protection XML key ring
+│   ├── 020_error_logs.sql       # frogframe_error_logs for centralized unhandled exceptions
+│   ├── 022_notification_rules.sql # frogframe_notification_rules (event-driven alerts)
+│   ├── 026_standalone_dashboards.sql # frogframe_dashboards_v2 (full-page analytics dashboards)
+│   ├── 027_webhooks.sql         # frogframe_webhooks & delivery audit queue
+│   ├── 028_auto_repeat.sql      # frogframe_auto_repeats (recurring document generator)
+│   ├── 029_server_scripts.sql   # frogframe_server_scripts (C# Roslyn sandboxed scripts)
+│   ├── 030_communications.sql   # frogframe_email_accounts & communication timeline
+│   ├── 033_customizations.sql   # frogframe_customizations (dynamic field overrides)
+│   └── 035_translations.sql     # frogframe_translations (database UI translation overrides)
 ├── DashboardSqlExecutor.cs      # 6-layer secured read-only SQL executor (verifies frogframe_ro privileges)
 ├── DocumentIndexSync.cs         # Builds/drops CONCURRENTLY partial B-tree & pg_trgm GIN indexes from metadata
 ├── MigrationRunner.cs           # Advisory-locked (pg_advisory_lock) transactional SQL migration runner
@@ -524,24 +536,39 @@ All migrations live in `src/Framework.Persistence.PostgreSql/Migrations/` and ar
 | Migration File | Table(s) / Objects Created | Purpose |
 | :--- | :--- | :--- |
 | `001_initial.sql` | `frogframe_documents`, `frogframe_series`, `frogframe_audit`, `frogframe_outbox`, `frogframe_notifications`, `frogframe_metadata_versions` | Core operational tables (World 1), optimistic concurrency, audit log, transactional outbox, and versioned DocType metadata. |
-| `002_user_accounts.sql` | `frogframe_users` | User accounts, PBKDF2 password hashes, security stamps, lockout counters, tenant, department, employee link, and roles JSONB. |
-| `003_workflows.sql` | `frogframe_workflow_versions` | Immutable published versions of workflows. |
-| `004_files.sql` | `frogframe_files` | Uploaded binary files (images), SHA-256 hash, MIME type, uploader, and tenant. |
-| `005_dashboards.sql` | `frogframe_dashboard_widgets`, `frogframe_dashboards`, `frogframe_reporting_sessions`, ` SCHEMA reporting` | SQL dashboard widgets, per-tenant dashboard layout, PID-keyed tenant session isolation table, and `reporting` schema. |
-| `006_report_templates.sql` | `frogframe_report_templates` | OpenXML `.xlsx` and `.docx` binary templates and JSON query/parameter configurations. |
-| `007_api_keys.sql` | `frogframe_api_keys` | Integration API keys (`dfk_...`), SHA-256 secret hashes, scopes, IP allowlists, and last-used tracking. |
-| `008_query_apis.sql` | `frogframe_query_apis` | Saved SQL Query API definitions (`/api/query/{slug}`) and links to source widgets/reports. |
-| `009_imports.sql` | `frogframe_imports` | Excel/CSV import history logs and downloadable failed-row `.xlsx` blobs. |
-| `010_list_sort_index.sql` | `ix_frogframe_documents_list_default` | Composite index `(tenant_id, doctype, modified DESC, name)` for sub-10ms default list pagination. |
-| `011_outbox_retention_index.sql` | `ix_frogframe_outbox_processed_at` | Partial index on `processed_at` for hourly outbox retention cleanup (`pg_trgm` extension also enabled). |
-| `012_AnalyticsLogicalReplica.sql` | *(Comments / Reference)* | Documentation pointer to `deploy/sql/analytics-logical-replica.sql`. |
+| `002_users.sql` | `frogframe_users` | User accounts, PBKDF2 password hashes, security stamps, lockout counters, tenant, department, employee link, and roles JSONB. |
+| `003_workflow_versions.sql` | `frogframe_workflow_versions` | Immutable published versions of workflows. |
+| `004_files.sql` | `frogframe_files` | Uploaded binary files (images/attachments), SHA-256 hash, MIME type, uploader, and tenant. |
+| `005_dashboards.sql` | `frogframe_dashboard_widgets`, `frogframe_dashboards`, `frogframe_reporting_sessions`, `SCHEMA reporting` | SQL dashboard widgets, per-tenant dashboard layout, PID-keyed tenant session isolation table, and `reporting` schema. |
+| `006_search_indexes.sql` | `ix_documents_name_trgm` | Trigram GIN index (`pg_trgm`) on document names for fast fuzzy text searching. |
+| `007_list_order_index.sql` | `ix_documents_list_v2` | Composite index `(tenant_id, doctype, modified DESC, name)` for sub-10ms default list pagination. |
+| `008_outbox_retention.sql` | `ix_outbox_processed` | Partial index on `processed_at` for hourly transactional outbox retention cleanup. |
+| `009_report_templates.sql` | `frogframe_report_templates` | OpenXML `.xlsx` and `.docx` binary templates and JSON query/parameter configurations. |
+| `010_api_keys.sql` | `frogframe_api_keys` | Integration API keys (`dfk_...`), SHA-256 secret hashes, scopes, IP allowlists, and last-used tracking. |
+| `011_query_apis.sql` | `frogframe_query_apis` | Saved SQL Query API definitions (`/api/query/{slug}`) and links to source widgets/reports. |
+| `012_imports.sql` | `frogframe_imports` | Excel/CSV import history logs and downloadable failed-row `.xlsx` blobs. |
 | `013_navigation_menus.sql` | `frogframe_navigation_menus` | Master Navigation Menu hierarchy with seeded parent groups and menu items. |
-| `014_roles.sql` | `frogframe_roles` | Master Roles table seeded with mandatory `Administrator` & `User` (`is_system = true`) plus `HR`, `Purchasing`, `Manager`, `Finance`, `Procurement`. |
+| `014_roles.sql` | `frogframe_roles` | Master Roles table seeded with mandatory `Administrator` & `User` (`is_system = true`) plus `HR`, `Purchasing`, `Manager`, `Finance`, `Procurement`, `Payroll`. |
 | `015_modules_and_menu_groups.sql` | `frogframe_navigation_modules`, `frogframe_navigation_menu_groups` | Dynamic navigation modules and parent menu groups. |
-| `016_user_avatar.sql` | `frogframe_users` avatar column | User avatar image reference support. |
+| `016_user_avatar.sql` | `frogframe_users.avatar_id` | User avatar image reference support. |
 | `017_workflow_doctype_optional.sql` | `frogframe_workflow_versions` | Makes doctype column nullable for standalone workflow templates. |
 | `018_scheduled_jobs.sql` | `frogframe_scheduled_job_runs` | Persistent scheduled job run audit trail, duration, status, and error logs with fast lookup indexes. |
 | `019_data_protection_keys.sql` | `frogframe_data_protection_keys` | Persisted ASP.NET Core Data Protection XML key ring for persistent session cookies across deployments. |
+| `020_error_logs.sql` | `frogframe_error_logs` | Centralized server-side and Blazor circuit unhandled error logging with stack trace and tenant isolation. |
+| `021_attachments.sql` | `frogframe_attachments` | File attachments linked to documents with metadata, size, and uploader tracking. |
+| `022_notification_rules.sql` | `frogframe_notification_rules` | Configurable event-driven notification rules (in-app, email) triggered on document insert, update, or workflow state transition. |
+| `023_user_preferences.sql` | `frogframe_user_preferences` | User UI preferences (theme, language, default pagination sizes, collapse states). |
+| `024_navigation_module_code.sql` | `frogframe_navigation_modules.code` | Unique module code column on navigation modules. |
+| `026_standalone_dashboards.sql` | `frogframe_dashboards_v2` | Standalone full-page analytics dashboards with custom layouts and grid positioning. |
+| `027_webhooks.sql` | `frogframe_webhooks`, `frogframe_webhook_deliveries` | Outbound HTTP webhooks with HMAC-SHA256 signature, retry queue, and delivery log. |
+| `028_auto_repeat.sql` | `frogframe_auto_repeats`, `frogframe_auto_repeat_runs` | Recurring document scheduler (daily, weekly, monthly, quarterly, yearly auto-generation). |
+| `029_server_scripts.sql` | `frogframe_server_scripts`, `frogframe_server_script_versions`, `frogframe_server_script_runs` | C# Roslyn sandboxed server scripts (DocType event hooks, custom API endpoints, scheduled scripts). |
+| `030_communications.sql` | `frogframe_email_accounts`, `frogframe_communications` | Inbound/outbound email account configurations and communication timeline entries linked to documents. |
+| `031_server_script_allowed_roles.sql` | `frogframe_server_scripts.allowed_roles` | Role-based authorization for executing custom script API endpoints. |
+| `032_file_name.sql` | `frogframe_files.file_name` | Original file name tracking for uploaded binary files. |
+| `033_customizations.sql` | `frogframe_customizations` | Custom field and property overrides layered on top of core DocType metadata without breaking migrations. |
+| `034_client_scripts.sql` | `frogframe_server_scripts.form_event` | Form client-side event hooks and script triggers. |
+| `035_translations.sql` | `frogframe_translations` | Dynamic user-defined translation overrides per language (Indonesian, English) stored in database. |
 
 **Auxiliary DBA SQL Scripts (`deploy/sql/`)**:
 - [reporting-readonly-user.sql](file:///d:/Side%20Projects/DocFrame/deploy/sql/reporting-readonly-user.sql): Creates the `frogframe_ro` PostgreSQL role with `SELECT` access restricted exclusively to the `reporting` schema and `reporting_current_tenant()` function.
@@ -735,7 +762,7 @@ builder.Services.AddApiMethod<SisaAnggaranMethod>();
 ```
 
 ### 10.5 Adding a Database Schema Migration
-1. Create the next numbered SQL file in `src/Framework.Persistence.PostgreSql/Migrations/` (e.g., `015_my_feature.sql`). Because `Framework.Persistence.PostgreSql.csproj` embeds `Migrations\*.sql` via wildcard, no `.csproj` edit is needed.
+1. Create the next numbered SQL file in `src/Framework.Persistence.PostgreSql/Migrations/` (e.g., `036_my_feature.sql`). Because `Framework.Persistence.PostgreSql.csproj` embeds `Migrations\*.sql` via wildcard, no `.csproj` edit is needed.
 2. Write idempotent DDL (`CREATE TABLE IF NOT EXISTS ...`).
 3. Create the matching contract in `Framework.Core` (with an `InMemory*Store` implementation) and the PostgreSQL implementation in `Framework.Persistence.PostgreSql`, registering both in `WebServiceCollectionExtensions.cs` and `ServiceCollectionExtensions.cs`.
 4. Add unit/integration tests in `tests/Framework.Tests` covering both In-Memory and PostgreSQL stores.
