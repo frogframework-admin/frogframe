@@ -170,7 +170,7 @@ else if (meta is not null)
                                               Resizable="false" />
                 }
 
-                <BbDataGridTemplateColumn TData="Dictionary<string, object?>" Id="_select" Title="" Width="@GetColWidth("_select", "3rem")" Hideable="false" Resizable="false">
+                <BbDataGridTemplateColumn TData="Dictionary<string, object?>" Id="_select" Title="" Width="@GetColWidth("_select", "3rem")" Hideable="false" Resizable="false" Reorderable="false" Sortable="false">
                     <HeaderTemplate>
                         <div @onclick:stopPropagation="true">
                             <BbCheckbox Checked="@IsAllSelected"
