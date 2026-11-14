@@ -2,7 +2,7 @@
   "name": "PurchaseRequest",
   "version": 1,
   "title": "Purchase Request",
-  "module": "FINANCE",
+  "module": "PROCUREMENT",
   "description": "Internal request to buy (SAP Purchase Requisition / NetSuite Purchase Request), approved by the requester's expense approver.",
   "naming": {
     "pattern": "PRQ-{YYYY}-{#####}"

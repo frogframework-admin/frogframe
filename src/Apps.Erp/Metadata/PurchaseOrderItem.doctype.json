@@ -2,7 +2,7 @@
   "name": "PurchaseOrderItem",
   "version": 1,
   "title": "Purchase Order Item",
-  "module": "FINANCE",
+  "module": "PROCUREMENT",
   "isChild": true,
   "fields": [
     {

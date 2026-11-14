@@ -124,7 +124,7 @@
       "scope": "match:employee=employee"
     },
     {
-      "role": "HR",
+      "role": "Payroll",
       "actions": [
         "read",
         "create",

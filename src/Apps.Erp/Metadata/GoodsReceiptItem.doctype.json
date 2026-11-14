@@ -2,7 +2,7 @@
   "name": "GoodsReceiptItem",
   "version": 1,
   "title": "Goods Receipt Item",
-  "module": "FINANCE",
+  "module": "PROCUREMENT",
   "isChild": true,
   "fields": [
     {

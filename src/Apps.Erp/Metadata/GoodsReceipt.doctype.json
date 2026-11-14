@@ -2,7 +2,7 @@
   "name": "GoodsReceipt",
   "version": 1,
   "title": "Goods Receipt",
-  "module": "FINANCE",
+  "module": "PROCUREMENT",
   "description": "Receipt of goods or acceptance of services against a purchase order (SAP MIGO / BAST). No inventory valuation: used for 3-way match.",
   "naming": {
     "pattern": "GRN-{YYYY}-{######}"

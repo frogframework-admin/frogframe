@@ -18,6 +18,8 @@
   items:
     - name: DocTypes & Visual Workflows
       href: guides/doctype-and-workflows.md
+    - name: DocType & Workflow Catalog
+      href: guides/doctype-and-workflow-catalog.md
     - name: SQL Dashboards & Widgets
       href: guides/sql-dashboards.md
     - name: Saved Query REST APIs

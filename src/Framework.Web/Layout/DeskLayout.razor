@@ -473,17 +473,48 @@
             return;
         }
 
-        var parts = rel.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length >= 2 && parts[0].Equals("app", StringComparison.OrdinalIgnoreCase))
+        // If the current active module already contains this route (via its menu items or DocType definition), preserve it.
+        if (!string.IsNullOrWhiteSpace(Current.ActiveModuleId) && visible.FirstOrDefault(m => m.Id == Current.ActiveModuleId) is { } currentActive)
         {
-            var dtName = parts[1];
+            var currentModGroups = navGroups.Where(g => g.ModuleId == currentActive.Id).Select(g => g.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var hasMatchingMenu = navMenus.Any(m => !string.IsNullOrEmpty(m.Href)
+                && currentModGroups.Contains(m.GroupId ?? string.Empty)
+                && (rel.Equals(m.Href.Trim('/'), StringComparison.OrdinalIgnoreCase) || rel.StartsWith(m.Href.Trim('/') + "/", StringComparison.OrdinalIgnoreCase)));
+
+            if (hasMatchingMenu)
+            {
+                return;
+            }
+
+            var parts = rel.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length >= 2 && parts[0].Equals("app", StringComparison.OrdinalIgnoreCase))
+            {
+                var dtName = parts[1];
+                if (Metadata.Current.TryGet(dtName, out var dt) && !string.IsNullOrWhiteSpace(dt.Def.Module))
+                {
+                    if (string.Equals(currentActive.Code, dt.Def.Module.Trim(), StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(currentActive.Name, dt.Def.Module.Trim(), StringComparison.OrdinalIgnoreCase))
+                    {
+                        return;
+                    }
+                }
+            }
+        }
+
+        var routeParts = rel.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (routeParts.Length >= 2 && routeParts[0].Equals("app", StringComparison.OrdinalIgnoreCase))
+        {
+            var dtName = routeParts[1];
             if (Metadata.Current.TryGet(dtName, out var dt) && !string.IsNullOrWhiteSpace(dt.Def.Module))
             {
                 var mod = NavigationMenuDefaults.ResolveModule(visible, dt.Def.Module)
                     ?? visible.FirstOrDefault(m => string.Equals(m.Name, dt.Def.Module, StringComparison.OrdinalIgnoreCase));
-                if (mod is not null && Current.ActiveModuleId != mod.Id)
+                if (mod is not null)
                 {
-                    Current.SetActiveModule(mod.Id);
+                    if (Current.ActiveModuleId != mod.Id)
+                    {
+                        Current.SetActiveModule(mod.Id);
+                    }
                     return;
                 }
             }
@@ -495,11 +526,11 @@
         if (matchedMenu is not null)
         {
             var grp = navGroups.FirstOrDefault(g => g.Id == matchedMenu.GroupId || string.Equals(g.Name, matchedMenu.GroupName, StringComparison.OrdinalIgnoreCase));
-            if (grp is not null && visible.Any(m => m.Id == grp.ModuleId))
+            if (grp is not null && visible.FirstOrDefault(m => m.Id == grp.ModuleId) is { } targetMod)
             {
-                if (Current.ActiveModuleId != grp.ModuleId)
+                if (Current.ActiveModuleId != targetMod.Id)
                 {
-                    Current.SetActiveModule(grp.ModuleId);
+                    Current.SetActiveModule(targetMod.Id);
                 }
             }
         }
@@ -630,7 +661,28 @@
             var dtTitle = dt?.Title ?? dtName;
 
             NavigationModule? docModule = null;
-            if (!string.IsNullOrWhiteSpace(dt?.Def.Module))
+            if (!string.IsNullOrWhiteSpace(Current.ActiveModuleId))
+            {
+                var activeMod = navModules.FirstOrDefault(m => m.Id == Current.ActiveModuleId);
+                if (activeMod is not null)
+                {
+                    var isDirectModule = !string.IsNullOrWhiteSpace(dt?.Def.Module)
+                        && (string.Equals(activeMod.Code, dt.Def.Module.Trim(), StringComparison.OrdinalIgnoreCase)
+                            || string.Equals(activeMod.Name, dt.Def.Module.Trim(), StringComparison.OrdinalIgnoreCase));
+
+                    var activeModGroups = navGroups.Where(g => g.ModuleId == activeMod.Id).Select(g => g.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                    var isInActiveMenu = navMenus.Any(m => !string.IsNullOrEmpty(m.Href)
+                        && activeModGroups.Contains(m.GroupId ?? string.Empty)
+                        && string.Equals(m.Href.Trim('/'), $"app/{dtName}", StringComparison.OrdinalIgnoreCase));
+
+                    if (isDirectModule || isInActiveMenu)
+                    {
+                        docModule = activeMod;
+                    }
+                }
+            }
+
+            if (docModule is null && !string.IsNullOrWhiteSpace(dt?.Def.Module))
             {
                 docModule = NavigationMenuDefaults.ResolveModule(navModules, dt.Def.Module)
                     ?? navModules.FirstOrDefault(m => string.Equals(m.Name, dt.Def.Module, StringComparison.OrdinalIgnoreCase));

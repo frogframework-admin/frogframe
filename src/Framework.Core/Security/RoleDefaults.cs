@@ -56,6 +56,16 @@ public static class RoleDefaults
         },
         new()
         {
+            Id = $"role_{tenantId}_payroll",
+            TenantId = tenantId,
+            Name = "Payroll",
+            Description = "Payroll administration, salary calculation, and compensation management.",
+            IsSystem = false,
+            CreatedAt = now,
+            UpdatedAt = now
+        },
+        new()
+        {
             Id = $"role_{tenantId}_purchasing",
             TenantId = tenantId,
             Name = "Purchasing",

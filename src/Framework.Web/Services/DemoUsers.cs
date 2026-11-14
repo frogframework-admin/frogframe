@@ -22,15 +22,15 @@ public static class DemoUsers
     public static readonly IReadOnlyList<DemoPersona> All =
     [
         new("admin", "admin", "Admin Sistem", "acme", "IT", null, [UserContext.Administrator, UserContext.SystemManager], "System Administrator"),
-        new("budi", "budi", "Budi Santoso", "acme", "IT", "EMP-0003", ["Employee", "Manager"], "IT & Operations Manager"),
-        new("dewi", "dewi", "Dewi Anggraini", "acme", "FINANCE", "EMP-0005", ["Employee", "Finance"], "Finance & Accounting Head"),
-        new("rina", "rina", "Rina Kusuma", "acme", "PURCHASING", "EMP-0006", ["Employee", "Purchasing", "Procurement"], "Purchasing & Procurement Specialist"),
-        new("citra", "citra", "Citra Handayani", "acme", "HR", "EMP-0009", ["Employee", "HR"], "Human Resources Specialist"),
-        new("sari", "sari", "Sari Wulandari", "acme", "MARKETING", "EMP-0002", ["Employee", "Sales"], "Sales & Marketing Officer"),
-        new("maya", "maya", "Maya Lestari", "acme", "MARKETING", "EMP-0004", ["Employee", "Manager", "Sales"], "Commercial & Sales Manager"),
-        new("joko", "joko", "Joko Prasetyo", "acme", "WAREHOUSE", "EMP-0010", ["Employee", "Stock"], "Warehouse & Stock Officer"),
-        new("andi", "andi", "Andi Pratama", "acme", "IT", "EMP-0001", ["Employee", "User"], "Software Developer / General Staff"),
-        new("tono", "tono", "Tono Wijaya", "globex", "IT", "EMP-0001", ["Employee", "Manager"], "Branch Manager (Globex Tenant)"),
+        new("it01", "it01", "IT Staff", "acme", "IT", "EMP-0001", ["Employee", "User"], "IT Staff"),
+        new("it02", "it02", "IT Manager", "acme", "IT", "EMP-0003", ["Employee", "Manager"], "IT Manager"),
+        new("hr01", "hr01", "HR Staff", "acme", "HR", "EMP-0009", ["Employee", "HR"], "HR Staff"),
+        new("hr02", "hr02", "HR Manager", "acme", "HR", "EMP-0008", ["Employee", "HR", "Manager", "Payroll"], "HR Manager"),
+        new("marketing01", "marketing01", "Marketing Staff", "acme", "MARKETING", "EMP-0002", ["Employee", "Sales"], "Marketing Staff"),
+        new("marketing02", "marketing02", "Marketing Manager", "acme", "MARKETING", "EMP-0004", ["Employee", "Manager", "Sales"], "Marketing Manager"),
+        new("purchasing01", "purchasing01", "Purchasing Staff", "acme", "PURCHASING", "EMP-0006", ["Employee", "Purchasing", "Procurement"], "Purchasing & Procurement Specialist"),
+        new("warehouse01", "warehouse01", "Warehouse", "acme", "WAREHOUSE", "EMP-0010", ["Employee", "Stock"], "Warehouse Officer"),
+        new("finance01", "finance01", "Finance Staff", "acme", "FINANCE", "EMP-0005", ["Employee", "Finance"], "Finance & Accounting Specialist"),
     ];
 
     /// <summary>
@@ -42,6 +42,17 @@ public static class DemoUsers
         var accounts = scope.ServiceProvider.GetRequiredService<IUserAccountRepository>();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<UserAccount>>();
         var pwd = string.IsNullOrWhiteSpace(password) ? DefaultPassword : password;
+
+        // Clean up legacy demo accounts that have been replaced or dropped
+        string[] legacyDemoIds = ["andi", "budi", "citra", "joko", "maya", "rina", "sari", "dewi", "tono"];
+        foreach (var leg in legacyDemoIds)
+        {
+            var oldUser = await accounts.FindByIdAsync(leg, ct);
+            if (oldUser is not null)
+            {
+                await accounts.DeleteAsync(leg, ct);
+            }
+        }
 
         foreach (var p in All)
         {
@@ -65,17 +76,24 @@ public static class DemoUsers
             else
             {
                 var updated = false;
-                foreach (var r in p.Roles)
+                if (existing.FullName != p.FullName)
                 {
-                    if (!existing.Roles.Contains(r, StringComparer.OrdinalIgnoreCase))
-                    {
-                        existing.Roles.Add(r);
-                        updated = true;
-                    }
+                    existing.FullName = p.FullName;
+                    updated = true;
                 }
                 if (existing.Department != p.Department)
                 {
                     existing.Department = p.Department;
+                    updated = true;
+                }
+                if (existing.EmployeeId != p.EmployeeId)
+                {
+                    existing.EmployeeId = p.EmployeeId;
+                    updated = true;
+                }
+                if (!existing.Roles.SequenceEqual(p.Roles, StringComparer.OrdinalIgnoreCase))
+                {
+                    existing.Roles = p.Roles.ToList();
                     updated = true;
                 }
                 if (updated)

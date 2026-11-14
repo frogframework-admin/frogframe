@@ -403,7 +403,7 @@
   ],
   "permissions": [
     {
-      "role": "HR",
+      "role": "Payroll",
       "actions": [
         "read",
         "write"

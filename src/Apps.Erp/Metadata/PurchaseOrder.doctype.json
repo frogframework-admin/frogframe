@@ -2,7 +2,7 @@
   "name": "PurchaseOrder",
   "version": 1,
   "title": "Purchase Order",
-  "module": "FINANCE",
+  "module": "PROCUREMENT",
   "description": "Order to a supplier (SAP Purchase Order / NetSuite PO). Received through Goods Receipt, billed through Purchase Invoice (3-way match).",
   "naming": {
     "pattern": "PO-{YYYY}-{######}"

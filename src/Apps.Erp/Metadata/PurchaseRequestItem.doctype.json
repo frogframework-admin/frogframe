@@ -2,7 +2,7 @@
   "name": "PurchaseRequestItem",
   "version": 1,
   "title": "Purchase Request Item",
-  "module": "FINANCE",
+  "module": "PROCUREMENT",
   "isChild": true,
   "fields": [
     {
