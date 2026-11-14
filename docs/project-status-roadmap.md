@@ -9,7 +9,7 @@ This document summarizes the current development status of FrogFramework, includ
 ## 1. Current Project Health
 
 - **Compilation Status (`dotnet build`):** `0 Errors`, `0 Critical Warnings` across all projects (`Framework.Core`, `Framework.Scripting`, `Framework.Persistence.PostgreSql`, `Framework.Web`, `Apps.Erp`, `Framework.Tests`).
-- **Unit & Integration Test Status:** **250 Passed, 0 Failed** (plus **34 PostgreSQL & Reporting tests** verified in CI).
+- **Unit & Integration Test Status:** **253 Passed, 0 Failed** (plus **34 PostgreSQL & Reporting tests** verified in CI).
 - **Database & Migration Status:** 35 PostgreSQL migrations registered and verified (`001_initial.sql` through `035_translations.sql`, including `025_gl_entries.sql` in `Apps.Erp`).
 - **Git Repository Status:** Clean working tree.
 
@@ -44,8 +44,10 @@ This document summarizes the current development status of FrogFramework, includ
    - Self-service password reset workflow via secure, single-use, auto-expiring email token links.
 4. **Awesomebar / Global Search (`Ctrl+K` / `Alt+Q`):**
    - Centralized search palette indexing DocTypes, administrative pages, action shortcuts, and workspace modules.
-5. **Data Grid Column Preferences (P1-5):**
+5. **Data Grid Column Preferences, Export List & Bulk Actions (P1-5):**
    - Per-user customizable table columns (visibility toggle, column reordering, width persistence in `023_user_preferences.sql`).
+   - **Export List (`.xlsx` & `.csv`)** respecting read/export permissions, row scopes, active search/filter clauses, selected items, and formula-injection guards (`ExportListAsync` + `GET /api/data/{doctype}/export.{xlsx|csv}`).
+   - **Bulk Actions** in `ListPage.razor`: **Bulk Edit Field** (drawer with field-aware input), **Bulk Submit**, **Bulk Cancel** (with audit comment prompt), and **Bulk Delete**.
 6. **Background Job Monitor & Error Log Dashboard:**
    - Real-time diagnostic viewer at `/admin/jobs` and `/admin/error-logs` with stack trace drawer inspection.
 7. **Single DocType (Platform Feature):**

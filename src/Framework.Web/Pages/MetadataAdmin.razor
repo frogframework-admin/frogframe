@@ -33,22 +33,16 @@ else
                 ShowPagination="true"
                 InitialPageSize="15"
                 TableContainerClass="table-wrap"
+                RowClass="@(d => gridMgr.IsSelected(d) ? "selected" : "")"
                 Resizable="true"
                 OnColumnResize="gridMgr.HandleResize"
                 StateChanged="gridMgr.HandleStateChanged">
         <Toolbar>
-            <div style="display:flex;align-items:center;gap:.5rem;margin-left:auto">
-                @if (gridMgr.HasCustomLayout)
-                {
-                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ResetColumnsLayout" Title="Reset column layout to default">
-                        <LucideIcon Name="rotate-ccw" Size="14" />
-                        <span>Reset Columns</span>
-                    </BbButton>
-                }
-                <BbDataGridColumnVisibility TData="DocTypeRow" />
-            </div>
+            <AdminGridToolbar TData="DocTypeRow" Grid="gridMgr" Items="@docTypes" FileName="doctypes-metadata" Columns="@ExportColumns" />
         </Toolbar>
         <Columns>
+            <AdminGridSelectColumn TData="DocTypeRow" Grid="gridMgr" Items="@docTypes" />
+
             <BbDataGridPropertyColumn TData="DocTypeRow" TProp="string" Property="d => d.Title" Id="name" Title="DocType Name"
                                       Width="@gridMgr.GetWidth("name")" Visible="@gridMgr.IsVisible("name")" Resizable="true" Sortable="true" Filterable="true">
                 <CellTemplate Context="item">
@@ -273,6 +267,18 @@ else
     private bool ack;
     private string? message;
     private Framework.Web.Services.DataGridPreferenceManager<DocTypeRow> gridMgr = default!;
+
+    private static readonly IReadOnlyList<GridExportColumn<DocTypeRow>> ExportColumns =
+    [
+        new("name", "DocType Title", d => d.Title),
+        new("name", "DocType Name", d => d.Name),
+        new("name", "Is Child", d => d.IsChild),
+        new("version", "Version", d => d.Version),
+        new("status", "Status", d => d.Status == MetadataStatus.Published ? "Active" : d.Status.ToString()),
+        new("published", "Published At", d => d.PublishedAt),
+        new("created_by", "Created By", d => d.CreatedBy),
+        new("workflow", "Workflow", d => d.Workflow)
+    ];
 
     protected override async Task OnInitializedAsync()
     {

@@ -93,22 +93,16 @@ else
                             ShowPagination="true"
                             InitialPageSize="15"
                             TableContainerClass="table-wrap"
+                            RowClass="@(r => gridMgr.IsSelected(r) ? "selected" : "")"
                             Resizable="true"
                             OnColumnResize="gridMgr.HandleResize"
                             StateChanged="gridMgr.HandleStateChanged">
                     <Toolbar>
-                        <div style="display:flex;align-items:center;gap:.5rem;margin-left:auto">
-                            @if (gridMgr.HasCustomLayout)
-                            {
-                                <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ResetColumnsLayout" Title="Reset column layout to default">
-                                    <LucideIcon Name="rotate-ccw" Size="14" />
-                                    <span>Reset Columns</span>
-                                </BbButton>
-                            }
-                            <BbDataGridColumnVisibility TData="ScheduledJobRunEntry" />
-                        </div>
+                        <AdminGridToolbar TData="ScheduledJobRunEntry" Grid="gridMgr" Items="@recentRuns" FileName="scheduled-job-runs" Columns="@ExportColumns" />
                     </Toolbar>
                     <Columns>
+                        <AdminGridSelectColumn TData="ScheduledJobRunEntry" Grid="gridMgr" Items="@recentRuns" />
+
                         <BbDataGridPropertyColumn TData="ScheduledJobRunEntry" TProp="string" Property="r => r.JobName" Id="job_name" Title="Job Name"
                                                   Width="@gridMgr.GetWidth("job_name", "14rem")" Visible="@gridMgr.IsVisible("job_name")" Resizable="true" Sortable="true" Filterable="true">
                             <CellTemplate Context="item">
@@ -175,6 +169,16 @@ else
     private List<ScheduledJobRunEntry> recentRuns = [];
     private bool busy;
     private Framework.Web.Services.DataGridPreferenceManager<ScheduledJobRunEntry> gridMgr = default!;
+
+    private static readonly IReadOnlyList<GridExportColumn<ScheduledJobRunEntry>> ExportColumns =
+    [
+        new("job_name", "Job Name", r => r.JobName),
+        new("tenant", "Tenant", r => r.TenantId),
+        new("started_at", "Started At", r => r.StartedAt),
+        new("duration", "Duration (ms)", r => r.DurationMs),
+        new("status", "Status", r => r.Status),
+        new("error", "Error Message", r => r.Error)
+    ];
 
     protected override async Task OnInitializedAsync()
     {

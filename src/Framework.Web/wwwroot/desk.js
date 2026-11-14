@@ -91,6 +91,19 @@ window.frogframe = window.frogframe || {};
         return document.documentElement.getAttribute('data-theme') || 'blue';
     };
 
+    window.frogframe.downloadUrl = function (url, fileName) {
+        if (!url) return;
+        var a = document.createElement('a');
+        a.href = url;
+        if (fileName) a.download = fileName;
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(function () {
+            if (a.parentNode) a.parentNode.removeChild(a);
+        }, 500);
+    };
+
     // Fix BbDataGrid column resize:
     // 1. Pre-measure all header cells in a single read pass and lock table.style.width
     //    in the capture phase BEFORE table-columns.js mutates <col> widths one by one.

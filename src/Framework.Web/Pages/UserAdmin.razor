@@ -26,7 +26,18 @@ else
             <h1>Users</h1>
             <p>Tenant accounts for @Current.Required.TenantId. Roles, departments, and linked employees become claims upon login and determine permissions and data scopes.</p>
         </div>
-        <BbButton OnClick="StartCreate"><LucideIcon Name="user-plus" Size="16" /> Add user</BbButton>
+        <div class="row" style="gap:.5rem;flex-wrap:wrap">
+            <BbButton Variant="ButtonVariant.Outline" Disabled="@(gridMgr.SelectedCount == 0 || busy)" OnClick="() => bulkEditOpen = true">
+                <LucideIcon Name="pencil" Size="16" /> Bulk Edit @(gridMgr.SelectedCount > 0 ? $"({gridMgr.SelectedCount})" : "")
+            </BbButton>
+            <BbButton Variant="ButtonVariant.Outline" Disabled="@(gridMgr.SelectedCount == 0 || busy)" OnClick="() => BulkSetActiveAsync(true)">
+                <LucideIcon Name="check-circle" Size="16" /> Activate @(gridMgr.SelectedCount > 0 ? $"({gridMgr.SelectedCount})" : "")
+            </BbButton>
+            <BbButton Variant="ButtonVariant.Outline" Disabled="@(gridMgr.SelectedCount == 0 || busy)" OnClick="() => BulkSetActiveAsync(false)">
+                <LucideIcon Name="x-circle" Size="16" /> Deactivate @(gridMgr.SelectedCount > 0 ? $"({gridMgr.SelectedCount})" : "")
+            </BbButton>
+            <BbButton OnClick="StartCreate"><LucideIcon Name="user-plus" Size="16" /> Add user</BbButton>
+        </div>
     </header>
 
     @if (tempPassword is not null)
@@ -47,23 +58,16 @@ else
                 ShowPagination="true"
                 InitialPageSize="10"
                 TableContainerClass="table-wrap"
-                RowClass="@(a => edit?.Id == a.Id ? "selected" : "")"
+                RowClass="@(a => edit?.Id == a.Id || gridMgr.IsSelected(a) ? "selected" : "")"
                 Resizable="true"
                 OnColumnResize="gridMgr.HandleResize"
                 StateChanged="gridMgr.HandleStateChanged">
         <Toolbar>
-            <div style="display:flex;align-items:center;gap:.5rem;margin-left:auto">
-                @if (gridMgr.HasCustomLayout)
-                {
-                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ResetColumnsLayout" Title="Reset column layout to default">
-                        <LucideIcon Name="rotate-ccw" Size="14" />
-                        <span>Reset Columns</span>
-                    </BbButton>
-                }
-                <BbDataGridColumnVisibility TData="UserAccount" />
-            </div>
+            <AdminGridToolbar TData="UserAccount" Grid="gridMgr" Items="@accounts" FileName="users" Columns="@ExportColumns" />
         </Toolbar>
         <Columns>
+            <AdminGridSelectColumn TData="UserAccount" Grid="gridMgr" Items="@accounts" />
+
             <BbDataGridPropertyColumn TData="UserAccount" TProp="string" Property="a => a.FullName" Id="name" Title="Name" Sortable="true" Filterable="true"
                                       Width="@gridMgr.GetWidth("name")" Visible="@gridMgr.IsVisible("name")" Resizable="true">
                 <CellTemplate Context="item">
@@ -243,6 +247,14 @@ else
             }
         </FooterContent>
     </AdminDrawer>
+
+    <AdminBulkEditDrawer Open="@bulkEditOpen"
+                         OpenChanged="v => bulkEditOpen = v"
+                         Title="Bulk Edit Users"
+                         SelectedCount="@gridMgr.SelectedCount"
+                         Fields="@BulkEditFields"
+                         Busy="@busy"
+                         OnApply="ExecuteBulkEditAsync" />
 }
 
 @code {
@@ -253,9 +265,30 @@ else
     private IReadOnlyList<RoleDef> storedRoles = [];
     private UserAccount? edit;
     private bool isDrawerOpen;
+    private bool bulkEditOpen;
     private bool isNew, busy;
     private string? error, tempPassword, tempFor;
     private Framework.Web.Services.DataGridPreferenceManager<UserAccount> gridMgr = default!;
+
+    private IReadOnlyList<GridExportColumn<UserAccount>> ExportColumns =>
+    [
+        new("name", "Name", a => a.FullName),
+        new("name", "Employee ID", a => a.EmployeeId),
+        new("username", "Username", a => a.UserName),
+        new("username", "Email", a => a.Email),
+        new("department", "Department", a => a.Department),
+        new("roles", "Roles", a => a.Roles),
+        new("status", "Status", a => !a.IsActive ? "Inactive" : a.LockoutEnd > Clock.GetUtcNow() ? "Locked" : "Active"),
+        new("last_login", "Last Login", a => a.LastLoginAt)
+    ];
+
+    private IReadOnlyList<AdminBulkEditField> BulkEditFields =>
+    [
+        new("department", "Department", "text", Placeholder: "e.g. IT, Finance, HR"),
+        new("status", "Active Status", "boolean"),
+        new("add_role", "Add Role", "select", Options: KnownRoles.Select(r => new SelectOption<string>(r, r)).ToList()),
+        new("remove_role", "Remove Role", "select", Options: KnownRoles.Select(r => new SelectOption<string>(r, r)).ToList())
+    ];
 
     /// <summary>Role yang dikenal: dari master role, permission semua DocType, role workflow, dan System Manager/Administrator.</summary>
     private IEnumerable<string> KnownRoles => RoleCatalogSvc.Names(Current.Required.TenantId)
@@ -281,7 +314,118 @@ else
         gridMgr?.Dispose();
     }
 
-    private async Task Reload() => accounts = await Accounts.ListAsync(Current.Required.TenantId);
+    private async Task Reload()
+    {
+        accounts = await Accounts.ListAsync(Current.Required.TenantId);
+        gridMgr.RetainSelection(accounts);
+    }
+
+    private async Task BulkSetActiveAsync(bool active)
+    {
+        var selected = gridMgr.GetSelectedItems(accounts);
+        if (selected.Count == 0 || busy) return;
+
+        var actionLabel = active ? "Activate" : "Deactivate";
+        var ok = await Dialogs.ConfirmAsync(
+            $"{actionLabel} {selected.Count} user(s)?",
+            active ? "Selected users will be able to log in." : "Selected users (excluding yourself) will be deactivated.",
+            new ConfirmDialogOptions { ConfirmText = $"{actionLabel} ({selected.Count})", CancelText = "Cancel" });
+        if (!ok.Confirmed) return;
+
+        busy = true;
+        try
+        {
+            int updated = 0, skipped = 0;
+            foreach (var item in selected)
+            {
+                if (!active && item.Id == Current.Required.Id)
+                {
+                    skipped++;
+                    continue;
+                }
+                var fresh = await Users.FindByIdAsync(item.Id);
+                if (fresh is null || fresh.TenantId != Current.Required.TenantId) { skipped++; continue; }
+                fresh.IsActive = active;
+                var res = await Users.UpdateAsync(fresh);
+                if (res.Succeeded)
+                {
+                    await Users.UpdateSecurityStampAsync(fresh);
+                    updated++;
+                    gridMgr.SelectedIds.Remove(item.Id);
+                }
+                else
+                {
+                    skipped++;
+                }
+            }
+            await Reload();
+            if (updated > 0) Toasts.Success($"{updated} user(s) {(active ? "activated" : "deactivated")}.", "Bulk Action");
+            if (skipped > 0) Toasts.Warning($"{skipped} user(s) could not be updated (e.g. your own account).", "Skipped");
+        }
+        finally { busy = false; }
+    }
+
+    private async Task ExecuteBulkEditAsync(string field, string value)
+    {
+        var selected = gridMgr.GetSelectedItems(accounts);
+        if (selected.Count == 0 || busy) return;
+        busy = true;
+        try
+        {
+            int updated = 0, skipped = 0;
+            foreach (var item in selected)
+            {
+                var fresh = await Users.FindByIdAsync(item.Id);
+                if (fresh is null || fresh.TenantId != Current.Required.TenantId) { skipped++; continue; }
+
+                switch (field)
+                {
+                    case "department":
+                        fresh.Department = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+                        break;
+                    case "status":
+                        var nextActive = string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
+                        if (!nextActive && fresh.Id == Current.Required.Id) { skipped++; continue; }
+                        fresh.IsActive = nextActive;
+                        break;
+                    case "add_role":
+                        if (!string.IsNullOrWhiteSpace(value) && !fresh.Roles.Contains(value))
+                            fresh.Roles.Add(value);
+                        break;
+                    case "remove_role":
+                        if (fresh.Id == Current.Required.Id && (value == UserContext.SystemManager || value == UserContext.Administrator))
+                        {
+                            skipped++;
+                            continue;
+                        }
+                        if (fresh.Roles.Count <= 1 && fresh.Roles.Contains(value))
+                        {
+                            skipped++;
+                            continue;
+                        }
+                        fresh.Roles.Remove(value);
+                        break;
+                }
+
+                var res = await Users.UpdateAsync(fresh);
+                if (res.Succeeded)
+                {
+                    await Users.UpdateSecurityStampAsync(fresh);
+                    updated++;
+                    gridMgr.SelectedIds.Remove(item.Id);
+                }
+                else
+                {
+                    skipped++;
+                }
+            }
+            bulkEditOpen = false;
+            await Reload();
+            if (updated > 0) Toasts.Success($"{updated} user(s) updated.", "Bulk Edit Complete");
+            if (skipped > 0) Toasts.Warning($"{skipped} user(s) skipped due to safety constraints.", "Skipped");
+        }
+        finally { busy = false; }
+    }
 
     private MarkupString Status(UserAccount a) => (MarkupString)(
         !a.IsActive ? "<span class=\"muted\">Inactive</span>"

@@ -25,7 +25,19 @@ else
             <h1>Navigation Menus</h1>
             <p>Manage application sidebar menus for tenant @Current.Required.TenantId. Each menu belongs to a menu group within a module.</p>
         </div>
-        <div class="row" style="gap:.5rem">
+        <div class="row" style="gap:.5rem;flex-wrap:wrap">
+            <BbButton Variant="ButtonVariant.Outline" Disabled="@(gridMgr.SelectedCount == 0 || busy)" OnClick="() => bulkEditOpen = true">
+                <LucideIcon Name="pencil" Size="16" /> Bulk Edit @(gridMgr.SelectedCount > 0 ? $"({gridMgr.SelectedCount})" : "")
+            </BbButton>
+            <BbButton Variant="ButtonVariant.Outline" Disabled="@(gridMgr.SelectedCount == 0 || busy)" OnClick="() => BulkSetActiveAsync(true)">
+                <LucideIcon Name="check-circle" Size="16" /> Activate @(gridMgr.SelectedCount > 0 ? $"({gridMgr.SelectedCount})" : "")
+            </BbButton>
+            <BbButton Variant="ButtonVariant.Outline" Disabled="@(gridMgr.SelectedCount == 0 || busy)" OnClick="() => BulkSetActiveAsync(false)">
+                <LucideIcon Name="x-circle" Size="16" /> Deactivate @(gridMgr.SelectedCount > 0 ? $"({gridMgr.SelectedCount})" : "")
+            </BbButton>
+            <BbButton Variant="ButtonVariant.Destructive" Disabled="@(gridMgr.SelectedCount == 0 || busy)" OnClick="BulkDeleteAsync">
+                <LucideIcon Name="trash-2" Size="16" /> Delete @(gridMgr.SelectedCount > 0 ? $"({gridMgr.SelectedCount})" : "")
+            </BbButton>
             <BbButton Variant="ButtonVariant.Outline" OnClick="ResetDefaults"><LucideIcon Name="rotate-ccw" Size="16" /> Seed Defaults</BbButton>
             <BbButton OnClick="StartCreate"><LucideIcon Name="plus" Size="16" /> Add menu</BbButton>
         </div>
@@ -39,23 +51,16 @@ else
                 ShowPagination="true"
                 InitialPageSize="10"
                 TableContainerClass="table-wrap"
-                RowClass="@(m => edit?.Id == m.Id ? "selected" : "")"
+                RowClass="@(m => edit?.Id == m.Id || gridMgr.IsSelected(m) ? "selected" : "")"
                 Resizable="true"
                 OnColumnResize="gridMgr.HandleResize"
                 StateChanged="gridMgr.HandleStateChanged">
         <Toolbar>
-            <div style="display:flex;align-items:center;gap:.5rem;margin-left:auto">
-                @if (gridMgr.HasCustomLayout)
-                {
-                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ResetColumnsLayout" Title="Reset column layout to default">
-                        <LucideIcon Name="rotate-ccw" Size="14" />
-                        <span>Reset Columns</span>
-                    </BbButton>
-                }
-                <BbDataGridColumnVisibility TData="NavigationMenuItem" />
-            </div>
+            <AdminGridToolbar TData="NavigationMenuItem" Grid="gridMgr" Items="@menus" FileName="navigation-menus" Columns="@ExportColumns" />
         </Toolbar>
         <Columns>
+            <AdminGridSelectColumn TData="NavigationMenuItem" Grid="gridMgr" Items="@menus" />
+
             <BbDataGridPropertyColumn TData="NavigationMenuItem" TProp="int" Property="m => m.SortOrder" Id="order" Title="Order"
                                       Width="@gridMgr.GetWidth("order", "5rem")" Visible="@gridMgr.IsVisible("order")" Resizable="true" Sortable="true">
                 <CellTemplate Context="item">
@@ -260,6 +265,14 @@ else
             }
         </FooterContent>
     </AdminDrawer>
+
+    <AdminBulkEditDrawer Open="@bulkEditOpen"
+                         OpenChanged="v => bulkEditOpen = v"
+                         Title="Bulk Edit Menus"
+                         SelectedCount="@gridMgr.SelectedCount"
+                         Fields="@BulkEditFields"
+                         Busy="@busy"
+                         OnApply="ExecuteBulkEditAsync" />
 }
 
 @code {
@@ -272,10 +285,37 @@ else
     private IReadOnlyList<RoleDef> storedRoles = [];
     private NavigationMenuItem? edit;
     private bool isDrawerOpen;
+    private bool bulkEditOpen;
     private bool isNew;
     private bool busy;
     private string? error;
     private Framework.Web.Services.DataGridPreferenceManager<NavigationMenuItem> gridMgr = default!;
+
+    private IReadOnlyList<GridExportColumn<NavigationMenuItem>> ExportColumns =>
+    [
+        new("order", "Order", m => m.SortOrder),
+        new("title", "Menu", m => m.Title),
+        new("href", "URL", m => m.Href),
+        new("group", "Module & Menu Group", m =>
+        {
+            var grp = ResolveGroup(m);
+            var mod = grp is not null ? modules.FirstOrDefault(x => x.Id == grp.ModuleId) : null;
+            return mod is not null ? $"{mod.Name} — {grp?.Name ?? m.GroupName}" : (grp?.Name ?? m.GroupName);
+        }),
+        new("roles", "Permissions", m => m.AllowedRoles.Count == 0 ? "All Employees" : string.Join(", ", m.AllowedRoles)),
+        new("status", "Status", m => m.IsActive ? "Active" : "Inactive"),
+        new("status", "Type", m => m.IsSystem ? "System" : "Custom")
+    ];
+
+    private IReadOnlyList<AdminBulkEditField> BulkEditFields =>
+    [
+        new("group", "Menu Group", "select", Options: groups.Select(g =>
+        {
+            var modName = modules.FirstOrDefault(m => m.Id == g.ModuleId)?.Name ?? "Module";
+            return new SelectOption<string>(g.Id, $"{modName} — {g.Name}");
+        }).ToList()),
+        new("status", "Active Status", "boolean")
+    ];
 
     private IEnumerable<string> AvailableRoles => MetadataRoles.Known(Metadata.Current, RoleCatalogSvc.Names(Current.Required.TenantId))
         .Append(UserContext.Administrator)
@@ -308,6 +348,94 @@ else
         modules = await MenuStore.ListModulesAsync(tenantId, onlyActive: false);
         groups = await MenuStore.ListGroupsAsync(tenantId, onlyActive: false);
         menus = await MenuStore.ListAsync(tenantId, onlyActive: false);
+        gridMgr.RetainSelection(menus);
+    }
+
+    private async Task BulkSetActiveAsync(bool active)
+    {
+        var selected = gridMgr.GetSelectedItems(menus);
+        if (selected.Count == 0 || busy) return;
+        busy = true;
+        try
+        {
+            foreach (var item in selected)
+            {
+                item.IsActive = active;
+                await MenuStore.SaveAsync(item);
+                gridMgr.SelectedIds.Remove(item.Id);
+            }
+            await Reload();
+            Toasts.Success($"{selected.Count} menu(s) {(active ? "activated" : "deactivated")}.", "Bulk Action");
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error(ex.Message, "Bulk Action Failed");
+        }
+        finally { busy = false; }
+    }
+
+    private async Task ExecuteBulkEditAsync(string field, string value)
+    {
+        var selected = gridMgr.GetSelectedItems(menus);
+        if (selected.Count == 0 || busy) return;
+        busy = true;
+        try
+        {
+            foreach (var item in selected)
+            {
+                if (field == "group" && !string.IsNullOrWhiteSpace(value))
+                {
+                    var grp = groups.FirstOrDefault(g => g.Id == value);
+                    if (grp is not null)
+                    {
+                        item.GroupId = grp.Id;
+                        item.GroupName = grp.Name;
+                    }
+                }
+                else if (field == "status")
+                {
+                    item.IsActive = string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
+                }
+                await MenuStore.SaveAsync(item);
+                gridMgr.SelectedIds.Remove(item.Id);
+            }
+            bulkEditOpen = false;
+            await Reload();
+            Toasts.Success($"{selected.Count} menu(s) updated.", "Bulk Edit Complete");
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error(ex.Message, "Bulk Edit Failed");
+        }
+        finally { busy = false; }
+    }
+
+    private async Task BulkDeleteAsync()
+    {
+        var selected = gridMgr.GetSelectedItems(menus);
+        if (selected.Count == 0 || busy) return;
+        var res = await Dialogs.ConfirmAsync(
+            $"Delete {selected.Count} menu(s)?",
+            "Custom menus will be deleted. Built-in system menus will be skipped.",
+            new ConfirmDialogOptions { Destructive = true, ConfirmText = $"Delete ({selected.Count})", CancelText = "Cancel" });
+        if (!res.Confirmed) return;
+
+        busy = true;
+        try
+        {
+            int deleted = 0, skipped = 0;
+            foreach (var item in selected)
+            {
+                if (item.IsSystem) { skipped++; continue; }
+                await MenuStore.DeleteAsync(item.Id, item.TenantId);
+                deleted++;
+                gridMgr.SelectedIds.Remove(item.Id);
+            }
+            await Reload();
+            if (deleted > 0) Toasts.Success($"{deleted} menu(s) deleted.", "Bulk Delete");
+            if (skipped > 0) Toasts.Warning($"{skipped} built-in system menu(s) skipped.", "Skipped");
+        }
+        finally { busy = false; }
     }
 
     private NavigationMenuGroup? ResolveGroup(NavigationMenuItem item) =>

@@ -6,6 +6,9 @@
 @inject CurrentUser Current
 @inject ToastService Toasts
 @inject DialogService Dialogs
+@inject ReportDownloads Downloads
+@inject Microsoft.JSInterop.IJSRuntime JS
+@inject Framework.Preferences.IUserPreferenceStore UserPrefs
 @inject UiText T
 
 <PageTitle>@T["Translations"] · FrogFrame</PageTitle>
@@ -46,6 +49,20 @@ else
                 <div style="display:flex;align-items:center;gap:.5rem">
                     <BbSwitch @bind-Value="onlyMissing" Id="tr-only-missing" />
                     <label for="tr-only-missing" style="cursor:pointer">@T["Only untranslated"]</label>
+                </div>
+                <div style="margin-left:auto;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+                    @if (ChangedDraftCount > 0)
+                    {
+                        <BbButton Size="ButtonSize.Small" Disabled="@busy" OnClick="SaveAllChangedAsync">
+                            <LucideIcon Name="check" Size="14" /> @T["Save"] (@ChangedDraftCount)
+                        </BbButton>
+                    }
+                    <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Disabled="@busy" OnClick="@(() => ExportMetadataAsync("xlsx"))">
+                        <LucideIcon Name="file-spreadsheet" Size="14" /> @T["Export Excel"]
+                    </BbButton>
+                    <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Disabled="@busy" OnClick="@(() => ExportMetadataAsync("csv"))">
+                        <LucideIcon Name="file-down" Size="14" /> @T["Export CSV"]
+                    </BbButton>
                 </div>
             </div>
             @{
@@ -135,10 +152,28 @@ else
                 </BbCardContent>
             </BbCard>
 
-            <div class="table-wrap" style="margin-top:1rem">
+            <div style="display:flex;align-items:center;justify-content:flex-end;gap:.5rem;margin-top:1rem;flex-wrap:wrap">
+                <BbButton Variant="ButtonVariant.Destructive" Size="ButtonSize.Small" Disabled="@(selectedCustom.Count == 0 || busy)" OnClick="BulkDeleteCustomAsync">
+                    <LucideIcon Name="trash-2" Size="14" /> @T["Delete"] @(selectedCustom.Count > 0 ? $"({selectedCustom.Count})" : "")
+                </BbButton>
+                <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Disabled="@busy" OnClick="@(() => ExportCustomAsync("xlsx"))">
+                    <LucideIcon Name="file-spreadsheet" Size="14" /> @T["Export Excel"]@(selectedCustom.Count > 0 ? $" ({selectedCustom.Count})" : "")
+                </BbButton>
+                <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Disabled="@busy" OnClick="@(() => ExportCustomAsync("csv"))">
+                    <LucideIcon Name="file-down" Size="14" /> @T["Export CSV"]@(selectedCustom.Count > 0 ? $" ({selectedCustom.Count})" : "")
+                </BbButton>
+            </div>
+
+            <div class="table-wrap" style="margin-top:.5rem">
                 <table class="grid">
                     <thead>
                         <tr>
+                            <th scope="col" style="width:3rem">
+                                <BbCheckbox Checked="@(CustomForLanguage.Count > 0 && CustomForLanguage.All(o => selectedCustom.Contains(o.Source)))"
+                                            Indeterminate="@(selectedCustom.Count > 0 && !CustomForLanguage.All(o => selectedCustom.Contains(o.Source)))"
+                                            CheckedChanged="ToggleSelectAllCustom"
+                                            AriaLabel="@(T["Select all"])" />
+                            </th>
                             <th scope="col">@T["Text"]</th>
                             <th scope="col">@T["Translation"]</th>
                             <th scope="col" style="width:12rem">@T["Modified"]</th>
@@ -149,7 +184,12 @@ else
                         @foreach (var o in CustomForLanguage)
                         {
                             var source = o.Source;
-                            <tr>
+                            <tr class="@(selectedCustom.Contains(source) ? "selected" : "")">
+                                <td>
+                                    <BbCheckbox Checked="@selectedCustom.Contains(source)"
+                                                CheckedChanged="v => { if (v) selectedCustom.Add(source); else selectedCustom.Remove(source); }"
+                                                AriaLabel="@(T.Format("Select {0}", source))" />
+                                </td>
                                 <td>@o.Source</td>
                                 <td>@o.Target</td>
                                 <td class="muted small">@o.ModifiedBy · @Fmt.When(o.Modified)</td>
@@ -162,7 +202,7 @@ else
                         }
                         @if (CustomForLanguage.Count == 0)
                         {
-                            <tr><td colspan="4" class="grid-empty">@T["No custom translations for this language yet."]</td></tr>
+                            <tr><td colspan="5" class="grid-empty">@T["No custom translations for this language yet."]</td></tr>
                         }
                     </tbody>
                 </table>
@@ -214,6 +254,9 @@ else
     private IReadOnlyList<MetadataTexts.Item> texts = [];
     private IReadOnlyList<TranslationOverride> overrides = [];
     private readonly Dictionary<string, string> drafts = new(StringComparer.Ordinal);
+    private readonly HashSet<string> selectedCustom = new(StringComparer.Ordinal);
+
+    private int ChangedDraftCount => drafts.Keys.Count(IsChanged);
 
     private string Tenant => Current.Required.TenantId;
 
@@ -254,7 +297,115 @@ else
     {
         language = Languages.Normalize(value) ?? language;
         drafts.Clear();
+        selectedCustom.Clear();
         await Task.CompletedTask;
+    }
+
+    private void ToggleSelectAllCustom(bool check)
+    {
+        if (check)
+        {
+            foreach (var o in CustomForLanguage) selectedCustom.Add(o.Source);
+        }
+        else
+        {
+            selectedCustom.Clear();
+        }
+    }
+
+    private async Task SaveAllChangedAsync()
+    {
+        var changed = drafts.Keys.Where(IsChanged).ToList();
+        if (changed.Count == 0 || busy) return;
+        busy = true;
+        try
+        {
+            int saved = 0;
+            foreach (var text in changed)
+            {
+                var value = drafts.GetValueOrDefault(text)?.Trim() ?? "";
+                if (value.Length == 0)
+                    await Catalog.DeleteAsync(Tenant, language, text);
+                else
+                    await Catalog.SaveAsync(Tenant, language, text, value, Current.Required.Id);
+                drafts.Remove(text);
+                saved++;
+            }
+            overrides = await Catalog.ListOverridesAsync(Tenant);
+            Toasts.Success(T.Format("{0} translation(s) saved.", saved), T["Translations"]);
+        }
+        catch (ArgumentException ex) { Toasts.Error(T.Message(ex.Message), T["Translations"]); }
+        finally { busy = false; }
+    }
+
+    private async Task BulkDeleteCustomAsync()
+    {
+        if (selectedCustom.Count == 0 || busy) return;
+        var count = selectedCustom.Count;
+        var confirm = await Dialogs.ConfirmAsync(
+            T["Delete"],
+            $"Delete {count} custom translation(s)?",
+            new ConfirmDialogOptions { Destructive = true, ConfirmText = $"{T["Delete"]} ({count})", CancelText = T["Cancel"] });
+        if (!confirm.Confirmed) return;
+
+        busy = true;
+        try
+        {
+            foreach (var source in selectedCustom.ToList())
+            {
+                await Catalog.DeleteAsync(Tenant, language, source);
+                drafts.Remove(source);
+            }
+            selectedCustom.Clear();
+            overrides = await Catalog.ListOverridesAsync(Tenant);
+            Toasts.Success(T["Custom translation removed."], T["Translations"]);
+        }
+        finally { busy = false; }
+    }
+
+    private async Task ExportMetadataAsync(string format)
+    {
+        if (busy) return;
+        busy = true;
+        try
+        {
+            var exporter = new DataGridPreferenceManager<MetadataTexts.Item>(UserPrefs, Current, "grid:admin:translations:meta", () => { }, i => i.Text);
+            var cols = new List<GridExportColumn<MetadataTexts.Item>>
+            {
+                new("text", "Text", i => i.Text),
+                new("where", "Used In", i => i.Where),
+                new("translation", $"Translation ({language.ToUpperInvariant()})", i => DraftOf(i.Text)),
+                new("source", "Source", i => OriginOf(i.Text).ToString())
+            };
+            var output = exporter.BuildExport(format, $"translations-{language}", FilteredRows(), cols);
+            var token = Downloads.Put(Tenant, Current.Required.Id, output);
+            await JS.InvokeVoidAsync("frogframe.downloadUrl", $"/report-downloads/{token}", output.FileName);
+            Toasts.Success(T.Format("Exported {0} row(s) to {1}.", output.Rows, output.FileName), T["Export Complete"]);
+        }
+        finally { busy = false; }
+    }
+
+    private async Task ExportCustomAsync(string format)
+    {
+        if (busy) return;
+        busy = true;
+        try
+        {
+            var exporter = new DataGridPreferenceManager<TranslationOverride>(UserPrefs, Current, "grid:admin:translations:custom", () => { }, o => o.Source);
+            foreach (var s in selectedCustom) exporter.SelectedIds.Add(s);
+            var cols = new List<GridExportColumn<TranslationOverride>>
+            {
+                new("source", "Text", o => o.Source),
+                new("target", $"Translation ({language.ToUpperInvariant()})", o => o.Target),
+                new("modified_by", "Modified By", o => o.ModifiedBy),
+                new("modified", "Modified At", o => o.Modified)
+            };
+            var output = exporter.BuildExport(format, $"custom-translations-{language}", CustomForLanguage, cols);
+            var token = Downloads.Put(Tenant, Current.Required.Id, output);
+            await JS.InvokeVoidAsync("frogframe.downloadUrl", $"/report-downloads/{token}", output.FileName);
+            Toasts.Success(T.Format("Exported {0} row(s) to {1}.", output.Rows, output.FileName), T["Export Complete"]);
+        }
+        finally { busy = false; }
     }
 
     private IEnumerable<MetadataTexts.Item> FilteredRows()

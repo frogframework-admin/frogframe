@@ -29,7 +29,12 @@ else
             <h1>API Keys</h1>
             <p>For external system integrations. Keys act as user accounts: their roles, departments, and data scopes apply following the same rules as the UI.</p>
         </div>
-        @if (!creating) { <BbButton OnClick="StartCreate"><LucideIcon Name="key-round" Size="16" /> Create key</BbButton> }
+        <div class="row" style="gap:.5rem;flex-wrap:wrap">
+            <BbButton Variant="ButtonVariant.Destructive" Disabled="@(gridMgr.SelectedCount == 0 || busy)" OnClick="BulkRevokeAsync">
+                <LucideIcon Name="ban" Size="16" /> Revoke @(gridMgr.SelectedCount > 0 ? $"({gridMgr.SelectedCount})" : "")
+            </BbButton>
+            @if (!creating) { <BbButton OnClick="StartCreate"><LucideIcon Name="key-round" Size="16" /> Create key</BbButton> }
+        </div>
     </header>
 
     @if (token is not null)
@@ -146,22 +151,16 @@ else
                 ShowPagination="true"
                 InitialPageSize="15"
                 TableContainerClass="table-wrap"
+                RowClass="@(k => gridMgr.IsSelected(k) ? "selected" : "")"
                 Resizable="true"
                 OnColumnResize="gridMgr.HandleResize"
                 StateChanged="gridMgr.HandleStateChanged">
         <Toolbar>
-            <div style="display:flex;align-items:center;gap:.5rem;margin-left:auto">
-                @if (gridMgr.HasCustomLayout)
-                {
-                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ResetColumnsLayout" Title="Reset column layout to default">
-                        <LucideIcon Name="rotate-ccw" Size="14" />
-                        <span>Reset Columns</span>
-                    </BbButton>
-                }
-                <BbDataGridColumnVisibility TData="ApiKey" />
-            </div>
+            <AdminGridToolbar TData="ApiKey" Grid="gridMgr" Items="@keys" FileName="api-keys" Columns="@ExportColumns" />
         </Toolbar>
         <Columns>
+            <AdminGridSelectColumn TData="ApiKey" Grid="gridMgr" Items="@keys" />
+
             <BbDataGridPropertyColumn TData="ApiKey" TProp="string" Property="k => k.Name" Id="name" Title="Key Name"
                                       Width="@gridMgr.GetWidth("name")" Visible="@gridMgr.IsVisible("name")" Resizable="true" Sortable="true" Filterable="true">
                 <CellTemplate Context="key">
@@ -247,6 +246,17 @@ else
     private List<UserAccount> accounts = [];
     private IReadOnlyList<QueryApiDef> queryApis = [];
     private Framework.Web.Services.DataGridPreferenceManager<ApiKey> gridMgr = default!;
+
+    private IReadOnlyList<GridExportColumn<ApiKey>> ExportColumns =>
+    [
+        new("name", "Key Name", k => k.Name),
+        new("name", "Key Prefix", k => $"dfk_{k.Id}"),
+        new("account", "Account", k => names.GetValueOrDefault(k.UserId) ?? k.UserId),
+        new("scope", "Scope", k => k.Scopes.Count == 0 ? "All per role" : string.Join(", ", k.Scopes)),
+        new("expires", "Expires At", k => k.ExpiresAt),
+        new("last_used", "Last Used At", k => k.LastUsedAt),
+        new("status", "Status", k => DisplayStatus(k))
+    ];
     private bool creating, limited, busy;
     private string name = "", accountId = NewAccount, newName = "", newUser = "";
     private string? newDept, expires, ips, error, token;
@@ -286,6 +296,36 @@ else
         accounts = (await Accounts.ListAsync(Current.Required.TenantId)).ToList();
         names = accounts.ToDictionary(a => a.Id, a => a.FullName);
         if (QueryApis.IsAvailable) queryApis = (await QueryApis.ListAsync(Current.Required)).Where(q => q.Config.Enabled).ToList();
+        gridMgr.RetainSelection(keys);
+    }
+
+    private async Task BulkRevokeAsync()
+    {
+        var selected = gridMgr.GetSelectedItems(keys);
+        if (selected.Count == 0 || busy) return;
+        var ok = await Dialogs.ConfirmAsync(
+            $"Revoke {selected.Count} API key(s)?",
+            "Systems using these keys will immediately be rejected (HTTP 401). This action cannot be undone.",
+            new ConfirmDialogOptions { Destructive = true, ConfirmText = $"Revoke ({selected.Count})", CancelText = "Cancel" });
+        if (!ok.Confirmed) return;
+
+        busy = true;
+        try
+        {
+            int revoked = 0;
+            foreach (var k in selected)
+            {
+                if (k.RevokedAt is null)
+                {
+                    await Keys.RevokeAsync(Current.Required, k.Id);
+                    revoked++;
+                }
+                gridMgr.SelectedIds.Remove(k.Id);
+            }
+            await Reload();
+            Toasts.Success($"{revoked} API key(s) revoked.", "Bulk Revoke");
+        }
+        finally { busy = false; }
     }
 
     private void StartCreate()

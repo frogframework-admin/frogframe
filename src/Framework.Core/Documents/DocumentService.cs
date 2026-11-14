@@ -1,18 +1,26 @@
 using System.Globalization;
+using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Framework.Expressions;
 using Framework.Files;
 using Framework.Hooks;
+using Framework.Imports;
 using Framework.Jobs;
 using Framework.Metadata;
 using Framework.Observability;
 using Framework.Persistence;
+using Framework.Reports;
 using Framework.Security;
 using Framework.Validation;
 
 namespace Framework.Documents;
 
 public sealed record ActionView(string Action, string ToState, bool RequireComment, string Tone);
+
+public sealed record BulkActionFailure(string Name, string Error);
+
+public sealed record BulkActionResult(IReadOnlyList<string> Succeeded, IReadOnlyList<BulkActionFailure> Failed);
 
 public sealed record ListRequest(
     IReadOnlyList<FilterClause>? Filters = null,
@@ -279,6 +287,190 @@ public sealed class DocumentService(
         var scope = permissions.ScopeFor(user, meta, DocActions.Read);
         var res = await store.QueryAsync(new StoreQuery(user.TenantId, docType, scope, filters, null, [], meta.Def.ListView.DefaultSort, 0, 10_000), ct);
         return res.Items.Select(d => RedactForRead(user, meta, d)).ToList();
+    }
+
+    /// <summary>
+    /// Exports tabular list data to Excel (.xlsx) or CSV (.csv), enforcing read + export permissions,
+    /// row-level scope, field-level redaction, active search/filter clauses, and CSV formula-injection guards.
+    /// </summary>
+    public async Task<ReportOutput> ExportListAsync(
+        UserContext user,
+        string docType,
+        string format,
+        ListRequest? req = null,
+        IReadOnlyList<string>? selectedNames = null,
+        IReadOnlyList<string>? visibleColumns = null,
+        CancellationToken ct = default)
+    {
+        var meta = TopLevel(docType);
+        permissions.Demand(user, meta, DocActions.Read);
+        permissions.Demand(user, meta, DocActions.Export);
+
+        var normFormat = (format ?? "").Trim().TrimStart('.').ToLowerInvariant();
+        if (normFormat is not ("xlsx" or "csv"))
+            throw new InvalidPayloadException($"Export format '{format}' is not supported. Use 'xlsx' or 'csv'.", ["format"]);
+
+        var lv = meta.Def.ListView;
+        bool Readable(string field) => StandardFields.Queryable.Contains(field) ||
+            (meta.ByName.TryGetValue(field, out var f) && !f.IsLayout && f.Def.Type != "Password" && permissions.CanReadField(user, meta, f));
+
+        var filterable = new HashSet<string>(meta.Fields.Where(f => meta.IsQueryable(f.Name) && Readable(f.Name)).Select(f => f.Name).Concat(StandardFields.Queryable));
+        var filters = new List<FilterClause>();
+        foreach (var f in req?.Filters ?? [])
+        {
+            if (!filterable.Contains(f.Field) || !meta.IsQueryable(f.Field) || !Readable(f.Field))
+                throw new InvalidPayloadException($"Filter on field '{f.Field}' is not allowed", [f.Field]);
+            if (!FilterOps.All.Contains(f.Op))
+                throw new InvalidPayloadException($"Filter operator '{f.Op}' is not allowed", [f.Field]);
+            var value = f.Value;
+            if (meta.ByName.TryGetValue(f.Field, out var cf) && f.Op is not ("like" or "in"))
+            {
+                var n = cf.Type.Normalize(value);
+                if (!n.Ok) throw new InvalidPayloadException($"Filter value for {cf.Label} is invalid: {n.Error}", [f.Field]);
+                value = n.Value;
+            }
+            else if (f.Field == StandardFields.DocStatus) value = Values.ToDecimal(value);
+            filters.Add(f with { Value = value });
+        }
+
+        if (selectedNames is { Count: > 0 })
+        {
+            var distinctNames = selectedNames.Where(n => !string.IsNullOrWhiteSpace(n)).Distinct(StringComparer.Ordinal).Cast<object?>().ToList();
+            if (distinctNames.Count > 0)
+                filters.Add(new FilterClause(StandardFields.Name, "in", distinctNames));
+        }
+
+        var sort = new List<SortDef>();
+        if (req?.SortField is not null)
+        {
+            if (!filterable.Contains(req.SortField) || !meta.IsQueryable(req.SortField) || !Readable(req.SortField))
+                throw new InvalidPayloadException($"Sort on field '{req.SortField}' is not allowed", [req.SortField]);
+            sort.Add(new SortDef { Field = req.SortField, Direction = req.SortDirection == "asc" ? "asc" : "desc" });
+        }
+        sort.AddRange(lv.DefaultSort);
+
+        var scope = permissions.ScopeFor(user, meta, DocActions.Read);
+        var result = await store.QueryAsync(new StoreQuery(
+            user.TenantId,
+            docType,
+            scope,
+            filters,
+            string.IsNullOrWhiteSpace(req?.Search) ? null : req.Search.Trim(),
+            lv.SearchFields.Where(Readable).ToList(),
+            sort,
+            0,
+            10_000), ct);
+
+        var dataCols = visibleColumns is { Count: > 0 }
+            ? visibleColumns.Where(c => meta.ByName.ContainsKey(c) && Readable(c)).Distinct(StringComparer.OrdinalIgnoreCase).ToList()
+            : meta.ListColumns.Where(Readable).ToList();
+
+        var includeStatus = meta.Workflow is not null || meta.Def.Document.AllowSubmit;
+        var headers = new List<string> { "Number" };
+        headers.AddRange(dataCols.Select(c => meta.ByName.TryGetValue(c, out var cf) ? cf.Label : c));
+        if (includeStatus) headers.Add("Status");
+        headers.Add("Modified");
+
+        var dateStamp = clock.GetUtcNow().ToString("yyyyMMdd", CultureInfo.InvariantCulture);
+        if (normFormat == "xlsx")
+        {
+            var sheetRows = new List<object?[]>(result.Items.Count);
+            foreach (var doc in result.Items)
+            {
+                var redacted = RedactForRead(user, meta, doc);
+                var row = new List<object?>(headers.Count) { redacted.Name };
+                foreach (var col in dataCols)
+                {
+                    var cf = meta.ByName[col];
+                    row.Add(FormatXlsxCell(cf, redacted.Get(col)));
+                }
+                if (includeStatus)
+                    row.Add(redacted.WorkflowState ?? DocStatus.Label(redacted.DocStatus));
+                row.Add(redacted.Modified.UtcDateTime);
+                sheetRows.Add([.. row]);
+            }
+
+            var sheetName = Regex.Replace(meta.Title, @"[\[\]\*\?/\\:]", " ").Trim();
+            if (sheetName.Length > 31) sheetName = sheetName[..31];
+            if (sheetName.Length == 0) sheetName = docType;
+
+            var bytes = XlsxWriter.Build([
+                new XlsxSheet
+                {
+                    Name = sheetName,
+                    Headers = headers,
+                    Rows = sheetRows
+                }
+            ]);
+            return new ReportOutput(bytes, $"{docType}-{dateStamp}.xlsx", ReportFormats.ContentType(ReportFormats.Xlsx), sheetRows.Count);
+        }
+        else
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine(string.Join(",", headers.Select(EscapeCsvCell)));
+            foreach (var doc in result.Items)
+            {
+                var redacted = RedactForRead(user, meta, doc);
+                var row = new List<string>(headers.Count) { EscapeCsvCell(redacted.Name) };
+                foreach (var col in dataCols)
+                {
+                    var cf = meta.ByName[col];
+                    row.Add(EscapeCsvCell(FormatCsvCell(cf, redacted.Get(col))));
+                }
+                if (includeStatus)
+                    row.Add(EscapeCsvCell(redacted.WorkflowState ?? DocStatus.Label(redacted.DocStatus)));
+                row.Add(EscapeCsvCell(redacted.Modified.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)));
+                sb.AppendLine(string.Join(",", row));
+            }
+
+            var csvBytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(sb.ToString())).ToArray();
+            return new ReportOutput(csvBytes, $"{docType}-{dateStamp}.csv", "text/csv; charset=utf-8", result.Items.Count);
+        }
+    }
+
+    private static object? FormatXlsxCell(CompiledField cf, object? val)
+    {
+        if (val is null || (val is string empty && empty.Length == 0)) return null;
+        return cf.Def.Type switch
+        {
+            "Int" => Values.ToDecimal(val) is { } i ? (long)i : val,
+            "Float" or "Currency" or "Percent" or "Rating" => Values.ToDecimal(val) is { } d ? d : val,
+            "Date" when val is string ds && DateTime.TryParseExact(ds, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt) => dt,
+            "Datetime" when DatetimeFieldType.ToZone(val) is { } dto => dto.DateTime,
+            "Check" => val is true ? "Yes" : "No",
+            "TableMultiSelect" => string.Join(", ", TableMultiSelectFieldType.Items(val)),
+            _ => SanitizeSpreadsheetText(Convert.ToString(val, CultureInfo.InvariantCulture) ?? "")
+        };
+    }
+
+    private static object? FormatCsvCell(CompiledField cf, object? val)
+    {
+        if (val is null || (val is string empty && empty.Length == 0)) return "";
+        return cf.Def.Type switch
+        {
+            "Int" => Values.ToDecimal(val) is { } i ? ((long)i).ToString(CultureInfo.InvariantCulture) : val,
+            "Float" or "Currency" or "Percent" or "Rating" => Values.ToDecimal(val) is { } d ? d.ToString("0.######", CultureInfo.InvariantCulture) : val,
+            "Check" => val is true ? "true" : "false",
+            "TableMultiSelect" => string.Join(", ", TableMultiSelectFieldType.Items(val)),
+            _ => Convert.ToString(val, CultureInfo.InvariantCulture) ?? ""
+        };
+    }
+
+    private static string SanitizeSpreadsheetText(string s) =>
+        s.Length > 0 && "=+-@".Contains(s[0]) ? "'" + s : s;
+
+    private static string EscapeCsvCell(object? v)
+    {
+        var s = v switch
+        {
+            null => "",
+            decimal d => d.ToString("0.######", CultureInfo.InvariantCulture),
+            bool b => b ? "true" : "false",
+            _ => Convert.ToString(v, CultureInfo.InvariantCulture) ?? ""
+        };
+        if (s.Length > 0 && v is string && "=+-@".Contains(s[0]))
+            s = "'" + s;
+        return s.IndexOfAny([',', '"', '\n', '\r']) >= 0 ? "\"" + s.Replace("\"", "\"\"") + "\"" : s;
     }
 
     /// <summary>Dokumen yang menunggu tindakan workflow dari user ini (untuk beranda/to-do).</summary>
@@ -695,6 +887,216 @@ public sealed class DocumentService(
         await FinishAsync(ctx, doc, uow, audit, ct);
         return RedactForRead(user, meta, doc);
     }
+
+    // ---------------- Bulk Actions ----------------
+
+    /// <summary>Checks whether the user can perform Bulk Submit on this DocType (either via standard submit or workflow transition).</summary>
+    public bool CanBulkSubmit(UserContext user, CompiledDocType meta)
+    {
+        if (meta.Def.IsSingle || meta.Def.IsChild) return false;
+        if (meta.Workflow is null)
+            return meta.Def.Document.AllowSubmit && permissions.Can(user, meta, DocActions.Submit);
+        return permissions.Can(user, meta, DocActions.Read) &&
+               meta.Workflow.Transitions.Any(t =>
+                   t.Def.AllowedRoles.Any(user.HasRole) &&
+                   meta.Workflow.States.TryGetValue(t.Def.From, out var fromState) && fromState.DocStatus == DocStatus.Draft &&
+                   meta.Workflow.States.TryGetValue(t.Def.To, out var toState) &&
+                   (toState.DocStatus == DocStatus.Submitted || toState.Tone != "negative"));
+    }
+
+    /// <summary>Checks whether the user can perform Bulk Cancel on this DocType (either via standard cancel or workflow transition).</summary>
+    public bool CanBulkCancel(UserContext user, CompiledDocType meta)
+    {
+        if (meta.Def.IsSingle || meta.Def.IsChild) return false;
+        if (meta.Workflow is null)
+            return meta.Def.Document.AllowCancel && permissions.Can(user, meta, DocActions.Cancel);
+        return permissions.Can(user, meta, DocActions.Read) &&
+               meta.Workflow.Transitions.Any(t =>
+                   t.Def.AllowedRoles.Any(user.HasRole) &&
+                   IsCancelTransition(meta.Workflow, t));
+    }
+
+    private static bool IsCancelTransition(CompiledWorkflow wf, CompiledTransition t) =>
+        string.Equals(t.Def.Action, "Cancel", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(t.Def.Action, "Withdraw", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(t.Def.Action, "Batalkan", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(t.Def.To, "Cancelled", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(t.Def.To, "Dibatalkan", StringComparison.OrdinalIgnoreCase) ||
+        (wf.States.TryGetValue(t.Def.To, out var s) &&
+         s.DocStatus == DocStatus.Cancelled &&
+         !string.Equals(t.Def.Action, "Reject", StringComparison.OrdinalIgnoreCase) &&
+         !string.Equals(t.Def.Action, "Tolak", StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Returns the top-level fields on <paramref name="meta"/> that <paramref name="user"/> is allowed to modify via Bulk Edit.</summary>
+    public IReadOnlyList<CompiledField> BulkEditableFields(UserContext user, CompiledDocType meta)
+    {
+        if (meta.Def.IsSingle || meta.Def.IsChild || !permissions.Can(user, meta, DocActions.Write))
+            return [];
+        var namingField = NamingField(meta)?.Name;
+        return meta.Fields
+            .Where(f => !StandardFields.All.Contains(f.Name)
+                        && !f.IsLayout
+                        && !f.IsDerived
+                        && f.Name != namingField
+                        && f.Def.Type is not ("Table" or "Password" or "Signature" or "Attach" or "Image")
+                        && !string.Equals(f.Def.ReadOnlyWhen?.Trim(), "true", StringComparison.OrdinalIgnoreCase)
+                        && permissions.CanWriteField(user, meta, f))
+            .ToList();
+    }
+
+    /// <summary>Submits multiple draft documents, executing validation, workflow rules, hooks, audit, and outbox per document.</summary>
+    public async Task<BulkActionResult> BulkSubmitAsync(
+        UserContext user,
+        string docType,
+        IReadOnlyList<string> names,
+        string? comment = null,
+        CancellationToken ct = default)
+    {
+        var meta = TopLevel(docType);
+        if (!CanBulkSubmit(user, meta))
+            throw new PermissionDeniedException($"You do not have permission to submit {meta.Title}.");
+
+        var succeeded = new List<string>();
+        var failed = new List<BulkActionFailure>();
+        foreach (var name in names.Where(n => !string.IsNullOrWhiteSpace(n)).Distinct(StringComparer.Ordinal))
+        {
+            try
+            {
+                var current = await LoadInScopeAsync(user, meta, name, ct);
+                if (meta.Workflow is null)
+                {
+                    await RunActionAsync(user, docType, name, DocActions.Submit, current.Version, comment, ct);
+                }
+                else
+                {
+                    if (current.DocStatus != DocStatus.Draft)
+                        throw new InvalidStateException("Only draft documents can be submitted.");
+                    var available = workflow.Available(meta, current, user);
+                    var transition = available.FirstOrDefault(t =>
+                                         meta.Workflow.States.TryGetValue(t.Def.To, out var s) && s.DocStatus == DocStatus.Submitted)
+                                     ?? available.FirstOrDefault(t =>
+                                         meta.Workflow.States.TryGetValue(t.Def.To, out var s) && s.Tone != "negative")
+                                     ?? throw new InvalidStateException($"Action 'Submit' is not available for {name} in status '{current.WorkflowState ?? DocStatus.Label(current.DocStatus)}'.");
+                    await RunActionAsync(user, docType, name, transition.Def.Action, current.Version, comment, ct);
+                }
+                succeeded.Add(name);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                failed.Add(new BulkActionFailure(name, FormatBulkError(ex)));
+            }
+        }
+        return new BulkActionResult(succeeded, failed);
+    }
+
+    /// <summary>Cancels multiple submitted documents, checking incoming document links, hooks, workflow transitions, and audit logs.</summary>
+    public async Task<BulkActionResult> BulkCancelAsync(
+        UserContext user,
+        string docType,
+        IReadOnlyList<string> names,
+        string? comment = null,
+        CancellationToken ct = default)
+    {
+        var meta = TopLevel(docType);
+        if (!CanBulkCancel(user, meta))
+            throw new PermissionDeniedException($"You do not have permission to cancel {meta.Title}.");
+
+        var succeeded = new List<string>();
+        var failed = new List<BulkActionFailure>();
+        foreach (var name in names.Where(n => !string.IsNullOrWhiteSpace(n)).Distinct(StringComparer.Ordinal))
+        {
+            try
+            {
+                var current = await LoadInScopeAsync(user, meta, name, ct);
+                if (meta.Workflow is null)
+                {
+                    await RunActionAsync(user, docType, name, DocActions.Cancel, current.Version, comment, ct);
+                }
+                else
+                {
+                    if (current.DocStatus != DocStatus.Submitted)
+                        throw new InvalidStateException("Only submitted documents can be cancelled.");
+                    var available = workflow.Available(meta, current, user);
+                    var transition = available.FirstOrDefault(t => IsCancelTransition(meta.Workflow, t))
+                                     ?? throw new InvalidStateException($"Action 'Cancel' is not available for {name} in status '{current.WorkflowState ?? DocStatus.Label(current.DocStatus)}'.");
+                    await RunActionAsync(user, docType, name, transition.Def.Action, current.Version, comment, ct);
+                }
+                succeeded.Add(name);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                failed.Add(new BulkActionFailure(name, FormatBulkError(ex)));
+            }
+        }
+        return new BulkActionResult(succeeded, failed);
+    }
+
+    /// <summary>Updates a single permitted field across multiple draft documents, enforcing full validation and hooks per document.</summary>
+    public async Task<BulkActionResult> BulkEditAsync(
+        UserContext user,
+        string docType,
+        IReadOnlyList<string> names,
+        string fieldName,
+        object? value,
+        CancellationToken ct = default)
+    {
+        var meta = TopLevel(docType);
+        permissions.Demand(user, meta, DocActions.Write);
+        var editable = BulkEditableFields(user, meta).FirstOrDefault(f => string.Equals(f.Name, fieldName, StringComparison.Ordinal))
+            ?? throw new InvalidPayloadException($"Field '{fieldName}' cannot be bulk-edited on {meta.Title}.", [fieldName]);
+
+        var succeeded = new List<string>();
+        var failed = new List<BulkActionFailure>();
+        var patch = new Dictionary<string, object?> { [editable.Name] = value };
+        foreach (var name in names.Where(n => !string.IsNullOrWhiteSpace(n)).Distinct(StringComparer.Ordinal))
+        {
+            try
+            {
+                var current = await LoadInScopeAsync(user, meta, name, ct);
+                await UpdateAsync(user, docType, name, current.Version, patch, ct);
+                succeeded.Add(name);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                failed.Add(new BulkActionFailure(name, FormatBulkError(ex)));
+            }
+        }
+        return new BulkActionResult(succeeded, failed);
+    }
+
+    /// <summary>Deletes multiple draft documents, enforcing delete permissions, row scope, and link integrity per document.</summary>
+    public async Task<BulkActionResult> BulkDeleteAsync(
+        UserContext user,
+        string docType,
+        IReadOnlyList<string> names,
+        CancellationToken ct = default)
+    {
+        var meta = TopLevel(docType);
+        permissions.Demand(user, meta, DocActions.Delete);
+
+        var succeeded = new List<string>();
+        var failed = new List<BulkActionFailure>();
+        foreach (var name in names.Where(n => !string.IsNullOrWhiteSpace(n)).Distinct(StringComparer.Ordinal))
+        {
+            try
+            {
+                var current = await LoadInScopeAsync(user, meta, name, ct);
+                await DeleteAsync(user, docType, name, current.Version, ct);
+                succeeded.Add(name);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                failed.Add(new BulkActionFailure(name, FormatBulkError(ex)));
+            }
+        }
+        return new BulkActionResult(succeeded, failed);
+    }
+
+    private static string FormatBulkError(Exception ex) => ex switch
+    {
+        ValidationFailedException v => string.Join(", ", v.Errors.Select(e => e.Message)),
+        _ => ex.Message
+    };
 
     private async Task<Document> AmendAsync(UserContext user, CompiledDocType meta, Document source, CancellationToken ct)
     {

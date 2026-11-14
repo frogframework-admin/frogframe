@@ -5,6 +5,8 @@
 @inject IPermissionService Perms
 @inject NavigationManager Nav
 @inject Framework.Imports.DataImportService Importer
+@inject ReportDownloads Downloads
+@inject Microsoft.JSInterop.IJSRuntime JS
 @inject DialogService Dialogs
 @inject ToastService Toasts
 @inject Framework.Preferences.IUserPreferenceStore UserPrefs
@@ -26,10 +28,37 @@ else if (meta is not null)
                 <p class="list-page-sub">@(result is null ? T["Loading…"] : T.Format("{0} documents within your access scope", TotalText))</p>
             </div>
         </div>
-        @if (Perms.Can(Current.Required, meta, DocActions.Create) || Perms.Can(Current.Required, meta, DocActions.Delete))
+        @if (HasAnyHeaderAction)
         {
-            <div class="row list-action-buttons">
-                @if (Perms.Can(Current.Required, meta, DocActions.Delete))
+            <div class="row list-action-buttons" style="flex-wrap:wrap">
+                @if (CanBulkEdit)
+                {
+                    <BbButton Variant="ButtonVariant.Outline"
+                              Class="btn-action-bulk-edit"
+                              Disabled="@(selectedItems.Count == 0 || busy)"
+                              OnClick="OpenBulkEdit">
+                        <LucideIcon Name="pencil" Size="16" /> @T["Bulk Edit"] @(selectedItems.Count > 0 ? $"({selectedItems.Count})" : "")
+                    </BbButton>
+                }
+                @if (CanBulkSubmit)
+                {
+                    <BbButton Variant="ButtonVariant.Outline"
+                              Class="btn-action-bulk-submit"
+                              Disabled="@(selectedItems.Count == 0 || busy)"
+                              OnClick="SubmitSelected">
+                        <LucideIcon Name="check-circle" Size="16" /> @T["Submit"] @(selectedItems.Count > 0 ? $"({selectedItems.Count})" : "")
+                    </BbButton>
+                }
+                @if (CanBulkCancel)
+                {
+                    <BbButton Variant="ButtonVariant.Outline"
+                              Class="btn-action-bulk-cancel"
+                              Disabled="@(selectedItems.Count == 0 || busy)"
+                              OnClick="CancelSelected">
+                        <LucideIcon Name="x-circle" Size="16" /> @T["Cancel"] @(selectedItems.Count > 0 ? $"({selectedItems.Count})" : "")
+                    </BbButton>
+                }
+                @if (CanBulkDelete)
                 {
                     <BbButton Variant="ButtonVariant.Destructive"
                               Class="btn-action-delete"
@@ -90,7 +119,22 @@ else if (meta is not null)
                         <BbInput Value="@search" ValueChanged="OnSearch" UpdateTiming="UpdateTiming.Debounced" DebounceInterval="300"
                                  Placeholder="@($"{string.Join(" / ", meta.Def.ListView.SearchFields.Select(LabelOf))}…")" AriaLabel="@(T["Search"])" />
                     </div>
-                    <div style="margin-left:auto;align-self:flex-end;display:flex;align-items:center;gap:.5rem">
+                    <div style="margin-left:auto;align-self:flex-end;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+                        @if (CanExport)
+                        {
+                            <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Disabled="@busy"
+                                      OnClick="@(() => ExportList("xlsx"))"
+                                      Title="@(T["Export list to Excel (.xlsx)"])">
+                                <LucideIcon Name="file-spreadsheet" Size="14" />
+                                <span>@T["Export Excel"]@(selectedItems.Count > 0 ? $" ({selectedItems.Count})" : "")</span>
+                            </BbButton>
+                            <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Disabled="@busy"
+                                      OnClick="@(() => ExportList("csv"))"
+                                      Title="@(T["Export list to CSV (.csv)"])">
+                                <LucideIcon Name="file-down" Size="14" />
+                                <span>@T["Export CSV"]@(selectedItems.Count > 0 ? $" ({selectedItems.Count})" : "")</span>
+                            </BbButton>
+                        }
                         @if (hasCustomLayout)
                         {
                             <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ResetColumnsLayout" Title="@(T["Reset column layout to default"])">
@@ -228,6 +272,49 @@ else if (meta is not null)
                 <BbPagination TotalPages="TotalPages" CurrentPage="result.Page" CurrentPageChanged="Reload" />
             </div>
         }
+
+        <AdminDrawer Open="@bulkEditOpen"
+                     OpenChanged="v => bulkEditOpen = v"
+                     Title="@(T.Format("Bulk Edit {0}", T.Title(meta)))"
+                     Description="@(T.Format("Update a field across {0} selected document(s).", selectedItems.Count))">
+            <ChildContent>
+                <BbField>
+                    <BbFieldLabel For="bulk-edit-field">@T["Field to update"]</BbFieldLabel>
+                    <BbSelect TValue="string"
+                              Value="@(selectedBulkField?.Name ?? "")"
+                              ValueChanged="OnBulkFieldChanged"
+                              Placeholder="@(T["Select field…"])"
+                              AriaLabel="@(T["Field to update"])"
+                              Options="@(bulkEditableFields.Select(f => new SelectOption<string>(f.Name, T.Label(f))))" />
+                </BbField>
+
+                @if (selectedBulkField is not null)
+                {
+                    <BbField>
+                        <BbFieldLabel For="bulk-edit-val">@T.Label(selectedBulkField)</BbFieldLabel>
+                        <FieldInput @key="selectedBulkField.Name"
+                                    Id="bulk-edit-val"
+                                    Field="@T.Field(selectedBulkField)"
+                                    DocType="@meta.Name"
+                                    Value="@bulkEditValue"
+                                    ValueChanged="v => bulkEditValue = v" />
+                    </BbField>
+                }
+
+                <p class="muted small" style="margin:0">
+                    @T["Only draft documents within your write scope will be modified. All validation rules and hooks will run for each document."]
+                </p>
+            </ChildContent>
+            <FooterContent>
+                <BbButton Variant="ButtonVariant.Outline" Disabled="@busy" OnClick="() => bulkEditOpen = false">@T["Cancel"]</BbButton>
+                <BbButton Disabled="@(busy || selectedBulkField is null || selectedItems.Count == 0)"
+                          Loading="@busy"
+                          LoadingText="@(T["Updating…"])"
+                          OnClick="ExecuteBulkEdit">
+                    <LucideIcon Name="check" Size="16" /> @T.Format("Apply to {0} document(s)", selectedItems.Count)
+                </BbButton>
+            </FooterContent>
+        </AdminDrawer>
     }
 }
 
@@ -239,6 +326,21 @@ else if (meta is not null)
     private string? search, sortField, error, fatal; private int fatalStatus = 404;
     private readonly HashSet<string> selectedItems = [];
     private bool busy;
+
+    private IReadOnlyList<CompiledField> bulkEditableFields = [];
+    private bool bulkEditOpen;
+    private CompiledField? selectedBulkField;
+    private object? bulkEditValue;
+
+    private bool CanExport => meta is not null && Perms.Can(Current.Required, meta, DocActions.Export);
+    private bool CanBulkEdit => bulkEditableFields.Count > 0;
+    private bool CanBulkSubmit => meta is not null && Docs.CanBulkSubmit(Current.Required, meta);
+    private bool CanBulkCancel => meta is not null && Docs.CanBulkCancel(Current.Required, meta);
+    private bool CanBulkDelete => meta is not null && meta.Def.Document.AllowDelete && Perms.Can(Current.Required, meta, DocActions.Delete);
+    private bool HasAnyHeaderAction => meta is not null && (
+        CanBulkEdit || CanBulkSubmit || CanBulkCancel || CanBulkDelete ||
+        Importer.CanImport(Current.Required, meta.Name) ||
+        Perms.Can(Current.Required, meta, DocActions.Create));
 
     private Framework.Preferences.DataGridPreference gridPref = new();
     private BlazorBlueprint.Primitives.DataGrid.DataGridState<Dictionary<string, object?>> gridState = new();
@@ -353,6 +455,11 @@ else if (meta is not null)
             return;
         }
 
+        bulkEditableFields = Docs.BulkEditableFields(Current.Required, meta);
+        bulkEditOpen = false;
+        selectedBulkField = bulkEditableFields.FirstOrDefault();
+        bulkEditValue = selectedBulkField?.StaticDefault;
+
         if (Current.User is { } u)
         {
             var saved = await UserPrefs.GetAsync<Framework.Preferences.DataGridPreference>(u.TenantId, u.Id, $"grid:{DocType}");
@@ -383,55 +490,178 @@ else if (meta is not null)
 
     private Task OnSearch(string? v) { search = v; return Reload(1); }
 
+    private async Task ExportList(string format)
+    {
+        if (meta is null || busy) return;
+        busy = true;
+        try
+        {
+            var visibleCols = result?.Columns.Where(IsColVisible).ToList();
+            var selected = selectedItems.Count > 0 ? selectedItems.ToList() : null;
+            var output = await Docs.ExportListAsync(
+                Current.Required,
+                DocType,
+                format,
+                new ListRequest(null, search, sortField, null),
+                selected,
+                visibleCols);
+            var token = Downloads.Put(Current.Required.TenantId, Current.Required.Id, output);
+            await JS.InvokeVoidAsync("frogframe.downloadUrl", $"/report-downloads/{token}", output.FileName);
+            Toasts.Success(
+                T.Format("Exported {0} {1} document(s) to {2}.", output.Rows, T.Title(meta).ToLower(), output.FileName),
+                T["Export Complete"]);
+        }
+        catch (Exception ex) when (ex is InvalidPayloadException or PermissionDeniedException or DocumentNotFoundException)
+        {
+            Toasts.Error(T.Message(ex.Message), T["Export Failed"]);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private void OpenBulkEdit()
+    {
+        if (selectedItems.Count == 0 || busy || bulkEditableFields.Count == 0) return;
+        selectedBulkField ??= bulkEditableFields[0];
+        bulkEditValue = selectedBulkField.StaticDefault;
+        bulkEditOpen = true;
+    }
+
+    private void OnBulkFieldChanged(string? fieldName)
+    {
+        selectedBulkField = bulkEditableFields.FirstOrDefault(f => f.Name == fieldName);
+        bulkEditValue = selectedBulkField?.StaticDefault;
+    }
+
+    private async Task ExecuteBulkEdit()
+    {
+        if (selectedItems.Count == 0 || selectedBulkField is null || busy || meta is null) return;
+        busy = true;
+        try
+        {
+            var res = await Docs.BulkEditAsync(Current.Required, DocType, selectedItems.ToList(), selectedBulkField.Name, bulkEditValue);
+            bulkEditOpen = false;
+            await HandleBulkOutcome(
+                res,
+                T.Format("{0} {1} document(s) updated successfully.", res.Succeeded.Count, T.Title(meta).ToLower()),
+                T["Bulk Edit Complete"],
+                T["Failed to Update Some Documents"]);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task SubmitSelected()
+    {
+        if (selectedItems.Count == 0 || busy || meta is null) return;
+        var count = selectedItems.Count;
+        var confirm = await Dialogs.ConfirmAsync(
+            T.Format("Submit {0} {1} document(s)?", count, T.Title(meta).ToLower()),
+            T["Selected draft documents will be validated and submitted."],
+            new ConfirmDialogOptions { ConfirmText = $"{T["Submit"]} ({count})", CancelText = T["Cancel"] });
+        if (!confirm.Confirmed) return;
+
+        busy = true;
+        try
+        {
+            var res = await Docs.BulkSubmitAsync(Current.Required, DocType, selectedItems.ToList());
+            await HandleBulkOutcome(
+                res,
+                T.Format("{0} {1} document(s) submitted successfully.", res.Succeeded.Count, T.Title(meta).ToLower()),
+                T["Submitted"],
+                T["Failed to Submit Some Documents"]);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task CancelSelected()
+    {
+        if (selectedItems.Count == 0 || busy || meta is null) return;
+        var count = selectedItems.Count;
+        var requireComment = meta.Workflow?.Transitions.Any(t =>
+            t.Def.RequireComment &&
+            (string.Equals(t.Def.Action, "Cancel", StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(t.Def.Action, "Withdraw", StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(t.Def.To, "Cancelled", StringComparison.OrdinalIgnoreCase))) == true;
+
+        var prompt = await Dialogs.PromptAsync(
+            T.Format("Cancel {0} {1} document(s)?", count, T.Title(meta).ToLower()),
+            T["Provide a reason for cancellation. This note will be recorded in the audit history for each document."],
+            new PromptDialogOptions { Placeholder = T["Reason…"], ConfirmText = $"{T["Cancel"]} ({count})", CancelText = T["Back"], MaxLength = 1000 });
+        if (prompt.Cancelled) return;
+        if (requireComment && string.IsNullOrWhiteSpace(prompt.Value))
+        {
+            Toasts.Error(T["Cancellation requires a reason. Nothing was changed."], T["Empty comment"]);
+            return;
+        }
+
+        busy = true;
+        try
+        {
+            var comment = string.IsNullOrWhiteSpace(prompt.Value) ? null : prompt.Value.Trim();
+            var res = await Docs.BulkCancelAsync(Current.Required, DocType, selectedItems.ToList(), comment);
+            await HandleBulkOutcome(
+                res,
+                T.Format("{0} {1} document(s) cancelled successfully.", res.Succeeded.Count, T.Title(meta).ToLower()),
+                T["Cancelled"],
+                T["Failed to Cancel Some Documents"]);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
     private async Task DeleteSelected()
     {
-        if (selectedItems.Count == 0 || busy) return;
+        if (selectedItems.Count == 0 || busy || meta is null) return;
 
         var count = selectedItems.Count;
         var confirm = await Dialogs.ConfirmAsync(
-            T.Format("Delete {0} {1} document(s)?", count, T.Title(meta!).ToLower()),
+            T.Format("Delete {0} {1} document(s)?", count, T.Title(meta).ToLower()),
             T["Selected draft documents will be permanently deleted. This action cannot be undone."],
             new ConfirmDialogOptions { Destructive = true, ConfirmText = $"{T["Delete"]} ({count})", CancelText = T["Cancel"] });
 
         if (!confirm.Confirmed) return;
 
         busy = true;
-        int success = 0;
-        var failed = new List<string>();
-
         try
         {
-            var namesToDelete = selectedItems.ToList();
-            foreach (var name in namesToDelete)
-            {
-                try
-                {
-                    var doc = await Docs.GetAsync(Current.Required, DocType, name);
-                    await Docs.DeleteAsync(Current.Required, DocType, name, doc.Version);
-                    success++;
-                    selectedItems.Remove(name);
-                }
-                catch (Exception ex)
-                {
-                    failed.Add($"{name}: {T.Message(ex.Message)}");
-                }
-            }
-
-            if (success > 0)
-            {
-                Toasts.Success(T.Format("{0} {1} document(s) deleted successfully.", success, T.Title(meta!).ToLower()), T["Deleted"]);
-            }
-
-            if (failed.Count > 0)
-            {
-                Toasts.Error(string.Join("; ", failed), T["Failed to Delete Some Documents"]);
-            }
+            var res = await Docs.BulkDeleteAsync(Current.Required, DocType, selectedItems.ToList());
+            await HandleBulkOutcome(
+                res,
+                T.Format("{0} {1} document(s) deleted successfully.", res.Succeeded.Count, T.Title(meta).ToLower()),
+                T["Deleted"],
+                T["Failed to Delete Some Documents"]);
         }
         finally
         {
             busy = false;
-            await Reload(result?.Page ?? 1);
         }
+    }
+
+    private async Task HandleBulkOutcome(BulkActionResult res, string successMsg, string successTitle, string errorTitle)
+    {
+        if (res.Succeeded.Count > 0)
+            Toasts.Success(successMsg, successTitle);
+
+        if (res.Failed.Count > 0)
+        {
+            var details = string.Join("; ", res.Failed.Select(f => $"{f.Name}: {T.Message(f.Error)}"));
+            Toasts.Error(details, errorTitle);
+        }
+
+        var keepSelected = res.Failed.Select(f => f.Name).ToHashSet(StringComparer.Ordinal);
+        await Reload(result?.Page ?? 1);
+        foreach (var failedName in keepSelected)
+            selectedItems.Add(failedName);
     }
 
     private async Task Reload(int page)

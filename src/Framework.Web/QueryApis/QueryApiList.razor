@@ -12,7 +12,15 @@
 
 <header class="page-head">
     <div><h1>Query APIs</h1><p>Saved queries published as <code>GET /api/query/{slug}</code> endpoints — created here or from dashboard widgets and report templates.</p></div>
-    @if (designer) { <BbButton Href="/query-apis/new"><LucideIcon Name="plus" Size="16" /> New API</BbButton> }
+    @if (designer)
+    {
+        <div class="row" style="gap:.5rem;flex-wrap:wrap">
+            <BbButton Variant="ButtonVariant.Destructive" Disabled="@(gridMgr.SelectedCount == 0 || busy)" OnClick="BulkDeleteAsync">
+                <LucideIcon Name="trash-2" Size="16" /> Delete @(gridMgr.SelectedCount > 0 ? $"({gridMgr.SelectedCount})" : "")
+            </BbButton>
+            <BbButton Href="/query-apis/new"><LucideIcon Name="plus" Size="16" /> New API</BbButton>
+        </div>
+    }
 </header>
 
 @if (!Apis.IsAvailable)
@@ -37,22 +45,16 @@ else
                 ShowPagination="true"
                 InitialPageSize="15"
                 TableContainerClass="table-wrap"
+                RowClass="@(d => gridMgr.IsSelected(d) ? "selected" : "")"
                 Resizable="true"
                 OnColumnResize="gridMgr.HandleResize"
                 StateChanged="gridMgr.HandleStateChanged">
         <Toolbar>
-            <div style="display:flex;align-items:center;gap:.5rem;margin-left:auto">
-                @if (gridMgr.HasCustomLayout)
-                {
-                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ResetColumnsLayout" Title="Reset column layout to default">
-                        <LucideIcon Name="rotate-ccw" Size="14" />
-                        <span>Reset Columns</span>
-                    </BbButton>
-                }
-                <BbDataGridColumnVisibility TData="QueryApiDef" />
-            </div>
+            <AdminGridToolbar TData="QueryApiDef" Grid="gridMgr" Items="@items" FileName="query-apis" Columns="@ExportColumns" />
         </Toolbar>
         <Columns>
+            <AdminGridSelectColumn TData="QueryApiDef" Grid="gridMgr" Items="@items" />
+
             <BbDataGridPropertyColumn TData="QueryApiDef" TProp="string" Property="d => d.Name" Id="api" Title="API"
                                       Width="@gridMgr.GetWidth("api")" Visible="@gridMgr.IsVisible("api")" Resizable="true" Sortable="true" Filterable="true">
                 <CellTemplate Context="item">
@@ -129,7 +131,20 @@ else
 @code {
     private IReadOnlyList<QueryApiDef>? items;
     private bool designer;
+    private bool busy;
     private Framework.Web.Services.DataGridPreferenceManager<QueryApiDef> gridMgr = default!;
+
+    private static readonly IReadOnlyList<GridExportColumn<QueryApiDef>> ExportColumns =
+    [
+        new("api", "API", d => d.Name),
+        new("api", "Description", d => d.Description),
+        new("endpoint", "Endpoint", d => $"/api/query/{d.Slug}"),
+        new("output", "Output", d => OutputLabel(d.Config.Output)),
+        new("params", "Parameters", d => d.Config.Parameters.Count == 0 ? "" : string.Join(", ", d.Config.Parameters.Select(p => p.Name))),
+        new("roles", "Callable By", d => d.Config.Roles.Count == 0 ? "All" : string.Join(", ", d.Config.Roles)),
+        new("source", "Source", d => SourceLabel(d.SourceRef)),
+        new("status", "Status", d => d.Config.Enabled ? "Active" : "Inactive")
+    ];
 
     protected override async Task OnInitializedAsync()
     {
@@ -162,6 +177,32 @@ else
         await Apis.DeleteAsync(Current.Required, d.Id);
         Toasts.Success("API deleted.", d.Name);
         items = await Apis.ListAsync(Current.Required);
+        gridMgr.RetainSelection(items);
+    }
+
+    private async Task BulkDeleteAsync()
+    {
+        var selected = gridMgr.GetSelectedItems(items);
+        if (selected.Count == 0 || busy) return;
+        var ok = await Dialogs.ConfirmAsync(
+            $"Delete {selected.Count} Query API(s)?",
+            "Callers of the deleted /api/query/{slug} endpoints will receive 404. This action cannot be undone.",
+            new ConfirmDialogOptions { Destructive = true, ConfirmText = $"Delete ({selected.Count})", CancelText = "Cancel" });
+        if (!ok.Confirmed) return;
+
+        busy = true;
+        try
+        {
+            foreach (var d in selected)
+            {
+                await Apis.DeleteAsync(Current.Required, d.Id);
+                gridMgr.SelectedIds.Remove(d.Id);
+            }
+            items = await Apis.ListAsync(Current.Required);
+            gridMgr.RetainSelection(items);
+            Toasts.Success($"{selected.Count} Query API(s) deleted.", "Query APIs");
+        }
+        finally { busy = false; }
     }
 
     internal static string OutputLabel(string o) => o switch { QueryApiOutputs.Object => "Single object", QueryApiOutputs.Csv => "CSV", _ => "Row list" };

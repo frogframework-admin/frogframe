@@ -29,22 +29,16 @@ else
                 ShowPagination="true"
                 InitialPageSize="15"
                 TableContainerClass="table-wrap"
+                RowClass="@(w => gridMgr.IsSelected(w) ? "selected" : "")"
                 Resizable="true"
                 OnColumnResize="gridMgr.HandleResize"
                 StateChanged="gridMgr.HandleStateChanged">
         <Toolbar>
-            <div style="display:flex;align-items:center;gap:.5rem;margin-left:auto">
-                @if (gridMgr.HasCustomLayout)
-                {
-                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ResetColumnsLayout" Title="Reset column layout to default">
-                        <LucideIcon Name="rotate-ccw" Size="14" />
-                        <span>Reset Columns</span>
-                    </BbButton>
-                }
-                <BbDataGridColumnVisibility TData="WorkflowDef" />
-            </div>
+            <AdminGridToolbar TData="WorkflowDef" Grid="gridMgr" Items="@Workflows" FileName="workflows" Columns="@ExportColumns" />
         </Toolbar>
         <Columns>
+            <AdminGridSelectColumn TData="WorkflowDef" Grid="gridMgr" Items="@Workflows" />
+
             <BbDataGridPropertyColumn TData="WorkflowDef" TProp="string" Property="w => w.Name" Id="name" Title="Workflow Name"
                                       Width="@gridMgr.GetWidth("name")" Visible="@gridMgr.IsVisible("name")" Resizable="true" Sortable="true" Filterable="true">
                 <CellTemplate Context="workflow">
@@ -109,6 +103,14 @@ else
 @code {
     private Framework.Web.Services.DataGridPreferenceManager<WorkflowDef> gridMgr = default!;
     private IReadOnlyList<WorkflowDef> Workflows => Registry.Workflows.OrderBy(w => w.Name, StringComparer.OrdinalIgnoreCase).ToList();
+
+    private IReadOnlyList<GridExportColumn<WorkflowDef>> ExportColumns =>
+    [
+        new("name", "Workflow Name", w => w.Name),
+        new("version", "Version", w => w.Version),
+        new("doctype", "DocType", w => w.DocType),
+        new("relationship", "Relationship", w => IsLinked(w) ? "Linked" : string.IsNullOrWhiteSpace(w.DocType) ? "Standalone" : "Not attached")
+    ];
 
     protected override async Task OnInitializedAsync()
     {

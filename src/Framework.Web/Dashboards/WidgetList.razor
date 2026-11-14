@@ -25,6 +25,9 @@ else
         @if (designer)
         {
             <div class="row" style="gap:.5rem;flex-wrap:wrap">
+                <BbButton Variant="ButtonVariant.Destructive" Disabled="@(gridMgr.SelectedCount == 0 || busy)" OnClick="BulkDeleteAsync">
+                    <LucideIcon Name="trash-2" Size="16" /> Delete @(gridMgr.SelectedCount > 0 ? $"({gridMgr.SelectedCount})" : "")
+                </BbButton>
                 <BbButton Href="/admin/widgets/new"><LucideIcon Name="plus" Size="16" /> New widget</BbButton>
             </div>
         }
@@ -38,22 +41,16 @@ else
                 ShowPagination="true"
                 InitialPageSize="15"
                 TableContainerClass="table-wrap"
+                RowClass="@(w => gridMgr.IsSelected(w) ? "selected" : "")"
                 Resizable="true"
                 OnColumnResize="gridMgr.HandleResize"
                 StateChanged="gridMgr.HandleStateChanged">
         <Toolbar>
-            <div style="display:flex;align-items:center;gap:.5rem;margin-left:auto">
-                @if (gridMgr.HasCustomLayout)
-                {
-                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ResetColumnsLayout" Title="Reset column layout to default">
-                        <LucideIcon Name="rotate-ccw" Size="14" />
-                        <span>Reset Columns</span>
-                    </BbButton>
-                }
-                <BbDataGridColumnVisibility TData="WidgetDef" />
-            </div>
+            <AdminGridToolbar TData="WidgetDef" Grid="gridMgr" Items="@widgets" FileName="widgets" Columns="@ExportColumns" />
         </Toolbar>
         <Columns>
+            <AdminGridSelectColumn TData="WidgetDef" Grid="gridMgr" Items="@widgets" />
+
             <BbDataGridPropertyColumn TData="WidgetDef" TProp="string" Property="w => w.Name" Id="widget" Title="Widget"
                                       Width="@gridMgr.GetWidth("widget")" Visible="@gridMgr.IsVisible("widget")" Resizable="true" Sortable="true" Filterable="true">
                 <CellTemplate Context="widget">
@@ -137,7 +134,20 @@ else
     private IReadOnlyList<WidgetDef> widgets = [];
     private IReadOnlyList<DashboardDef> dashboards = [];
     private bool designer;
+    private bool busy;
     private Framework.Web.Services.DataGridPreferenceManager<WidgetDef> gridMgr = default!;
+
+    private IReadOnlyList<GridExportColumn<WidgetDef>> ExportColumns =>
+    [
+        new("widget", "Widget", w => w.Name),
+        new("widget", "Description", w => w.Description),
+        new("type", "Type", w => WidgetBuilder.ChartLabel(w.Config.Visual.Type)),
+        new("params", "Parameters", w => w.Config.Parameters.Count == 0 ? "" : string.Join(", ", w.Config.Parameters.Select(p => "@" + p.Name))),
+        new("roles", "Viewable By", w => w.Config.Roles.Count == 0 ? "All" : string.Join(", ", w.Config.Roles)),
+        new("usage", "Used In Dashboards", w => dashboards.Count(d => d.Layout.Items.Any(i => i.WidgetId == w.Id))),
+        new("modified", "Version", w => w.Version),
+        new("modified", "Modified At", w => w.UpdatedAt)
+    ];
 
     protected override async Task OnInitializedAsync()
     {
@@ -166,6 +176,31 @@ else
     {
         widgets = await Dashboards.ListAsync(Current.Required);
         dashboards = await Dashboards.ListDashboardsAsync(Current.Required);
+        gridMgr.RetainSelection(widgets);
+    }
+
+    private async Task BulkDeleteAsync()
+    {
+        var selected = gridMgr.GetSelectedItems(widgets);
+        if (selected.Count == 0 || busy) return;
+        var ok = await Dialogs.ConfirmAsync(
+            $"Delete {selected.Count} widget(s)?",
+            "Selected widgets will also be removed from any dashboards that use them. This action cannot be undone.",
+            new ConfirmDialogOptions { Destructive = true, ConfirmText = $"Delete ({selected.Count})", CancelText = "Cancel" });
+        if (!ok.Confirmed) return;
+
+        busy = true;
+        try
+        {
+            foreach (var w in selected)
+            {
+                await Dashboards.DeleteAsync(Current.Required, w.Id);
+                gridMgr.SelectedIds.Remove(w.Id);
+            }
+            await Reload();
+            Toasts.Success($"{selected.Count} widget(s) deleted.", "Widgets");
+        }
+        finally { busy = false; }
     }
 
     private async Task Delete(WidgetDef w)

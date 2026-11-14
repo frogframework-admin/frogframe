@@ -320,6 +320,16 @@ public static class DocApi
                 return Results.Ok(res);
             }));
 
+        api.MapGet("/data/{doctype}/export.{format:regex(^(xlsx|csv)$)}", (HttpContext http, string doctype, string format, string? search, string? sort, string? dir, string? filters) =>
+            Run(http, $"doc:{doctype}:list", async (user, sp) =>
+            {
+                var parsed = ParseFilters(filters);
+                var output = await Docs(sp).ExportListAsync(user, doctype, format, new ListRequest(parsed, search, sort, dir), ct: http.RequestAborted);
+                http.Response.Headers["X-Content-Type-Options"] = "nosniff";
+                http.Response.Headers.CacheControl = "no-store";
+                return Results.File(output.Content, output.ContentType, output.FileName);
+            }));
+
         api.MapGet("/data/{doctype}/{name}", (HttpContext http, string doctype, string name) => Run(http, $"doc:{doctype}:read", async (user, sp) =>
         {
             RequireApi(sp, doctype, "read");

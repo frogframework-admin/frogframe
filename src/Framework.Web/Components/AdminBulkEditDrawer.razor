@@ -1,0 +1,139 @@
+@inject UiText T
+
+<AdminDrawer Open="@Open"
+             OpenChanged="OnOpenChanged"
+             Title="@Title"
+             Description="@(T.Format("Update a field across {0} selected item(s).", SelectedCount))">
+    <ChildContent>
+        @if (Fields.Count > 0)
+        {
+            <BbField>
+                <BbFieldLabel For="admin-bulk-field">@T["Field to update"]</BbFieldLabel>
+                <BbSelect TValue="string"
+                          Value="@(selectedField?.Name ?? "")"
+                          ValueChanged="OnFieldChanged"
+                          Placeholder="@(T["Select field…"])"
+                          AriaLabel="@(T["Field to update"])"
+                          Options="@(Fields.Select(f => new SelectOption<string>(f.Name, f.Label)))" />
+            </BbField>
+
+            @if (selectedField is not null)
+            {
+                <BbField>
+                    <BbFieldLabel For="admin-bulk-val">@selectedField.Label</BbFieldLabel>
+                    @if (selectedField.EditorType == "select" && selectedField.Options is not null)
+                    {
+                        <BbSelect TValue="string"
+                                  Value="@editValue"
+                                  ValueChanged="v => editValue = v ?? string.Empty"
+                                  Options="@selectedField.Options"
+                                  AriaLabel="@selectedField.Label" />
+                    }
+                    else if (selectedField.EditorType == "boolean")
+                    {
+                        <BbSelect TValue="string"
+                                  Value="@editValue"
+                                  ValueChanged="@(v => editValue = v ?? "true")"
+                                  Options="@BooleanOptions"
+                                  AriaLabel="@selectedField.Label" />
+                    }
+                    else if (selectedField.EditorType == "number")
+                    {
+                        <FormTextInput Id="admin-bulk-val"
+                                       Type="number"
+                                       Immediate="true"
+                                       Value="@editValue"
+                                       ValueChanged="v => editValue = v ?? string.Empty"
+                                       Placeholder="@selectedField.Placeholder" />
+                    }
+                    else
+                    {
+                        <FormTextInput Id="admin-bulk-val"
+                                       Immediate="true"
+                                       Value="@editValue"
+                                       ValueChanged="v => editValue = v ?? string.Empty"
+                                       Placeholder="@selectedField.Placeholder" />
+                    }
+                </BbField>
+            }
+        }
+    </ChildContent>
+    <FooterContent>
+        <BbButton Variant="ButtonVariant.Outline" Disabled="@Busy" OnClick="CloseAsync">@T["Cancel"]</BbButton>
+        <BbButton Disabled="@(Busy || selectedField is null || SelectedCount == 0)"
+                  Loading="@Busy"
+                  LoadingText="@(T["Updating…"])"
+                  OnClick="ApplyAsync">
+            <LucideIcon Name="check" Size="16" /> @T.Format("Apply to {0} item(s)", SelectedCount)
+        </BbButton>
+    </FooterContent>
+</AdminDrawer>
+
+@code {
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public EventCallback<bool> OpenChanged { get; set; }
+    [Parameter] public string Title { get; set; } = "Bulk Edit";
+    [Parameter] public int SelectedCount { get; set; }
+    [Parameter] public IReadOnlyList<AdminBulkEditField> Fields { get; set; } = [];
+    [Parameter] public bool Busy { get; set; }
+    [Parameter] public Func<string, string, Task>? OnApply { get; set; }
+
+    private AdminBulkEditField? selectedField;
+    private string editValue = "";
+
+    private IReadOnlyList<SelectOption<string>> BooleanOptions =>
+    [
+        new("true", T["Active / Yes"]),
+        new("false", T["Inactive / No"])
+    ];
+
+    protected override void OnParametersSet()
+    {
+        if (selectedField is null || !Fields.Any(f => f.Name == selectedField.Name))
+        {
+            selectedField = Fields.FirstOrDefault();
+            ResetValue();
+        }
+    }
+
+    private void OnFieldChanged(string? fieldName)
+    {
+        selectedField = Fields.FirstOrDefault(f => f.Name == fieldName);
+        ResetValue();
+    }
+
+    private void ResetValue()
+    {
+        if (selectedField is null)
+        {
+            editValue = "";
+            return;
+        }
+        if (selectedField.DefaultValue is not null)
+        {
+            editValue = selectedField.DefaultValue;
+        }
+        else if (selectedField.EditorType == "boolean")
+        {
+            editValue = "true";
+        }
+        else if (selectedField.EditorType == "select" && selectedField.Options is { Count: > 0 })
+        {
+            editValue = selectedField.Options[0].Value;
+        }
+        else
+        {
+            editValue = "";
+        }
+    }
+
+    private Task OnOpenChanged(bool open) => OpenChanged.InvokeAsync(open);
+
+    private Task CloseAsync() => OpenChanged.InvokeAsync(false);
+
+    private async Task ApplyAsync()
+    {
+        if (selectedField is null || OnApply is null) return;
+        await OnApply(selectedField.Name, editValue);
+    }
+}

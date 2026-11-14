@@ -26,7 +26,19 @@ else
             <h1>Auto Repeats</h1>
             <p>Configure recurring document automation schedules. Automatically clone and insert documents on daily, weekly, monthly, quarterly, or yearly schedules.</p>
         </div>
-        <div class="row" style="gap:.5rem">
+        <div class="row" style="gap:.5rem;flex-wrap:wrap">
+            <BbButton Variant="ButtonVariant.Outline" Disabled="@(gridMgr.SelectedCount == 0 || busy)" OnClick="() => bulkEditOpen = true">
+                <LucideIcon Name="pencil" Size="16" /> Bulk Edit @(gridMgr.SelectedCount > 0 ? $"({gridMgr.SelectedCount})" : "")
+            </BbButton>
+            <BbButton Variant="ButtonVariant.Outline" Disabled="@(gridMgr.SelectedCount == 0 || busy)" OnClick="() => BulkSetStatusAsync(AutoRepeatStatus.Active)">
+                <LucideIcon Name="play-circle" Size="16" /> Resume @(gridMgr.SelectedCount > 0 ? $"({gridMgr.SelectedCount})" : "")
+            </BbButton>
+            <BbButton Variant="ButtonVariant.Outline" Disabled="@(gridMgr.SelectedCount == 0 || busy)" OnClick="() => BulkSetStatusAsync(AutoRepeatStatus.Paused)">
+                <LucideIcon Name="pause" Size="16" /> Pause @(gridMgr.SelectedCount > 0 ? $"({gridMgr.SelectedCount})" : "")
+            </BbButton>
+            <BbButton Variant="ButtonVariant.Destructive" Disabled="@(gridMgr.SelectedCount == 0 || busy)" OnClick="BulkDeleteAsync">
+                <LucideIcon Name="trash-2" Size="16" /> Delete @(gridMgr.SelectedCount > 0 ? $"({gridMgr.SelectedCount})" : "")
+            </BbButton>
             <BbButton OnClick="StartCreate"><LucideIcon Name="plus" Size="16" /> New Auto Repeat</BbButton>
         </div>
     </header>
@@ -45,22 +57,22 @@ else
     <BbDataGrid @key="gridMgr.RenderKey"
                 TData="AutoRepeatDef"
                 Items="filteredRepeats"
+                ShowSearch="true"
+                SearchPlaceholder="Search auto repeats..."
+                ShowPagination="true"
+                InitialPageSize="10"
+                TableContainerClass="table-wrap"
+                RowClass="@(r => gridMgr.IsSelected(r) ? "selected" : "")"
+                Resizable="true"
                 AriaLabel="Auto Repeats"
                 OnColumnResize="gridMgr.HandleResize"
                 StateChanged="gridMgr.HandleStateChanged">
         <Toolbar>
-            <div class="row" style="gap:.5rem;width:100%;justify-content:flex-end">
-                @if (gridMgr.HasCustomLayout)
-                {
-                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ResetColumnsLayout" Title="Reset column layout to default">
-                        <LucideIcon Name="rotate-ccw" Size="14" />
-                        <span>Reset Columns</span>
-                    </BbButton>
-                }
-                <BbDataGridColumnVisibility TData="AutoRepeatDef" />
-            </div>
+            <AdminGridToolbar TData="AutoRepeatDef" Grid="gridMgr" Items="@filteredRepeats" FileName="auto-repeats" Columns="@ExportColumns" />
         </Toolbar>
         <Columns>
+            <AdminGridSelectColumn TData="AutoRepeatDef" Grid="gridMgr" Items="@filteredRepeats" />
+
             <BbDataGridPropertyColumn TData="AutoRepeatDef" TProp="string" Property="r => r.Name" Id="name" Title="Name"
                                       Width="@gridMgr.GetWidth("name", "16rem")" Visible="@gridMgr.IsVisible("name")" Resizable="true" Sortable="true" Filterable="true">
                 <CellTemplate Context="r">
@@ -279,12 +291,43 @@ else
     </FooterContent>
 </AdminDrawer>
 
+<AdminBulkEditDrawer Open="@bulkEditOpen"
+                     OpenChanged="v => bulkEditOpen = v"
+                     Title="Bulk Edit Auto Repeats"
+                     SelectedCount="@gridMgr.SelectedCount"
+                     Fields="@BulkEditFields"
+                     Busy="@busy"
+                     OnApply="ExecuteBulkEditAsync" />
+
 @code {
     private List<AutoRepeatDef> repeats = [];
     private List<AutoRepeatRun> runs = [];
     private string filterDocType = "";
     private string? error;
     private string? dialogError;
+    private bool busy;
+    private bool bulkEditOpen;
+
+    private static readonly IReadOnlyList<GridExportColumn<AutoRepeatDef>> ExportColumns =
+    [
+        new("name", "Name", r => r.Name),
+        new("doctype", "DocType", r => r.ReferenceDocType),
+        new("docname", "Source Document", r => r.ReferenceDocName),
+        new("frequency", "Frequency", r => r.Frequency.ToString()),
+        new("next", "Next Schedule", r => r.NextScheduleDate),
+        new("status", "Status", r => r.Status.ToString())
+    ];
+
+    private IReadOnlyList<AdminBulkEditField> BulkEditFields =>
+    [
+        new("frequency", "Frequency", "select", Options: FrequencyOptions),
+        new("status", "Status", "select", Options:
+        [
+            new(nameof(AutoRepeatStatus.Active), "Active"),
+            new(nameof(AutoRepeatStatus.Paused), "Paused")
+        ]),
+        new("submit", "Submit on Creation", "boolean")
+    ];
 
     private bool isDrawerOpen;
     private bool isRunsDrawerOpen;
@@ -351,11 +394,91 @@ else
         {
             var res = await AutoRepeatService.ListAsync(Current.Required);
             repeats = res.ToList();
+            gridMgr.RetainSelection(repeats);
         }
         catch (Exception ex)
         {
             error = ex.Message;
         }
+    }
+
+    private async Task BulkSetStatusAsync(AutoRepeatStatus status)
+    {
+        var selected = gridMgr.GetSelectedItems(filteredRepeats);
+        if (selected.Count == 0 || busy) return;
+        busy = true;
+        try
+        {
+            foreach (var r in selected)
+            {
+                var updated = r with { Status = status, ModifiedAt = DateTimeOffset.UtcNow };
+                await AutoRepeatStore.SaveAsync(updated);
+                gridMgr.SelectedIds.Remove(r.Id);
+            }
+            await LoadRepeatsAsync();
+            Toasts.Success($"{selected.Count} schedule(s) {(status == AutoRepeatStatus.Active ? "resumed" : "paused")}.", "Auto Repeat");
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error(ex.Message, "Auto Repeat");
+        }
+        finally { busy = false; }
+    }
+
+    private async Task ExecuteBulkEditAsync(string field, string value)
+    {
+        var selected = gridMgr.GetSelectedItems(filteredRepeats);
+        if (selected.Count == 0 || busy) return;
+        busy = true;
+        try
+        {
+            foreach (var r in selected)
+            {
+                var updated = field switch
+                {
+                    "frequency" when Enum.TryParse<AutoRepeatFrequency>(value, out var f) => r with { Frequency = f, ModifiedAt = DateTimeOffset.UtcNow },
+                    "status" when Enum.TryParse<AutoRepeatStatus>(value, out var s) => r with { Status = s, ModifiedAt = DateTimeOffset.UtcNow },
+                    "submit" => r with { SubmitOnCreation = string.Equals(value, "true", StringComparison.OrdinalIgnoreCase), ModifiedAt = DateTimeOffset.UtcNow },
+                    _ => r
+                };
+                await AutoRepeatStore.SaveAsync(updated);
+                gridMgr.SelectedIds.Remove(r.Id);
+            }
+            bulkEditOpen = false;
+            await LoadRepeatsAsync();
+            Toasts.Success($"{selected.Count} schedule(s) updated.", "Bulk Edit Complete");
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error(ex.Message, "Auto Repeat");
+        }
+        finally { busy = false; }
+    }
+
+    private async Task BulkDeleteAsync()
+    {
+        var selected = gridMgr.GetSelectedItems(filteredRepeats);
+        if (selected.Count == 0 || busy) return;
+        var confirmed = await Dialogs.ConfirmAsync("Delete Auto Repeats", $"Are you sure you want to delete {selected.Count} auto repeat schedule(s)?",
+            new ConfirmDialogOptions { Destructive = true, ConfirmText = $"Delete ({selected.Count})", CancelText = "Cancel" });
+        if (!confirmed.Confirmed) return;
+
+        busy = true;
+        try
+        {
+            foreach (var r in selected)
+            {
+                await AutoRepeatService.DeleteAsync(Current.Required, r.Id);
+                gridMgr.SelectedIds.Remove(r.Id);
+            }
+            await LoadRepeatsAsync();
+            Toasts.Success($"{selected.Count} schedule(s) deleted.", "Auto Repeat");
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error(ex.Message, "Auto Repeat");
+        }
+        finally { busy = false; }
     }
 
     private void OnFilterDocTypeChanged(string docType)

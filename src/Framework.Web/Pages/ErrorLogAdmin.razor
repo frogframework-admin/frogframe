@@ -21,7 +21,10 @@ else
             <h1>Error Log</h1>
             <p>Unhandled server exceptions across HTTP endpoints, APIs, and background processes.</p>
         </div>
-        <div class="row" style="gap:.5rem">
+        <div class="row" style="gap:.5rem;flex-wrap:wrap">
+            <BbButton Variant="ButtonVariant.Outline" OnClick="BulkMarkSeenAsync" Disabled="@(gridMgr.SelectedCount == 0 || busy)">
+                <LucideIcon Name="check" Size="16" /> Mark as Seen @(gridMgr.SelectedCount > 0 ? $"({gridMgr.SelectedCount})" : "")
+            </BbButton>
             <BbButton Variant="@(showAllTenants ? ButtonVariant.Secondary : ButtonVariant.Outline)" OnClick="ToggleScopeAsync" Disabled="@busy">
                 <LucideIcon Name="@(showAllTenants ? "globe" : "building")" Size="16" />
                 @(showAllTenants ? "Scope: All & System" : $"Scope: {Current.Required.TenantId}")
@@ -105,23 +108,16 @@ else
                 ShowPagination="true"
                 InitialPageSize="15"
                 TableContainerClass="table-wrap"
-                RowClass="@(r => selectedEntry?.Id == r.Id ? "selected" : "")"
+                RowClass="@(r => selectedEntry?.Id == r.Id || gridMgr.IsSelected(r) ? "selected" : "")"
                 Resizable="true"
                 OnColumnResize="gridMgr.HandleResize"
                 StateChanged="gridMgr.HandleStateChanged">
         <Toolbar>
-            <div style="display:flex;align-items:center;gap:.5rem;margin-left:auto">
-                @if (gridMgr.HasCustomLayout)
-                {
-                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ResetColumnsLayout" Title="Reset column layout to default">
-                        <LucideIcon Name="rotate-ccw" Size="14" />
-                        <span>Reset Columns</span>
-                    </BbButton>
-                }
-                <BbDataGridColumnVisibility TData="ErrorLogEntry" />
-            </div>
+            <AdminGridToolbar TData="ErrorLogEntry" Grid="gridMgr" Items="@errors" FileName="error-logs" Columns="@ExportColumns" />
         </Toolbar>
         <Columns>
+            <AdminGridSelectColumn TData="ErrorLogEntry" Grid="gridMgr" Items="@errors" />
+
             <BbDataGridPropertyColumn TData="ErrorLogEntry" TProp="DateTimeOffset" Property="r => r.Timestamp" Id="timestamp" Title="Timestamp"
                                       Width="@gridMgr.GetWidth("timestamp", "13rem")" Visible="@gridMgr.IsVisible("timestamp")" Resizable="true" Sortable="true">
                 <CellTemplate Context="item">
@@ -197,6 +193,17 @@ else
     private bool busy;
     private Framework.Web.Services.DataGridPreferenceManager<ErrorLogEntry> gridMgr = default!;
 
+    private static readonly IReadOnlyList<GridExportColumn<ErrorLogEntry>> ExportColumns =
+    [
+        new("timestamp", "Timestamp", r => r.Timestamp),
+        new("tenant", "Tenant", r => r.TenantId),
+        new("method", "Method", r => r.Method),
+        new("path", "Path", r => r.Path),
+        new("error_type", "Error Type", r => r.ErrorType),
+        new("message", "Message", r => r.Message),
+        new("status", "Status", r => r.Seen ? "Seen" : "New")
+    ];
+
     private bool showAllTenants = true;
 
     protected override async Task OnInitializedAsync()
@@ -230,6 +237,7 @@ else
         {
             var list = await ErrorStore.GetRecentAsync(showAllTenants ? null : Current.Required.TenantId, 100);
             errors = list.ToList();
+            gridMgr.RetainSelection(errors);
         }
         catch (Exception ex)
         {
@@ -239,6 +247,33 @@ else
         {
             busy = false;
         }
+    }
+
+    private async Task BulkMarkSeenAsync()
+    {
+        var selected = gridMgr.GetSelectedItems(errors);
+        if (selected.Count == 0 || busy) return;
+        busy = true;
+        try
+        {
+            int count = 0;
+            foreach (var entry in selected)
+            {
+                if (!entry.Seen)
+                {
+                    await ErrorStore.MarkSeenAsync(entry.Id, null);
+                    count++;
+                }
+                gridMgr.SelectedIds.Remove(entry.Id.ToString());
+            }
+            await ReloadAsync();
+            Toasts.Success($"Marked {count} error(s) as seen.", "Error Log");
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error(ex.Message, "Failed to update errors");
+        }
+        finally { busy = false; }
     }
 
     private void SelectEntry(ErrorLogEntry entry)

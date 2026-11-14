@@ -1,0 +1,75 @@
+@typeparam TData where TData : class
+@inject ReportDownloads Downloads
+@inject CurrentUser Current
+@inject Microsoft.JSInterop.IJSRuntime JS
+@inject ToastService Toasts
+@inject UiText T
+
+<div style="display:flex;align-items:center;gap:.5rem;margin-left:auto;flex-wrap:wrap">
+    @if (ChildContent is not null)
+    {
+        @ChildContent
+    }
+    @if (Columns is { Count: > 0 })
+    {
+        <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Disabled="@busy"
+                  OnClick="@(() => ExportAsync("xlsx"))"
+                  Title="@(T["Export list to Excel (.xlsx)"])">
+            <LucideIcon Name="file-spreadsheet" Size="14" />
+            <span>@T["Export Excel"]@(Grid.SelectedCount > 0 ? $" ({Grid.SelectedCount})" : "")</span>
+        </BbButton>
+        <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Disabled="@busy"
+                  OnClick="@(() => ExportAsync("csv"))"
+                  Title="@(T["Export list to CSV (.csv)"])">
+            <LucideIcon Name="file-down" Size="14" />
+            <span>@T["Export CSV"]@(Grid.SelectedCount > 0 ? $" ({Grid.SelectedCount})" : "")</span>
+        </BbButton>
+    }
+    @if (Grid.HasCustomLayout)
+    {
+        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ResetColumnsAsync" Title="@(T["Reset column layout to default"])">
+            <LucideIcon Name="rotate-ccw" Size="14" />
+            <span>@T["Reset Columns"]</span>
+        </BbButton>
+    }
+    <BbDataGridColumnVisibility TData="TData" />
+</div>
+
+@code {
+    [Parameter, EditorRequired] public DataGridPreferenceManager<TData> Grid { get; set; } = default!;
+    [Parameter] public IEnumerable<TData>? Items { get; set; }
+    [Parameter] public string FileName { get; set; } = "export";
+    [Parameter] public IReadOnlyList<GridExportColumn<TData>>? Columns { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private bool busy;
+
+    private async Task ExportAsync(string format)
+    {
+        if (busy || Columns is not { Count: > 0 } || Current.User is null) return;
+        busy = true;
+        try
+        {
+            var output = Grid.BuildExport(format, FileName, Items, Columns);
+            var token = Downloads.Put(Current.Required.TenantId, Current.Required.Id, output);
+            await JS.InvokeVoidAsync("frogframe.downloadUrl", $"/report-downloads/{token}", output.FileName);
+            Toasts.Success(
+                T.Format("Exported {0} row(s) to {1}.", output.Rows, output.FileName),
+                T["Export Complete"]);
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error(T.Message(ex.Message), T["Export Failed"]);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task ResetColumnsAsync()
+    {
+        await Grid.ResetAsync();
+        Toasts.Success(T["Column layout has been reset to default."], T["Reset Columns"]);
+    }
+}
