@@ -286,12 +286,12 @@
         : modalModules.Where(m => m.Name.Contains(moduleSearchQuery, StringComparison.OrdinalIgnoreCase) || T[m.Name].Contains(moduleSearchQuery, StringComparison.OrdinalIgnoreCase)).ToList();
 
     <BbDialog Open="@isModulePickerOpen" OpenChanged="OnModulePickerOpenChanged">
-        <BbDialogContent Class="sm:max-w-xl">
-            <BbDialogHeader>
+        <BbDialogContent Class="sm:max-w-lg module-picker-dialog">
+            <BbDialogHeader Class="module-picker-header">
                 <BbDialogTitle>@T["Select Workspace Module"]</BbDialogTitle>
                 <BbDialogDescription>@T["Choose a module to show its menu groups and menus in the sidebar."]</BbDialogDescription>
             </BbDialogHeader>
-            <div class="module-picker-search" style="margin: .75rem 0 .5rem;">
+            <div class="module-picker-search">
                 <BbInputGroup>
                     <BbInputGroupAddon Align="InputGroupAlign.InlineStart">
                         <LucideIcon Name="search" Size="16" />
@@ -312,7 +312,7 @@
             </div>
             @if (filteredModules.Count == 0)
             {
-                <div style="padding: 2.25rem 1rem; text-align: center; color: var(--muted-foreground);">
+                <div style="padding: 2rem 1rem; text-align: center; color: var(--muted-foreground);">
                     <LucideIcon Name="search-x" Size="32" style="margin: 0 auto .5rem; display: block; opacity: .5;" />
                     <div style="font-weight: 600; font-size: .95rem; color: var(--foreground);">@T["No modules found"]</div>
                     <div style="font-size: .85rem; margin-top: .25rem;">@(T.Format("No module matches \"{0}\"", moduleSearchQuery))</div>
@@ -329,7 +329,7 @@
                                 Class="@($"module-horizontal-item {(isCurrent ? "active" : "")}")"
                                 @onclick="() => SelectModuleFromModal(mod)">
                             <BbItemMedia Variant="ItemMediaVariant.Icon" Class="module-media-box">
-                                <LucideIcon Name="@(string.IsNullOrWhiteSpace(mod.Icon) ? "layout-grid" : mod.Icon)" Size="20" />
+                                <LucideIcon Name="@(string.IsNullOrWhiteSpace(mod.Icon) ? "layout-grid" : mod.Icon)" Size="18" />
                             </BbItemMedia>
                             <BbItemContent Class="module-horizontal-content">
                                 <BbItemTitle Class="module-horizontal-title">@T[mod.Name]</BbItemTitle>
