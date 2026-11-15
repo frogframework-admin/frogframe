@@ -49,6 +49,16 @@
                                 <BbSidebarMenuBadge>@unread</BbSidebarMenuBadge>
                             }
                         </BbSidebarMenuItem>
+                        <BbSidebarMenuItem>
+                            <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="/dashboard" Match="NavLinkMatch.Prefix" Tooltip="@(T["Dashboard"])">
+                                <LucideIcon Name="layout-dashboard" Size="18" /><span>@T["Dashboard"]</span>
+                            </BbSidebarMenuButton>
+                        </BbSidebarMenuItem>
+                        <BbSidebarMenuItem>
+                            <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="/reports" Match="NavLinkMatch.Prefix" Tooltip="@(T["Reports"])">
+                                <LucideIcon Name="chart-column" Size="18" /><span>@T["Reports"]</span>
+                            </BbSidebarMenuButton>
+                        </BbSidebarMenuItem>
                         @if (activeMod is not null)
                         {
                             <BbSidebarMenuItem>
@@ -98,6 +108,8 @@
                         var grpMenus = visibleMenus
                             .Where(m => !string.IsNullOrEmpty(m.Href)
                                      && !string.Equals(m.Href, "inbox", StringComparison.OrdinalIgnoreCase)
+                                     && !string.Equals(m.Href, "dashboard", StringComparison.OrdinalIgnoreCase)
+                                     && !string.Equals(m.Href, "reports", StringComparison.OrdinalIgnoreCase)
                                      && (m.GroupId == grp.Id || (string.IsNullOrWhiteSpace(m.GroupId) && string.Equals(m.GroupName, grp.Name, StringComparison.OrdinalIgnoreCase))))
                             .OrderBy(m => m.SortOrder)
                             .ToList();
@@ -551,9 +563,13 @@
         var rel = Nav.ToBaseRelativePath(Nav.Uri).Trim('/');
         if (string.IsNullOrEmpty(rel)) return;
 
-        // Inbox and account profile routes are global utilities, they should not switch the active module.
+        // Inbox, dashboard, reports, and account profile routes are global utilities, they should not switch the active module.
         if (rel.Equals("inbox", StringComparison.OrdinalIgnoreCase)
             || rel.StartsWith("inbox/", StringComparison.OrdinalIgnoreCase)
+            || rel.Equals("dashboard", StringComparison.OrdinalIgnoreCase)
+            || rel.StartsWith("dashboard/", StringComparison.OrdinalIgnoreCase)
+            || rel.Equals("reports", StringComparison.OrdinalIgnoreCase)
+            || rel.StartsWith("reports/", StringComparison.OrdinalIgnoreCase)
             || rel.Equals("account", StringComparison.OrdinalIgnoreCase)
             || rel.StartsWith("account/", StringComparison.OrdinalIgnoreCase))
         {
@@ -609,6 +625,8 @@
 
         var matchedMenu = navMenus.FirstOrDefault(m => !string.IsNullOrEmpty(m.Href)
             && !string.Equals(m.Href.Trim('/'), "inbox", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(m.Href.Trim('/'), "dashboard", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(m.Href.Trim('/'), "reports", StringComparison.OrdinalIgnoreCase)
             && (rel.Equals(m.Href.Trim('/'), StringComparison.OrdinalIgnoreCase) || rel.StartsWith(m.Href.Trim('/') + "/", StringComparison.OrdinalIgnoreCase)));
         if (matchedMenu is not null)
         {
@@ -827,6 +845,12 @@
         if (first == "inbox")
         {
             crumbs.Add(new Crumb("Inbox", IsActive: true));
+            return crumbs;
+        }
+
+        if (first == "dashboard")
+        {
+            crumbs.Add(new Crumb("Dashboard", IsActive: true));
             return crumbs;
         }
 

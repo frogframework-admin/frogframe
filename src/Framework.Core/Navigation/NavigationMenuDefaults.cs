@@ -172,21 +172,6 @@ public static class NavigationMenuDefaults
         },
         new()
         {
-            Id = ModuleAnalyticsId(tenantId),
-            TenantId = tenantId,
-            Code = "ANALYTICS",
-            Name = "Analytics",
-            Description = "Interactive dashboards and operational reports",
-            Icon = "chart-column",
-            SortOrder = 30,
-            AllowedRoles = [],
-            IsSystem = true,
-            IsActive = true,
-            CreatedAt = now,
-            UpdatedAt = now
-        },
-        new()
-        {
             Id = ModuleAdminId(tenantId),
             TenantId = tenantId,
             Code = "ADMINISTRATION",
@@ -239,9 +224,7 @@ public static class NavigationMenuDefaults
         new() { Id = GroupStockOpsId(tenantId), TenantId = tenantId, ModuleId = ModuleStockId(tenantId), Name = "Inventory Operations", Icon = "boxes", SortOrder = 10, IsSystem = true, IsActive = true, CreatedAt = now, UpdatedAt = now },
         new() { Id = GroupStockMasterId(tenantId), TenantId = tenantId, ModuleId = ModuleStockId(tenantId), Name = "Warehouses & Catalog", Icon = "warehouse", SortOrder = 20, IsSystem = true, IsActive = true, CreatedAt = now, UpdatedAt = now },
 
-        // ANALYTICS
-        new() { Id = GroupUtamaId(tenantId), TenantId = tenantId, ModuleId = ModuleAnalyticsId(tenantId), Name = "Main", Icon = "layout-dashboard", SortOrder = 10, IsSystem = true, IsActive = true, CreatedAt = now, UpdatedAt = now },
-        new() { Id = GroupLaporanId(tenantId), TenantId = tenantId, ModuleId = ModuleAnalyticsId(tenantId), Name = "Reports", Icon = "chart-column", SortOrder = 20, IsSystem = true, IsActive = true, CreatedAt = now, UpdatedAt = now },
+        // ANALYTICS module removed: Home, Inbox, Dashboard, and Reports are now universal top-level menus for all users.
 
         // ADMINISTRATION
         new() { Id = GroupAdminSystemId(tenantId), TenantId = tenantId, ModuleId = ModuleAdminId(tenantId), Name = "System & Users", Icon = "shield-check", SortOrder = 10, IsSystem = true, IsActive = true, CreatedAt = now, UpdatedAt = now },
@@ -253,11 +236,11 @@ public static class NavigationMenuDefaults
     {
         var items = new List<NavigationMenuItem>
         {
-            // ==================== ANALYTICS (Universal Employee & Dashboards) ====================
-            new() { Id = $"menu_{tenantId}_beranda", TenantId = tenantId, Title = "Home", Href = "", Icon = "house", GroupId = GroupUtamaId(tenantId), GroupName = "Main", SortOrder = 10, AllowedRoles = [], IsSystem = true, IsActive = true, CreatedAt = now, UpdatedAt = now },
-            new() { Id = $"menu_{tenantId}_dashboard", TenantId = tenantId, Title = "Dashboard", Href = "dashboard", Icon = "layout-dashboard", GroupId = GroupUtamaId(tenantId), GroupName = "Main", SortOrder = 20, AllowedRoles = [], IsSystem = true, IsActive = true, CreatedAt = now, UpdatedAt = now },
-            new() { Id = $"menu_{tenantId}_inbox", TenantId = tenantId, Title = "Inbox", Href = "inbox", Icon = "inbox", GroupId = GroupUtamaId(tenantId), GroupName = "Main", SortOrder = 30, AllowedRoles = [], IsSystem = true, IsActive = true, BadgeKey = BadgeInboxUnread, CreatedAt = now, UpdatedAt = now },
-            new() { Id = $"menu_{tenantId}_reports", TenantId = tenantId, Title = "Reports", Href = "reports", Icon = "chart-column", GroupId = GroupLaporanId(tenantId), GroupName = "Reports", SortOrder = 10, AllowedRoles = [UserContext.SystemManager], IsSystem = true, IsActive = true, CreatedAt = now, UpdatedAt = now },
+            // ==================== Universal Navigation Items (All Users) ====================
+            new() { Id = $"menu_{tenantId}_beranda", TenantId = tenantId, Title = "Home", Href = "", Icon = "house", GroupId = null, GroupName = "", SortOrder = 10, AllowedRoles = [], IsSystem = true, IsActive = true, CreatedAt = now, UpdatedAt = now },
+            new() { Id = $"menu_{tenantId}_inbox", TenantId = tenantId, Title = "Inbox", Href = "inbox", Icon = "inbox", GroupId = null, GroupName = "", SortOrder = 20, AllowedRoles = [], IsSystem = true, IsActive = true, BadgeKey = BadgeInboxUnread, CreatedAt = now, UpdatedAt = now },
+            new() { Id = $"menu_{tenantId}_dashboard", TenantId = tenantId, Title = "Dashboard", Href = "dashboard", Icon = "layout-dashboard", GroupId = null, GroupName = "", SortOrder = 30, AllowedRoles = [], IsSystem = true, IsActive = true, CreatedAt = now, UpdatedAt = now },
+            new() { Id = $"menu_{tenantId}_reports", TenantId = tenantId, Title = "Reports", Href = "reports", Icon = "chart-column", GroupId = null, GroupName = "", SortOrder = 40, AllowedRoles = [], IsSystem = true, IsActive = true, CreatedAt = now, UpdatedAt = now },
 
             // ==================== CORE ====================
             // Company & Parties
@@ -418,9 +401,9 @@ public static class NavigationMenuDefaults
             new() { Id = $"menu_{tenantId}_workflows", TenantId = tenantId, Title = "Workflows", Href = "admin/workflows", Icon = "git-branch", GroupId = GroupAdminMetadataId(tenantId), GroupName = "Metadata & Customization", SortOrder = 20, AllowedRoles = [UserContext.SystemManager], IsSystem = true, IsActive = true, CreatedAt = now, UpdatedAt = now },
             new() { Id = $"menu_{tenantId}_server_scripts", TenantId = tenantId, Title = "Server Scripts", Href = "admin/server-scripts", Icon = "code-xml", GroupId = GroupAdminMetadataId(tenantId), GroupName = "Metadata & Customization", SortOrder = 30, AllowedRoles = [UserContext.SystemManager, UserContext.Administrator], IsSystem = true, IsActive = true, CreatedAt = now, UpdatedAt = now },
             new() { Id = $"menu_{tenantId}_auto_repeats", TenantId = tenantId, Title = "Auto Repeats", Href = "admin/auto-repeats", Icon = "repeat", GroupId = GroupAdminMetadataId(tenantId), GroupName = "Metadata & Customization", SortOrder = 40, AllowedRoles = [UserContext.SystemManager, UserContext.Administrator], IsSystem = true, IsActive = true, CreatedAt = now, UpdatedAt = now },
-            new() { Id = $"menu_{tenantId}_report_templates", TenantId = tenantId, Title = "Excel/Word Reports", Href = "admin/report-templates", Icon = "file-spreadsheet", GroupId = GroupAdminMetadataId(tenantId), GroupName = "Metadata & Customization", SortOrder = 50, AllowedRoles = [UserContext.SystemManager, UserContext.Administrator], IsSystem = true, IsActive = true, CreatedAt = now, UpdatedAt = now },
             new() { Id = $"menu_{tenantId}_widgets", TenantId = tenantId, Title = "Widgets", Href = "admin/widgets", Icon = "layout-grid", GroupId = GroupAdminMetadataId(tenantId), GroupName = "Metadata & Customization", SortOrder = 55, AllowedRoles = [UserContext.SystemManager, UserContext.Administrator], IsSystem = true, IsActive = true, CreatedAt = now, UpdatedAt = now },
             new() { Id = $"menu_{tenantId}_dashboards_admin", TenantId = tenantId, Title = "Dashboards", Href = "admin/dashboards", Icon = "layout-dashboard", GroupId = GroupAdminMetadataId(tenantId), GroupName = "Metadata & Customization", SortOrder = 60, AllowedRoles = [UserContext.SystemManager, UserContext.Administrator], IsSystem = true, IsActive = true, CreatedAt = now, UpdatedAt = now },
+            new() { Id = $"menu_{tenantId}_report_templates", TenantId = tenantId, Title = "Excel/Word Reports", Href = "admin/report-templates", Icon = "file-spreadsheet", GroupId = GroupAdminMetadataId(tenantId), GroupName = "Metadata & Customization", SortOrder = 70, AllowedRoles = [UserContext.SystemManager, UserContext.Administrator], IsSystem = true, IsActive = true, CreatedAt = now, UpdatedAt = now },
 
             // Integration & Settings
             new() { Id = $"menu_{tenantId}_query_apis", TenantId = tenantId, Title = "Query APIs", Href = "query-apis", Icon = "braces", GroupId = GroupAdminIntegrationsId(tenantId), GroupName = "Integration & Settings", SortOrder = 10, AllowedRoles = [UserContext.SystemManager], IsSystem = true, IsActive = true, CreatedAt = now, UpdatedAt = now },

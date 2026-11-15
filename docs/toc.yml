@@ -40,6 +40,8 @@
       href: communications.md
     - name: Excel & CSV Data Import
       href: guides/excel-import.md
+    - name: Custom Code Reports (IReportProvider)
+      href: guides/custom-reports.md
     - name: Template Reporting (Excel & Word)
       href: guides/template-reporting.md
     - name: PDF Printing & Rendering

@@ -114,7 +114,7 @@ cp <erp>/Metadata/* src/<HostApp>/Metadata/ && dotnet build
 | Kinerja & pelatihan | `TalentHooks.cs` | Appraisal (nilai diri vs atasan dijaga, rating dari skor tertimbang, selesai hanya saat siklus berjalan), Training Event (peserta unik, jumlah hadir) |
 | Payroll | `PayrollHooks.cs` | Komponen & penugasan gaji, payslip (BPJS, PPh 21 TER / tahunan, DTP, gaji bersih), payroll run (aksi buat & submit payslip, jurnal payroll) |
 | Persediaan | `StockHooks.cs` | Mesin stok rata-rata bergerak (saldo dari dokumen mutasi submit), Stock Entry, Stock Opname (+ aksi *Fetch items*), Goods Receipt ke gudang, faktur/nota dengan *Update stock* (HPP), akun persediaan/GRNI di faktur pembelian |
-| Laporan | `Reports/ErpReports.cs` | 15 laporan di menu Reports (lihat bagian Laporan) |
+| Laporan | `Reports/*.cs` | 15 laporan di menu Reports (lihat bagian Laporan dan panduan `docs/guides/custom-reports.md`) |
 | Lintas dokumen | `EventsAndJobs.cs` | Handler event outbox (idempoten) + job harian: penerapan HR per tanggal efektif, alokasi cuti tahunan (dengan carry forward), pengingat kontrak berakhir, penawaran kedaluwarsa, pengingat opportunity tanpa aktivitas |
 
 ### Pola desain yang dipakai (akibat aturan framework)

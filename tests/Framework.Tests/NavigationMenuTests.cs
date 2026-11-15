@@ -12,17 +12,22 @@ sealed partial class Tests
         var tenantId = "acme";
         var items = await NavMenus.ListAsync(tenantId, onlyActive: false);
 
-        // Universal menu items: Home, Dashboard, Inbox
+        // Universal menu items: Home, Inbox, Dashboard, Reports (semua user punya)
         var beranda = items.FirstOrDefault(x => x.Href == "");
         Assert.True(beranda is not null && (beranda.Title == "Home" || beranda.Title == "Beranda") && beranda.AllowedRoles.Count == 0, "Home menu should be for all employees");
+
+        var inbox = items.FirstOrDefault(x => x.Href == "inbox");
+        Assert.True(inbox is not null && (inbox.Title == "Inbox" || inbox.Title == "Kotak masuk") && inbox.BadgeKey == NavigationMenuDefaults.BadgeInboxUnread && inbox.AllowedRoles.Count == 0, "Inbox should be for all employees");
 
         var dashboard = items.FirstOrDefault(x => x.Href == "dashboard");
         Assert.True(dashboard is not null && dashboard.Title == "Dashboard" && dashboard.AllowedRoles.Count == 0, "Dashboard should be for all employees");
 
-        var inbox = items.FirstOrDefault(x => x.Href == "inbox");
-        Assert.True(inbox is not null && (inbox.Title == "Inbox" || inbox.Title == "Kotak masuk") && inbox.BadgeKey == NavigationMenuDefaults.BadgeInboxUnread, "Inbox should have unread badge");
+        var reports = items.FirstOrDefault(x => x.Href == "reports");
+        Assert.True(reports is not null && reports.Title == "Reports" && reports.AllowedRoles.Count == 0, "Reports should be for all employees");
 
-        // Menu Wajib Sistem: Metadata DocType, API Query, Kunci API, Pengguna, Laporan
+        Assert.True(beranda.SortOrder < inbox.SortOrder && inbox.SortOrder < dashboard.SortOrder && dashboard.SortOrder < reports.SortOrder, "Universal menus should be ordered Home -> Inbox -> Dashboard -> Reports");
+
+        // Menu Wajib Sistem: Metadata DocType, API Query, Kunci API, Pengguna
         var metadata = items.FirstOrDefault(x => x.Href == "admin/metadata");
         Assert.True(metadata is not null && metadata.IsSystem && metadata.AllowedRoles.Contains(UserContext.SystemManager), "Metadata DocType harus di-seed");
 
@@ -38,9 +43,6 @@ sealed partial class Tests
         var users = items.FirstOrDefault(x => x.Href == "admin/users");
         Assert.True(users is not null && users.IsSystem && users.AllowedRoles.Contains(UserContext.SystemManager), "Pengguna harus di-seed");
 
-        var reports = items.FirstOrDefault(x => x.Href == "reports");
-        Assert.True(reports is not null && reports.IsSystem && reports.AllowedRoles.Contains(UserContext.SystemManager), "Laporan harus di-seed");
-
         var menuAdmin = items.FirstOrDefault(x => x.Href == "admin/menus");
         Assert.True(menuAdmin is not null && menuAdmin.IsSystem && menuAdmin.AllowedRoles.Contains(UserContext.SystemManager), "Kelola Menu harus di-seed");
 
@@ -55,6 +57,11 @@ sealed partial class Tests
         Assert.True(dashboards is not null, "Dashboards admin menu harus ada");
         Assert.Equal("Metadata & Customization", dashboards!.GroupName, "Dashboards harus berada di grup Metadata & Customization");
         Assert.True(widgets.SortOrder < dashboards.SortOrder, "Widgets harus diletakkan di atas Dashboards");
+
+        var reportTemplates = items.FirstOrDefault(x => x.Href == "admin/report-templates");
+        Assert.True(reportTemplates is not null, "Excel/Word reports admin menu harus ada");
+        Assert.Equal("Metadata & Customization", reportTemplates!.GroupName, "Excel/Word reports harus berada di grup Metadata & Customization");
+        Assert.True(dashboards.SortOrder < reportTemplates.SortOrder, "Excel/Word reports harus diletakkan di bawah Dashboards");
 
         var errorLogs = items.FirstOrDefault(x => x.Href == "admin/error-logs");
         Assert.True(errorLogs is not null && errorLogs.IsSystem && errorLogs.AllowedRoles.Contains(UserContext.SystemManager), "Error Log harus di-seed");
@@ -72,10 +79,11 @@ sealed partial class Tests
         var empVisible = items.Where(m => m.IsVisibleFor(employeeUser)).ToList();
         var adminVisible = items.Where(m => m.IsVisibleFor(adminUser)).ToList();
 
-        // Karyawan biasa bisa melihat Beranda, Dashboard, Kotak Masuk
+        // Karyawan biasa bisa melihat Beranda, Inbox, Dashboard, Reports
         Assert.True(empVisible.Any(x => x.Href == ""), "Karyawan dapat melihat Beranda");
-        Assert.True(empVisible.Any(x => x.Href == "dashboard"), "Karyawan dapat melihat Dashboard");
         Assert.True(empVisible.Any(x => x.Href == "inbox"), "Karyawan dapat melihat Kotak masuk");
+        Assert.True(empVisible.Any(x => x.Href == "dashboard"), "Karyawan dapat melihat Dashboard");
+        Assert.True(empVisible.Any(x => x.Href == "reports"), "Karyawan dapat melihat Reports");
 
         // Karyawan biasa TIDAK boleh melihat menu sistem admin
         Assert.True(!empVisible.Any(x => x.Href == "admin/metadata"), "Karyawan dilarang melihat Metadata DocType");
@@ -145,6 +153,7 @@ sealed partial class Tests
         var groups = await NavMenus.ListGroupsAsync(tenantId, onlyActive: false);
 
         Assert.True(modules.Count >= 4, "Default modules should be seeded");
+        Assert.True(!modules.Any(m => m.Code == "ANALYTICS" || m.Name == "Analytics"), "Analytics module should be deleted");
         Assert.True(groups.Count >= 6, "Default menu groups should be seeded");
 
         var employeeUser = U("dewi");

@@ -370,7 +370,12 @@ src/Apps.Erp/
 ├── Migrations/
 │   └── 025_gl_entries.sql       # Immutable general ledger table (frogframe_gl_entries) & hash chain triggers
 ├── Reports/
-│   └── ErpReports.cs            # 15 built-in financial, tax, stock, HR,payroll, and CRM reports
+│   ├── AgingReport.cs           # Abstract base aging provider for receivables/payables
+│   ├── TrialBalanceReport.cs    # Trial Balance financial statement report
+│   ├── ProfitAndLossReport.cs   # Profit and Loss (Income Statement) report
+│   ├── BalanceSheetReport.cs    # Balance Sheet statement report
+│   ├── SalesPipelineReport.cs   # CRM sales pipeline volume & weighted value report
+│   └── ...                      # 17 individual report providers & helper classes
 ├── ErpRegistration.cs           # AddErpAccounting() and AddErpHooks() DI registration
 ├── Program.cs                   # Application bootstrapper (switches In-Memory vs. PostgreSQL via config)
 ├── appsettings.json             # Default configuration (Persistence, ConnectionStrings, Print, Reports, Import, Api)

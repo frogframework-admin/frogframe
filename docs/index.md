@@ -37,6 +37,7 @@ dotnet run --project tests/Framework.Tests
 - **[Saved Query REST APIs](guides/saved-query-apis.md)**: Publishing read-only SQL queries as secure REST endpoints with parameter allowlists.
 - **[API Keys & Custom Methods](guides/api-integrations.md)**: Granular integration API keys and custom RPC `IApiMethod` endpoints.
 - **[Excel & CSV Data Import](guides/excel-import.md)**: Multi-step bulk data import with dry-run validation simulations.
+- **[Custom Code Reports (IReportProvider)](guides/custom-reports.md)**: Strongly-typed C# tabular reports with dynamic UI filters, RBAC row scoping, and safe CSV exports.
 - **[Template Reporting (Excel & Word)](guides/template-reporting.md)**: High-performance OpenXML spreadsheet and document generation with zero external dependencies.
 - **[PDF Printing & Server-Side Rendering](guides/pdf-printing.md)**: Letterhead configuration and headless Chromium PDF export.
 - **[Generic Lookups & Hierarchies](guides/generic-lookup-and-hierarchy.md)**: Server-paginated lookup dialogs and circular reference prevention in self-referencing tree structures.

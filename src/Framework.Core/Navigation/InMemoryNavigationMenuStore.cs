@@ -15,6 +15,18 @@ public sealed class InMemoryNavigationMenuStore(TimeProvider clock) : INavigatio
         var now = clock.GetUtcNow();
         var modified = false;
 
+        // Remove deprecated system modules (such as ANALYTICS) and their groups
+        foreach (var mod in modules.Values.Where(m => m.TenantId == tenantId && m.IsSystem && (m.Code == "ANALYTICS" || m.Id.EndsWith("_analytics"))).ToList())
+        {
+            modules.TryRemove(mod.Id, out _);
+            modified = true;
+        }
+        foreach (var grp in groups.Values.Where(g => g.TenantId == tenantId && g.IsSystem && (g.ModuleId.EndsWith("_analytics") || g.Id.EndsWith("_utama") || g.Id.EndsWith("_laporan"))).ToList())
+        {
+            groups.TryRemove(grp.Id, out _);
+            modified = true;
+        }
+
         foreach (var defMod in NavigationMenuDefaults.CreateDefaultModules(tenantId, now))
         {
             if (!modules.Values.Any(x => x.TenantId == tenantId && (x.Id == defMod.Id || string.Equals(x.Name, defMod.Name, StringComparison.OrdinalIgnoreCase))))
@@ -42,7 +54,7 @@ public sealed class InMemoryNavigationMenuStore(TimeProvider clock) : INavigatio
             var existing = items.Values.FirstOrDefault(x => x.TenantId == tenantId && (x.Id == defItem.Id || string.Equals(x.Href, defItem.Href, StringComparison.OrdinalIgnoreCase) || (defItem.Id.EndsWith("_report_templates") && string.Equals(x.Href, "report-templates", StringComparison.OrdinalIgnoreCase)) || (defItem.Id.EndsWith("_widgets") && string.Equals(x.Href, "dashboard/widgets", StringComparison.OrdinalIgnoreCase))));
             if (existing is null)
             {
-                if (string.IsNullOrWhiteSpace(defItem.GroupId) && groupByName.TryGetValue(defItem.GroupName, out var grp))
+                if (string.IsNullOrWhiteSpace(defItem.GroupId) && !string.IsNullOrWhiteSpace(defItem.GroupName) && groupByName.TryGetValue(defItem.GroupName, out var grp))
                 {
                     defItem.GroupId = grp.Id;
                 }
@@ -61,7 +73,7 @@ public sealed class InMemoryNavigationMenuStore(TimeProvider clock) : INavigatio
         }
 
         // Backfill GroupId on any existing menu items that only have GroupName set.
-        foreach (var existing in items.Values.Where(x => x.TenantId == tenantId && string.IsNullOrWhiteSpace(x.GroupId)))
+        foreach (var existing in items.Values.Where(x => x.TenantId == tenantId && string.IsNullOrWhiteSpace(x.GroupId) && !string.IsNullOrWhiteSpace(x.GroupName)))
         {
             if (groupByName.TryGetValue(existing.GroupName, out var grp))
             {

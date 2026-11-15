@@ -384,7 +384,7 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
         {
             if (!existingHrefs.Contains(defItem.Href))
             {
-                if (string.IsNullOrWhiteSpace(defItem.GroupId) && groupIdByName.TryGetValue(defItem.GroupName, out var gid))
+                if (string.IsNullOrWhiteSpace(defItem.GroupId) && !string.IsNullOrWhiteSpace(defItem.GroupName) && groupIdByName.TryGetValue(defItem.GroupName, out var gid))
                 {
                     defItem.GroupId = gid;
                 }
@@ -399,21 +399,21 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
             "UPDATE frogframe_navigation_menus m " +
             "SET group_id = g.id " +
             "FROM frogframe_navigation_menu_groups g " +
-            "WHERE m.tenant_id = $1 AND g.tenant_id = $1 AND (m.group_id IS NULL OR m.group_id = '') AND LOWER(m.group_name) = LOWER(g.name)"))
+            "WHERE m.tenant_id = $1 AND g.tenant_id = $1 AND (m.group_id IS NULL OR m.group_id = '') AND m.group_name <> '' AND LOWER(m.group_name) = LOWER(g.name)"))
         {
             backfillCmd.Parameters.AddWithValue(tenantId);
             var updated = await backfillCmd.ExecuteNonQueryAsync(ct);
             if (updated > 0) added = true;
         }
 
-        // 5. Move report_templates to System group if it is still in the old Reports group, and update href/roles
+        // 5. Move report_templates to Metadata & Customization group (below Dashboards, sort_order 70) and update href/roles/icon
         await using (var updateReportCmd = db.CreateCommand(
             "UPDATE frogframe_navigation_menus " +
-            "SET group_id = $2, group_name = 'System', href = 'admin/report-templates', allowed_roles = $3, sort_order = 115 " +
-            "WHERE tenant_id = $1 AND (id = $4 OR href = 'report-templates' OR href = 'admin/report-templates') AND (group_name <> 'System' OR href <> 'admin/report-templates')"))
+            "SET group_id = $2, group_name = 'Metadata & Customization', href = 'admin/report-templates', icon = 'file-spreadsheet', allowed_roles = $3, sort_order = 70 " +
+            "WHERE tenant_id = $1 AND (id = $4 OR href = 'report-templates' OR href = 'admin/report-templates') AND (group_id <> $2 OR group_name <> 'Metadata & Customization' OR sort_order <> 70 OR href <> 'admin/report-templates')"))
         {
             updateReportCmd.Parameters.AddWithValue(tenantId);
-            updateReportCmd.Parameters.AddWithValue(NavigationMenuDefaults.GroupSistemId(tenantId));
+            updateReportCmd.Parameters.AddWithValue(NavigationMenuDefaults.GroupAdminMetadataId(tenantId));
             updateReportCmd.Parameters.AddWithValue(new string[] { UserContext.SystemManager, UserContext.Administrator });
             updateReportCmd.Parameters.AddWithValue($"menu_{tenantId}_report_templates");
             var moved = await updateReportCmd.ExecuteNonQueryAsync(ct);
@@ -464,6 +464,48 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
             delDeptCmd.Parameters.AddWithValue($"menu_{tenantId}_department");
             var delDeptCount = await delDeptCmd.ExecuteNonQueryAsync(ct);
             if (delDeptCount > 0) added = true;
+        }
+
+        // 9. Remove deprecated ANALYTICS module and its groups
+        await using (var delAnalyticsModCmd = db.CreateCommand(
+            "DELETE FROM frogframe_navigation_modules WHERE tenant_id = $1 AND (code = 'ANALYTICS' OR id = $2)"))
+        {
+            delAnalyticsModCmd.Parameters.AddWithValue(tenantId);
+            delAnalyticsModCmd.Parameters.AddWithValue(NavigationMenuDefaults.ModuleAnalyticsId(tenantId));
+            var delModCount = await delAnalyticsModCmd.ExecuteNonQueryAsync(ct);
+            if (delModCount > 0) added = true;
+        }
+
+        await using (var delAnalyticsGrpCmd = db.CreateCommand(
+            "DELETE FROM frogframe_navigation_menu_groups WHERE tenant_id = $1 AND (module_id = $2 OR id = $3 OR id = $4)"))
+        {
+            delAnalyticsGrpCmd.Parameters.AddWithValue(tenantId);
+            delAnalyticsGrpCmd.Parameters.AddWithValue(NavigationMenuDefaults.ModuleAnalyticsId(tenantId));
+            delAnalyticsGrpCmd.Parameters.AddWithValue(NavigationMenuDefaults.GroupUtamaId(tenantId));
+            delAnalyticsGrpCmd.Parameters.AddWithValue(NavigationMenuDefaults.GroupLaporanId(tenantId));
+            var delGrpCount = await delAnalyticsGrpCmd.ExecuteNonQueryAsync(ct);
+            if (delGrpCount > 0) added = true;
+        }
+
+        // 10. Ensure universal menu items (Home, Inbox, Dashboard, Reports) have empty allowed_roles, null group_id, and proper sort order
+        await using (var updateUniversalCmd = db.CreateCommand(
+            "UPDATE frogframe_navigation_menus " +
+            "SET group_id = NULL, group_name = '', allowed_roles = '{}', sort_order = CASE " +
+            "  WHEN href = '' OR id = $2 THEN 10 " +
+            "  WHEN href = 'inbox' OR id = $3 THEN 20 " +
+            "  WHEN href = 'dashboard' OR id = $4 THEN 30 " +
+            "  WHEN href = 'reports' OR id = $5 THEN 40 " +
+            "  ELSE sort_order END " +
+            "WHERE tenant_id = $1 AND (href IN ('', 'inbox', 'dashboard', 'reports') OR id IN ($2, $3, $4, $5)) " +
+            "AND (group_id IS NOT NULL OR group_name <> '' OR allowed_roles <> '{}' OR sort_order NOT IN (10, 20, 30, 40))"))
+        {
+            updateUniversalCmd.Parameters.AddWithValue(tenantId);
+            updateUniversalCmd.Parameters.AddWithValue($"menu_{tenantId}_beranda");
+            updateUniversalCmd.Parameters.AddWithValue($"menu_{tenantId}_inbox");
+            updateUniversalCmd.Parameters.AddWithValue($"menu_{tenantId}_dashboard");
+            updateUniversalCmd.Parameters.AddWithValue($"menu_{tenantId}_reports");
+            var updatedUniversal = await updateUniversalCmd.ExecuteNonQueryAsync(ct);
+            if (updatedUniversal > 0) added = true;
         }
 
         seededTenants[tenantId] = true;
