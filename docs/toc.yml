@@ -20,6 +20,8 @@
       href: guides/doctype-and-workflows.md
     - name: DocType & Workflow Catalog
       href: guides/doctype-and-workflow-catalog.md
+    - name: DocType Data Entry Sequence
+      href: guides/doctype-data-entry-sequence.md
     - name: SQL Dashboards & Widgets
       href: guides/sql-dashboards.md
     - name: Saved Query REST APIs

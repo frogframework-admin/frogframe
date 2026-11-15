@@ -196,3 +196,23 @@ Notes:
 - Monaco's AMD loader installs a global `define()`. `script-editor.js` removes the `define.amd` marker after loading so UMD libraries loaded later (ECharts for dashboards, Quill) keep working.
 - Completions are not full Roslyn IntelliSense (no type inference for local variables); unknown members fall back to word-based suggestions. Errors still come from the real compiler and analyzer.
 - Blazor Server limits one SignalR message to 32 KB by default (`HubOptions.MaximumReceiveMessageSize`). Keep scripts below that size or raise the limit.
+
+---
+
+## 6. Server Scripts vs. Webhooks: Key Differences
+
+In FrogFrame, the fundamental difference between **Server Scripts** and **Webhooks** lies in their **execution environment** and **primary purpose**:
+
+- **Server Scripts**: Execute **internally** within the FrogFrame server process using the sandboxed C# Roslyn runtime. They directly manipulate document fields, validate financial or business invariants, provide custom API methods, or control interactive UI form behavior.
+- **Webhooks**: Execute **externally** by dispatching asynchronous HTTP POST requests to third-party endpoints (e.g., Slack, n8n, Zapier, external microservices). They provide read-only event notifications and decoupled integration without blocking local transactions.
+
+### Comparison Matrix
+
+| Aspect | Server Scripts | Outbound Webhooks |
+|---|---|---|
+| **Execution Location** | **Internal** (*in-process* within the FrogFrame application server via Roslyn sandbox). | **External** (processed by remote third-party systems or external webhook listeners). |
+| **Execution Model** | **Synchronous** (DocEvent hooks, Form scripts) or Scheduled.<br>Can intercept, validate, or abort database transactions (`throw ScriptValidationException`). | **Asynchronous** (dispatched via background workers with retries).<br>Failure of remote receiver never rolls back local document transactions. |
+| **Data Modification** | **Read & Write**.<br>Can read, mutate, and calculate document fields before or after persistence. | **Read-Only**.<br>Delivers an immutable JSON snapshot of the document at event time. |
+| **Language & Format** | Written in sandboxed **C#**. | Standard **JSON** payload over HTTP POST with HMAC-SHA256 signatures. |
+| **Primary Use Cases** | Business validations, field calculations, Form UI interactivity (hide/read-only/require), custom internal RPC methods. | External notifications, cross-platform synchronization, event-driven integrations, data warehousing. |
+

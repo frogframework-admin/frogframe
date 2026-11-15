@@ -122,3 +122,13 @@ Whether you are interested in commercial collaboration, enterprise consulting, f
 - **LinkedIn**: [Bambang Pristiwanto on LinkedIn](https://www.linkedin.com/in/bambang-pristiwanto-5abb3522/)
 - **Repository**: [FrogFramework on GitHub](https://github.com/frogframework-admin/frogframe)
 
+---
+
+### 9. What is the difference between Webhooks and Server Scripts in FrogFrame?
+
+The primary distinction between **Webhooks** and **Server Scripts** in FrogFrame is their **execution location** and **intended architectural purpose**:
+
+- **Server Scripts** run **internally** on the FrogFrame application server inside a secure C# Roslyn sandbox. They are used when you need to intercept transactions, perform synchronous data validation (e.g., aborting saves when business rules are violated), compute field values, manipulate form UI behaviors, or expose internal RPC methods.
+- **Webhooks** deliver data **externally** via asynchronous HTTP POST requests. They are used for decoupled integration with third-party systems (such as Slack, Zapier, n8n, or external services) by sending read-only event notifications whenever documents are created, updated, submitted, or transitioned through workflows.
+
+

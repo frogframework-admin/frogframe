@@ -158,3 +158,23 @@ Webhook deliveries are dispatched by a background service (`WebhookDeliveryWorke
    - **Permanent Removal (`410 Gone`)**: If the receiver returns `HTTP 410`, the delivery is marked `Dead` and the webhook is automatically deactivated to prevent wasted traffic.
    - **SSRF Protection**: FrogFrame automatically blocks destinations resolving to internal RFC 1918 private subnets, loopback addresses (`127.0.0.1`), link-local metadata endpoints (`169.254.169.254`), and internal Docker container hostnames.
 
+---
+
+## 6. Webhooks vs. Server Scripts: Key Differences
+
+In FrogFrame, the fundamental difference between **Webhooks** and **Server Scripts** lies in their **execution environment** and **primary purpose**:
+
+- **Server Scripts**: Execute **internally** within the FrogFrame server process using the sandboxed C# Roslyn runtime. They directly manipulate document fields, validate financial or business invariants, provide custom API methods, or control interactive UI form behavior.
+- **Webhooks**: Execute **externally** by dispatching asynchronous HTTP POST requests to third-party endpoints (e.g., Slack, n8n, Zapier, external microservices). They provide read-only event notifications and decoupled integration without blocking local transactions.
+
+### Comparison Matrix
+
+| Aspect | Server Scripts | Outbound Webhooks |
+|---|---|---|
+| **Execution Location** | **Internal** (*in-process* within the FrogFrame application server via Roslyn sandbox). | **External** (processed by remote third-party systems or external webhook listeners). |
+| **Execution Model** | **Synchronous** (DocEvent hooks, Form scripts) or Scheduled.<br>Can intercept, validate, or abort database transactions (`throw ScriptValidationException`). | **Asynchronous** (dispatched via background workers with retries).<br>Failure of remote receiver never rolls back local document transactions. |
+| **Data Modification** | **Read & Write**.<br>Can read, mutate, and calculate document fields before or after persistence. | **Read-Only**.<br>Delivers an immutable JSON snapshot of the document at event time. |
+| **Language & Format** | Written in sandboxed **C#**. | Standard **JSON** payload over HTTP POST with HMAC-SHA256 signatures. |
+| **Primary Use Cases** | Business validations, field calculations, Form UI interactivity (hide/read-only/require), custom internal RPC methods. | External notifications, cross-platform synchronization, event-driven integrations, data warehousing. |
+
+
