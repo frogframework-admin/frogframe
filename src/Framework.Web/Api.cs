@@ -316,7 +316,8 @@ public static class DocApi
             {
                 RequireApi(sp, doctype, "list");
                 var parsed = ParseFilters(filters);
-                var res = await Docs(sp).ListAsync(user, doctype, new ListRequest(parsed, search, sort, dir, page ?? 1, pageSize ?? 0), http.RequestAborted);
+                var cappedPageSize = pageSize is > 0 ? Math.Min(pageSize.Value, 100) : 0;
+                var res = await Docs(sp).ListAsync(user, doctype, new ListRequest(parsed, search, sort, dir, page ?? 1, cappedPageSize), http.RequestAborted);
                 return Results.Ok(res);
             }));
 

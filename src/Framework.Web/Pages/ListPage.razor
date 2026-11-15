@@ -265,14 +265,6 @@ else if (meta is not null)
             </Columns>
         </BbDataGrid>
 
-        @if (TotalPages > 1)
-        {
-            <div class="list-foot">
-                <span class="muted small">@T.Format("Page {0} of {1} ({2} documents)", result.Page, TotalPages, TotalText)</span>
-                <BbPagination TotalPages="TotalPages" CurrentPage="result.Page" CurrentPageChanged="Reload" />
-            </div>
-        }
-
         <AdminDrawer Open="@bulkEditOpen"
                      OpenChanged="v => bulkEditOpen = v"
                      Title="@(T.Format("Bulk Edit {0}", T.Title(meta)))"
@@ -432,7 +424,6 @@ else if (meta is not null)
 
     private bool HasStatus => meta!.Workflow is not null || meta.Def.Document.AllowSubmit;
     private string TotalText => result is null ? "" : result.TotalCapped ? $"{result.Total:N0}+" : $"{result.Total:N0}";
-    private int TotalPages => result is null ? 0 : (int)Math.Ceiling(result.Total / (double)result.PageSize);
 
     // Blazor memanggil OnParametersSet setiap kali layout induk dirender ulang (mis. jumlah notifikasi berubah).
     // Muat ulang hanya bila parameter rute benar-benar berubah, agar isian/draft pengguna tidak hilang.
@@ -475,7 +466,7 @@ else if (meta is not null)
             }
         }
 
-        await Reload(1);
+        await Reload();
     }
 
     private void Go(string name) => Nav.NavigateTo($"/app/{DocType}/{name}");
@@ -488,7 +479,12 @@ else if (meta is not null)
         _ => meta!.ByName.TryGetValue(field, out var f) ? T.Label(f) : field
     };
 
-    private Task OnSearch(string? v) { search = v; return Reload(1); }
+    private Task OnSearch(string? v)
+    {
+        search = v;
+        gridState.Pagination.Reset();
+        return Reload();
+    }
 
     private async Task ExportList(string format)
     {
@@ -659,18 +655,18 @@ else if (meta is not null)
         }
 
         var keepSelected = res.Failed.Select(f => f.Name).ToHashSet(StringComparer.Ordinal);
-        await Reload(result?.Page ?? 1);
+        await Reload();
         foreach (var failedName in keepSelected)
             selectedItems.Add(failedName);
     }
 
-    private async Task Reload(int page)
+    private async Task Reload()
     {
         try
         {
             error = null;
             selectedItems.Clear();
-            result = await Docs.ListAsync(Current.Required, DocType, new ListRequest(null, search, sortField, null, page));
+            result = await Docs.ListAsync(Current.Required, DocType, new ListRequest(null, search, sortField, null, 1, Framework.Persistence.QueryLimits.CountCap));
         }
         catch (Exception ex) when (ex is InvalidPayloadException or PermissionDeniedException)
         {
@@ -781,7 +777,7 @@ else if (meta is not null)
         ApplyDefaultGrouping();
         gridRenderKey++;
         Toasts.Success(T["Column layout has been reset to default."], T["Reset Columns"]);
-        await Reload(result?.Page ?? 1);
+        await Reload();
     }
 
     public void Dispose()

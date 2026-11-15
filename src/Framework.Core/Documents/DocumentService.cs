@@ -251,7 +251,7 @@ public sealed class DocumentService(
         }
         sort.AddRange(lv.DefaultSort);
 
-        var pageSize = Math.Clamp(req.PageSize <= 0 ? lv.PageSize : req.PageSize, 1, 100);
+        var pageSize = Math.Clamp(req.PageSize <= 0 ? lv.PageSize : req.PageSize, 1, QueryLimits.CountCap);
         var page = Math.Max(1, req.Page);
         var scope = permissions.ScopeFor(user, meta, DocActions.Read);
         var result = await store.QueryAsync(new StoreQuery(user.TenantId, docType, scope, filters,
