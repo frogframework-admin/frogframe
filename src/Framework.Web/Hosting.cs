@@ -361,6 +361,7 @@ public static class ServiceCollectionExtensions
 
         services.AddScoped<CurrentUser>();
         services.AddScoped<GlobalSearchService>();
+        services.TryAddSingleton<SystemConnectivityService>();
 
         // Cetak & PDF
         services.TryAddSingleton<ILetterheadProvider, ConfigLetterheadProvider>();

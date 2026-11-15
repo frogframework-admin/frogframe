@@ -9,6 +9,8 @@
 @inject NavigationManager Nav
 @inject ToastService Toasts
 @inject IJSRuntime JS
+@inject SystemConnectivityService Connectivity
+@inject UiText T
 
 <AdminDrawer Open="@Open"
              OpenChanged="@OpenChanged"
@@ -227,10 +229,33 @@
             account.AvatarId = fileId;
             Toasts.Success("Photo uploaded successfully. Click Save Profile to apply.", "Photo Ready");
         }
-        catch (Exception ex) when (ex is FileRejectedException or PermissionDeniedException or IOException)
+        catch (Exception ex) when (ex is FileRejectedException or PermissionDeniedException or IOException or ObjectStorageUnavailableException)
         {
-            error = ex is IOException ? "Photo size must be at most 2 MB." : ex.Message;
-            Toasts.Error(error, "Failed to Upload Photo");
+            Connectivity.ReportException(ex);
+            if (InfrastructureErrorHelper.TryDescribe(ex, T, out var title, out var msg))
+            {
+                error = msg;
+                Toasts.Error(msg, title);
+            }
+            else
+            {
+                error = ex is IOException ? "Photo size must be at most 2 MB." : ex.Message;
+                Toasts.Error(error, "Failed to Upload Photo");
+            }
+        }
+        catch (Exception ex)
+        {
+            Connectivity.ReportException(ex);
+            if (InfrastructureErrorHelper.TryDescribe(ex, T, out var title, out var msg))
+            {
+                error = msg;
+                Toasts.Error(msg, title);
+            }
+            else
+            {
+                error = ex.Message;
+                Toasts.Error(error, "Failed to Upload Photo");
+            }
         }
         finally
         {

@@ -158,29 +158,60 @@
         {
             if (Current.User is not { } u) return;
 
-            // Debounce ringan untuk live search database
-            if (!string.IsNullOrEmpty(query))
+            // Fase 1: Tampilkan hasil navigasi (DocType, + New DocType, Menu, Report, Command) secara instan (< 1 ms)
+            // tanpa menunggu query ke database.
+            var navResults = await SearchService.SearchNavigationAsync(u, query, token);
+            if (token.IsCancellationRequested) return;
+
+            items = navResults;
+            selectedIndex = 0;
+
+            var trimmed = query.Trim();
+            var isNewShortcut = trimmed.StartsWith("new ", StringComparison.OrdinalIgnoreCase)
+                || trimmed.StartsWith("baru ", StringComparison.OrdinalIgnoreCase);
+
+            if (trimmed.Length < 2 || isNewShortcut)
             {
-                isLoading = true;
-                await Task.Delay(120, token);
+                isLoading = false;
+                StateHasChanged();
+                return;
             }
 
-            var results = await SearchService.SearchAsync(u, query, token);
+            // Fase 2: Cari isi dokumen di database secara asinkron di latar belakang dengan debounce 220ms
+            isLoading = true;
+            StateHasChanged();
+
+            await Task.Delay(220, token);
+
+            using var dbTimeoutCts = CancellationTokenSource.CreateLinkedTokenSource(token);
+            dbTimeoutCts.CancelAfter(TimeSpan.FromSeconds(3));
+
+            var recordResults = await SearchService.SearchRecordsAsync(u, trimmed, dbTimeoutCts.Token);
             if (!token.IsCancellationRequested)
             {
-                items = results;
-                selectedIndex = 0;
+                if (recordResults.Count > 0)
+                {
+                    var combined = new List<AwesomebarItem>(navResults.Count + recordResults.Count);
+                    combined.AddRange(navResults);
+                    combined.AddRange(recordResults);
+                    items = combined;
+                }
                 isLoading = false;
                 StateHasChanged();
             }
         }
         catch (OperationCanceledException)
         {
-            // Abaikan pembatalan pencarian sebelumnya
+            if (!token.IsCancellationRequested)
+            {
+                isLoading = false;
+                StateHasChanged();
+            }
         }
         catch (Exception)
         {
             isLoading = false;
+            StateHasChanged();
         }
     }
 

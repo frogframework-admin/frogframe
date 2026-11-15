@@ -78,6 +78,21 @@ public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider 
         var take = b.Param(q.Take, NpgsqlDbType.Integer);
 
         await using var conn = await db.OpenConnectionAsync(ct);
+        var items = new List<Document>();
+        await using (var cmd = new NpgsqlCommand($"SELECT {Columns} FROM frogframe_documents d WHERE {whereSql} ORDER BY {order} OFFSET {skip} LIMIT {take}", conn))
+        {
+            foreach (var p in b.Parameters) cmd.Parameters.Add(p.Clone());
+            await using var r = await cmd.ExecuteReaderAsync(ct);
+            while (await r.ReadAsync(ct)) items.Add(ReadDocument(r));
+        }
+
+        // Optimization: when fetching the first page (Skip == 0) and fewer rows than Take are returned,
+        // the total count is simply items.Count — avoiding a second SQL query and 400+ index planner overhead.
+        if (q.Skip == 0 && items.Count < q.Take)
+        {
+            return new QueryResult(items, items.Count, false);
+        }
+
         int total;
         // Hitungan dibatasi: berhenti memindai setelah CountCap+1 baris (jutaan baris tidak dihitung satu per satu).
         await using (var count = new NpgsqlCommand($"SELECT count(*) FROM (SELECT 1 FROM frogframe_documents d WHERE {whereSql} LIMIT {QueryLimits.CountCap + 1}) AS capped", conn))
@@ -88,13 +103,6 @@ public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider 
         }
         var capped = total > QueryLimits.CountCap;
         if (capped) total = QueryLimits.CountCap;
-        var items = new List<Document>();
-        await using (var cmd = new NpgsqlCommand($"SELECT {Columns} FROM frogframe_documents d WHERE {whereSql} ORDER BY {order} OFFSET {skip} LIMIT {take}", conn))
-        {
-            foreach (var p in b.Parameters) cmd.Parameters.Add(p.Clone());
-            await using var r = await cmd.ExecuteReaderAsync(ct);
-            while (await r.ReadAsync(ct)) items.Add(ReadDocument(r));
-        }
         return new QueryResult(items, total, capped);
     }
 
@@ -175,7 +183,7 @@ public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider 
         }
         catch (PostgresException ex)
         {
-            await tx.RollbackAsync(CancellationToken.None);
+            await SafeRollbackAsync(tx);
             var translated = services.GetServices<IPostgresUnitOfWorkExtensionHandler>()
                 .Select(handler => handler.TranslateException(ex)).FirstOrDefault(exception => exception is not null);
             if (translated is not null) ExceptionDispatchInfo.Capture(translated).Throw();
@@ -183,8 +191,21 @@ public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider 
         }
         catch
         {
-            await tx.RollbackAsync(CancellationToken.None);
+            await SafeRollbackAsync(tx);
             throw;
+        }
+    }
+
+    private static async Task SafeRollbackAsync(NpgsqlTransaction tx)
+    {
+        try
+        {
+            await tx.RollbackAsync(CancellationToken.None);
+        }
+        catch
+        {
+            // When the underlying stream times out or breaks, Npgsql disposes the transaction automatically;
+            // swallowing rollback errors preserves the original exception for the caller.
         }
     }
 

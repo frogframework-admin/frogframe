@@ -27,7 +27,7 @@ public sealed class S3StorageOptions
     public bool ForcePathStyle { get; set; } = true;
     /// <summary>Create the bucket at startup when it does not exist.</summary>
     public bool CreateBucket { get; set; } = true;
-    public int TimeoutSeconds { get; set; } = 30;
+    public int TimeoutSeconds { get; set; } = 10;
 
     public static bool IsEnabled(IConfiguration configuration) =>
         string.Equals(configuration["Storage:Provider"], "S3", StringComparison.OrdinalIgnoreCase);
@@ -49,10 +49,11 @@ public sealed class S3StorageOptions
 }
 
 /// <summary>Object storage over the S3 API (AWS SDK), for any S3-compatible server.</summary>
-public sealed class S3BlobStorage : IBlobStorage, IDisposable
+public sealed class S3BlobStorage : IBlobStorage, IObjectStorageHealthCheck, IDisposable
 {
     private readonly AmazonS3Client _client;
     private readonly S3StorageOptions _options;
+    private volatile bool _bucketEnsured;
 
     public S3BlobStorage(S3StorageOptions options)
     {
@@ -60,7 +61,8 @@ public sealed class S3BlobStorage : IBlobStorage, IDisposable
         var config = new AmazonS3Config
         {
             ForcePathStyle = options.ForcePathStyle,
-            Timeout = TimeSpan.FromSeconds(Math.Clamp(options.TimeoutSeconds, 5, 300)),
+            Timeout = TimeSpan.FromSeconds(Math.Clamp(options.TimeoutSeconds, 3, 300)),
+            MaxErrorRetry = 1,
             // S3-compatible servers do not all support the newer flexible checksums (aws-chunked trailers).
             RequestChecksumCalculation = RequestChecksumCalculation.WHEN_REQUIRED,
             ResponseChecksumValidation = ResponseChecksumValidation.WHEN_REQUIRED,
@@ -78,19 +80,31 @@ public sealed class S3BlobStorage : IBlobStorage, IDisposable
     }
 
     public string Name => $"s3://{_options.Bucket}";
+    public string StorageName => Name;
+    public string? Endpoint => _options.ServiceUrl ?? $"AWS {_options.Region}";
 
     public async Task PutAsync(string key, byte[] content, string contentType, CancellationToken ct = default)
     {
-        using var stream = new MemoryStream(content, writable: false);
-        await _client.PutObjectAsync(new PutObjectRequest
+        try
         {
-            BucketName = _options.Bucket,
-            Key = key,
-            InputStream = stream,
-            ContentType = string.IsNullOrWhiteSpace(contentType) ? "application/octet-stream" : contentType,
-            AutoCloseStream = false,
-            UseChunkEncoding = false,
-        }, ct);
+            if (_options.CreateBucket && !_bucketEnsured)
+                await EnsureBucketAsync(ct);
+
+            using var stream = new MemoryStream(content, writable: false);
+            await _client.PutObjectAsync(new PutObjectRequest
+            {
+                BucketName = _options.Bucket,
+                Key = key,
+                InputStream = stream,
+                ContentType = string.IsNullOrWhiteSpace(contentType) ? "application/octet-stream" : contentType,
+                AutoCloseStream = false,
+                UseChunkEncoding = false,
+            }, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException and not ObjectStorageUnavailableException)
+        {
+            throw CreateUnavailableException("upload file to", ex);
+        }
     }
 
     public async Task<byte[]?> GetAsync(string key, CancellationToken ct = default)
@@ -106,6 +120,10 @@ public sealed class S3BlobStorage : IBlobStorage, IDisposable
         {
             return null;
         }
+        catch (Exception ex) when (ex is not OperationCanceledException and not ObjectStorageUnavailableException)
+        {
+            throw CreateUnavailableException("download file from", ex);
+        }
     }
 
     public async Task DeleteAsync(string key, CancellationToken ct = default)
@@ -115,30 +133,77 @@ public sealed class S3BlobStorage : IBlobStorage, IDisposable
             await _client.DeleteObjectAsync(new DeleteObjectRequest { BucketName = _options.Bucket, Key = key }, ct);
         }
         catch (AmazonS3Exception ex) when (ex.StatusCode == HttpStatusCode.NotFound) { }
+        catch (Exception ex) when (ex is not OperationCanceledException and not ObjectStorageUnavailableException)
+        {
+            throw CreateUnavailableException("delete file from", ex);
+        }
     }
 
     /// <summary>Creates the bucket when it does not exist. True when the bucket is usable.</summary>
     public async Task EnsureBucketAsync(CancellationToken ct = default)
     {
-        if (await AmazonS3Util.DoesS3BucketExistV2Async(_client, _options.Bucket)) return;
-        await _client.PutBucketAsync(new PutBucketRequest { BucketName = _options.Bucket, UseClientRegion = true }, ct);
+        try
+        {
+            if (!await AmazonS3Util.DoesS3BucketExistV2Async(_client, _options.Bucket))
+                await _client.PutBucketAsync(new PutBucketRequest { BucketName = _options.Bucket, UseClientRegion = true }, ct);
+            _bucketEnsured = true;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException and not ObjectStorageUnavailableException)
+        {
+            throw CreateUnavailableException("connect to", ex);
+        }
+    }
+
+    public async Task<(bool IsHealthy, string? ErrorMessage)> CheckHealthAsync(CancellationToken ct = default)
+    {
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(TimeSpan.FromSeconds(4));
+        try
+        {
+            if (_options.CreateBucket && !_bucketEnsured)
+            {
+                await EnsureBucketAsync(cts.Token);
+                return (true, null);
+            }
+            _ = await AmazonS3Util.DoesS3BucketExistV2Async(_client, _options.Bucket);
+            return (true, null);
+        }
+        catch (Exception ex)
+        {
+            return (false, $"Object storage ({Name} at {Endpoint}) is not connected: {RootReason(ex)}");
+        }
+    }
+
+    private ObjectStorageUnavailableException CreateUnavailableException(string action, Exception ex) =>
+        new(Name, Endpoint,
+            $"Cannot {action} SeaweedFS / Object Storage ({Name} at {Endpoint}): {RootReason(ex)}. Please ensure the SeaweedFS service is running.",
+            ex);
+
+    private static string RootReason(Exception ex)
+    {
+        var cur = ex;
+        while (cur.InnerException is not null) cur = cur.InnerException;
+        return cur.Message;
     }
 
     public void Dispose() => _client.Dispose();
 }
 
 /// <summary>Checks (and optionally creates) the bucket at startup, so a wrong endpoint or key shows up in the log at once.</summary>
-public sealed class S3StartupCheck(S3BlobStorage storage, S3StorageOptions options, ILogger<S3StartupCheck> log) : IHostedService
+public sealed class S3StartupCheck(S3BlobStorage storage, S3StorageOptions options, ILogger<S3StartupCheck> log,
+    Framework.Web.Services.SystemConnectivityService? connectivity = null) : IHostedService
 {
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         try
         {
             if (options.CreateBucket) await storage.EnsureBucketAsync(cancellationToken);
+            connectivity?.ReportObjectStorageHealthy();
             log.LogInformation("File contents are stored in {Storage} ({Endpoint})", storage.Name, options.ServiceUrl ?? "AWS " + options.Region);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            connectivity?.ReportException(ex);
             // Do not stop the app: uploads fail with a clear error until the object store is reachable.
             log.LogError(ex, "Object storage {Storage} at {Endpoint} is not reachable; uploads and downloads will fail", storage.Name, options.ServiceUrl);
         }
@@ -161,6 +226,7 @@ public static class ObjectStorageSetup
         services.AddSingleton(options);
         services.AddSingleton<S3BlobStorage>();
         services.AddSingleton<IBlobStorage>(sp => sp.GetRequiredService<S3BlobStorage>());
+        services.AddSingleton<IObjectStorageHealthCheck>(sp => sp.GetRequiredService<S3BlobStorage>());
         services.AddHostedService<S3StartupCheck>();
 
         Decorate<IFileStore>(services, (sp, inner) =>

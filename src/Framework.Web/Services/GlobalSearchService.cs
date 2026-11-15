@@ -36,6 +36,26 @@ public sealed class GlobalSearchService(
 {
     public async Task<IReadOnlyList<AwesomebarItem>> SearchAsync(UserContext user, string? query, CancellationToken ct = default)
     {
+        var navItems = await SearchNavigationAsync(user, query, ct);
+        var q = query?.Trim() ?? string.Empty;
+        if (string.IsNullOrEmpty(q))
+            return navItems;
+
+        var recordItems = await SearchRecordsAsync(user, q, ct);
+        if (recordItems.Count == 0)
+            return navItems;
+
+        var combined = new List<AwesomebarItem>(navItems.Count + recordItems.Count);
+        combined.AddRange(navItems);
+        combined.AddRange(recordItems);
+        return combined;
+    }
+
+    /// <summary>
+    /// Instant search over in-memory metadata, navigation menus, reports, modules, and commands (0 database document queries).
+    /// </summary>
+    public async Task<IReadOnlyList<AwesomebarItem>> SearchNavigationAsync(UserContext user, string? query, CancellationToken ct = default)
+    {
         var q = query?.Trim() ?? string.Empty;
         var results = new List<AwesomebarItem>();
 
@@ -358,61 +378,88 @@ public sealed class GlobalSearchService(
             ));
         }
 
-        // 7. Live Record Search di Database (bila panjang kata kunci >= 2 karakter)
-        if (q.Length >= 2)
+        // 7. Live Record Search di Database (bila panjang kata kunci >= 2 karakter dan bukan perintah "new <DocType>")
+        return results;
+    }
+
+    /// <summary>
+    /// Searches live document records in the database for the top prioritized DocTypes.
+    /// Separated from <see cref="SearchNavigationAsync"/> so navigation suggestions render immediately without waiting for SQL I/O.
+    /// </summary>
+    public async Task<IReadOnlyList<AwesomebarItem>> SearchRecordsAsync(UserContext user, string? query, CancellationToken ct = default)
+    {
+        var q = query?.Trim() ?? string.Empty;
+        var results = new List<AwesomebarItem>();
+
+        var isNewShortcut = q.StartsWith("new ", StringComparison.OrdinalIgnoreCase)
+            || q.StartsWith("baru ", StringComparison.OrdinalIgnoreCase);
+
+        if (q.Length < 2 || isNewShortcut)
+            return results;
+
+        var readableDocTypes = metadata.Current.DocTypes.Values
+            .Where(d => !d.Def.IsChild && !d.Def.IsSingle && permissions.Can(user, d, DocActions.Read))
+            .ToList();
+
+        // Batasi pencarian live record maksimal 5 DocType paling relevan per ketikan agar perencanaan query PostgreSQL tetap ringan.
+        const int MaxSearchDocTypes = 5;
+        var searchTargets = readableDocTypes
+            .OrderByDescending(d => d.Title.StartsWith(q, StringComparison.OrdinalIgnoreCase) || d.Name.StartsWith(q, StringComparison.OrdinalIgnoreCase))
+            .ThenByDescending(d => d.Title.Contains(q, StringComparison.OrdinalIgnoreCase) || d.Name.Contains(q, StringComparison.OrdinalIgnoreCase))
+            .ThenByDescending(d => d.Def.ListView.SearchFields.Count > 0)
+            .ThenBy(d => d.Title)
+            .Take(MaxSearchDocTypes)
+            .ToList();
+
+        using var throttle = new SemaphoreSlim(3, 3);
+        var recordTasks = searchTargets.Select(async dt =>
         {
-            // Batas jumlah DocType yang dicari per ketikan (tiap query kecil, PageSize 3, dan memakai indeks pencarian).
-            // Sebelumnya 5: menambah DocType baru bisa membuat DocType lain berhenti dicari.
-            const int MaxSearchDocTypes = 15;
-            var searchTargets = readableDocTypes
-                .Where(d => !d.Def.IsSingle)
-                .OrderByDescending(d => d.Title.Contains(q, StringComparison.OrdinalIgnoreCase) || d.Name.Contains(q, StringComparison.OrdinalIgnoreCase))
-                .ThenByDescending(d => d.Def.ListView.SearchFields.Count > 0)
-                .Take(MaxSearchDocTypes)
-                .ToList();
-
-            var recordTasks = searchTargets.Select(async dt =>
+            var acquired = false;
+            try
             {
-                try
-                {
-                    var res = await documents.ListAsync(user, dt.Name, new ListRequest(Search: q, PageSize: 3), ct);
-                    return (DocType: dt, res.Items);
-                }
-                catch
-                {
-                    return (DocType: dt, Items: (IReadOnlyList<IReadOnlyDictionary<string, object?>>)[]);
-                }
-            });
-
-            var searchResponses = await Task.WhenAll(recordTasks);
-
-            foreach (var (dt, items) in searchResponses)
+                await throttle.WaitAsync(ct);
+                acquired = true;
+                var res = await documents.ListAsync(user, dt.Name, new ListRequest(Search: q, PageSize: 3), ct);
+                return (DocType: dt, res.Items);
+            }
+            catch
             {
-                foreach (var row in items)
-                {
-                    var name = row.TryGetValue(StandardFields.Name, out var nameVal) ? nameVal?.ToString() : null;
-                    if (string.IsNullOrEmpty(name)) continue;
+                return (DocType: dt, Items: (IReadOnlyList<IReadOnlyDictionary<string, object?>>)[]);
+            }
+            finally
+            {
+                if (acquired) throttle.Release();
+            }
+        });
 
-                    var titleVal = row.TryGetValue("_title", out var tv) && tv is not null && !string.Equals(tv.ToString(), name)
-                        ? tv.ToString()
-                        : null;
+        var searchResponses = await Task.WhenAll(recordTasks);
 
-                    var docStatusText = row.TryGetValue(StandardFields.DocStatus, out var dsVal) && dsVal is int ds
-                        ? ds switch { 1 => "Submitted", 2 => "Cancelled", _ => "Draft" }
-                        : null;
+        foreach (var (dt, items) in searchResponses)
+        {
+            foreach (var row in items)
+            {
+                var name = row.TryGetValue(StandardFields.Name, out var nameVal) ? nameVal?.ToString() : null;
+                if (string.IsNullOrEmpty(name)) continue;
 
-                    var subtitle = $"{dt.Title}{(titleVal is not null ? $" · {titleVal}" : "")}";
+                var titleVal = row.TryGetValue("_title", out var tv) && tv is not null && !string.Equals(tv.ToString(), name)
+                    ? tv.ToString()
+                    : null;
 
-                    results.Add(new AwesomebarItem(
-                        Id: $"rec_{dt.Name}_{name}",
-                        Title: name,
-                        Subtitle: subtitle,
-                        Category: AwesomebarCategory.Document,
-                        Href: $"/app/{dt.Name}/{Uri.EscapeDataString(name)}",
-                        Icon: IconFor(dt.Name),
-                        Badge: docStatusText ?? dt.Title
-                    ));
-                }
+                var docStatusText = row.TryGetValue(StandardFields.DocStatus, out var dsVal) && dsVal is int ds
+                    ? ds switch { 1 => "Submitted", 2 => "Cancelled", _ => "Draft" }
+                    : null;
+
+                var subtitle = $"{dt.Title}{(titleVal is not null ? $" · {titleVal}" : "")}";
+
+                results.Add(new AwesomebarItem(
+                    Id: $"rec_{dt.Name}_{name}",
+                    Title: name,
+                    Subtitle: subtitle,
+                    Category: AwesomebarCategory.Document,
+                    Href: $"/app/{dt.Name}/{Uri.EscapeDataString(name)}",
+                    Icon: IconFor(dt.Name),
+                    Badge: docStatusText ?? dt.Title
+                ));
             }
         }
 

@@ -13,6 +13,7 @@
 @inject IConfiguration Config
 @inject IHostEnvironment Env
 @inject TimeProvider Clock
+@inject SystemConnectivityService Connectivity
 
 <PageTitle>Log in · FrogFrame</PageTitle>
 
@@ -36,6 +37,21 @@
             {
                 <div class="auth-alert auth-success" role="alert">
                     Password has been successfully reset. Please log in with your new password.
+                </div>
+            }
+
+            @if (!Connectivity.Current.IsDatabaseHealthy)
+            {
+                <div class="auth-alert" role="alert">
+                    <strong>@(Connectivity.Current.DatabaseState == DependencyState.StartingUp ? "Database is starting up:" : "Database is not connected:")</strong>
+                    @(Connectivity.Current.DatabaseMessage ?? "PostgreSQL is not ready yet. Please wait a moment and try again.")
+                </div>
+            }
+            @if (!Connectivity.Current.IsObjectStorageHealthy)
+            {
+                <div class="auth-alert" role="alert" style="border-color: #f59e0b; background: rgba(245, 158, 11, 0.08); color: #b45309;">
+                    <strong>SeaweedFS Object Storage is not connected:</strong>
+                    @(Connectivity.Current.ObjectStorageMessage ?? "File and photo storage (SeaweedFS) is currently unreachable.")
                 </div>
             }
 
@@ -120,6 +136,7 @@
 
         if (HttpMethods.IsGet(HttpContext.Request.Method))
         {
+            await Connectivity.EnsureCheckedAsync(TimeSpan.FromSeconds(5));
             await HttpContext.SignOutAsync(IdentityConstants.ExternalScheme);
             if (isDev)
             {
@@ -138,21 +155,36 @@
             userName = "admin";
         }
 
-        var result = await SignIn.PasswordSignInAsync(userName, Input.Password, Input.RememberMe, lockoutOnFailure: true);
-        if (result.Succeeded)
+        try
         {
-            if (await Users.FindByNameAsync(userName) is { } user)
+            var result = await SignIn.PasswordSignInAsync(userName, Input.Password, Input.RememberMe, lockoutOnFailure: true);
+            if (result.Succeeded)
             {
-                user.LastLoginAt = Clock.GetUtcNow();
-                await Users.UpdateAsync(user);
+                if (await Users.FindByNameAsync(userName) is { } user)
+                {
+                    user.LastLoginAt = Clock.GetUtcNow();
+                    await Users.UpdateAsync(user);
+                }
+                Nav.NavigateTo(SafeReturnUrl, forceLoad: true);
+                return;
             }
-            Nav.NavigateTo(SafeReturnUrl, forceLoad: true);
-            return;
+            // Pesan sengaja tidak membedakan "username tidak ada" dan "password salah".
+            error = result.IsLockedOut ? "Account is temporarily locked due to too many failed attempts. Try again in 15 minutes."
+                  : result.IsNotAllowed ? "This account is inactive. Please contact the administrator."
+                  : "Invalid username or password.";
         }
-        // Pesan sengaja tidak membedakan "username tidak ada" dan "password salah".
-        error = result.IsLockedOut ? "Account is temporarily locked due to too many failed attempts. Try again in 15 minutes."
-              : result.IsNotAllowed ? "This account is inactive. Please contact the administrator."
-              : "Invalid username or password.";
+        catch (Exception ex)
+        {
+            Connectivity.ReportException(ex);
+            if (InfrastructureErrorHelper.TryDescribe(ex, null, out var title, out var message))
+            {
+                error = $"{title}: {message}";
+            }
+            else
+            {
+                error = "Unable to sign in right now because the database is not ready or unreachable. Please wait a moment and try again.";
+            }
+        }
     }
 
     /// <summary>Hanya URL lokal (mencegah open redirect).</summary>

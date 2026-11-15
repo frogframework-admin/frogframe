@@ -6,6 +6,7 @@
 @inject NavigationManager Nav
 @inject ILogger<FrogFrameErrorBoundary> Logger
 @inject UiText T
+@inject SystemConnectivityService Connectivity
 
 @if (CurrentException is null)
 {
@@ -13,14 +14,15 @@
 }
 else
 {
+    var isInfra = InfrastructureErrorHelper.TryDescribe(CurrentException, T, out var infraTitle, out var infraDesc);
     <div class="desk-error-boundary-card">
         <div class="desk-error-header">
             <div class="desk-error-icon-box">
                 <LucideIcon Name="triangle-alert" Size="28" Class="desk-error-icon" />
             </div>
             <div class="desk-error-text">
-                <h3 class="desk-error-title">@T["An error occurred on this page"]</h3>
-                <p class="desk-error-desc">@CurrentException.Message</p>
+                <h3 class="desk-error-title">@(isInfra ? infraTitle : T["An error occurred on this page"])</h3>
+                <p class="desk-error-desc">@(isInfra ? infraDesc : CurrentException.Message)</p>
             </div>
         </div>
         <div class="desk-error-actions">
@@ -43,6 +45,7 @@ else
 @code {
     protected override async Task OnErrorAsync(Exception exception)
     {
+        Connectivity.ReportException(exception);
         var user = Current.User;
         var tenantId = user?.TenantId ?? "unknown";
         var userId = user?.Id;

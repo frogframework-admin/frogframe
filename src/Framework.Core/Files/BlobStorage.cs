@@ -24,6 +24,22 @@ public interface IBlobStorage
     Task DeleteAsync(string key, CancellationToken ct = default);
 }
 
+/// <summary>Health check contract for external object storage (e.g. SeaweedFS / S3).</summary>
+public interface IObjectStorageHealthCheck
+{
+    string StorageName { get; }
+    string? Endpoint { get; }
+    Task<(bool IsHealthy, string? ErrorMessage)> CheckHealthAsync(CancellationToken ct = default);
+}
+
+/// <summary>Thrown when the S3 / SeaweedFS object storage service is unreachable or returns a connectivity error.</summary>
+public sealed class ObjectStorageUnavailableException(string storageName, string? endpoint, string message, Exception? innerException = null)
+    : InvalidOperationException(message, innerException)
+{
+    public string StorageName { get; } = storageName;
+    public string? Endpoint { get; } = endpoint;
+}
+
 /// <summary>Object keys: one prefix per tenant, so a bucket can be inspected, backed up or purged per tenant.</summary>
 public static class BlobKeys
 {

@@ -22,8 +22,11 @@
 @inject CommunicationService CommService
 @inject IEmailQueue EmailQueue
 @inject UiText T
+@inject SystemConnectivityService Connectivity
 
 <PageTitle>@(meta is null ? Name : meta.Def.IsSingle ? T.Title(meta) : IsNew ? T.Format("New {0}", T.Title(meta)) : Name) · FrogFrame</PageTitle>
+
+<NavigationLock ConfirmExternalNavigation="@dirty" OnBeforeInternalNavigation="OnBeforeInternalNavigation" />
 
 @if (fatal is not null)
 {
@@ -653,6 +656,7 @@ else if (meta is not null && doc is not null)
             }
             if (!string.IsNullOrWhiteSpace(result.RedirectUrl))
             {
+                dirty = false;
                 Nav.NavigateTo(result.RedirectUrl);
                 return;
             }
@@ -887,6 +891,47 @@ else if (meta is not null && doc is not null)
         }
     }
 
+    private async Task OnBeforeInternalNavigation(LocationChangingContext context)
+    {
+        if (dirty && !savingNow)
+        {
+            var currentRelative = Nav.ToBaseRelativePath(Nav.Uri).Split('?')[0].Split('#')[0].TrimEnd('/');
+            var targetAbsolute = Nav.ToAbsoluteUri(context.TargetLocation).ToString();
+            if (targetAbsolute.StartsWith(Nav.BaseUri, StringComparison.OrdinalIgnoreCase))
+            {
+                var targetRelative = Nav.ToBaseRelativePath(targetAbsolute).Split('?')[0].Split('#')[0].TrimEnd('/');
+                if (string.Equals(currentRelative, targetRelative, StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+            }
+
+            if (context.CancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+
+            var confirmed = await Dialogs.ConfirmAsync(
+                T["Discard unsaved changes?"],
+                T["You have unsaved changes in this document. If you leave now, your changes will be lost and you will start over from the beginning."],
+                new ConfirmDialogOptions
+                {
+                    Destructive = true,
+                    ConfirmText = T["Discard and Leave"],
+                    CancelText = T["Stay on this page"]
+                });
+
+            if (!confirmed.Confirmed)
+            {
+                context.PreventNavigation();
+            }
+            else
+            {
+                dirty = false;
+            }
+        }
+    }
+
     private Dictionary<string, object?> BuildPayload()
     {
         var before = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(original)!;
@@ -925,6 +970,7 @@ else if (meta is not null && doc is not null)
                 if (saved.TransientMessages.Count > 0)
                     foreach (var msg in saved.TransientMessages) Toasts.Info(T.Message(msg));
                 Toasts.Success(T.Format("{0} saved as draft.", saved.Name), T["Saved"]);
+                dirty = false;
                 Nav.NavigateTo($"/app/{DocType}/{saved.Name}");
                 return;
             }
@@ -965,6 +1011,7 @@ else if (meta is not null && doc is not null)
             if (result.Name != Name)
             {
                 Toasts.Success(T.Format("Revision draft {0} created.", result.Name), T["Amend"]);
+                dirty = false;
                 Nav.NavigateTo($"/app/{DocType}/{result.Name}");
                 return;
             }
@@ -985,6 +1032,7 @@ else if (meta is not null && doc is not null)
         {
             await Docs.DeleteAsync(User, DocType, Name, doc!.Version);
             Toasts.Success(T.Format("{0} deleted.", Name), T["Deleted"]);
+            dirty = false;
             Nav.NavigateTo($"/app/{DocType}");
         }
         catch (Exception ex) { HandleError(ex); }
@@ -993,6 +1041,14 @@ else if (meta is not null && doc is not null)
 
     private void HandleError(Exception ex)
     {
+        if (InfrastructureErrorHelper.TryDescribe(ex, T, out var infraTitle, out var infraMessage))
+        {
+            Connectivity.ReportException(ex);
+            banner = infraMessage;
+            Toasts.Error(infraMessage, infraTitle);
+            return;
+        }
+
         switch (ex)
         {
             case ValidationFailedException v:
@@ -1023,7 +1079,16 @@ else if (meta is not null && doc is not null)
         }
         catch (Exception ex)
         {
-            uploadError = ex.Message;
+            Connectivity.ReportException(ex);
+            if (InfrastructureErrorHelper.TryDescribe(ex, T, out var title, out var msg))
+            {
+                uploadError = msg;
+                Toasts.Error(msg, title);
+            }
+            else
+            {
+                uploadError = ex.Message;
+            }
         }
         finally
         {
@@ -1045,7 +1110,16 @@ else if (meta is not null && doc is not null)
         }
         catch (Exception ex)
         {
-            uploadError = ex.Message;
+            Connectivity.ReportException(ex);
+            if (InfrastructureErrorHelper.TryDescribe(ex, T, out var title, out var msg))
+            {
+                uploadError = msg;
+                Toasts.Error(msg, title);
+            }
+            else
+            {
+                uploadError = ex.Message;
+            }
         }
     }
 

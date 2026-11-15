@@ -12,6 +12,7 @@
 @inject ToastService Toasts
 @inject IJSRuntime JS
 @inject UiText T
+@inject SystemConnectivityService Connectivity
 
 <BbSidebarProvider DefaultOpen="true">
     <BbSidebar Collapsible="true">
@@ -258,6 +259,60 @@
                 }
             </div>
         </div>
+        @if (!Connectivity.Current.IsAllHealthy)
+        {
+            var connSnap = Connectivity.Current;
+            <div style="margin: 0.75rem 1.25rem 0; display: flex; flex-direction: column; gap: 0.5rem;">
+                @if (!connSnap.IsDatabaseHealthy)
+                {
+                    <BbAlert Variant="AlertVariant.Danger">
+                        <LucideIcon Name="database" Size="18" />
+                        <BbAlertTitle>
+                            @(connSnap.DatabaseState == DependencyState.StartingUp
+                                ? T["Database is starting up"]
+                                : T["Database is not connected"])
+                        </BbAlertTitle>
+                        <BbAlertDescription>
+                            <div style="display:flex;align-items:center;justify-content:space-between;gap:0.75rem;flex-wrap:wrap;">
+                                <span>
+                                    @(connSnap.DatabaseState == DependencyState.StartingUp
+                                        ? T["PostgreSQL is still starting up or recovering data. Please wait a moment and try again."]
+                                        : T["The application cannot reach the PostgreSQL database right now. Saving or loading data may fail until the connection is restored."])
+                                    @if (!string.IsNullOrWhiteSpace(connSnap.DatabaseMessage))
+                                    {
+                                        <span class="muted small" style="display:block;margin-top:0.2rem;">@connSnap.DatabaseMessage</span>
+                                    }
+                                </span>
+                                <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Disabled="checkingConnectivity" OnClick="RecheckConnectivityAsync">
+                                    <LucideIcon Name="rotate-cw" Size="14" /> @(checkingConnectivity ? T["Checking…"] : T["Check Connection"])
+                                </BbButton>
+                            </div>
+                        </BbAlertDescription>
+                    </BbAlert>
+                }
+                @if (!connSnap.IsObjectStorageHealthy)
+                {
+                    <BbAlert Variant="AlertVariant.Warning">
+                        <LucideIcon Name="hard-drive" Size="18" />
+                        <BbAlertTitle>@T["SeaweedFS Object Storage is not connected"]</BbAlertTitle>
+                        <BbAlertDescription>
+                            <div style="display:flex;align-items:center;justify-content:space-between;gap:0.75rem;flex-wrap:wrap;">
+                                <span>
+                                    @T["The application cannot connect to SeaweedFS (S3 Object Storage). File attachments and profile photo uploads are temporarily unavailable until SeaweedFS is back online."]
+                                    @if (!string.IsNullOrWhiteSpace(connSnap.ObjectStorageMessage))
+                                    {
+                                        <span class="muted small" style="display:block;margin-top:0.2rem;">@connSnap.ObjectStorageMessage</span>
+                                    }
+                                </span>
+                                <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Disabled="checkingConnectivity" OnClick="RecheckConnectivityAsync">
+                                    <LucideIcon Name="rotate-cw" Size="14" /> @(checkingConnectivity ? T["Checking…"] : T["Check Connection"])
+                                </BbButton>
+                            </div>
+                        </BbAlertDescription>
+                    </BbAlert>
+                }
+            </div>
+        }
         <main class="app-main" id="content">
             @if (Current.User is null && !IsPublicErrorRoute())
             {
@@ -364,6 +419,29 @@
     private bool isAwesomebarOpen;
     private DotNetObjectReference<DeskLayout>? dotNetRef;
     private FrogFrameErrorBoundary? errorBoundary;
+    private bool checkingConnectivity;
+
+    private async Task RecheckConnectivityAsync()
+    {
+        if (checkingConnectivity) return;
+        checkingConnectivity = true;
+        StateHasChanged();
+        try
+        {
+            var snap = await Connectivity.CheckNowAsync();
+            if (snap.IsAllHealthy)
+            {
+                Toasts.Success(T["Database and SeaweedFS Object Storage are connected and ready."], T["Connection Restored"]);
+            }
+        }
+        finally
+        {
+            checkingConnectivity = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void OnConnectivityChanged() => _ = InvokeAsync(StateHasChanged);
 
     private void OpenUserProfile() => isProfileOpen = true;
 
@@ -414,6 +492,8 @@
         MenuStore.Changed += OnMenusChanged;
         T.Changed += OnLanguageChanged;
         Nav.LocationChanged += OnLocationChanged;
+        Connectivity.Changed += OnConnectivityChanged;
+        _ = Connectivity.EnsureCheckedAsync();
         if (Current.User is null) { RedirectToLogin(); return; }
         RefreshUnread();
         _ = LoadMenusAsync();
@@ -435,11 +515,18 @@
     {
         if (Current.User is { } u)
         {
-            navModules = await MenuStore.ListModulesAsync(u.TenantId, onlyActive: true);
-            navGroups = await MenuStore.ListGroupsAsync(u.TenantId, onlyActive: true);
-            navMenus = await MenuStore.ListAsync(u.TenantId, onlyActive: true);
-            EnsureInitialActiveModule(u);
-            await InvokeAsync(StateHasChanged);
+            try
+            {
+                navModules = await MenuStore.ListModulesAsync(u.TenantId, onlyActive: true);
+                navGroups = await MenuStore.ListGroupsAsync(u.TenantId, onlyActive: true);
+                navMenus = await MenuStore.ListAsync(u.TenantId, onlyActive: true);
+                EnsureInitialActiveModule(u);
+                await InvokeAsync(StateHasChanged);
+            }
+            catch (Exception ex)
+            {
+                Connectivity.ReportException(ex);
+            }
         }
     }
 
@@ -609,14 +696,27 @@
             {
                 var before = unread;
                 RefreshUnread();
+                if (!Connectivity.Current.IsAllHealthy)
+                {
+                    await Connectivity.EnsureCheckedAsync(TimeSpan.FromSeconds(10));
+                }
                 if (before != unread) await InvokeAsync(StateHasChanged);
             }
         }
         catch (ObjectDisposedException) { }
     }
 
-    private void RefreshUnread() =>
-        unread = Current.User is { } u ? Notifications.ForUser(u.TenantId, u.Id).Count(n => !n.Read) : 0;
+    private void RefreshUnread()
+    {
+        try
+        {
+            unread = Current.User is { } u ? Notifications.ForUser(u.TenantId, u.Id).Count(n => !n.Read) : 0;
+        }
+        catch (Exception ex)
+        {
+            Connectivity.ReportException(ex);
+        }
+    }
 
     /// <summary>
     /// DocType termasuk modul aktif bila modulnya cocok. DocType yang modulnya tidak bisa di-resolve (data lama)
@@ -905,6 +1005,7 @@
         MenuStore.Changed -= OnMenusChanged;
         T.Changed -= OnLanguageChanged;
         Nav.LocationChanged -= OnLocationChanged;
+        Connectivity.Changed -= OnConnectivityChanged;
         timer?.Dispose();
         dotNetRef?.Dispose();
     }

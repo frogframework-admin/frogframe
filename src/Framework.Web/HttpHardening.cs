@@ -1,5 +1,7 @@
+using Framework.Files;
 using Framework.Observability;
 using Framework.Persistence;
+using Framework.Web.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
@@ -217,7 +219,52 @@ public static class HttpHardeningExtensions
         // Readiness probe: checks dependencies without leaking internal connection details
         async Task<IResult> CheckReadinessAsync(IServiceProvider sp, CancellationToken ct)
         {
+            var connectivity = sp.GetService<SystemConnectivityService>();
             var checker = sp.GetService<IDatabaseHealthCheck>();
+            var storageChecker = sp.GetService<IObjectStorageHealthCheck>();
+
+            if (connectivity is not null)
+            {
+                var snap = await connectivity.CheckNowAsync(ct);
+                var dbStatus = snap.DatabaseState switch
+                {
+                    DependencyState.Ready => "ready",
+                    DependencyState.StartingUp => "starting_up",
+                    _ => "unready"
+                };
+                var objStatus = snap.ObjectStorageState switch
+                {
+                    DependencyState.Ready => "ready",
+                    DependencyState.Disabled => "disabled",
+                    _ => "unreachable"
+                };
+
+                var payload = new
+                {
+                    status = snap.IsDatabaseHealthy ? "ready" : dbStatus,
+                    degraded = !snap.IsAllHealthy,
+                    storage = snap.DatabaseProvider,
+                    database = new
+                    {
+                        status = dbStatus,
+                        provider = snap.DatabaseProvider,
+                        message = snap.DatabaseMessage
+                    },
+                    objectStorage = new
+                    {
+                        status = objStatus,
+                        provider = snap.ObjectStorageName ?? "memory",
+                        endpoint = snap.ObjectStorageEndpoint ?? storageChecker?.Endpoint,
+                        message = snap.ObjectStorageMessage
+                    }
+                };
+
+                if (snap.IsDatabaseHealthy)
+                    return Results.Ok(payload);
+
+                return Results.Json(payload, statusCode: StatusCodes.Status503ServiceUnavailable);
+            }
+
             if (checker is null)
                 return Results.Ok(new { status = "ready", storage = "in-memory" });
 

@@ -24,12 +24,17 @@ internal sealed class ErrorLogLogger(string categoryName, IServiceProvider servi
         if (logLevel < LogLevel.Error || exception is null) return;
         if (InLog.Value) return;
 
-        // Skip internal/persistence logging to prevent infinite loops
+        // Skip internal/persistence/background-worker logging and database connectivity errors
+        // to prevent infinite feedback loops when PostgreSQL is starting up or under heavy load.
         if (categoryName.StartsWith("Npgsql", StringComparison.OrdinalIgnoreCase) ||
             categoryName.StartsWith("Framework.Persistence", StringComparison.OrdinalIgnoreCase) ||
             categoryName.StartsWith("Microsoft.EntityFrameworkCore", StringComparison.OrdinalIgnoreCase) ||
             categoryName.StartsWith("Framework.Web.Components.FrogFrameErrorBoundary", StringComparison.OrdinalIgnoreCase) ||
-            categoryName.StartsWith("FrogFrame.Http", StringComparison.OrdinalIgnoreCase))
+            categoryName.StartsWith("Framework.Web.SchedulerWorker", StringComparison.OrdinalIgnoreCase) ||
+            categoryName.StartsWith("Framework.Web.OutboxWorker", StringComparison.OrdinalIgnoreCase) ||
+            categoryName.StartsWith("Framework.Web.FileOrphanWorker", StringComparison.OrdinalIgnoreCase) ||
+            categoryName.StartsWith("FrogFrame.Http", StringComparison.OrdinalIgnoreCase) ||
+            Framework.Web.Services.InfrastructureErrorHelper.IsDatabaseConnectivityError(exception, out _))
         {
             return;
         }

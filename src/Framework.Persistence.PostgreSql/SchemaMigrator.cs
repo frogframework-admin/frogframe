@@ -1,3 +1,4 @@
+using System.Net.Sockets;
 using System.Reflection;
 using Microsoft.Extensions.Logging;
 using Npgsql;
@@ -22,7 +23,7 @@ public sealed class SchemaMigrator(SchemaDataSource schema, ILogger<SchemaMigrat
 
     public async Task MigrateAsync(CancellationToken ct = default)
     {
-        await using var conn = await db.OpenConnectionAsync(ct);
+        await using var conn = await OpenReadyConnectionAsync(ct);
         await Exec(conn, null, "CREATE TABLE IF NOT EXISTS frogframe_schema_migrations (version integer PRIMARY KEY, name text NOT NULL, applied_at timestamptz NOT NULL DEFAULT now())", ct);
         await Exec(conn, null, $"SELECT pg_advisory_lock({LockKey})", ct);
         try
@@ -53,6 +54,52 @@ public sealed class SchemaMigrator(SchemaDataSource schema, ILogger<SchemaMigrat
         {
             await Exec(conn, null, $"SELECT pg_advisory_unlock({LockKey})", ct);
         }
+    }
+
+    private async Task<NpgsqlConnection> OpenReadyConnectionAsync(CancellationToken ct)
+    {
+        const int maxAttempts = 150;
+        var delay = TimeSpan.FromSeconds(3);
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                var conn = await db.OpenConnectionAsync(ct);
+                if (attempt > 1)
+                    log.LogInformation("PostgreSQL database is now ready after {Attempts} attempts.", attempt);
+                return conn;
+            }
+            catch (Exception ex) when (attempt < maxAttempts && !ct.IsCancellationRequested && IsTransientStartupError(ex, out var reason))
+            {
+                log.LogWarning(
+                    "PostgreSQL database is not ready yet ({Reason}). Waiting {DelaySeconds}s before retrying (attempt {Attempt}/{MaxAttempts})...",
+                    reason, (int)delay.TotalSeconds, attempt, maxAttempts);
+                await Task.Delay(delay, ct);
+            }
+        }
+    }
+
+    private static bool IsTransientStartupError(Exception ex, out string reason)
+    {
+        if (ex is PostgresException pg)
+        {
+            // 57P03 = cannot_connect_now ("the database system is starting up" / "the database system is in recovery mode")
+            // 57P01 = admin_shutdown, 57P02 = crash_shutdown, 53300 = too_many_connections
+            if (pg.SqlState is "57P03" or "57P01" or "57P02" or "53300" || pg.SqlState.StartsWith("08", StringComparison.Ordinal))
+            {
+                reason = $"SQLSTATE {pg.SqlState}: {pg.MessageText}";
+                return true;
+            }
+        }
+        if (ex is NpgsqlException or SocketException or TimeoutException)
+        {
+            var cur = ex;
+            while (cur.InnerException is not null) cur = cur.InnerException;
+            reason = cur.Message;
+            return true;
+        }
+        reason = ex.Message;
+        return false;
     }
 
     private IEnumerable<PostgresMigration> Scripts()

@@ -130,6 +130,19 @@ public sealed class PostgresScheduledJobLogStore(NpgsqlDataSource db) : ISchedul
 {
     public async Task<DateTimeOffset?> GetLastRunAsync(string jobName, string tenantId, CancellationToken ct = default)
     {
+        try
+        {
+            return await GetLastRunCoreAsync(jobName, tenantId, ct).ConfigureAwait(false);
+        }
+        catch (PostgresException ex) when (ex.SqlState == "XX002")
+        {
+            await TryReindexJobRunsAsync(ct).ConfigureAwait(false);
+            return await GetLastRunCoreAsync(jobName, tenantId, ct).ConfigureAwait(false);
+        }
+    }
+
+    private async Task<DateTimeOffset?> GetLastRunCoreAsync(string jobName, string tenantId, CancellationToken ct)
+    {
         await using var cmd = db.CreateCommand(
             "SELECT started_at FROM frogframe_scheduled_job_runs WHERE job_name = $1 AND tenant_id = $2 ORDER BY started_at DESC LIMIT 1");
         cmd.Parameters.AddWithValue(jobName);
@@ -143,6 +156,19 @@ public sealed class PostgresScheduledJobLogStore(NpgsqlDataSource db) : ISchedul
 
     public async Task RecordRunAsync(ScheduledJobRunEntry entry, CancellationToken ct = default)
     {
+        try
+        {
+            await RecordRunCoreAsync(entry, ct).ConfigureAwait(false);
+        }
+        catch (PostgresException ex) when (ex.SqlState == "XX002")
+        {
+            await TryReindexJobRunsAsync(ct).ConfigureAwait(false);
+            await RecordRunCoreAsync(entry, ct).ConfigureAwait(false);
+        }
+    }
+
+    private async Task RecordRunCoreAsync(ScheduledJobRunEntry entry, CancellationToken ct)
+    {
         await using var cmd = db.CreateCommand(
             "INSERT INTO frogframe_scheduled_job_runs (job_name, tenant_id, started_at, completed_at, duration_ms, status, error) " +
             "VALUES ($1, $2, $3, $4, $5, $6, $7)");
@@ -155,6 +181,19 @@ public sealed class PostgresScheduledJobLogStore(NpgsqlDataSource db) : ISchedul
         cmd.Parameters.AddWithValue((object?)entry.Error ?? DBNull.Value);
 
         await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+    }
+
+    private async Task TryReindexJobRunsAsync(CancellationToken ct)
+    {
+        try
+        {
+            await using var cmd = db.CreateCommand("REINDEX TABLE frogframe_scheduled_job_runs");
+            await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+        }
+        catch
+        {
+            // Ignore if reindex fails; the caller's retry will surface the underlying error.
+        }
     }
 
     public async Task<IReadOnlyList<ScheduledJobRunEntry>> GetRecentRunsAsync(string? tenantId = null, int limit = 50, CancellationToken ct = default)

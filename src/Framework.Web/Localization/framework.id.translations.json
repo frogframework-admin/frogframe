@@ -403,6 +403,27 @@
     "Failed to Submit Some Documents": "Gagal Mengajukan Beberapa Dokumen",
     "Failed to Cancel Some Documents": "Gagal Membatalkan Beberapa Dokumen",
     "{0} {1} is in status {2} and cannot be modified.": "{0} {1} berstatus {2} dan tidak bisa diubah.",
-    "{0}–{1} of {2}": "{0}–{1} dari {2}"
+    "{0}–{1} of {2}": "{0}–{1} dari {2}",
+    "Database is starting up": "Database sedang memulai (starting up)",
+    "Database is not connected": "Database belum terhubung",
+    "PostgreSQL is still starting up or recovering data. Please wait a moment and try again.": "PostgreSQL masih sedang memulai atau memulihkan data (recovery). Silakan tunggu beberapa saat lalu coba lagi.",
+    "The application cannot reach the PostgreSQL database right now. Saving or loading data may fail until the connection is restored.": "Aplikasi belum dapat terhubung ke database PostgreSQL saat ini. Proses simpan atau muat data dapat gagal hingga koneksi pulih.",
+    "SeaweedFS Object Storage is not connected": "Object Storage SeaweedFS belum terhubung",
+    "The application cannot connect to SeaweedFS (S3 Object Storage). File attachments and profile photo uploads are temporarily unavailable until SeaweedFS is back online.": "Aplikasi tidak dapat terhubung ke SeaweedFS (S3 Object Storage). Unggah lampiran file dan foto profil tidak tersedia sementara hingga SeaweedFS kembali aktif.",
+    "Check Connection": "Cek Koneksi",
+    "Checking…": "Memeriksa…",
+    "Connection Restored": "Koneksi Pulih",
+    "Database and SeaweedFS Object Storage are connected and ready.": "Database dan Object Storage SeaweedFS telah terhubung dan siap digunakan.",
+    "Database Is Starting Up": "Database Sedang Memulai",
+    "The PostgreSQL database is still starting up or recovering data. Please wait a few seconds and try again.": "Database PostgreSQL masih dalam proses memulai atau pemulihan data. Silakan tunggu beberapa detik lalu coba lagi.",
+    "Database Request Timed Out": "Waktu Permintaan Database Habis (Timeout)",
+    "The database took too long to respond or is under heavy I/O load. Your changes were not saved—please wait a moment and try again.": "Database membutuhkan waktu terlalu lama untuk merespons atau sedang mengalami beban I/O tinggi. Perubahan Anda belum tersimpan—silakan tunggu sebentar lalu coba lagi.",
+    "Database Not Connected": "Database Tidak Terhubung",
+    "Cannot connect to the PostgreSQL database right now. Please ensure the database service is running and ready, then try again.": "Tidak dapat terhubung ke database PostgreSQL saat ini. Pastikan layanan database sedang berjalan dan siap, lalu coba lagi.",
+    "Object Storage (SeaweedFS) Not Connected": "Object Storage (SeaweedFS) Tidak Terhubung",
+    "Discard unsaved changes?": "Batalkan perubahan yang belum disimpan?",
+    "You have unsaved changes in this document. If you leave now, your changes will be lost and you will start over from the beginning.": "Anda memiliki perubahan yang belum disimpan pada dokumen ini. Jika Anda meninggalkan halaman ini sekarang, data yang telah diisi akan hilang dan Anda harus mulai dari awal lagi.",
+    "Discard and Leave": "Tinggalkan Halaman",
+    "Stay on this page": "Tetap di Halaman Ini"
   }
 }
