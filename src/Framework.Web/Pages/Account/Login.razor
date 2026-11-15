@@ -173,7 +173,7 @@
                   : result.IsNotAllowed ? "This account is inactive. Please contact the administrator."
                   : "Invalid username or password.";
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not Microsoft.AspNetCore.Components.NavigationException)
         {
             Connectivity.ReportException(ex);
             if (InfrastructureErrorHelper.TryDescribe(ex, null, out var title, out var message))
