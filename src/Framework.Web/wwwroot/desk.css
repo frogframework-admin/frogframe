@@ -61,7 +61,7 @@ h1:focus {
   border-bottom: 1px solid rgba(255, 255, 255, 0.15);
   position: sticky !important;
   top: 0 !important;
-  z-index: 50 !important;
+  z-index: 40 !important;
   box-shadow: 0 2px 8px -2px rgba(15, 23, 42, 0.18);
   flex-shrink: 0 !important;
 }
@@ -366,7 +366,6 @@ h1:focus {
   -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 28%) !important;
   mask-image: linear-gradient(180deg, transparent 0%, #000 28%) !important;
   pointer-events: none !important;
-  z-index: 0 !important;
   opacity: 0.95 !important;
   transition: left 0.2s ease !important;
 }
@@ -380,7 +379,6 @@ aside[data-state="collapsed"]~* .bottom-full-wave,
 
 .app-main {
   position: relative;
-  z-index: 1;
   flex: 1 0 auto;
   padding: 1.5rem 2rem 5rem;
   width: 100%;
