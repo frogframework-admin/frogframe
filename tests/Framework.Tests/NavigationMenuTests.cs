@@ -34,7 +34,7 @@ sealed partial class Tests
         var workflows = items.FirstOrDefault(x => x.Href == "admin/workflows");
         Assert.True(workflows is not null && workflows.IsSystem && workflows.AllowedRoles.Contains(UserContext.SystemManager), "Workflow harus di-seed untuk System Manager");
 
-        var queryApis = items.FirstOrDefault(x => x.Href == "query-apis");
+        var queryApis = items.FirstOrDefault(x => x.Href == "admin/query-apis");
         Assert.True(queryApis is not null && queryApis.IsSystem && queryApis.AllowedRoles.Contains(UserContext.SystemManager), "API Query harus di-seed");
 
         var apiKeys = items.FirstOrDefault(x => x.Href == "admin/api-keys");

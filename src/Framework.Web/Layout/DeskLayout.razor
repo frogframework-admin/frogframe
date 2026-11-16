@@ -980,6 +980,18 @@
                     }
                     break;
 
+                case "query-apis":
+                    if (parts.Length >= 3)
+                    {
+                        crumbs.Add(new Crumb("Query APIs", Href: "/admin/query-apis"));
+                        crumbs.Add(new Crumb(parts[2].Equals("new", StringComparison.OrdinalIgnoreCase) ? "New" : "Builder", IsActive: true));
+                    }
+                    else
+                    {
+                        crumbs.Add(new Crumb("Query APIs", IsActive: true));
+                    }
+                    break;
+
                 default:
                     crumbs.Add(new Crumb(ToTitleCase(sub), IsActive: true));
                     break;
@@ -1005,7 +1017,7 @@
         {
             if (parts.Length >= 2)
             {
-                crumbs.Add(new Crumb("Query APIs", Href: "/query-apis"));
+                crumbs.Add(new Crumb("Query APIs", Href: "/admin/query-apis"));
                 crumbs.Add(new Crumb(parts[1].Equals("new", StringComparison.OrdinalIgnoreCase) ? "New" : "Builder", IsActive: true));
             }
             else

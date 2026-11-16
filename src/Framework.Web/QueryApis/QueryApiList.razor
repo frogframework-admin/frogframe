@@ -5,6 +5,7 @@
 @inject CurrentUser Current
 @inject ToastService Toasts
 @inject DialogService Dialogs
+@inject NavigationManager Nav
 @inject Framework.Preferences.IUserPreferenceStore UserPrefs
 @implements IDisposable
 
@@ -18,7 +19,7 @@
             <BbButton Variant="ButtonVariant.Destructive" Disabled="@(gridMgr.SelectedCount == 0 || busy)" OnClick="BulkDeleteAsync">
                 <LucideIcon Name="trash-2" Size="16" /> Delete @(gridMgr.SelectedCount > 0 ? $"({gridMgr.SelectedCount})" : "")
             </BbButton>
-            <BbButton Href="/query-apis/new"><LucideIcon Name="plus" Size="16" /> New API</BbButton>
+            <BbButton Href="/admin/query-apis/new"><LucideIcon Name="plus" Size="16" /> New API</BbButton>
         </div>
     }
 </header>
@@ -114,7 +115,7 @@ else
                                       Width="@gridMgr.GetWidth("actions", "7.5rem")" Hideable="false" Resizable="false">
                 <ChildContent Context="item">
                     <div style="display:flex;align-items:center;gap:.35rem">
-                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" Href="@($"/query-apis/{item.Id}/edit")"><LucideIcon Name="pencil" Size="15" /> Edit</BbButton>
+                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" Href="@($"/admin/query-apis/{item.Id}/edit")"><LucideIcon Name="pencil" Size="15" /> Edit</BbButton>
                         <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@($"Delete {item.Name}")" OnClick="() => Delete(item)"><LucideIcon Name="trash-2" Size="15" /></BbButton>
                     </div>
                 </ChildContent>
@@ -148,6 +149,13 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        var rel = Nav.ToBaseRelativePath(Nav.Uri).Trim('/');
+        if (rel.Equals("query-apis", StringComparison.OrdinalIgnoreCase))
+        {
+            Nav.NavigateTo("/admin/query-apis", replace: true);
+            return;
+        }
+
         gridMgr = new(UserPrefs, Current, "grid:admin:query-apis", StateHasChanged);
         if (Current.User is not null)
         {

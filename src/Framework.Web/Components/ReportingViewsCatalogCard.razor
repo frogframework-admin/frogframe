@@ -1,0 +1,156 @@
+@using Framework.Dashboards
+@inject IMetadataProvider Metadata
+
+<BbCard Class="@CardClass">
+    <BbCardHeader>
+        <BbCardTitle Class="card-title">Available views</BbCardTitle>
+        <BbCardDescription>@Description</BbCardDescription>
+    </BbCardHeader>
+    <BbCardContent Class="builder-card-content">
+        <div class="catalog-search" style="margin-bottom:.65rem;flex-shrink:0">
+            <BbInputGroup>
+                <BbInputGroupAddon Align="InputGroupAlign.InlineStart">
+                    <LucideIcon Name="search" Size="15" />
+                </BbInputGroupAddon>
+                <BbInputGroupInput Value="@viewSearch" ValueChanged="OnViewSearchChanged"
+                                   UpdateTiming="UpdateTiming.Debounced" DebounceInterval="150"
+                                   Placeholder="Search views or columns…" AriaLabel="Search views" />
+                @if (!string.IsNullOrWhiteSpace(viewSearch))
+                {
+                    <BbInputGroupAddon Align="InputGroupAlign.InlineEnd">
+                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" Class="search-clear-btn"
+                                  OnClick="() => OnViewSearchChanged(null)" AriaLabel="Clear search">
+                            <LucideIcon Name="x" Size="13" />
+                        </BbButton>
+                    </BbInputGroupAddon>
+                }
+            </BbInputGroup>
+        </div>
+        <BbDataGrid TData="ReportingViewHierarchyItem"
+                    Class="views-hierarchy-grid"
+                    Items="@AvailableViewsData"
+                    ChildrenSelector="@(m => m.Children)"
+                    ItemValueSelector="@(m => m.Id)"
+                    @bind-ExpandedNodes="expandedNodes"
+                    ShowExpandAll="true"
+                    TableContainerClass="table-wrap">
+            <Columns>
+                <BbDataGridHierarchyColumn TData="ReportingViewHierarchyItem" TProp="string"
+                                           Property="@(m => m.Name)" Title="Views &amp; columns" Sortable="true">
+                    <CellTemplate Context="ctx">
+                        <span class="views-hierarchy-cell">
+                            <LucideIcon Name="@(ctx.Item.IsColumn ? "columns-2" : "table")" Size="14" Class="@(ctx.Item.IsColumn ? "muted" : "text-primary")" />
+                            <button type="button" class="catalog-insert" @onclick="() => OnInsert.InvokeAsync(ctx.Item.Name)" @onclick:stopPropagation="true" title="Click to insert into query">
+                                <code>@ctx.Item.Name</code>
+                            </button>
+                        </span>
+                    </CellTemplate>
+                </BbDataGridHierarchyColumn>
+            </Columns>
+        </BbDataGrid>
+    </BbCardContent>
+</BbCard>
+
+@code {
+    [Parameter] public string Description { get; set; } = "Click a view or column to insert into query. Expand to explore columns.";
+    [Parameter] public EventCallback<string> OnInsert { get; set; }
+    [Parameter] public string CardClass { get; set; } = "builder-card-left";
+
+    public sealed class ReportingViewHierarchyItem
+    {
+        public string Id { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Title { get; set; } = "";
+        public bool IsColumn { get; set; }
+        public List<ReportingViewHierarchyItem>? Children { get; set; }
+    }
+
+    private string? viewSearch;
+    private HashSet<string> expandedNodes = new(StringComparer.Ordinal);
+    private IReadOnlyList<ReportingViewHierarchyItem>? _allViewsData;
+
+    private IReadOnlyList<ReportingViewHierarchyItem> AllViewsData
+    {
+        get
+        {
+            if (_allViewsData is not null) return _allViewsData;
+            var all = ReportingCatalog.Describe(Metadata.Current);
+            var list = new List<ReportingViewHierarchyItem>(all.Count);
+            foreach (var v in all)
+            {
+                var children = v.Columns.Select(c => new ReportingViewHierarchyItem
+                {
+                    Id = $"{v.Name}.{c.Column}",
+                    Name = c.Column,
+                    Title = "",
+                    IsColumn = true,
+                    Children = null
+                }).ToList();
+
+                list.Add(new ReportingViewHierarchyItem
+                {
+                    Id = v.Name,
+                    Name = v.Name,
+                    Title = v.Title,
+                    IsColumn = false,
+                    Children = children
+                });
+            }
+            _allViewsData = list;
+            return _allViewsData;
+        }
+    }
+
+    private void OnViewSearchChanged(string? value)
+    {
+        viewSearch = value;
+        if (string.IsNullOrWhiteSpace(viewSearch))
+        {
+            expandedNodes = new(StringComparer.Ordinal);
+            return;
+        }
+
+        var q = viewSearch.Trim();
+        expandedNodes = AllViewsData
+            .Where(v => v.Children?.Any(c => c.Name.Contains(q, StringComparison.OrdinalIgnoreCase)) == true)
+            .Select(v => v.Id)
+            .ToHashSet(StringComparer.Ordinal);
+    }
+
+    private IReadOnlyList<ReportingViewHierarchyItem> AvailableViewsData
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(viewSearch))
+                return AllViewsData;
+
+            var q = viewSearch.Trim();
+            var filtered = new List<ReportingViewHierarchyItem>();
+            foreach (var v in AllViewsData)
+            {
+                var viewMatches = v.Name.Contains(q, StringComparison.OrdinalIgnoreCase)
+                               || v.Title.Contains(q, StringComparison.OrdinalIgnoreCase);
+                var matchedCols = v.Children?
+                    .Where(c => c.Name.Contains(q, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+
+                if (viewMatches)
+                {
+                    filtered.Add(v);
+                }
+                else if (matchedCols is { Count: > 0 })
+                {
+                    filtered.Add(new ReportingViewHierarchyItem
+                    {
+                        Id = v.Id,
+                        Name = v.Name,
+                        Title = v.Title,
+                        IsColumn = false,
+                        Children = matchedCols
+                    });
+                }
+            }
+            return filtered;
+        }
+    }
+}

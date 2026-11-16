@@ -61,8 +61,9 @@ else
                            Rows="3"
                            Examples="AiQueryExamples"
                            Generate="WriteSqlWithAi" />
-            <div class="builder-grid builder-grid-equal">
-                <BbCard Class="builder-card-left">
+            <div class="builder-grid builder-grid-equal builder-grid-views-left">
+                <ReportingViewsCatalogCard OnInsert="Insert" />
+                <BbCard Class="builder-card-right">
                     <BbCardHeader>
                         <BbCardTitle Class="card-title">1. Data source &amp; query</BbCardTitle>
                         <BbCardDescription>Single SELECT statement (or WITH … SELECT). Write parameters as <code>@@ParamName</code>. Optional filter: <code>(@@Dept IS NULL OR department = @@Dept)</code>.</BbCardDescription>
@@ -76,54 +77,6 @@ else
                         <BbButton OnClick="Detect"><LucideIcon Name="scan-search" Size="16" /> Next: detect parameters</BbButton>
                         <span class="muted small">@widget.Config.Sql.Length / @SqlGuard.MaxLength characters</span>
                     </BbCardFooter>
-                </BbCard>
-                <BbCard Class="builder-card-right">
-                    <BbCardHeader>
-                        <BbCardTitle Class="card-title">Available views</BbCardTitle>
-                        <BbCardDescription>Click a view or column name to append it to the query.</BbCardDescription>
-                    </BbCardHeader>
-                    <BbCardContent Class="builder-card-content">
-                        <div class="catalog-search" style="margin-bottom:.65rem;flex-shrink:0">
-                            <BbInputGroup>
-                                <BbInputGroupAddon Align="InputGroupAlign.InlineStart">
-                                    <LucideIcon Name="search" Size="15" />
-                                </BbInputGroupAddon>
-                                <BbInputGroupInput Value="@viewSearch" ValueChanged="v => viewSearch = v"
-                                                   UpdateTiming="UpdateTiming.Debounced" DebounceInterval="150"
-                                                   Placeholder="Search views or columns…" AriaLabel="Search views" />
-                                @if (!string.IsNullOrWhiteSpace(viewSearch))
-                                {
-                                    <BbInputGroupAddon Align="InputGroupAlign.InlineEnd">
-                                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" Class="search-clear-btn"
-                                                  OnClick="() => viewSearch = null" AriaLabel="Clear search">
-                                            <LucideIcon Name="x" Size="13" />
-                                        </BbButton>
-                                    </BbInputGroupAddon>
-                                }
-                            </BbInputGroup>
-                        </div>
-                        <div class="catalog">
-                            @foreach (var v in FilteredViews)
-                            {
-                                var view = v;
-                                var isOpen = !string.IsNullOrWhiteSpace(viewSearch);
-                                <details open="@(isOpen ? true : null)">
-                                    <summary><button type="button" class="catalog-insert" @onclick="() => Insert(view.Name)" @onclick:stopPropagation="true"><code>@view.Name</code></button><span class="muted small">@view.Title</span></summary>
-                                    <ul>
-                                        @foreach (var (col, type) in view.Columns)
-                                        {
-                                            var c = col;
-                                            <li><button type="button" class="catalog-insert" @onclick="() => Insert(c)"><code>@c</code></button><span class="muted small">@type</span></li>
-                                        }
-                                    </ul>
-                                </details>
-                            }
-                            @if (!FilteredViews.Any())
-                            {
-                                <p class="muted small" style="padding:1rem 0;text-align:center">No views or columns match "@viewSearch".</p>
-                            }
-                        </div>
-                    </BbCardContent>
                 </BbCard>
             </div>
             break;
@@ -322,25 +275,9 @@ else
     private VisualConfig Visual => widget.Config.Visual;
     private int step = 1, maxStep = 1;
     private bool isEdit, notFound, busy;
-    private string? error, errorTitle, viewSearch;
+    private string? error, errorTitle;
     private QueryResultSet? preview;
     private string? loadedKey;
-
-    private IEnumerable<ReportingView> FilteredViews
-    {
-        get
-        {
-            var all = ReportingCatalog.Describe(Metadata.Current);
-            if (string.IsNullOrWhiteSpace(viewSearch))
-                return all;
-
-            var q = viewSearch.Trim();
-            return all.Where(v =>
-                v.Name.Contains(q, StringComparison.OrdinalIgnoreCase) ||
-                v.Title.Contains(q, StringComparison.OrdinalIgnoreCase) ||
-                v.Columns.Any(c => c.Column.Contains(q, StringComparison.OrdinalIgnoreCase) || c.Type.Contains(q, StringComparison.OrdinalIgnoreCase)));
-        }
-    }
 
     private static readonly IEnumerable<SelectOption<string>> TypeOptions =
         [new(ParamTypes.Text, "Text"), new(ParamTypes.Number, "Number"), new(ParamTypes.Date, "Date"), new(ParamTypes.Boolean, "Boolean")];

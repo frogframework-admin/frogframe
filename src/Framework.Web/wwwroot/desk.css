@@ -4562,6 +4562,10 @@ table.data td.thumb-cell {
     height: calc(100dvh - 15.5rem);
     min-height: 28rem;
   }
+
+  .builder-grid.builder-grid-views-left {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  }
 }
 
 .builder-grid.builder-grid-equal>* {
@@ -4616,6 +4620,45 @@ table.data td.thumb-cell {
   overscroll-behavior: contain;
   scrollbar-width: thin;
   padding-right: .25rem;
+}
+
+.views-hierarchy-grid {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.views-hierarchy-grid .table-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.views-hierarchy-grid .table-wrap table {
+  width: 100%;
+}
+
+.views-hierarchy-grid .table-wrap thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.views-hierarchy-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.views-hierarchy-cell .catalog-insert code {
+  font-size: .82rem;
+  padding: .15rem .4rem;
+  border-radius: 4px;
 }
 
 .search-clear-btn {
