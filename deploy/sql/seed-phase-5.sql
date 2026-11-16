@@ -130,27 +130,27 @@ ON CONFLICT (tenant_id, doctype, name) DO UPDATE
 SET data = EXCLUDED.data, modified = NOW(), modified_by = EXCLUDED.modified_by;
 
 INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
-VALUES ('acme', 'LeaveType', 'Annual Leave', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"leave_type_name":"Annual Leave","is_paid":true,"is_annual_quota":true,"max_consecutive_days":12,"include_holidays":false,"requires_attachment":false}'::jsonb)
+VALUES ('acme', 'LeaveType', 'Annual Leave', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"leave_type_name":"Annual Leave","is_paid":true,"is_annual_quota":true,"max_consecutive_days":12,"include_holidays":false,"requires_attachment":false,"applicable_gender":"All","allow_carry_forward":false,"is_active":true}'::jsonb)
 ON CONFLICT (tenant_id, doctype, name) DO UPDATE 
 SET data = EXCLUDED.data, modified = NOW(), modified_by = EXCLUDED.modified_by;
 
 INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
-VALUES ('acme', 'LeaveType', 'Sick Leave', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"leave_type_name":"Sick Leave","is_paid":true,"is_annual_quota":false,"max_consecutive_days":14,"include_holidays":false,"requires_attachment":true}'::jsonb)
+VALUES ('acme', 'LeaveType', 'Sick Leave', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"leave_type_name":"Sick Leave","is_paid":true,"is_annual_quota":false,"max_consecutive_days":14,"include_holidays":false,"requires_attachment":true,"applicable_gender":"All","allow_carry_forward":false,"is_active":true}'::jsonb)
 ON CONFLICT (tenant_id, doctype, name) DO UPDATE 
 SET data = EXCLUDED.data, modified = NOW(), modified_by = EXCLUDED.modified_by;
 
 INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
-VALUES ('acme', 'LeaveType', 'Maternity Leave', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"leave_type_name":"Maternity Leave","is_paid":true,"is_annual_quota":false,"max_consecutive_days":90,"include_holidays":true,"requires_attachment":true}'::jsonb)
+VALUES ('acme', 'LeaveType', 'Maternity Leave', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"leave_type_name":"Maternity Leave","is_paid":true,"is_annual_quota":false,"max_consecutive_days":90,"include_holidays":true,"requires_attachment":true,"applicable_gender":"All","allow_carry_forward":false,"is_active":true}'::jsonb)
 ON CONFLICT (tenant_id, doctype, name) DO UPDATE 
 SET data = EXCLUDED.data, modified = NOW(), modified_by = EXCLUDED.modified_by;
 
 INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
-VALUES ('acme', 'LeaveType', 'Compassionate Leave', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"leave_type_name":"Compassionate Leave","is_paid":true,"is_annual_quota":false,"max_consecutive_days":3,"include_holidays":false,"requires_attachment":false}'::jsonb)
+VALUES ('acme', 'LeaveType', 'Compassionate Leave', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"leave_type_name":"Compassionate Leave","is_paid":true,"is_annual_quota":false,"max_consecutive_days":3,"include_holidays":false,"requires_attachment":false,"applicable_gender":"All","allow_carry_forward":false,"is_active":true}'::jsonb)
 ON CONFLICT (tenant_id, doctype, name) DO UPDATE 
 SET data = EXCLUDED.data, modified = NOW(), modified_by = EXCLUDED.modified_by;
 
 INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
-VALUES ('acme', 'LeaveType', 'Unpaid Leave', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"leave_type_name":"Unpaid Leave","is_paid":false,"is_annual_quota":false,"max_consecutive_days":30,"include_holidays":false,"requires_attachment":false}'::jsonb)
+VALUES ('acme', 'LeaveType', 'Unpaid Leave', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"leave_type_name":"Unpaid Leave","is_paid":false,"is_annual_quota":false,"max_consecutive_days":30,"include_holidays":false,"requires_attachment":false,"applicable_gender":"All","allow_carry_forward":false,"is_active":true}'::jsonb)
 ON CONFLICT (tenant_id, doctype, name) DO UPDATE 
 SET data = EXCLUDED.data, modified = NOW(), modified_by = EXCLUDED.modified_by;
 
@@ -185,7 +185,7 @@ ON CONFLICT (tenant_id, doctype, name) DO UPDATE
 SET data = EXCLUDED.data, modified = NOW(), modified_by = EXCLUDED.modified_by;
 
 INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
-VALUES ('acme', 'SalaryComponent', 'Potongan Pinjaman Karyawan', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"component_name":"Potongan Pinjaman Karyawan","component_type":"Deduction","abbreviation":"LOAN","is_active":true,"account":"1121"}'::jsonb)
+VALUES ('acme', 'SalaryComponent', 'Potongan Pinjaman Karyawan', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"component_name":"Potongan Pinjaman Karyawan","component_type":"Deduction","abbreviation":"LOAN","is_active":true,"account":"1124","is_taxable":true,"is_regular":true,"in_bpjs_base":false}'::jsonb)
 ON CONFLICT (tenant_id, doctype, name) DO UPDATE 
 SET data = EXCLUDED.data, modified = NOW(), modified_by = EXCLUDED.modified_by;
 
@@ -210,6 +210,31 @@ ON CONFLICT (tenant_id, doctype, name) DO UPDATE
 SET data = EXCLUDED.data, modified = NOW(), modified_by = EXCLUDED.modified_by;
 
 INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
+VALUES ('acme', 'SalaryAssignment', 'SA-00005', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"employee":"EMP-0002","from_date":"2026-01-01","is_active":true,"bpjs_employment":true,"pension_member":true,"bpjs_health":true,"earnings":[{"idx":1,"salary_component":"Gaji Pokok","amount":6000000},{"idx":2,"salary_component":"Tunjangan Transport & Makan","amount":1500000}]}'::jsonb)
+ON CONFLICT (tenant_id, doctype, name) DO UPDATE 
+SET data = EXCLUDED.data, modified = NOW(), modified_by = EXCLUDED.modified_by;
+
+INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
+VALUES ('acme', 'SalaryAssignment', 'SA-00006', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"employee":"EMP-0004","from_date":"2026-01-01","is_active":true,"bpjs_employment":true,"pension_member":true,"bpjs_health":true,"earnings":[{"idx":1,"salary_component":"Gaji Pokok","amount":14000000},{"idx":2,"salary_component":"Tunjangan Jabatan","amount":4000000},{"idx":3,"salary_component":"Tunjangan Transport & Makan","amount":2000000}]}'::jsonb)
+ON CONFLICT (tenant_id, doctype, name) DO UPDATE 
+SET data = EXCLUDED.data, modified = NOW(), modified_by = EXCLUDED.modified_by;
+
+INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
+VALUES ('acme', 'SalaryAssignment', 'SA-00007', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"employee":"EMP-0006","from_date":"2026-01-01","is_active":true,"bpjs_employment":true,"pension_member":true,"bpjs_health":true,"earnings":[{"idx":1,"salary_component":"Gaji Pokok","amount":6500000},{"idx":2,"salary_component":"Tunjangan Transport & Makan","amount":1500000}]}'::jsonb)
+ON CONFLICT (tenant_id, doctype, name) DO UPDATE 
+SET data = EXCLUDED.data, modified = NOW(), modified_by = EXCLUDED.modified_by;
+
+INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
+VALUES ('acme', 'SalaryAssignment', 'SA-00008', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"employee":"EMP-0009","from_date":"2026-01-01","is_active":true,"bpjs_employment":true,"pension_member":true,"bpjs_health":true,"earnings":[{"idx":1,"salary_component":"Gaji Pokok","amount":6000000},{"idx":2,"salary_component":"Tunjangan Transport & Makan","amount":1500000}]}'::jsonb)
+ON CONFLICT (tenant_id, doctype, name) DO UPDATE 
+SET data = EXCLUDED.data, modified = NOW(), modified_by = EXCLUDED.modified_by;
+
+INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
+VALUES ('acme', 'SalaryAssignment', 'SA-00009', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"employee":"EMP-0010","from_date":"2026-01-01","is_active":true,"bpjs_employment":true,"pension_member":true,"bpjs_health":true,"earnings":[{"idx":1,"salary_component":"Gaji Pokok","amount":7500000},{"idx":2,"salary_component":"Tunjangan Jabatan","amount":1000000},{"idx":3,"salary_component":"Tunjangan Transport & Makan","amount":1500000}],"deductions":[{"idx":1,"salary_component":"Potongan Pinjaman Karyawan","amount":500000}],"remarks":"Cicilan pinjaman karyawan Rp500.000/bulan (saldo awal pinjaman Rp3.000.000 di jurnal pembukaan)"}'::jsonb)
+ON CONFLICT (tenant_id, doctype, name) DO UPDATE 
+SET data = EXCLUDED.data, modified = NOW(), modified_by = EXCLUDED.modified_by;
+
+INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
 VALUES ('acme', 'GlobalDefaults', 'GlobalDefaults', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"default_company":"ACME","default_currency":"IDR","default_country":"ID","default_holiday_list":"Libur Nasional 2026"}'::jsonb)
 ON CONFLICT (tenant_id, doctype, name) DO UPDATE 
 SET data = EXCLUDED.data, modified = NOW(), modified_by = EXCLUDED.modified_by;
@@ -220,17 +245,17 @@ ON CONFLICT (tenant_id, doctype, name) DO UPDATE
 SET data = EXCLUDED.data, modified = NOW(), modified_by = EXCLUDED.modified_by;
 
 INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
-VALUES ('acme', 'StockSettings', 'StockSettings', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"default_warehouse":"Gudang Utama Cikarang","allow_negative_stock":false,"inventory_account":"1131","cogs_account":"5100","stock_adjustment_account":"5200"}'::jsonb)
+VALUES ('acme', 'StockSettings', 'StockSettings', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"default_warehouse":"Gudang Utama Cikarang","allow_negative_stock":false,"inventory_account":"1131","cogs_account":"5100","stock_adjustment_account":"5200","grni_account":"2170"}'::jsonb)
 ON CONFLICT (tenant_id, doctype, name) DO UPDATE 
 SET data = EXCLUDED.data, modified = NOW(), modified_by = EXCLUDED.modified_by;
 
 INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
-VALUES ('acme', 'CRMSettings', 'CRMSettings', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"default_sales_stage":"Prospecting","default_customer_group":"Commercial & Corporate","create_opportunity_on_convert":true,"duplicate_check":"Email & mobile"}'::jsonb)
+VALUES ('acme', 'CRMSettings', 'CRMSettings', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"default_sales_stage":"Prospecting","default_customer_group":"Commercial & Corporate","create_opportunity_on_convert":true,"duplicate_check":"Email & mobile","quotation_validity_days":30,"stale_opportunity_days":14}'::jsonb)
 ON CONFLICT (tenant_id, doctype, name) DO UPDATE 
 SET data = EXCLUDED.data, modified = NOW(), modified_by = EXCLUDED.modified_by;
 
 INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
-VALUES ('acme', 'HRSettings', 'HRSettings', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"default_holiday_list":"Libur Nasional 2026","default_shift_type":"Office 08-17","default_leave_policy":"Standard Leave Policy PKWTT","default_probation_months":3,"retirement_age":58}'::jsonb)
+VALUES ('acme', 'HRSettings', 'HRSettings', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"default_holiday_list":"Libur Nasional 2026","default_shift_type":"Office 08-17","default_leave_policy":"Standard Leave Policy PKWTT","default_probation_months":3,"retirement_age":58,"contract_expiry_reminder_days":30,"leave_year_start":"January 1","auto_create_user":false}'::jsonb)
 ON CONFLICT (tenant_id, doctype, name) DO UPDATE 
 SET data = EXCLUDED.data, modified = NOW(), modified_by = EXCLUDED.modified_by;
 

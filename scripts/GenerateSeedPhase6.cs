@@ -4,7 +4,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Text.Encodings.Web;
+using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 const string tenant = "acme";
 const string owner = "admin";
@@ -52,16 +54,39 @@ var openingJournalLines = new[]
         ["cost_center"] = "CC-200",
         ["description"] = "Saldo Awal Piutang PT Telekomunikasi Indonesia Tbk"
     },
+    // Aset tetap yang sudah ada (AST-2026-00001 di fase 8, is_existing_asset): harga perolehan & akumulasi penyusutan s.d. 31-12-2025.
     new Dictionary<string, object?>
     {
-        ["account"] = "1131",
-        ["account_name"] = "Persediaan Barang Dagang",
-        ["debit"] = 125000000m,
+        ["account"] = "1210",
+        ["account_name"] = "Peralatan Kantor & IT",
+        ["debit"] = 30000000m,
         ["credit"] = 0m,
-        ["base_debit"] = 125000000m,
+        ["base_debit"] = 30000000m,
         ["base_credit"] = 0m,
-        ["cost_center"] = "CC-110",
-        ["description"] = "Saldo Awal Persediaan Barang Dagang Gudang Cikarang"
+        ["description"] = "Saldo Awal Laptop Tim IT (perolehan Januari 2025)"
+    },
+    new Dictionary<string, object?>
+    {
+        ["account"] = "1211",
+        ["account_name"] = "Akum. Penyusutan Peralatan Kantor",
+        ["debit"] = 0m,
+        ["credit"] = 7500000m,
+        ["base_debit"] = 0m,
+        ["base_credit"] = 7500000m,
+        ["description"] = "Saldo Awal Akumulasi Penyusutan Laptop Tim IT (12 bulan)"
+    },
+    // Persediaan TIDAK dicatat di sini: saldo awal stok masuk lewat STE-2026-000001 (Dr 1131 / Cr 3200), kalau tidak terhitung dua kali.
+    new Dictionary<string, object?>
+    {
+        ["account"] = "1124",
+        ["account_name"] = "Piutang Karyawan (Pinjaman)",
+        ["debit"] = 3000000m,
+        ["credit"] = 0m,
+        ["base_debit"] = 3000000m,
+        ["base_credit"] = 0m,
+        ["party_type"] = "Employee",
+        ["party"] = "EMP-0010",
+        ["description"] = "Saldo Awal Pinjaman Karyawan Indra Kusuma (dicicil lewat payroll Rp500.000/bulan)"
     },
     new Dictionary<string, object?>
     {
@@ -81,10 +106,9 @@ var openingJournalLines = new[]
         ["account"] = "3100",
         ["account_name"] = "Modal Disetor",
         ["debit"] = 0m,
-        ["credit"] = 500000000m,
+        ["credit"] = 400000000m,
         ["base_debit"] = 0m,
-        ["base_credit"] = 500000000m,
-        ["cost_center"] = "CC-300",
+        ["base_credit"] = 400000000m,
         ["description"] = "Modal Saham Disetor Awal"
     },
     new Dictionary<string, object?>
@@ -92,15 +116,14 @@ var openingJournalLines = new[]
         ["account"] = "3200",
         ["account_name"] = "Laba Ditahan (Retained Earnings)",
         ["debit"] = 0m,
-        ["credit"] = 100000000m,
+        ["credit"] = 100500000m,
         ["base_debit"] = 0m,
-        ["base_credit"] = 100000000m,
-        ["cost_center"] = "CC-300",
-        ["description"] = "Saldo Laba Ditahan Tahun Lalu"
+        ["base_credit"] = 100500000m,
+        ["description"] = "Saldo Laba Ditahan Tahun Lalu (sebelum saldo awal persediaan Rp125.000.000 dari STE-2026-000001)"
     }
 };
 
-records.Add(("JournalEntry", "JV-2026-000001", 1, new Dictionary<string, object?>
+records.Add(("JournalEntry", "JV-2026-000001", 0, new Dictionary<string, object?>
 {
     ["company"] = "ACME",
     ["voucher_type"] = "Opening Balance",
@@ -111,11 +134,11 @@ records.Add(("JournalEntry", "JV-2026-000001", 1, new Dictionary<string, object?
     ["exchange_rate"] = 1.0,
     ["remarks"] = "Saldo Awal Pembukuan Tahun Fiskal 2026 ACME Corporation",
     ["accounts"] = openingJournalLines,
-    ["total_debit"] = 750000000m,
-    ["total_credit"] = 750000000m,
+    ["total_debit"] = 658000000m,
+    ["total_credit"] = 658000000m,
     ["difference"] = 0m,
-    ["base_total_debit"] = 750000000m,
-    ["base_total_credit"] = 750000000m,
+    ["base_total_debit"] = 658000000m,
+    ["base_total_credit"] = 658000000m,
     ["auto_reverse"] = false
 }));
 
@@ -166,7 +189,7 @@ var stockEntryItems = new[]
     }
 };
 
-records.Add(("StockEntry", "STE-2026-000001", 1, new Dictionary<string, object?>
+records.Add(("StockEntry", "STE-2026-000001", 0, new Dictionary<string, object?>
 {
     ["purpose"] = "Material Receipt",
     ["company"] = "ACME",
@@ -214,7 +237,7 @@ var quotationItems = new[]
     }
 };
 
-records.Add(("Quotation", "QTN-2026-000001", 1, new Dictionary<string, object?>
+records.Add(("Quotation", "QTN-2026-000001", 0, new Dictionary<string, object?>
 {
     ["company"] = "ACME",
     ["customer"] = "CUST-000001",
@@ -237,7 +260,7 @@ records.Add(("Quotation", "QTN-2026-000001", 1, new Dictionary<string, object?>
 }));
 
 // b. Sales Order
-records.Add(("SalesOrder", "SO-2026-000001", 1, new Dictionary<string, object?>
+records.Add(("SalesOrder", "SO-2026-000001", 0, new Dictionary<string, object?>
 {
     ["company"] = "ACME",
     ["customer"] = "CUST-000001",
@@ -257,8 +280,8 @@ records.Add(("SalesOrder", "SO-2026-000001", 1, new Dictionary<string, object?>
     ["tax_base"] = 58000000m,
     ["vat_amount"] = 6960000m,
     ["grand_total"] = 64960000m,
-    ["billed_amount"] = 58000000m,
-    ["billing_status"] = "Fully billed",
+    ["billed_amount"] = 0m,
+    ["billing_status"] = "Not billed",
     ["terms"] = "<p>Pengiriman ke Telkom Landmark Tower Lt. 15, Jl. Jend. Gatot Subroto Kav. 52, Jakarta Selatan.</p>",
     ["items"] = quotationItems
 }));
@@ -298,7 +321,7 @@ var salesInvoiceItems = new[]
     }
 };
 
-records.Add(("SalesInvoice", "SINV-2026-000001", 1, new Dictionary<string, object?>
+records.Add(("SalesInvoice", "SINV-2026-000001", 0, new Dictionary<string, object?>
 {
     ["company"] = "ACME",
     ["customer"] = "CUST-000001",
@@ -322,14 +345,16 @@ records.Add(("SalesInvoice", "SINV-2026-000001", 1, new Dictionary<string, objec
     ["vat_amount"] = 6960000m,
     ["grand_total"] = 64960000m,
     ["base_grand_total"] = 64960000m,
-    ["outstanding_amount"] = 0m,
-    ["payment_status"] = "Paid",
+    ["outstanding_amount"] = 64960000m,
+    ["payment_status"] = "Unpaid",
+    ["update_stock"] = true, // barang keluar dari gudang saat faktur di-submit: Dr HPP 5100 / Cr Persediaan 1131
+    ["warehouse"] = "Gudang Utama Cikarang",
     ["remarks"] = "Faktur Penjualan Pengadaan Laptop & Monitor untuk PT Telekomunikasi Indonesia Tbk",
     ["items"] = salesInvoiceItems
 }));
 
 // d. Payment Entry (Customer Payment)
-records.Add(("PaymentEntry", "PAY-2026-000001", 1, new Dictionary<string, object?>
+records.Add(("PaymentEntry", "PAY-2026-000001", 0, new Dictionary<string, object?>
 {
     ["payment_type"] = "Receive",
     ["company"] = "ACME",
@@ -382,7 +407,7 @@ var prItems = new[]
     }
 };
 
-records.Add(("PurchaseRequest", "PRQ-2026-00001", 1, new Dictionary<string, object?>
+records.Add(("PurchaseRequest", "PRQ-2026-00001", 0, new Dictionary<string, object?>
 {
     ["requested_by"] = "EMP-0001",
     ["employee_name"] = "Ahmad Fadilah",
@@ -393,7 +418,7 @@ records.Add(("PurchaseRequest", "PRQ-2026-00001", 1, new Dictionary<string, obje
     ["required_by"] = "2026-01-25",
     ["suggested_vendor"] = "SUPP-000001",
     ["purpose"] = "Pengadaan Server Rack Enterprise tambahan untuk data center DC Cikarang",
-    ["order_status"] = "Ordered",
+    ["order_status"] = "Not ordered",
     ["total_estimate"] = 35000000m,
     ["items"] = prItems
 }));
@@ -417,7 +442,7 @@ var poItems = new[]
     }
 };
 
-records.Add(("PurchaseOrder", "PO-2026-000001", 1, new Dictionary<string, object?>
+records.Add(("PurchaseOrder", "PO-2026-000001", 0, new Dictionary<string, object?>
 {
     ["company"] = "ACME",
     ["vendor"] = "SUPP-000001",
@@ -429,10 +454,10 @@ records.Add(("PurchaseOrder", "PO-2026-000001", 1, new Dictionary<string, object
     ["vat_code"] = "PPN-MASUKAN-12",
     ["vat_rate"] = 12.0m,
     ["vat_dpp_factor"] = 1.0,
-    ["receipt_status"] = "Fully received",
-    ["billing_status"] = "Fully billed",
-    ["received_amount"] = 35000000m,
-    ["billed_amount"] = 35000000m,
+    ["receipt_status"] = "Not received",
+    ["billing_status"] = "Not billed",
+    ["received_amount"] = 0m,
+    ["billed_amount"] = 0m,
     ["total"] = 35000000m,
     ["tax_base"] = 35000000m,
     ["vat_amount"] = 4200000m,
@@ -441,7 +466,33 @@ records.Add(("PurchaseOrder", "PO-2026-000001", 1, new Dictionary<string, object
     ["items"] = poItems
 }));
 
-// c. Purchase Invoice
+// c. Goods Receipt (Dr Persediaan 1131 / Cr GRNI 2170 senilai harga PO)
+records.Add(("GoodsReceipt", "GRN-2026-000001", 0, new Dictionary<string, object?>
+{
+    ["purchase_order"] = "PO-2026-000001",
+    ["vendor"] = "SUPP-000001",
+    ["company"] = "ACME",
+    ["receipt_date"] = "2026-01-24",
+    ["delivery_note_no"] = "SJ-MDE-2026-00318",
+    ["received_by"] = "EMP-0010",
+    ["warehouse"] = "Gudang Utama Cikarang",
+    ["items"] = new[]
+    {
+        new Dictionary<string, object?>
+        {
+            ["po_line"] = 1,
+            ["item"] = "ITM-SRV-001",
+            ["item_name"] = "Server Rack 2U Enterprise Xeon 64GB",
+            ["is_stock_item"] = true,
+            ["ordered_qty"] = 1.0,
+            ["pending_qty"] = 1.0,
+            ["received_qty"] = 1.0,
+            ["rejected_qty"] = 0.0
+        }
+    }
+}));
+
+// d. Purchase Invoice
 var piItems = new[]
 {
     new Dictionary<string, object?>
@@ -458,12 +509,12 @@ var piItems = new[]
         ["taxable_amount"] = 35000000m,
         ["is_wht_applicable"] = false,
         ["wht_base"] = 0m,
-        ["expense_account"] = "1131",
+        ["expense_account"] = "2170", // PO + barang stok: hook membebankan ke GRNI (StockSettings.grni_account)
         ["cost_center"] = "CC-400"
     }
 };
 
-records.Add(("PurchaseInvoice", "PINV-2026-000001", 1, new Dictionary<string, object?>
+records.Add(("PurchaseInvoice", "PINV-2026-000001", 0, new Dictionary<string, object?>
 {
     ["company"] = "ACME",
     ["vendor"] = "SUPP-000001",
@@ -487,14 +538,14 @@ records.Add(("PurchaseInvoice", "PINV-2026-000001", 1, new Dictionary<string, ob
     ["grand_total"] = 39200000m,
     ["payable_amount"] = 39200000m,
     ["base_grand_total"] = 39200000m,
-    ["outstanding_amount"] = 0m,
-    ["payment_status"] = "Paid",
+    ["outstanding_amount"] = 39200000m,
+    ["payment_status"] = "Unpaid",
     ["remarks"] = "Faktur Pembelian Server Rack Enterprise dari PT Metrodata Electronics Tbk",
     ["items"] = piItems
 }));
 
-// d. Payment Entry (Vendor Payment)
-records.Add(("PaymentEntry", "PAY-2026-000002", 1, new Dictionary<string, object?>
+// e. Payment Entry (Vendor Payment)
+records.Add(("PaymentEntry", "PAY-2026-000002", 0, new Dictionary<string, object?>
 {
     ["payment_type"] = "Pay",
     ["company"] = "ACME",
@@ -609,13 +660,13 @@ foreach (var att in attendanceRecords)
     }));
 }
 
-records.Add(("LeaveApplication", "LV-2026-000001", 1, new Dictionary<string, object?>
+records.Add(("LeaveApplication", "LV-2026-000001", 0, new Dictionary<string, object?>
 {
     ["employee"] = "EMP-0001",
     ["employee_name"] = "Ahmad Fadilah",
     ["organization_unit"] = "DEPT-IT",
     ["leave_approver"] = "EMP-0003",
-    ["leave_type"] = "CUTI-TAHUNAN",
+    ["leave_type"] = "Annual Leave",
     ["requires_attachment"] = false,
     ["from_date"] = "2026-01-19",
     ["to_date"] = "2026-01-20",
@@ -629,6 +680,16 @@ records.Add(("LeaveApplication", "LV-2026-000001", 1, new Dictionary<string, obj
 // Generate SQL script
 // ============================================================================
 
+// Nomor seri (frogframe_series) dimajukan ke nomor seed tertinggi; tanpa ini dokumen baru di aplikasi bertabrakan dengan nama seed.
+const string SeriesSync = """
+    INSERT INTO frogframe_series (tenant_id, doctype, prefix, current)
+    SELECT tenant_id, doctype, substring(name from '^(.*-)[0-9]+$'), max(substring(name from '([0-9]+)$')::int)
+    FROM frogframe_documents
+    WHERE tenant_id = 'acme' AND name ~ '^[A-Z]{2,5}(-[0-9]{4})?-[0-9]+$'
+    GROUP BY tenant_id, doctype, substring(name from '^(.*-)[0-9]+$')
+    ON CONFLICT (tenant_id, doctype, prefix) DO UPDATE SET current = GREATEST(frogframe_series.current, EXCLUDED.current);
+    """;
+
 var jsonOptions = new JsonSerializerOptions
 {
     Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
@@ -638,13 +699,17 @@ var sb = new StringBuilder();
 sb.AppendLine("-- ============================================================================");
 sb.AppendLine("-- FrogFrame ERP Seed Data: Phase 6 (Transactional Workflows)");
 sb.AppendLine("-- Tenant: acme | GL Opening, Initial Stock, Sales, Procurement, Attendance & Leave");
+sb.AppendLine("-- All documents are inserted as DRAFT. Submit them in the app (in this order) so hooks post the ledger and stock:");
+sb.AppendLine("-- JV-2026-000001 -> STE-2026-000001 -> QTN-2026-000001 (Send, Accept) -> SO-2026-000001 -> SINV-2026-000001 -> PAY-2026-000001");
+sb.AppendLine("-- -> PRQ-2026-00001 (approve) -> PO-2026-000001 -> GRN-2026-000001 -> PINV-2026-000001 -> PAY-2026-000002 -> LV-2026-000001 (approve).");
+sb.AppendLine("-- Skenario uji lengkap & angka yang diharapkan: docs/ERP_TEST_SCENARIOS.md");
 sb.AppendLine("-- ============================================================================");
 sb.AppendLine("BEGIN;");
 sb.AppendLine();
 
 foreach (var (docType, name, docStatus, data) in records)
 {
-    var dataJson = JsonSerializer.Serialize(data, jsonOptions).Replace("'", "''");
+    var dataJson = WithDefaults(docType, data, jsonOptions).ToJsonString(jsonOptions).Replace("'", "''");
     var nameEscaped = name.Replace("'", "''");
     sb.AppendLine($"""
         INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
@@ -655,9 +720,38 @@ foreach (var (docType, name, docStatus, data) in records)
     sb.AppendLine();
 }
 
+sb.AppendLine(SeriesSync);
 sb.AppendLine("COMMIT;");
 
 Directory.CreateDirectory("deploy/sql");
 File.WriteAllText("deploy/sql/seed-phase-6.sql", sb.ToString(), new UTF8Encoding(false));
 
 Console.WriteLine($"Successfully generated deploy/sql/seed-phase-6.sql with {records.Count} records.");
+
+// Default field dari metadata (src/Apps.Erp/Metadata) diisi bila tidak ditulis di atas: SQL seed melewati framework, jadi tanpa ini
+// field seperti is_active (default true) kosong dan dokumen tidak muncul di pilihan Link yang memfilter is_active = true.
+static JsonObject WithDefaults(string docType, object data, JsonSerializerOptions options)
+{
+    var node = JsonSerializer.SerializeToNode(data, options)!.AsObject();
+    FillDefaults(docType, node);
+    return node;
+}
+
+static void FillDefaults(string docType, JsonObject node)
+{
+    var path = Path.Combine("src", "Apps.Erp", "Metadata", docType + ".doctype.json");
+    if (!File.Exists(path)) return;
+    using var meta = JsonDocument.Parse(File.ReadAllText(path));
+    foreach (var f in meta.RootElement.GetProperty("fields").EnumerateArray())
+    {
+        var name = f.GetProperty("name").GetString()!;
+        if (f.GetProperty("type").GetString() == "Table" && f.TryGetProperty("childDocType", out var child) && node[name] is JsonArray rows)
+        {
+            foreach (var row in rows.OfType<JsonObject>()) FillDefaults(child.GetString()!, row);
+            continue;
+        }
+        if (node.ContainsKey(name) || !f.TryGetProperty("default", out var def)) continue;
+        if (def.ValueKind == JsonValueKind.String && def.GetString()!.StartsWith('$')) continue; // $today, $employee: diisi saat input
+        node[name] = JsonNode.Parse(def.GetRawText());
+    }
+}

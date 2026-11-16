@@ -1,10 +1,10 @@
-# frogframe ERP — Metadata + Hook (CORE, ACCOUNTING, FINANCE, HR, CRM)
+# frogframe ERP — Metadata + Hook (CORE, ACCOUNTING, FINANCE, PROCUREMENT, STOCK, HR, CRM)
 
-146 DocType, 8 workflow, dan proyek C# `src/Apps.Erp` berisi hook, form action, handler event, dan job harian untuk semua modul, plus dua patch kecil framework.
+146 DocType, 8 workflow, dan proyek C# `src/Apps.Erp` berisi hook, form action, handler event, dan job harian untuk semua modul. Buku besar (dulu patch 0001/0002 di framework) sekarang bagian dari `src/Apps.Erp/Accounting`.
 Polanya mengikuti SAP S/4HANA (company code, chart of accounts bersama, universal journal, asset class),
 NetSuite (segment, termin, period close per subledger, vendor bill/credit), Salesforce (Account, Contact, Pricebook, Lead, Opportunity, Quote, Task/Event), dan Workday (Supervisory Organization, Job Profile, Position, Worker, business process Change Job/Terminate, Time Off, Expense Report).
 
-Salin semua `Metadata/*.doctype.json` dan `Metadata/*.workflow.json` ke folder `Metadata/` aplikasi (loader membaca satu folder, tidak rekursif).
+Metadata ada di `src/Apps.Erp/Metadata` (satu folder, tidak rekursif). Sumbernya generator Python di luar repo; perubahan manual di JSON perlu dikabarkan agar generator ikut disesuaikan.
 
 ## Isi
 
@@ -61,36 +61,26 @@ Approver tidak perlu memegang role `Manager`; cukup ditunjuk di data karyawan, m
 
 ## Kontrak dengan framework (jangan diubah namanya)
 
-- `AccountingPeriod`: `status` dengan nilai `Open` / `Closed`, plus `start_date`, `end_date`. Dibaca store saat posting. Framework asli hanya mengenal `Terbuka`, jadi **patch 0002 wajib** (menerima `Open` dan `Terbuka`, sehingga Apps.Sample tetap jalan).
+- `AccountingPeriod`: `status` dengan nilai `Open` / `Closed`, plus `start_date`, `end_date`. Dibaca store saat posting. `Ledger.OpenPeriodStatuses` di `src/Apps.Erp/Accounting/Ledger.cs` menerima `Open` dan `Terbuka`.
 - `Account`: `is_group`, `is_active`. Dibaca store saat posting.
 - Nama dokumen Account sekarang `field:account_code` (sample lama memakai `code`). Hook `AccountRulesHook` di sample merujuk field `code`, jadi sesuaikan bila hook itu dipakai ulang.
 
 ## Persiapan sebelum dimuat
 
-- Tambahkan modul **CORE**, **FINANCE**, **CRM**, dan **STOCK** ke Master Modul (`NavigationMenuDefaults` bila mau di-seed). `ACCOUNTING` dan `HR` sudah ada.
-- Role yang dipakai: `Finance`, `Purchasing`, `HR`, `Manager`, `Employee`, `System Manager` (sudah ada di `RoleDefaults`) dan **`Sales` serta `Stock` (baru, wajib dibuat dulu)**. Tanpa role itu, DocType yang memakainya gagal compile.
+- Modul: CORE, ACCOUNTING, FINANCE, PROCUREMENT, STOCK, HR, CRM (sudah ada di `NavigationMenuDefaults`).
+- Role: `Finance`, `Purchasing`, `Stock`, `HR`, `Payroll`, `Manager`, `Employee`, `Sales`, `System Manager` (sudah ada di `RoleDefaults`). Dokumen payroll (komponen gaji, penugasan gaji, Payslip, Payroll Run, Payroll Settings) milik role `Payroll`; HR tidak lagi bisa membukanya. Goods Receipt bisa dibuat `Purchasing` dan `Stock`.
 - Seed data minimal: Currency `IDR` (beberapa default menunjuk ke sana), FiscalYear, AccountingPeriod, bagan akun (termasuk akun bertipe `Receivable`, `Payable`, `Tax`, `Bank`, `Fixed Asset`, `Accumulated Depreciation`, `Depreciation Expense`, `Retained Earnings`), Company, TaxCode PPN & PPh, akun bertipe `Advance` dan `Payable` untuk karyawan, HolidayList, ShiftType, LeaveType, LeavePolicy, SalesStage (minimal satu tahap berjalan, satu `Won`, satu `Lost`), LeadSource.
 - Pengaturan yang dibaca hook: GlobalDefaults (`default_company`), Company (akun default, `round_off_account`, `exchange_gain_loss_account`, `default_cost_center`), AccountingSettings, FinanceSettings (`default_output_vat`, `default_input_vat`), HRSettings (kalender libur, jadwal kerja, kebijakan cuti default), CRMSettings (`default_customer_group`, `default_sales_stage`). Akun bertipe `Advance` dipakai otomatis untuk uang muka karyawan bila akunnya kosong.
 
 ## Kode C# (`src/Apps.Erp`)
 
-**Belum di-compile:** .NET SDK tidak tersedia di lingkungan pembuatnya. Lihat "Validasi & verifikasi" untuk apa yang sudah dicek dan langkah build.
+Sudah di-build dan dijalankan di repo (Apps.Sample digantikan Apps.Erp, commit `1adb055`).
 
 ### Pemasangan
 
-```bash
-cd <repo-frogframe>
-git apply <erp>/patches/0001-ledger-get-balances.patch      # ILedgerReader.GetBalancesAsync (in-memory + PostgreSQL)
-git apply <erp>/patches/0002-open-period-status-english.patch   # periode berstatus "Open" diterima selain "Terbuka"
-cp -r <erp>/src/Apps.Erp src/ && dotnet sln add src/Apps.Erp/Apps.Erp.csproj
-dotnet add src/<HostApp>/<HostApp>.csproj reference src/Apps.Erp/Apps.Erp.csproj
-# Program.cs host: builder.Services.AddErpHooks();   (ganti registrasi hook Apps.Sample)
-cp <erp>/Metadata/* src/<HostApp>/Metadata/ && dotnet build
-```
+Sudah terpasang di repo: `src/Apps.Erp` adalah aplikasi host (`Program.cs`), `AddErpHooks()` mendaftarkan hook, form action, event, job, laporan, dan buku besar (`AddErpAccounting()`: handler unit-of-work in-memory & PostgreSQL, migrasi `025_gl_entries.sql`, `ILedgerReader`). Hook memposting jurnal dengan `c.AddLedgers(lines)`.
 
-**Patch framework.** Tutup buku tahunan dan rekonsiliasi bank butuh saldo akun per tanggal yang konsisten. `ILedgerReader` hanya membaca per voucher/open item, dan reporting executor membaca read replica (eventual, tidak ada di mode in-memory). Patch menambah `GetBalancesAsync(tenant, from, to)` beserta implementasi in-memory dan PostgreSQL (37 baris, 3 file). Hanya dua kelas yang mengimplementasikan `ILedgerReader`, jadi tidak ada yang rusak.
-
-**Patch 0002.** Store in-memory dan PostgreSQL mencari periode posting dengan `status = 'Terbuka'` (hardcode). Patch menambah `Ledger.OpenPeriodStatuses = ["Open", "Terbuka"]` dan memakainya di kedua store (PostgreSQL: `data->>'status' = ANY($4)`). Pesan error tetap memuat "periode akuntansi yang Terbuka" agar test framework yang ada tetap lolos. Terapkan setelah 0001.
+Data awal: `deploy/sql/seed-phase-1.sql` s.d. `seed-phase-8.sql` (dibuat oleh `scripts/GenerateSeedPhase*.cs`, jalankan dari root repo: `dotnet run scripts/GenerateSeedPhase1.cs`, dst.). Muat berurutan 1 → 8. Generator mengisi default field dari metadata, karena SQL melewati framework; fase 6–8 juga memajukan nomor seri (`frogframe_series`) supaya dokumen baru di aplikasi tidak bertabrakan dengan nama seed. Fase 1–5 berisi master & pengaturan (termasuk akun & komponen di Payroll Settings, GRNI di Stock Settings), fase 7 master pelengkap (termin, wilayah, grade, jenis klaim, kategori aset, kurs, proyek, Finance Settings, alokasi cuti 2026). Transaksi fase 6 dan 8 dimasukkan sebagai **draft**; submit/setujui di aplikasi mengikuti **[ERP_TEST_SCENARIOS.md](ERP_TEST_SCENARIOS.md)** (langkah per user, urutan, dan angka jurnal/payroll/stok yang diharapkan, dihitung oleh `tools/scenario_expected.py`).
 
 ### Isi
 
@@ -193,7 +183,7 @@ Semua laporan adalah `IReportProvider` (menu **Reports**, ekspor CSV bawaan). Iz
 
 | Laporan | DocType izin | Sumber | Filter |
 |---|---|---|---|
-| Trial Balance | Account | `GetBalancesAsync` (patch 0001) | from, to, akun bersaldo/semua |
+| Trial Balance | Account | `ILedgerReader.GetBalancesAsync` | from, to, akun bersaldo/semua |
 | Profit and Loss | Account | idem, jurnal Tutup Buku dikeluarkan | from, to, per akun / per cost center |
 | Balance Sheet | Account | idem, laba belum ditutup ditampilkan di ekuitas + baris cek seimbang | as of |
 | Accounts Receivable Aging | SalesInvoice | open item buku besar per tanggal (setelah bayar, nota, alokasi) + uang muka | as of, per faktur / per pelanggan |
@@ -215,15 +205,22 @@ Kenapa C#, bukan SQL template World 2: buku besar tidak diekspos di skema `repor
 
 `tools/validate_metadata.py` adalah port aturan `MetadataCompiler.CompileDocType`: nama, tipe field, Link/Table/DynamicLink, linkFilters (termasuk nilai Select di DocType tujuan), fetchFrom, addFromLookup, default, akar ekspresi & path child/parent, list view, permission, naming, modul, dan role. Ditambah satu aturan runtime: `fetchFrom` di child ditolak. Validator ini diuji pada metadata sample repo (lolos) dan pada error yang disuntikkan sengaja (tertangkap). Workflow juga diperiksa (port `CompileWorkflow`: state, docStatus tidak turun, aksi unik per state, role, akar kondisi, DocType menunjuk workflow yang sama) plus satu cek tambahan: state draft harus punya transisi keluar. Hasil untuk folder ini: **146 DocType, 8 workflow, 0 masalah**.
 
+Jalankan dari root repo:
+
 ```bash
-python3 tools/validate_metadata.py Metadata "CORE,ACCOUNTING,FINANCE,HR,CRM,STOCK" "Finance,Purchasing,HR,Manager,Employee,Sales,Stock,System Manager"
+python3 tools/validate_metadata.py src/Apps.Erp/Metadata "CORE,ACCOUNTING,FINANCE,PROCUREMENT,STOCK,HR,CRM" "Finance,Purchasing,Stock,HR,Payroll,Manager,Employee,Sales,System Manager"
+python3 tools/check_hook_fields.py      # nama field di C# vs metadata
+python3 tools/check_option_literals.py  # nilai pilihan di C# vs metadata
+python3 tools/check_seed.py             # seed SQL vs metadata (field, pilihan, wajib, Link + filter, default, docstatus, jurnal seimbang, akun)
+python3 tools/scenario_expected.py      # angka skenario uji dari seed (payroll, jurnal per langkah, neraca saldo, stok); cek angka tetap fase 8
+python3 tools/sim_posting.py            # simulasi aturan posting
 ```
 
-Ini bukan pengganti compiler .NET. Setelah file disalin, jalankan aplikasi atau `dotnet test` untuk validasi final, termasuk parser ekspresi yang sebenarnya.
+Ini bukan pengganti compiler .NET; `dotnet build` dan `dotnet test` tetap validasi final.
 
 ### Kode C#
 
-Belum di-compile. Yang sudah dicek:
+Sudah di-compile di repo. Pemeriksaan statis tambahan:
 - **Sintaks:** 22 file (±6.300 baris) lolos parser C# tree-sitter; file hook Apps.Sample dipakai sebagai kontrol.
 - **API framework:** setiap tipe & anggota yang dipakai dicocokkan dengan source, antara lain `HookContext`, interface hook (`IBefore*`, `IAfterSave`, `IOnCancel`, `IOnLoad`, `IBeforeTransition`), `LedgerLine`, `ILedgerReader`, `IDocumentStore`/`StoreQuery`, `DocumentService` (Insert/Update/RunAction/Get), `IFormAction`/`FormActionResult`, `IScheduledJob`/`ScheduledJobContext`/`ISchedulerLogger`, `IEventHandler`/`OutboxMessage`, `INotificationStore`/`Notification`, `IUserDirectory`, `IUserAccountRepository`, `AddDocHook`/`AddFormAction`/`AddEventHandler`/`AddScheduledJob`. Juga cara store PostgreSQL menerjemahkan filter boolean, null, dan `docstatus`. Bug yang ditemukan & diperbaiki: `d[key] ??= v` pada Dictionary (melempar bila key belum ada), dan `using Framework.Metadata` yang kurang untuk `DocActions`.
 - **Nama field:** `tools/check_hook_fields.py` mencocokkan semua nama field di kode dengan metadata: 35 query, 17 lookup, 9 payload insert, 5 payload update (termasuk larangan field read-only), dan 725 akses field. Hasilnya 0 masalah, dan 4 dari 4 kesalahan suntikan tertangkap.
@@ -249,8 +246,7 @@ Disarankan menambah test di `tests/Framework.Tests` dengan skenario yang sama, m
 
 ## Berikutnya
 
-1. Terapkan patch, build, dan jalankan aplikasi dengan seed minimal; perbaiki error compile yang muncul.
-2. Test otomatis untuk skenario `sim_posting.py` di `tests/Framework.Tests`.
-3. Perubahan `LedgerLine`: company + dimensi generik (proyek) + valas, sebelum ada data posting nyata.
-4. Laporan tambahan: arus kas, buku besar per akun (detail voucher; butuh method baca entri per akun di `ILedgerReader`), neraca per cost center.
-5. Lanjutan: persediaan tahap 2 (Delivery Note, batch/serial, UOM konversi, landed cost, tabel stock ledger di framework), file impor e-Bupot dari laporan 1721-A1, integrasi API bank untuk Payment Run, rekrutmen ke portal lowongan.
+1. Test otomatis untuk skenario `sim_posting.py` dan `docs/ERP_TEST_SCENARIOS.md` (muat seed, jalankan langkah lewat `DocumentService`, bandingkan dengan `tools/scenario_expected.py`) di `tests/Framework.Tests`.
+2. Perubahan `LedgerLine`: company + dimensi generik (proyek) + valas, sebelum ada data posting nyata. Karena buku besar sudah di `src/Apps.Erp/Accounting`, ini tidak lagi butuh patch framework (tetap mengubah format hash dan tabel `gl_entries`).
+3. Laporan tambahan: arus kas, buku besar per akun (detail voucher; butuh method baca entri per akun di `ILedgerReader`), neraca per cost center.
+4. Lanjutan: persediaan tahap 2 (Delivery Note, batch/serial, UOM konversi, landed cost, tabel stock ledger di framework), file impor e-Bupot dari laporan 1721-A1, integrasi API bank untuk Payment Run, rekrutmen ke portal lowongan.

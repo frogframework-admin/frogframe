@@ -211,7 +211,7 @@ public sealed class PurchaseOrderReceiveAction : IFormAction<PurchaseOrder>
     public string Icon => "package-check";
 
     public bool IsVisible(UserContext user, Document doc) =>
-        doc.DocStatus == DocStatus.Submitted && doc.Data.Str("receipt_status") != "Fully received" && (user.HasRole("Purchasing") || user.IsAdmin);
+        doc.DocStatus == DocStatus.Submitted && doc.Data.Str("receipt_status") != "Fully received" && (user.HasRole("Purchasing") || user.HasRole("Stock") || user.IsAdmin);
 
     public async Task<FormActionResult> ExecuteAsync(FormActionContext ctx, CancellationToken ct)
     {

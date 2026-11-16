@@ -4,7 +4,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Text.Encodings.Web;
+using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 const string tenant = "acme";
 const string owner = "admin";
@@ -60,6 +62,8 @@ AddAcc("1113", "Bank Mandiri Operasional", "Asset", "Balance Sheet", "Debit", is
 AddAcc("1120", "Piutang Usaha & Uang Muka", "Asset", "Balance Sheet", "Debit", isGroup: true, parentAccount: "1100");
 AddAcc("1121", "Piutang Usaha IDR", "Asset", "Balance Sheet", "Debit", isGroup: false, parentAccount: "1120", accountType: "Receivable", isControlAccount: true);
 AddAcc("1122", "Uang Muka Pembelian (Vendor Advance)", "Asset", "Balance Sheet", "Debit", isGroup: false, parentAccount: "1120", accountType: "Advance");
+AddAcc("1123", "Uang Muka Karyawan (Employee Advance)", "Asset", "Balance Sheet", "Debit", isGroup: false, parentAccount: "1120", accountType: "Advance");
+AddAcc("1124", "Piutang Karyawan (Pinjaman)", "Asset", "Balance Sheet", "Debit", isGroup: false, parentAccount: "1120", accountType: "Receivable", isControlAccount: true);
 
 // Persediaan
 AddAcc("1130", "Persediaan Barang", "Asset", "Balance Sheet", "Debit", isGroup: true, parentAccount: "1100");
@@ -86,11 +90,15 @@ AddAcc("2100", "Liabilitas Jangka Pendek", "Liability", "Balance Sheet", "Credit
 AddAcc("2110", "Hutang Usaha IDR", "Liability", "Balance Sheet", "Credit", isGroup: false, parentAccount: "2100", accountType: "Payable", isControlAccount: true);
 AddAcc("2120", "Uang Muka Penjualan (Customer Advance)", "Liability", "Balance Sheet", "Credit", isGroup: false, parentAccount: "2100", accountType: "Advance");
 AddAcc("2130", "Hutang Gaji & Upah (Salary Payable)", "Liability", "Balance Sheet", "Credit", isGroup: false, parentAccount: "2100", accountType: "Payable", isControlAccount: true);
-AddAcc("2140", "Hutang BPJS Ketenagakerjaan", "Liability", "Balance Sheet", "Credit", isGroup: false, parentAccount: "2100", accountType: "Payable", isControlAccount: true);
-AddAcc("2141", "Hutang BPJS Kesehatan", "Liability", "Balance Sheet", "Credit", isGroup: false, parentAccount: "2100", accountType: "Payable", isControlAccount: true);
+// Utang BPJS diposting payroll tanpa pihak (satu saldo ke BPJS), jadi bukan akun kontrol.
+AddAcc("2140", "Hutang BPJS Ketenagakerjaan", "Liability", "Balance Sheet", "Credit", isGroup: false, parentAccount: "2100", accountType: "Accrual");
+AddAcc("2141", "Hutang BPJS Kesehatan", "Liability", "Balance Sheet", "Credit", isGroup: false, parentAccount: "2100", accountType: "Accrual");
 AddAcc("2150", "Hutang PPh 21", "Liability", "Balance Sheet", "Credit", isGroup: false, parentAccount: "2100", accountType: "Tax");
 AddAcc("2151", "PPN Keluaran (VAT Out)", "Liability", "Balance Sheet", "Credit", isGroup: false, parentAccount: "2100", accountType: "Tax");
+AddAcc("2152", "Hutang PPh 23", "Liability", "Balance Sheet", "Credit", isGroup: false, parentAccount: "2100", accountType: "Tax");
 AddAcc("2160", "Biaya yang Masih Harus Dibayar (Accruals)", "Liability", "Balance Sheet", "Credit", isGroup: false, parentAccount: "2100", accountType: "Accrual");
+AddAcc("2170", "Barang Diterima Belum Ditagih (GRNI)", "Liability", "Balance Sheet", "Credit", isGroup: false, parentAccount: "2100", accountType: "Accrual");
+AddAcc("2180", "Hutang Komisi Penjualan", "Liability", "Balance Sheet", "Credit", isGroup: false, parentAccount: "2100", accountType: "Payable", isControlAccount: true);
 
 // --- 3. EKUITAS (EQUITY) ---
 AddAcc("3000", "Ekuitas", "Equity", "Balance Sheet", "Credit", isGroup: true);
@@ -118,13 +126,20 @@ AddAcc("6200", "Beban Sewa Gedung & Kantor", "Expense", "Profit and Loss", "Debi
 AddAcc("6210", "Beban Listrik, Air & Internet", "Expense", "Profit and Loss", "Debit", isGroup: false, parentAccount: "6000", requiresCostCenter: true);
 AddAcc("6300", "Beban Penyusutan Aset Tetap", "Expense", "Profit and Loss", "Debit", isGroup: false, parentAccount: "6000", accountType: "Depreciation Expense", requiresCostCenter: true);
 AddAcc("6400", "Beban Perjalanan Dinas & Klaim Karyawan", "Expense", "Profit and Loss", "Debit", isGroup: false, parentAccount: "6000", requiresCostCenter: true);
+AddAcc("6410", "Beban Jamuan & Representasi", "Expense", "Profit and Loss", "Debit", isGroup: false, parentAccount: "6000", requiresCostCenter: true);
+AddAcc("6420", "Beban Transportasi & Pengiriman", "Expense", "Profit and Loss", "Debit", isGroup: false, parentAccount: "6000", requiresCostCenter: true);
+AddAcc("6500", "Beban Komisi Penjualan", "Expense", "Profit and Loss", "Debit", isGroup: false, parentAccount: "6000", requiresCostCenter: true);
+AddAcc("6600", "Beban Pelatihan & Pengembangan", "Expense", "Profit and Loss", "Debit", isGroup: false, parentAccount: "6000", requiresCostCenter: true);
 
 // --- 8. PENDAPATAN & BEBAN LAIN-LAIN (NON-OPERATING) ---
-AddAcc("8000", "Pendapatan & Beban Lain-lain", "Income", "Profit and Loss", "Credit", isGroup: true);
+// Root type akun anak harus sama dengan induknya: pendapatan lain (8000) dan beban lain (8500) dipisah.
+AddAcc("8000", "Pendapatan Lain-lain", "Income", "Profit and Loss", "Credit", isGroup: true);
 AddAcc("8100", "Pendapatan Bunga Bank", "Income", "Profit and Loss", "Credit", isGroup: false, parentAccount: "8000");
-AddAcc("8200", "Keuntungan / Kerugian Selisih Kurs", "Expense", "Profit and Loss", "Debit", isGroup: false, parentAccount: "8000", accountType: "Exchange Gain/Loss");
-AddAcc("8300", "Beban Pembulatan (Round-off)", "Expense", "Profit and Loss", "Debit", isGroup: false, parentAccount: "8000", accountType: "Round-off");
-AddAcc("8400", "Beban Administrasi Bank", "Expense", "Profit and Loss", "Debit", isGroup: false, parentAccount: "8000");
+AddAcc("8110", "Laba / Rugi Pelepasan Aset Tetap", "Income", "Profit and Loss", "Credit", isGroup: false, parentAccount: "8000");
+AddAcc("8500", "Beban Lain-lain", "Expense", "Profit and Loss", "Debit", isGroup: true);
+AddAcc("8200", "Keuntungan / Kerugian Selisih Kurs", "Expense", "Profit and Loss", "Debit", isGroup: false, parentAccount: "8500", accountType: "Exchange Gain/Loss");
+AddAcc("8300", "Beban Pembulatan (Round-off)", "Expense", "Profit and Loss", "Debit", isGroup: false, parentAccount: "8500", accountType: "Round-off");
+AddAcc("8400", "Beban Administrasi Bank", "Expense", "Profit and Loss", "Debit", isGroup: false, parentAccount: "8500");
 
 // ============================================================================
 // 2. Cost Center
@@ -198,7 +213,7 @@ sb.AppendLine();
 
 foreach (var (docType, name, data) in records)
 {
-    var dataJson = JsonSerializer.Serialize(data, jsonOptions).Replace("'", "''");
+    var dataJson = WithDefaults(docType, data, jsonOptions).ToJsonString(jsonOptions).Replace("'", "''");
     var nameEscaped = name.Replace("'", "''");
     sb.AppendLine($"""
         INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
@@ -215,3 +230,31 @@ Directory.CreateDirectory("deploy/sql");
 File.WriteAllText("deploy/sql/seed-phase-2.sql", sb.ToString(), new UTF8Encoding(false));
 
 Console.WriteLine($"Successfully generated deploy/sql/seed-phase-2.sql with {records.Count} records.");
+
+// Default field dari metadata (src/Apps.Erp/Metadata) diisi bila tidak ditulis di atas: SQL seed melewati framework, jadi tanpa ini
+// field seperti is_active (default true) kosong dan dokumen tidak muncul di pilihan Link yang memfilter is_active = true.
+static JsonObject WithDefaults(string docType, object data, JsonSerializerOptions options)
+{
+    var node = JsonSerializer.SerializeToNode(data, options)!.AsObject();
+    FillDefaults(docType, node);
+    return node;
+}
+
+static void FillDefaults(string docType, JsonObject node)
+{
+    var path = Path.Combine("src", "Apps.Erp", "Metadata", docType + ".doctype.json");
+    if (!File.Exists(path)) return;
+    using var meta = JsonDocument.Parse(File.ReadAllText(path));
+    foreach (var f in meta.RootElement.GetProperty("fields").EnumerateArray())
+    {
+        var name = f.GetProperty("name").GetString()!;
+        if (f.GetProperty("type").GetString() == "Table" && f.TryGetProperty("childDocType", out var child) && node[name] is JsonArray rows)
+        {
+            foreach (var row in rows.OfType<JsonObject>()) FillDefaults(child.GetString()!, row);
+            continue;
+        }
+        if (node.ContainsKey(name) || !f.TryGetProperty("default", out var def)) continue;
+        if (def.ValueKind == JsonValueKind.String && def.GetString()!.StartsWith('$')) continue; // $today, $employee: diisi saat input
+        node[name] = JsonNode.Parse(def.GetRawText());
+    }
+}

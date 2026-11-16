@@ -2,7 +2,8 @@
 Pemakaian: python3 validate.py <folder-metadata> [MODUL,...] [ROLE,...]"""
 import json, re, sys, glob, os
 
-FOLDER = sys.argv[1]
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+FOLDER = sys.argv[1] if len(sys.argv) > 1 else os.path.join(_ROOT, "src", "Apps.Erp", "Metadata")
 MODULES = set(sys.argv[2].split(",")) if len(sys.argv) > 2 else None
 ROLES = set(sys.argv[3].split(",")) if len(sys.argv) > 3 else None
 

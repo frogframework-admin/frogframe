@@ -401,11 +401,21 @@ public sealed class GlobalSearchService(
             .Where(d => !d.Def.IsChild && !d.Def.IsSingle && permissions.Can(user, d, DocActions.Read))
             .ToList();
 
-        // Batasi pencarian live record maksimal 5 DocType paling relevan per ketikan agar perencanaan query PostgreSQL tetap ringan.
-        const int MaxSearchDocTypes = 5;
+        // Batasi pencarian live record maksimal 8 DocType paling relevan per ketikan agar perencanaan query PostgreSQL tetap ringan.
+        const int MaxSearchDocTypes = 8;
+        static int DocPriority(CompiledDocType d) => d.Name switch
+        {
+            "Customer" or "Vendor" or "Item" or "Product" or "Employee" => 100,
+            "SalesInvoice" or "PurchaseInvoice" or "SalesOrder" or "PurchaseOrder" or "PurchaseRequest" => 90,
+            "Quotation" or "Lead" or "Opportunity" or "PaymentEntry" or "JournalEntry" => 80,
+            "Contact" or "Address" or "Project" or "Warehouse" or "Account" => 70,
+            _ => 10
+        };
+
         var searchTargets = readableDocTypes
             .OrderByDescending(d => d.Title.StartsWith(q, StringComparison.OrdinalIgnoreCase) || d.Name.StartsWith(q, StringComparison.OrdinalIgnoreCase))
             .ThenByDescending(d => d.Title.Contains(q, StringComparison.OrdinalIgnoreCase) || d.Name.Contains(q, StringComparison.OrdinalIgnoreCase))
+            .ThenByDescending(DocPriority)
             .ThenByDescending(d => d.Def.ListView.SearchFields.Count > 0)
             .ThenBy(d => d.Title)
             .Take(MaxSearchDocTypes)

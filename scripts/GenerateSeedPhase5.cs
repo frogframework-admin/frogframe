@@ -4,7 +4,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Text.Encodings.Web;
+using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 const string tenant = "acme";
 const string owner = "admin";
@@ -232,7 +234,7 @@ var salaryComponents = new[]
         ["component_type"] = "Deduction",
         ["abbreviation"] = "LOAN",
         ["is_active"] = true,
-        ["account"] = "1121"
+        ["account"] = "1124" // Piutang Karyawan (akun kontrol, pihak = karyawan)
     }
 };
 foreach (var sc in salaryComponents)
@@ -304,6 +306,88 @@ var salaryAssignments = new[]
             new Dictionary<string, object?> { ["idx"] = 2, ["salary_component"] = "Tunjangan Jabatan", ["amount"] = 4000000m },
             new Dictionary<string, object?> { ["idx"] = 3, ["salary_component"] = "Tunjangan Transport & Makan", ["amount"] = 2000000m }
         }
+    },
+    // EMP-0002: Sales Staff (Total: 7,500,000)
+    new Dictionary<string, object?>
+    {
+        ["employee"] = "EMP-0002",
+        ["from_date"] = "2026-01-01",
+        ["is_active"] = true,
+        ["bpjs_employment"] = true,
+        ["pension_member"] = true,
+        ["bpjs_health"] = true,
+        ["earnings"] = new[]
+        {
+            new Dictionary<string, object?> { ["idx"] = 1, ["salary_component"] = "Gaji Pokok", ["amount"] = 6000000m },
+            new Dictionary<string, object?> { ["idx"] = 2, ["salary_component"] = "Tunjangan Transport & Makan", ["amount"] = 1500000m }
+        }
+    },
+    // EMP-0004: Sales Manager (Total: 20,000,000)
+    new Dictionary<string, object?>
+    {
+        ["employee"] = "EMP-0004",
+        ["from_date"] = "2026-01-01",
+        ["is_active"] = true,
+        ["bpjs_employment"] = true,
+        ["pension_member"] = true,
+        ["bpjs_health"] = true,
+        ["earnings"] = new[]
+        {
+            new Dictionary<string, object?> { ["idx"] = 1, ["salary_component"] = "Gaji Pokok", ["amount"] = 14000000m },
+            new Dictionary<string, object?> { ["idx"] = 2, ["salary_component"] = "Tunjangan Jabatan", ["amount"] = 4000000m },
+            new Dictionary<string, object?> { ["idx"] = 3, ["salary_component"] = "Tunjangan Transport & Makan", ["amount"] = 2000000m }
+        }
+    },
+    // EMP-0006: Purchasing Staff (Total: 8,000,000)
+    new Dictionary<string, object?>
+    {
+        ["employee"] = "EMP-0006",
+        ["from_date"] = "2026-01-01",
+        ["is_active"] = true,
+        ["bpjs_employment"] = true,
+        ["pension_member"] = true,
+        ["bpjs_health"] = true,
+        ["earnings"] = new[]
+        {
+            new Dictionary<string, object?> { ["idx"] = 1, ["salary_component"] = "Gaji Pokok", ["amount"] = 6500000m },
+            new Dictionary<string, object?> { ["idx"] = 2, ["salary_component"] = "Tunjangan Transport & Makan", ["amount"] = 1500000m }
+        }
+    },
+    // EMP-0009: HR Staff (Total: 7,500,000)
+    new Dictionary<string, object?>
+    {
+        ["employee"] = "EMP-0009",
+        ["from_date"] = "2026-01-01",
+        ["is_active"] = true,
+        ["bpjs_employment"] = true,
+        ["pension_member"] = true,
+        ["bpjs_health"] = true,
+        ["earnings"] = new[]
+        {
+            new Dictionary<string, object?> { ["idx"] = 1, ["salary_component"] = "Gaji Pokok", ["amount"] = 6000000m },
+            new Dictionary<string, object?> { ["idx"] = 2, ["salary_component"] = "Tunjangan Transport & Makan", ["amount"] = 1500000m }
+        }
+    },
+    // EMP-0010: Warehouse Officer (Total: 10,000,000)
+    new Dictionary<string, object?>
+    {
+        ["employee"] = "EMP-0010",
+        ["from_date"] = "2026-01-01",
+        ["is_active"] = true,
+        ["bpjs_employment"] = true,
+        ["pension_member"] = true,
+        ["bpjs_health"] = true,
+        ["earnings"] = new[]
+        {
+            new Dictionary<string, object?> { ["idx"] = 1, ["salary_component"] = "Gaji Pokok", ["amount"] = 7500000m },
+            new Dictionary<string, object?> { ["idx"] = 2, ["salary_component"] = "Tunjangan Jabatan", ["amount"] = 1000000m },
+            new Dictionary<string, object?> { ["idx"] = 3, ["salary_component"] = "Tunjangan Transport & Makan", ["amount"] = 1500000m }
+        },
+        ["deductions"] = new[]
+        {
+            new Dictionary<string, object?> { ["idx"] = 1, ["salary_component"] = "Potongan Pinjaman Karyawan", ["amount"] = 500000m }
+        },
+        ["remarks"] = "Cicilan pinjaman karyawan Rp500.000/bulan (saldo awal pinjaman Rp3.000.000 di jurnal pembukaan)"
     }
 };
 for (var i = 0; i < salaryAssignments.Length; i++)
@@ -340,7 +424,8 @@ records.Add(("StockSettings", "StockSettings", new Dictionary<string, object?>
     ["allow_negative_stock"] = false,
     ["inventory_account"] = "1131",
     ["cogs_account"] = "5100",
-    ["stock_adjustment_account"] = "5200"
+    ["stock_adjustment_account"] = "5200",
+    ["grni_account"] = "2170" // Barang diterima belum ditagih: GR (Cr) dan faktur pemasok dengan PO (Dr)
 }));
 
 // CRMSettings
@@ -381,7 +466,7 @@ sb.AppendLine();
 
 foreach (var (docType, name, data) in records)
 {
-    var dataJson = JsonSerializer.Serialize(data, jsonOptions).Replace("'", "''");
+    var dataJson = WithDefaults(docType, data, jsonOptions).ToJsonString(jsonOptions).Replace("'", "''");
     var nameEscaped = name.Replace("'", "''");
     sb.AppendLine($"""
         INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
@@ -398,3 +483,31 @@ Directory.CreateDirectory("deploy/sql");
 File.WriteAllText("deploy/sql/seed-phase-5.sql", sb.ToString(), new UTF8Encoding(false));
 
 Console.WriteLine($"Successfully generated deploy/sql/seed-phase-5.sql with {records.Count} records.");
+
+// Default field dari metadata (src/Apps.Erp/Metadata) diisi bila tidak ditulis di atas: SQL seed melewati framework, jadi tanpa ini
+// field seperti is_active (default true) kosong dan dokumen tidak muncul di pilihan Link yang memfilter is_active = true.
+static JsonObject WithDefaults(string docType, object data, JsonSerializerOptions options)
+{
+    var node = JsonSerializer.SerializeToNode(data, options)!.AsObject();
+    FillDefaults(docType, node);
+    return node;
+}
+
+static void FillDefaults(string docType, JsonObject node)
+{
+    var path = Path.Combine("src", "Apps.Erp", "Metadata", docType + ".doctype.json");
+    if (!File.Exists(path)) return;
+    using var meta = JsonDocument.Parse(File.ReadAllText(path));
+    foreach (var f in meta.RootElement.GetProperty("fields").EnumerateArray())
+    {
+        var name = f.GetProperty("name").GetString()!;
+        if (f.GetProperty("type").GetString() == "Table" && f.TryGetProperty("childDocType", out var child) && node[name] is JsonArray rows)
+        {
+            foreach (var row in rows.OfType<JsonObject>()) FillDefaults(child.GetString()!, row);
+            continue;
+        }
+        if (node.ContainsKey(name) || !f.TryGetProperty("default", out var def)) continue;
+        if (def.ValueKind == JsonValueKind.String && def.GetString()!.StartsWith('$')) continue; // $today, $employee: diisi saat input
+        node[name] = JsonNode.Parse(def.GetRawText());
+    }
+}

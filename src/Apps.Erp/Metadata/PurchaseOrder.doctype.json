@@ -273,6 +273,14 @@
       "scope": "all"
     },
     {
+      "role": "Stock",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
       "role": "System Manager",
       "actions": [
         "read",

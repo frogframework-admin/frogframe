@@ -10,9 +10,16 @@ Pemakaian: python3 tools/check_hook_fields.py [folder-repo-erp]
 """
 import json, glob, os, re, sys
 
+def metadata_dir(root):
+    """Metadata ada di src/Apps.Erp/Metadata (repo) atau Metadata/ (paket lama)."""
+    for cand in (os.path.join(root, "src", "Apps.Erp", "Metadata"), os.path.join(root, "Metadata")):
+        if os.path.isdir(cand): return cand
+    sys.exit(f"Folder metadata tidak ditemukan di {root}")
+
 ROOT = sys.argv[1] if len(sys.argv) > 1 else os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+META = metadata_dir(ROOT)
 defs = {}
-for p in glob.glob(os.path.join(ROOT, "Metadata", "*.doctype.json")):
+for p in glob.glob(os.path.join(META, "*.doctype.json")):
     d = json.load(open(p, encoding="utf-8"))
     defs[d["name"]] = {f["name"]: f for f in d["fields"]}
 STD = {"name", "owner", "created", "modified", "modified_by", "docstatus", "workflow_state", "version", "amended_from", "idx"}

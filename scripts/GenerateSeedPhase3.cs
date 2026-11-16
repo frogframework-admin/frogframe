@@ -4,7 +4,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Text.Encodings.Web;
+using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 const string tenant = "acme";
 const string owner = "admin";
@@ -106,7 +108,7 @@ sb.AppendLine();
 
 foreach (var (docType, name, data) in records)
 {
-    var dataJson = JsonSerializer.Serialize(data, jsonOptions).Replace("'", "''");
+    var dataJson = WithDefaults(docType, data, jsonOptions).ToJsonString(jsonOptions).Replace("'", "''");
     var nameEscaped = name.Replace("'", "''");
     sb.AppendLine($"""
         INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
@@ -123,3 +125,31 @@ Directory.CreateDirectory("deploy/sql");
 File.WriteAllText("deploy/sql/seed-phase-3.sql", sb.ToString(), new UTF8Encoding(false));
 
 Console.WriteLine($"Successfully generated deploy/sql/seed-phase-3.sql with {records.Count} records.");
+
+// Default field dari metadata (src/Apps.Erp/Metadata) diisi bila tidak ditulis di atas: SQL seed melewati framework, jadi tanpa ini
+// field seperti is_active (default true) kosong dan dokumen tidak muncul di pilihan Link yang memfilter is_active = true.
+static JsonObject WithDefaults(string docType, object data, JsonSerializerOptions options)
+{
+    var node = JsonSerializer.SerializeToNode(data, options)!.AsObject();
+    FillDefaults(docType, node);
+    return node;
+}
+
+static void FillDefaults(string docType, JsonObject node)
+{
+    var path = Path.Combine("src", "Apps.Erp", "Metadata", docType + ".doctype.json");
+    if (!File.Exists(path)) return;
+    using var meta = JsonDocument.Parse(File.ReadAllText(path));
+    foreach (var f in meta.RootElement.GetProperty("fields").EnumerateArray())
+    {
+        var name = f.GetProperty("name").GetString()!;
+        if (f.GetProperty("type").GetString() == "Table" && f.TryGetProperty("childDocType", out var child) && node[name] is JsonArray rows)
+        {
+            foreach (var row in rows.OfType<JsonObject>()) FillDefaults(child.GetString()!, row);
+            continue;
+        }
+        if (node.ContainsKey(name) || !f.TryGetProperty("default", out var def)) continue;
+        if (def.ValueKind == JsonValueKind.String && def.GetString()!.StartsWith('$')) continue; // $today, $employee: diisi saat input
+        node[name] = JsonNode.Parse(def.GetRawText());
+    }
+}

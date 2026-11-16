@@ -4,7 +4,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Text.Encodings.Web;
+using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 const string tenant = "acme";
 const string owner = "admin";
@@ -65,16 +67,16 @@ foreach (var jp in jobProfiles)
 
 var orgUnits = new[]
 {
-    new { org_unit_code = "BOD", org_unit_name = "Dewan Direksi (BOD)", unit_type = "Board of Directors", parent_org_unit = (string?)null, company = "ACME", is_active = true },
-    new { org_unit_code = "DIV-TECH", org_unit_name = "Direktorat Teknologi & Operasi", unit_type = "Directorate", parent_org_unit = "BOD", company = "ACME", is_active = true },
-    new { org_unit_code = "DIV-FIN", org_unit_name = "Direktorat Keuangan & HR", unit_type = "Directorate", parent_org_unit = "BOD", company = "ACME", is_active = true },
-    new { org_unit_code = "DIV-COMM", org_unit_name = "Direktorat Komersial", unit_type = "Directorate", parent_org_unit = "BOD", company = "ACME", is_active = true },
-    new { org_unit_code = "DEPT-IT", org_unit_name = "Departemen IT", unit_type = "Department", parent_org_unit = "DIV-TECH", company = "ACME", is_active = true },
-    new { org_unit_code = "DEPT-WH", org_unit_name = "Departemen Gudang & Logistik", unit_type = "Department", parent_org_unit = "DIV-TECH", company = "ACME", is_active = true },
-    new { org_unit_code = "DEPT-FIN", org_unit_name = "Departemen Keuangan & Akuntansi", unit_type = "Department", parent_org_unit = "DIV-FIN", company = "ACME", is_active = true },
-    new { org_unit_code = "DEPT-HR", org_unit_name = "Departemen Human Resources", unit_type = "Department", parent_org_unit = "DIV-FIN", company = "ACME", is_active = true },
-    new { org_unit_code = "DEPT-SALES", org_unit_name = "Departemen Penjualan & Pemasaran", unit_type = "Department", parent_org_unit = "DIV-COMM", company = "ACME", is_active = true },
-    new { org_unit_code = "DEPT-PURCH", org_unit_name = "Departemen Pengadaan (Purchasing)", unit_type = "Department", parent_org_unit = "DIV-COMM", company = "ACME", is_active = true }
+    new { org_unit_code = "BOD", org_unit_name = "Dewan Direksi (BOD)", unit_type = "Board of Directors", parent_org_unit = (string?)null, company = "ACME", is_active = true, staffing_model = "Position", effective_from = "2026-01-01" },
+    new { org_unit_code = "DIV-TECH", org_unit_name = "Direktorat Teknologi & Operasi", unit_type = "Directorate", parent_org_unit = "BOD", company = "ACME", is_active = true, staffing_model = "Position", effective_from = "2026-01-01" },
+    new { org_unit_code = "DIV-FIN", org_unit_name = "Direktorat Keuangan & HR", unit_type = "Directorate", parent_org_unit = "BOD", company = "ACME", is_active = true, staffing_model = "Position", effective_from = "2026-01-01" },
+    new { org_unit_code = "DIV-COMM", org_unit_name = "Direktorat Komersial", unit_type = "Directorate", parent_org_unit = "BOD", company = "ACME", is_active = true, staffing_model = "Position", effective_from = "2026-01-01" },
+    new { org_unit_code = "DEPT-IT", org_unit_name = "Departemen IT", unit_type = "Department", parent_org_unit = "DIV-TECH", company = "ACME", is_active = true, staffing_model = "Position", effective_from = "2026-01-01" },
+    new { org_unit_code = "DEPT-WH", org_unit_name = "Departemen Gudang & Logistik", unit_type = "Department", parent_org_unit = "DIV-TECH", company = "ACME", is_active = true, staffing_model = "Position", effective_from = "2026-01-01" },
+    new { org_unit_code = "DEPT-FIN", org_unit_name = "Departemen Keuangan & Akuntansi", unit_type = "Department", parent_org_unit = "DIV-FIN", company = "ACME", is_active = true, staffing_model = "Position", effective_from = "2026-01-01" },
+    new { org_unit_code = "DEPT-HR", org_unit_name = "Departemen Human Resources", unit_type = "Department", parent_org_unit = "DIV-FIN", company = "ACME", is_active = true, staffing_model = "Position", effective_from = "2026-01-01" },
+    new { org_unit_code = "DEPT-SALES", org_unit_name = "Departemen Penjualan & Pemasaran", unit_type = "Department", parent_org_unit = "DIV-COMM", company = "ACME", is_active = true, staffing_model = "Position", effective_from = "2026-01-01" },
+    new { org_unit_code = "DEPT-PURCH", org_unit_name = "Departemen Pengadaan (Purchasing)", unit_type = "Department", parent_org_unit = "DIV-COMM", company = "ACME", is_active = true, staffing_model = "Position", effective_from = "2026-01-01" }
 };
 foreach (var ou in orgUnits)
 {
@@ -87,16 +89,16 @@ foreach (var ou in orgUnits)
 
 var positions = new[]
 {
-    new { position_title = "Managing Director", job_profile = "JOB-EXEC-DIR", organization_unit = "BOD", reports_to_position = (string?)null, is_manager_position = true, status = "Filled" },
-    new { position_title = "IT Manager", job_profile = "JOB-IT-MGR", organization_unit = "DEPT-IT", reports_to_position = "POS-000001", is_manager_position = true, status = "Filled" },
-    new { position_title = "IT Staff", job_profile = "JOB-IT-STAFF", organization_unit = "DEPT-IT", reports_to_position = "POS-000002", is_manager_position = false, status = "Filled" },
-    new { position_title = "HR Manager", job_profile = "JOB-HR-MGR", organization_unit = "DEPT-HR", reports_to_position = "POS-000001", is_manager_position = true, status = "Filled" },
-    new { position_title = "HR Staff", job_profile = "JOB-HR-STAFF", organization_unit = "DEPT-HR", reports_to_position = "POS-000004", is_manager_position = false, status = "Filled" },
-    new { position_title = "Finance Staff", job_profile = "JOB-FIN-STAFF", organization_unit = "DEPT-FIN", reports_to_position = "POS-000001", is_manager_position = false, status = "Filled" },
-    new { position_title = "Purchasing Staff", job_profile = "JOB-PURCH-STAFF", organization_unit = "DEPT-PURCH", reports_to_position = "POS-000001", is_manager_position = false, status = "Filled" },
-    new { position_title = "Warehouse Officer", job_profile = "JOB-WH-OFFICER", organization_unit = "DEPT-WH", reports_to_position = "POS-000001", is_manager_position = false, status = "Filled" },
-    new { position_title = "Sales Manager", job_profile = "JOB-SALES-MGR", organization_unit = "DEPT-SALES", reports_to_position = "POS-000001", is_manager_position = true, status = "Filled" },
-    new { position_title = "Sales Staff", job_profile = "JOB-SALES-STAFF", organization_unit = "DEPT-SALES", reports_to_position = "POS-000009", is_manager_position = false, status = "Filled" }
+    new { position_title = "Managing Director", job_profile = "JOB-EXEC-DIR", organization_unit = "BOD", reports_to_position = (string?)null, is_manager_position = true, status = "Filled", effective_from = "2026-01-01" },
+    new { position_title = "IT Manager", job_profile = "JOB-IT-MGR", organization_unit = "DEPT-IT", reports_to_position = "POS-000001", is_manager_position = true, status = "Filled", effective_from = "2026-01-01" },
+    new { position_title = "IT Staff", job_profile = "JOB-IT-STAFF", organization_unit = "DEPT-IT", reports_to_position = "POS-000002", is_manager_position = false, status = "Filled", effective_from = "2026-01-01" },
+    new { position_title = "HR Manager", job_profile = "JOB-HR-MGR", organization_unit = "DEPT-HR", reports_to_position = "POS-000001", is_manager_position = true, status = "Filled", effective_from = "2026-01-01" },
+    new { position_title = "HR Staff", job_profile = "JOB-HR-STAFF", organization_unit = "DEPT-HR", reports_to_position = "POS-000004", is_manager_position = false, status = "Filled", effective_from = "2026-01-01" },
+    new { position_title = "Finance Staff", job_profile = "JOB-FIN-STAFF", organization_unit = "DEPT-FIN", reports_to_position = "POS-000001", is_manager_position = false, status = "Filled", effective_from = "2026-01-01" },
+    new { position_title = "Purchasing Staff", job_profile = "JOB-PURCH-STAFF", organization_unit = "DEPT-PURCH", reports_to_position = "POS-000001", is_manager_position = false, status = "Filled", effective_from = "2026-01-01" },
+    new { position_title = "Warehouse Officer", job_profile = "JOB-WH-OFFICER", organization_unit = "DEPT-WH", reports_to_position = "POS-000001", is_manager_position = false, status = "Filled", effective_from = "2026-01-01" },
+    new { position_title = "Sales Manager", job_profile = "JOB-SALES-MGR", organization_unit = "DEPT-SALES", reports_to_position = "POS-000001", is_manager_position = true, status = "Filled", effective_from = "2026-01-01" },
+    new { position_title = "Sales Staff", job_profile = "JOB-SALES-STAFF", organization_unit = "DEPT-SALES", reports_to_position = "POS-000009", is_manager_position = false, status = "Filled", effective_from = "2026-01-01" }
 };
 for (var i = 0; i < positions.Length; i++)
 {
@@ -174,9 +176,47 @@ var employees = new[]
         reports_to = "EMP-0008", employment_type = "Permanent (PKWTT)", hire_date = "2020-11-01", status = "Active"
     }
 };
+// Data pajak, payroll & persetujuan per karyawan. PTKP menentukan kategori TER (A: TK/0, TK/1, K/0; B: TK/2, TK/3, K/1, K/2; C: K/3).
+// Approver cuti & klaim = atasan langsung (diisi juga oleh hook Employee saat disimpan lewat aplikasi; SQL melewati hook).
+var employeeExtras = new Dictionary<string, (string Marital, string Ptkp, string CostCenter, string Grade, string Location, string Shift, string Bank, string AccountNo, string Nik, string Npwp)>
+{
+    ["EMP-0001"] = ("Single", "TK/0", "CC-400", "G2", "JKT-HQ", "Office 08-17", "014", "5270011001", "3174061506940001", "0912345670011000"),
+    ["EMP-0002"] = ("Single", "TK/0", "CC-200", "G2", "JKT-HQ", "Office 08-17", "014", "5270011002", "3174066008960002", "0912345670012000"),
+    ["EMP-0003"] = ("Married", "K/2", "CC-400", "G4", "JKT-HQ", "Office 08-17", "008", "1230011003", "3174060511880003", "0912345670013000"),
+    ["EMP-0004"] = ("Married", "K/3", "CC-200", "G4", "JKT-HQ", "Office 08-17", "014", "5270011004", "3174061204870004", "0912345670014000"),
+    ["EMP-0005"] = ("Married", "K/1", "CC-300", "G2", "JKT-HQ", "Office 08-17", "014", "5270011005", "3174060112920005", "0912345670015000"),
+    ["EMP-0006"] = ("Married", "K/0", "CC-300", "G2", "JKT-HQ", "Office 08-17", "008", "1230011006", "3174061802930006", "0912345670016000"),
+    ["EMP-0008"] = ("Married", "TK/0", "CC-300", "G5", "JKT-HQ", "Office 08-17", "014", "5270011008", "3174066509850008", "0912345670018000"),
+    ["EMP-0009"] = ("Single", "TK/1", "CC-300", "G2", "JKT-HQ", "Office 08-17", "002", "0330011009", "3174063007950009", "0912345670019000"),
+    ["EMP-0010"] = ("Married", "K/2", "CC-110", "G3", "CKR-WH", "Shift Pagi 06-14", "014", "5270011010", "3216061010910010", "0912345670010000"),
+};
 foreach (var emp in employees)
 {
-    records.Add(("Employee", emp.employee_number, emp));
+    var x = employeeExtras[emp.employee_number];
+    var e = JsonSerializer.SerializeToNode(emp)!.AsObject();
+    e["marital_status"] = x.Marital;
+    e["ptkp_status"] = x.Ptkp;
+    e["cost_center"] = x.CostCenter;
+    e["grade"] = x.Grade;
+    e["location"] = x.Location;
+    e["shift_type"] = x.Shift;
+    e["holiday_list"] = "Libur Nasional 2026";
+    e["leave_policy"] = "Standard Leave Policy PKWTT";
+    e["leave_approver"] = emp.reports_to;
+    e["expense_approver"] = emp.reports_to;
+    e["nik"] = x.Nik;
+    e["npwp"] = x.Npwp;
+    e["bpjs_health_no"] = "000" + x.AccountNo[2..];
+    e["bpjs_employment_no"] = "26" + x.AccountNo[1..];
+    e["mobile"] = "+6281" + x.AccountNo[2..];
+    e["bank_accounts"] = new JsonArray(new JsonObject
+    {
+        ["bank"] = x.Bank, ["account_no"] = x.AccountNo, ["account_holder"] = emp.full_name, ["currency"] = "IDR", ["is_default"] = true
+    });
+    e["identity_documents"] = new JsonArray(
+        new JsonObject { ["document_type"] = "KTP", ["document_no"] = x.Nik },
+        new JsonObject { ["document_type"] = "NPWP", ["document_no"] = x.Npwp });
+    records.Add(("Employee", emp.employee_number, e));
 }
 
 // ============================================================================
@@ -199,26 +239,44 @@ var customers = new[]
     new
     {
         customer_name = "PT Telekomunikasi Indonesia Tbk", customer_type = "BUMN",
-        customer_group = "Government & BUMN", tax_id = "010000130093000",
+        customer_group = "Government & BUMN", tax_id = "0010000130093000",
         receivable_account = "1121", email = "procurement@telkom.co.id", phone = "+62215215123", is_active = true
     },
     new
     {
         customer_name = "PT Bank Central Asia Tbk", customer_type = "Company",
-        customer_group = "Commercial & Corporate", tax_id = "013084497092000",
+        customer_group = "Commercial & Corporate", tax_id = "0013084497092000",
         receivable_account = "1121", email = "vendor.management@bca.co.id", phone = "+622123588000", is_active = true
     },
     new
     {
         customer_name = "PT Astra International Tbk", customer_type = "Company",
-        customer_group = "Commercial & Corporate", tax_id = "013028387091000",
+        customer_group = "Commercial & Corporate", tax_id = "0013028387091000",
         receivable_account = "1121", email = "corpsupply@astra.co.id", phone = "+62216522555", is_active = true
     }
+};
+// PKP: NITKU = NPWP + 000000 (kantor pusat). Wilayah, termin & plafon kredit dari master seed fase 7.
+var customerExtras = new[]
+{
+    (Territory: "Jabodetabek", Term: "Net 30", Credit: 500000000m, Owner: "EMP-0004"),
+    (Territory: "Jabodetabek", Term: "Net 30", Credit: 300000000m, Owner: "EMP-0002"),
+    (Territory: "Jawa Barat", Term: "Net 45", Credit: 100000000m, Owner: "EMP-0002"),
 };
 for (var i = 0; i < customers.Length; i++)
 {
     var custId = $"CUST-{(i + 1):D6}";
-    records.Add(("Customer", custId, customers[i]));
+    var c = JsonSerializer.SerializeToNode(customers[i])!.AsObject();
+    var x = customerExtras[i];
+    c["tax_id_type"] = "NPWP";
+    c["is_pkp"] = true;
+    c["tax_name"] = customers[i].customer_name;
+    c["nitku"] = customers[i].tax_id + "000000";
+    c["territory"] = x.Territory;
+    c["payment_term"] = x.Term;
+    c["credit_limit"] = x.Credit;
+    c["account_owner"] = x.Owner;
+    c["default_price_list"] = "Standard Selling IDR";
+    records.Add(("Customer", custId, c));
 }
 
 // ============================================================================
@@ -241,26 +299,44 @@ var vendors = new[]
     new
     {
         vendor_name = "PT Metrodata Electronics Tbk", vendor_type = "Company",
-        vendor_group = "Technology & Hardware", tax_id = "013098398092000",
+        vendor_group = "Technology & Hardware", tax_id = "0013098398092000",
         payable_account = "2110", email = "enterprise@metrodata.co.id", phone = "+622129345800", is_active = true
     },
     new
     {
         vendor_name = "PT Indofood CBP Sukses Makmur Tbk", vendor_type = "Company",
-        vendor_group = "Office & Operations", tax_id = "013374245091000",
+        vendor_group = "Office & Operations", tax_id = "0013374245091000",
         payable_account = "2110", email = "corporate.sales@icbp.indofood.co.id", phone = "+622157958822", is_active = true
     },
     new
     {
         vendor_name = "PT Jalur Nugraha Ekakurir (JNE)", vendor_type = "Company",
-        vendor_group = "Logistics & Freight", tax_id = "013484937092000",
+        vendor_group = "Logistics & Freight", tax_id = "0013484937092000",
         payable_account = "2110", email = "corpsales@jne.co.id", phone = "+622129278888", is_active = true
     }
+};
+var vendorExtras = new[]
+{
+    (Term: "Net 30", Bank: "014", AccountNo: "0063001001", Withholding: "None"),
+    (Term: "Net 30", Bank: "008", AccountNo: "1220001002", Withholding: "None"),
+    (Term: "Net 15", Bank: "014", AccountNo: "0063001003", Withholding: "PPh 23"), // jasa pengiriman: PPh 23 2%
 };
 for (var i = 0; i < vendors.Length; i++)
 {
     var suppId = $"SUPP-{(i + 1):D6}";
-    records.Add(("Vendor", suppId, vendors[i]));
+    var v = JsonSerializer.SerializeToNode(vendors[i])!.AsObject();
+    var x = vendorExtras[i];
+    v["tax_id_type"] = "NPWP";
+    v["is_pkp"] = true;
+    v["tax_name"] = vendors[i].vendor_name;
+    v["nitku"] = vendors[i].tax_id + "000000";
+    v["payment_term"] = x.Term;
+    v["default_withholding"] = x.Withholding;
+    v["bank_accounts"] = new JsonArray(new JsonObject
+    {
+        ["bank"] = x.Bank, ["account_no"] = x.AccountNo, ["account_holder"] = vendors[i].vendor_name, ["currency"] = "IDR", ["is_default"] = true
+    });
+    records.Add(("Vendor", suppId, v));
 }
 
 // ============================================================================
@@ -376,22 +452,22 @@ var taxCodes = new[]
     new
     {
         tax_code = "PPN-12", tax_name = "PPN Keluaran 12%", tax_type = "Output VAT",
-        rate = 12.0m, dpp_factor = 1.0, is_withholding = false, account = "2151"
+        rate = 12.0m, dpp_factor = 1.0, is_withholding = false, account = "2151", prepaid_account = (string?)null, tax_object_code = (string?)null
     },
     new
     {
         tax_code = "PPN-MASUKAN-12", tax_name = "PPN Masukan 12%", tax_type = "Input VAT",
-        rate = 12.0m, dpp_factor = 1.0, is_withholding = false, account = "1151"
+        rate = 12.0m, dpp_factor = 1.0, is_withholding = false, account = "1151", prepaid_account = (string?)null, tax_object_code = (string?)null
     },
     new
     {
         tax_code = "PPH23-JASA-2", tax_name = "PPh 23 Jasa 2%", tax_type = "PPh 23",
-        rate = 2.0m, dpp_factor = 1.0, is_withholding = true, account = "1150"
+        rate = 2.0m, dpp_factor = 1.0, is_withholding = true, account = "2152", prepaid_account = (string?)"1150", tax_object_code = (string?)null
     },
     new
     {
         tax_code = "PPH21-TER", tax_name = "PPh 21 Potongan Payroll", tax_type = "PPh 21",
-        rate = 0.0m, dpp_factor = 1.0, is_withholding = true, account = "2150"
+        rate = 0.0m, dpp_factor = 1.0, is_withholding = true, account = "2150", prepaid_account = (string?)null, tax_object_code = (string?)null
     }
 };
 foreach (var tc in taxCodes)
@@ -418,7 +494,7 @@ sb.AppendLine();
 
 foreach (var (docType, name, data) in records)
 {
-    var dataJson = JsonSerializer.Serialize(data, jsonOptions).Replace("'", "''");
+    var dataJson = WithDefaults(docType, data, jsonOptions).ToJsonString(jsonOptions).Replace("'", "''");
     var nameEscaped = name.Replace("'", "''");
     sb.AppendLine($"""
         INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
@@ -435,3 +511,31 @@ Directory.CreateDirectory("deploy/sql");
 File.WriteAllText("deploy/sql/seed-phase-4.sql", sb.ToString(), new UTF8Encoding(false));
 
 Console.WriteLine($"Successfully generated deploy/sql/seed-phase-4.sql with {records.Count} records.");
+
+// Default field dari metadata (src/Apps.Erp/Metadata) diisi bila tidak ditulis di atas: SQL seed melewati framework, jadi tanpa ini
+// field seperti is_active (default true) kosong dan dokumen tidak muncul di pilihan Link yang memfilter is_active = true.
+static JsonObject WithDefaults(string docType, object data, JsonSerializerOptions options)
+{
+    var node = JsonSerializer.SerializeToNode(data, options)!.AsObject();
+    FillDefaults(docType, node);
+    return node;
+}
+
+static void FillDefaults(string docType, JsonObject node)
+{
+    var path = Path.Combine("src", "Apps.Erp", "Metadata", docType + ".doctype.json");
+    if (!File.Exists(path)) return;
+    using var meta = JsonDocument.Parse(File.ReadAllText(path));
+    foreach (var f in meta.RootElement.GetProperty("fields").EnumerateArray())
+    {
+        var name = f.GetProperty("name").GetString()!;
+        if (f.GetProperty("type").GetString() == "Table" && f.TryGetProperty("childDocType", out var child) && node[name] is JsonArray rows)
+        {
+            foreach (var row in rows.OfType<JsonObject>()) FillDefaults(child.GetString()!, row);
+            continue;
+        }
+        if (node.ContainsKey(name) || !f.TryGetProperty("default", out var def)) continue;
+        if (def.ValueKind == JsonValueKind.String && def.GetString()!.StartsWith('$')) continue; // $today, $employee: diisi saat input
+        node[name] = JsonNode.Parse(def.GetRawText());
+    }
+}

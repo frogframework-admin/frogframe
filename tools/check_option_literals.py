@@ -7,9 +7,16 @@ Pemakaian: python3 tools/check_option_literals.py [folder-repo-erp]
 """
 import glob, json, os, re, sys
 
+def metadata_dir(root):
+    """Metadata ada di src/Apps.Erp/Metadata (repo) atau Metadata/ (paket lama)."""
+    for cand in (os.path.join(root, "src", "Apps.Erp", "Metadata"), os.path.join(root, "Metadata")):
+        if os.path.isdir(cand): return cand
+    sys.exit(f"Folder metadata tidak ditemukan di {root}")
+
 ROOT = sys.argv[1] if len(sys.argv) > 1 else os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+META = metadata_dir(ROOT)
 values, names = set(), set()
-for p in glob.glob(os.path.join(ROOT, "Metadata", "*.json")):
+for p in glob.glob(os.path.join(META, "*.doctype.json")) + glob.glob(os.path.join(META, "*.workflow.json")):
     d = json.load(open(p, encoding="utf-8"))
     names.add(d["name"])
     for f in d.get("fields", []):

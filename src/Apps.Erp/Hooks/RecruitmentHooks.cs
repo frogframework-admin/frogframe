@@ -134,10 +134,12 @@ public sealed class JobOfferCreateEmployeeAction(IDocumentStore store) : IFormAc
                 ["hire_date"] = o.Str("proposed_start_date"), ["status"] = "Active",
             }, $"Hired from {ctx.Doc.Name}", ct);
 
+            // Salary Assignment milik role Payroll; dibuat sebagai user sistem karena gaji sudah disetujui HR di penawaran.
+            var sys = UserContext.System(ctx.Doc.TenantId);
             var note = "";
             if ((await m.SingleAsync("PayrollSettings", ct)).Str("base_salary_component") is { } baseComponent && o.Dec("base_salary") > 0)
             {
-                var sa = await ctx.Docs.InsertAsync(ctx.User, "SalaryAssignment", new Dictionary<string, object?>
+                var sa = await ctx.Docs.InsertAsync(sys, "SalaryAssignment", new Dictionary<string, object?>
                 {
                     ["employee"] = emp.Name, ["from_date"] = o.Str("proposed_start_date"), ["is_active"] = true,
                     ["earnings"] = new List<Dictionary<string, object?>> { new() { ["salary_component"] = baseComponent, ["amount"] = o.Dec("base_salary") } },
@@ -146,7 +148,6 @@ public sealed class JobOfferCreateEmployeeAction(IDocumentStore store) : IFormAc
             }
             else note = " (no salary assignment: set 'Base salary component' in Payroll Settings)";
 
-            var sys = UserContext.System(ctx.Doc.TenantId);
             var fresh = await ctx.Docs.GetAsync(sys, "JobApplicant", applicant.Name, ct);
             await ctx.Docs.UpdateAsync(sys, "JobApplicant", applicant.Name, fresh.Version,
                 new Dictionary<string, object?> { ["status"] = "Hired", ["employee"] = emp.Name }, ct);

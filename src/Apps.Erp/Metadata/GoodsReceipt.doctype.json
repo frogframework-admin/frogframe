@@ -120,6 +120,20 @@
       "scope": "all"
     },
     {
+      "role": "Stock",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
       "role": "Finance",
       "actions": [
         "read",
