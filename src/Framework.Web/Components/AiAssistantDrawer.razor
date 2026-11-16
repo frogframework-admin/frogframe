@@ -1,0 +1,236 @@
+@using Framework.Communication
+@using Framework.Web.AI
+@using Markdig
+@using Microsoft.JSInterop
+@implements IDisposable
+@inject AiAssistantService Assistant
+@inject CurrentUser Current
+@inject NavigationManager Nav
+@inject Microsoft.JSInterop.IJSRuntime JS
+
+<BbDrawer Open="@Open" OpenChanged="OnOpenChanged" Direction="DrawerDirection.Right">
+    <BbDrawerContent Class="ai-assistant-drawer" TrapFocus="false">
+        <BbDrawerHeader Class="ai-assistant-header">
+            <div class="ai-assistant-heading">
+                <span class="ai-assistant-heading-icon"><LucideIcon Name="sparkles" Size="18" /></span>
+                <div>
+                    <BbDrawerTitle>FrogFrame Assistant</BbDrawerTitle>
+                    <BbDrawerDescription>Read-only help for your current workspace</BbDrawerDescription>
+                </div>
+            </div>
+            <div class="ai-assistant-header-actions">
+                <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" OnClick="NewChat" Disabled="@busy" AriaLabel="Start a new chat">
+                    <LucideIcon Name="message-square-plus" Size="16" />
+                </BbButton>
+                <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" OnClick="Close" AriaLabel="Close assistant">
+                    <LucideIcon Name="x" Size="16" />
+                </BbButton>
+            </div>
+        </BbDrawerHeader>
+
+        <div class="ai-assistant-body">
+            <div class="ai-assistant-transcript" @ref="transcript">
+                @if (messages.Count == 0)
+                {
+                    <div class="ai-assistant-welcome">
+                        <LucideIcon Name="sparkles" Size="25" />
+                        <strong>How can I help?</strong>
+                        <span>Ask about this page, business rules, documents, or reports.</span>
+                        <div class="ai-assistant-suggestions">
+                            <button type="button" @onclick='() => UseSuggestion("Why is this document still in Draft?")'>Why is this document still in Draft?</button>
+                            <button type="button" @onclick='() => UseSuggestion("Why is this report empty?")'>Why is this report empty?</button>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    @foreach (var message in messages)
+                    {
+                        <BbMessage Align="@(message.IsUser ? MessageAlign.End : MessageAlign.Start)" Class="ai-assistant-message">
+                            <BbMessageAvatar>
+                                <LucideIcon Name="@(message.IsUser ? "user-round" : "sparkles")" Size="15" />
+                            </BbMessageAvatar>
+                            <BbMessageContent>
+                                <BbMessageHeader>@(message.IsUser ? Current.User?.FullName ?? "You" : "FrogFrame Assistant")</BbMessageHeader>
+                                <BbBubble Variant="@(message.IsUser ? BubbleVariant.Tinted : BubbleVariant.Secondary)"
+                                          Align="@(message.IsUser ? BubbleAlign.End : BubbleAlign.Start)">
+                                    <BbBubbleContent>
+                                        @if (message.IsUser)
+                                        {
+                                            @message.Content
+                                        }
+                                        else
+                                        {
+                                            @((MarkupString)RenderMarkdown(message.Content))
+                                        }
+                                    </BbBubbleContent>
+                                </BbBubble>
+                            </BbMessageContent>
+                        </BbMessage>
+                    }
+                }
+
+                @if (busy)
+                {
+                    <BbMessage Align="MessageAlign.Start" Class="ai-assistant-message">
+                        <BbMessageAvatar><LucideIcon Name="sparkles" Size="15" /></BbMessageAvatar>
+                        <BbMessageContent>
+                            <BbMessageHeader>FrogFrame Assistant</BbMessageHeader>
+                            <BbBubble Variant="BubbleVariant.Secondary" Align="BubbleAlign.Start">
+                                <BbBubbleContent><span class="ai-assistant-thinking"><span></span><span></span><span></span></span></BbBubbleContent>
+                            </BbBubble>
+                        </BbMessageContent>
+                    </BbMessage>
+                }
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(error))
+            {
+                <BbAlert Variant="AlertVariant.Warning" Class="ai-assistant-error">
+                    <BbAlertTitle>Unable to answer</BbAlertTitle>
+                    <BbAlertDescription>@error</BbAlertDescription>
+                </BbAlert>
+            }
+
+            @if (!Assistant.IsEnabled)
+            {
+                <BbAlert Variant="AlertVariant.Warning" Class="ai-assistant-error">
+                    <BbAlertTitle>AI assistant unavailable</BbAlertTitle>
+                    <BbAlertDescription>@Assistant.DisabledReason</BbAlertDescription>
+                </BbAlert>
+            }
+
+            <div class="ai-assistant-composer" @onkeydown="OnComposerKeyDown">
+                <BbTextarea Value="@draft" ValueChanged="OnDraftChanged" Rows="3"
+                            Placeholder="Ask about this page or your work… (Ctrl+Enter to send)" AriaLabel="Ask the AI assistant"
+                            Disabled="@(busy || !Assistant.IsEnabled)" />
+                <div class="ai-assistant-composer-footer">
+                    <span class="muted small">Read-only · @Math.Max(0, Assistant.ConversationTurnLimit - turnsUsed) turns left</span>
+                    <BbButton Disabled="@(busy || !Assistant.IsEnabled || string.IsNullOrWhiteSpace(draft) || turnsUsed >= Assistant.ConversationTurnLimit)"
+                              OnClick="SendAsync">
+                        <LucideIcon Name="send" Size="15" /> @(busy ? "Thinking…" : "Send")
+                    </BbButton>
+                </div>
+            </div>
+        </div>
+    </BbDrawerContent>
+</BbDrawer>
+
+@code {
+    private static readonly MarkdownPipeline MarkdownPipeline = new MarkdownPipelineBuilder().UseAdvancedExtensions().Build();
+    private readonly List<UiMessage> messages = [];
+    private readonly List<AiAssistantTurn> conversation = [];
+    private string draft = "";
+    private string? error;
+    private bool busy;
+    private bool shouldScroll;
+    private int turnsUsed;
+    private CancellationTokenSource? cts;
+    private ElementReference transcript;
+
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public EventCallback<bool> OpenChanged { get; set; }
+
+    private async Task SendAsync()
+    {
+        var question = draft.Trim();
+        if (busy || question.Length == 0 || Current.User is not { } user)
+            return;
+
+        draft = "";
+        error = null;
+        messages.Add(new UiMessage(true, question));
+        shouldScroll = true;
+        busy = true;
+        cts?.Dispose();
+        cts = new CancellationTokenSource();
+
+        try
+        {
+            var route = "/" + Nav.ToBaseRelativePath(Nav.Uri);
+            var reply = await Assistant.AskAsync(user, question, route, conversation.ToArray(), cts.Token);
+            conversation.Add(new AiAssistantTurn("user", question));
+            conversation.Add(new AiAssistantTurn("assistant", reply.Answer));
+            messages.Add(new UiMessage(false, reply.Answer));
+            turnsUsed = reply.TurnsUsed;
+        }
+        catch (OperationCanceledException)
+        {
+            error = "The request was cancelled.";
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            busy = false;
+            shouldScroll = true;
+        }
+    }
+
+    private Task OnDraftChanged(string? value)
+    {
+        draft = value ?? "";
+        return Task.CompletedTask;
+    }
+
+    private async Task UseSuggestion(string value)
+    {
+        draft = value;
+        if (!busy && Assistant.IsEnabled && turnsUsed < Assistant.ConversationTurnLimit)
+            await SendAsync();
+    }
+
+    private async Task OnComposerKeyDown(KeyboardEventArgs e)
+    {
+        if ((e.CtrlKey || e.MetaKey) && e.Key == "Enter"
+            && !busy && Assistant.IsEnabled && !string.IsNullOrWhiteSpace(draft)
+            && turnsUsed < Assistant.ConversationTurnLimit)
+        {
+            await SendAsync();
+        }
+    }
+
+    private void NewChat()
+    {
+        cts?.Cancel();
+        messages.Clear();
+        conversation.Clear();
+        draft = "";
+        error = null;
+        busy = false;
+        turnsUsed = 0;
+        shouldScroll = true;
+    }
+
+    private Task Close() => OpenChanged.InvokeAsync(false);
+    private Task OnOpenChanged(bool open) => OpenChanged.InvokeAsync(open);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!shouldScroll)
+            return;
+        shouldScroll = false;
+        try
+        {
+            await JS.InvokeVoidAsync("frogframe.scrollToBottom", transcript);
+        }
+        catch (JSDisconnectedException) { }
+        catch (OperationCanceledException) { }
+    }
+
+    private static string RenderMarkdown(string content)
+    {
+        var html = Markdig.Markdown.ToHtml(content, MarkdownPipeline);
+        return HtmlContentSanitizer.Sanitize(html) ?? "";
+    }
+
+    public void Dispose()
+    {
+        cts?.Cancel();
+        cts?.Dispose();
+    }
+
+    private sealed record UiMessage(bool IsUser, string Content);
+}

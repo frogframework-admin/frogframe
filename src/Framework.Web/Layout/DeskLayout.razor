@@ -1,6 +1,7 @@
 @inherits LayoutComponentBase
 @implements IDisposable
 @using Framework.Navigation
+@using Framework.Web.AI
 @inject CurrentUser Current
 @inject IMetadataProvider Metadata
 @inject IPermissionService Perms
@@ -221,6 +222,10 @@
             <div class="header-right">
                 @if (Current.User is { } who)
                 {
+                    <button type="button" class="header-ai-btn" @onclick="OpenAiAssistant" title="Ask AI about this page">
+                        <LucideIcon Name="sparkles" Size="16" />
+                        <span>Ask AI</span>
+                    </button>
                     <span class="tenant">@T["Tenant"] @who.TenantId</span>
                     <BbSeparator Orientation="SeparatorOrientation.Vertical" Style="height:1.25rem;opacity:0.4;" />
                     <span class="theme-toggle"><BbDarkModeToggle Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" /></span>
@@ -342,7 +347,12 @@
 </BbSidebarProvider>
 
 <UserProfileDrawer @bind-Open="isProfileOpen" />
-<AwesomebarModal @bind-Open="isAwesomebarOpen" OnToggleTheme="ToggleTheme" OnOpenProfile="OpenUserProfile" OnSwitchModule="SwitchModuleFromAwesomebar" />
+<AwesomebarModal @bind-Open="isAwesomebarOpen" OnToggleTheme="ToggleTheme" OnOpenProfile="OpenUserProfile"
+                 OnSwitchModule="SwitchModuleFromAwesomebar" OnOpenAi="OpenAiAssistant" />
+@if (Current.User is not null)
+{
+    <AiAssistantDrawer @bind-Open="isAiAssistantOpen" />
+}
 
 @if (Current.User is { } modalUser)
 {
@@ -429,6 +439,7 @@
     private string? moduleSearchQuery;
     private bool isProfileOpen;
     private bool isAwesomebarOpen;
+    private bool isAiAssistantOpen;
     private DotNetObjectReference<DeskLayout>? dotNetRef;
     private FrogFrameErrorBoundary? errorBoundary;
     private bool checkingConnectivity;
@@ -465,6 +476,7 @@
     }
 
     private void OpenAwesomebar() => isAwesomebarOpen = true;
+    private void OpenAiAssistant() => isAiAssistantOpen = true;
 
     private async Task ToggleTheme()
     {

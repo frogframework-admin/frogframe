@@ -74,14 +74,15 @@ flowchart TB
   - `inspect_document(docType, name)`: Reads a specific document via `DocumentService.GetAsync` (respecting tenant, role, row scope, and field `permLevel`), returning its status, next available workflow actions, and custom buttons.
   - `diagnose_doctype_records(docType, search)`: Summarizes record counts by `docstatus` (`Draft`, `Submitted`, `Cancelled`) and lists recent documents to answer diagnostic questions such as *"Why is Trial Balance zero?"* (because `JournalEntry` records are still in `Draft`).
 
-### Phase 3: Context-Aware Conversational Service (`AiAssistantService`) — *Next*
-- [ ] Create `AiAssistantService` on top of `IAiChatClientProvider` and `AiAssistantTools`.
-- [ ] Automatically attach **Active Page Context** from the browser (`currentUrl`, detected `docType` and `documentName` or `reportName`, user roles, and department) so questions like *"Why is this draft?"* or *"Why is this report empty?"* work without typing document IDs.
-- [ ] Enforce per-user rate limiting and conversation turn budgets.
+### Phase 3: Context-Aware Conversational Service (`AiAssistantService`) — *Completed*
+- [x] Create `AiAssistantService` on top of `IAiChatClientProvider` and `AiAssistantTools`.
+- [x] Automatically attach **Active Page Context** (`currentUrl`, detected `docType` and `documentName` or `reportName`, authenticated roles, and department) so questions like *"Why is this draft?"* or *"Why is this report empty?"* work without typing document IDs. Query strings are excluded from context.
+- [x] Enforce a shared per-user hourly AI request limit and a configurable conversation turn budget (`AI:MaxConversationTurns`, default `12`).
 
-### Phase 4: Blazor Copilot Drawer UI (`AiAssistantDrawer.razor`) — *Planned*
-- [ ] Add an **"Ask AI"** button in the `DeskLayout` top bar and Awesomebar (`Ctrl+K`).
-- [ ] Build a non-blocking slide-over chat drawer that persists across page navigation and renders Markdown answers with clickable links to documents, menus, and reports.
+### Phase 4: Blazor Copilot Drawer UI (`AiAssistantDrawer.razor`) — *Completed*
+- [x] Add an **"Ask AI"** button in the `DeskLayout` top bar and Awesomebar (`Ctrl+K`).
+- [x] Build a non-blocking slide-over chat drawer using Blazor Blueprint's chat message and bubble components. The layout-level drawer preserves the conversation across page navigation and refreshes page context with each question.
+- [x] Render Markdown answers as sanitized HTML so model-generated links remain clickable without allowing unsafe markup.
 
 ---
 

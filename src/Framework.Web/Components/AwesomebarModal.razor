@@ -102,8 +102,13 @@
                         <span><kbd>↵</kbd> Select</span>
                         <span><kbd>Esc</kbd> Close</span>
                     </div>
-                    <div class="awesomebar-tip">
-                        Tip: Type <strong>"new "</strong> to create a draft document
+                    <div class="awesomebar-footer-actions">
+                        <div class="awesomebar-tip">
+                            Tip: Type <strong>"new "</strong> to create a draft document
+                        </div>
+                        <button type="button" class="awesomebar-ai-action" @onclick="OpenAiAssistant">
+                            <LucideIcon Name="sparkles" Size="14" /> Ask AI
+                        </button>
                     </div>
                 </div>
             </div>
@@ -117,6 +122,7 @@
     [Parameter] public EventCallback OnToggleTheme { get; set; }
     [Parameter] public EventCallback OnOpenProfile { get; set; }
     [Parameter] public EventCallback<string> OnSwitchModule { get; set; }
+    [Parameter] public EventCallback OnOpenAi { get; set; }
 
     private string search = "";
     private bool isLoading = false;
@@ -163,10 +169,17 @@
             var navResults = await SearchService.SearchNavigationAsync(u, query, token);
             if (token.IsCancellationRequested) return;
 
-            items = navResults;
+            var trimmed = query.Trim();
+            items = trimmed.Length == 0 || trimmed.Contains("ai", StringComparison.OrdinalIgnoreCase)
+                    || trimmed.Contains("assistant", StringComparison.OrdinalIgnoreCase)
+                    || trimmed.Contains("copilot", StringComparison.OrdinalIgnoreCase)
+                    || trimmed.Contains("ask ", StringComparison.OrdinalIgnoreCase)
+                ? navResults.Append(new AwesomebarItem(
+                    "command:ask-ai", "Ask AI", "Ask a question about this page or your work.",
+                    AwesomebarCategory.Command, null, "sparkles", ActionKey: "open_ai")).ToList()
+                : navResults;
             selectedIndex = 0;
 
-            var trimmed = query.Trim();
             var isNewShortcut = trimmed.StartsWith("new ", StringComparison.OrdinalIgnoreCase)
                 || trimmed.StartsWith("baru ", StringComparison.OrdinalIgnoreCase);
 
@@ -272,6 +285,10 @@
             {
                 await OnOpenProfile.InvokeAsync();
             }
+            else if (item.ActionKey == "open_ai")
+            {
+                await OnOpenAi.InvokeAsync();
+            }
             else if (item.ActionKey.StartsWith("switch_theme:"))
             {
                 var theme = item.ActionKey["switch_theme:".Length..];
@@ -300,6 +317,12 @@
         await OpenChanged.InvokeAsync(false);
     }
 
+    private async Task OpenAiAssistant()
+    {
+        await Close();
+        await OnOpenAi.InvokeAsync();
+    }
+
     private static string GroupLabel(AwesomebarCategory cat) => cat switch
     {
         AwesomebarCategory.Navigation => "Navigation & Pages",
@@ -319,4 +342,3 @@
         return "badge-default";
     }
 }
-

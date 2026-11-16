@@ -59,6 +59,9 @@ public sealed class AiOptions
     /// <summary>Requests per user per hour.</summary>
     public int RequestsPerUserPerHour { get; set; } = 30;
 
+    /// <summary>Maximum user turns allowed in one assistant conversation.</summary>
+    public int MaxConversationTurns { get; set; } = 12;
+
     public static AiOptions From(IConfiguration? configuration)
     {
         var options = new AiOptions();

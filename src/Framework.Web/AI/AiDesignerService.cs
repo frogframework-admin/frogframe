@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
@@ -33,7 +32,8 @@ public sealed class AiDesignerService(
     IFieldTypeRegistry fieldTypes,
     AiDraftValidator validator,
     TimeProvider clock,
-    ILogger<AiDesignerService>? logger = null)
+    ILogger<AiDesignerService>? logger = null,
+    AiRequestRateLimiter? requestRateLimiter = null)
 {
     private const int MaxCatalogChars = 12_000;
 
@@ -43,7 +43,7 @@ public sealed class AiDesignerService(
         TypeInfoResolver = new DefaultJsonTypeInfoResolver(),
     };
 
-    private readonly ConcurrentDictionary<string, Queue<DateTimeOffset>> _recent = new();
+    private readonly AiRequestRateLimiter _requestRateLimiter = requestRateLimiter ?? new AiRequestRateLimiter(clock);
 
     public bool IsEnabled => aiSwitch.IsEnabled;
     public string? DisabledReason => aiSwitch.DisabledReason;
@@ -337,15 +337,7 @@ public sealed class AiDesignerService(
 
     private void CheckRateLimit(UserContext user, AiOptions options)
     {
-        var limit = Math.Max(1, options.RequestsPerUserPerHour);
-        var now = clock.GetUtcNow();
-        var queue = _recent.GetOrAdd($"{user.TenantId}|{user.Id}", _ => new Queue<DateTimeOffset>());
-        lock (queue)
-        {
-            while (queue.Count > 0 && now - queue.Peek() > TimeSpan.FromHours(1)) queue.Dequeue();
-            if (queue.Count >= limit) throw new InvalidOperationException($"AI request limit reached ({limit} per hour). Try again later.");
-            queue.Enqueue(now);
-        }
+        _requestRateLimiter.Demand(user, options.RequestsPerUserPerHour);
     }
 
     private static string Truncate(string s, int max) =>

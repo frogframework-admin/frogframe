@@ -301,6 +301,14 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<Framework.Web.AI.IAiSwitch>(sp => new Framework.Web.AI.ConfigurationAiSwitch(sp.GetService<IConfiguration>()));
         services.TryAddSingleton<Framework.Web.AI.IAiChatClientProvider>(sp => new Framework.Web.AI.AzureOpenAiChatClientProvider(
             sp.GetService<IConfiguration>(), sp.GetRequiredService<Framework.Web.AI.IAiSwitch>(), sp.GetService<Microsoft.Extensions.Logging.ILoggerFactory>()));
+        services.TryAddSingleton<Framework.Web.AI.AiRequestRateLimiter>();
+        services.AddSingleton(sp => new Framework.Web.AI.AiAssistantService(
+            sp.GetRequiredService<Framework.Web.AI.IAiChatClientProvider>(),
+            sp.GetRequiredService<Framework.Web.AI.IAiSwitch>(),
+            sp.GetService<IConfiguration>(),
+            sp.GetRequiredService<IServiceScopeFactory>(),
+            sp.GetRequiredService<Framework.Web.AI.AiRequestRateLimiter>(),
+            sp.GetService<Microsoft.Extensions.Logging.ILogger<Framework.Web.AI.AiAssistantService>>()));
         services.AddSingleton<Framework.Web.AI.AiDraftValidator>();
         services.AddSingleton(sp => new Framework.Web.AI.AiDesignerService(
             sp.GetRequiredService<Framework.Web.AI.IAiChatClientProvider>(),
@@ -311,7 +319,8 @@ public static class ServiceCollectionExtensions
             sp.GetRequiredService<IFieldTypeRegistry>(),
             sp.GetRequiredService<Framework.Web.AI.AiDraftValidator>(),
             sp.GetRequiredService<TimeProvider>(),
-            sp.GetService<Microsoft.Extensions.Logging.ILogger<Framework.Web.AI.AiDesignerService>>()));
+            sp.GetService<Microsoft.Extensions.Logging.ILogger<Framework.Web.AI.AiDesignerService>>(),
+            sp.GetRequiredService<Framework.Web.AI.AiRequestRateLimiter>()));
 
         // Inbound Email & Communication (Phase 3 Workstream D)
         services.TryAddSingleton<Framework.Communication.IEmailAccountStore, Framework.Communication.InMemoryEmailAccountStore>();

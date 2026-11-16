@@ -47,6 +47,10 @@ window.frogframe = window.frogframe || {};
         }, 50);
     };
 
+    window.frogframe.scrollToBottom = function (element) {
+        if (element) element.scrollTop = element.scrollHeight;
+    };
+
     window.frogframe.setLanguage = function (code) {
         if (!code) return;
         document.documentElement.lang = code;
