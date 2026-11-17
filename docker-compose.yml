@@ -57,9 +57,9 @@ services:
       - Storage__MigrateExisting=${FROGFRAME_STORAGE_MIGRATE_EXISTING:-true}
     depends_on:
       postgres:
-        condition: service_healthy
+        condition: service_started
       seaweedfs:
-        condition: service_healthy
+        condition: service_started
     restart: unless-stopped
 
   # S3-compatible object storage for file contents (SeaweedFS, Apache-2.0). Single node: master + volume + filer + S3

@@ -40,26 +40,40 @@ public sealed record SystemConnectivitySnapshot(
 /// </summary>
 public sealed class SystemConnectivityService
 {
+    public const string WaitingForDatabaseMessage = "Waiting for the database to be ready...";
+    public const string WaitingForSeaweedFsMessage = "Waiting for SeaweedFS to be ready. You can continue, but you cannot upload or download documents.";
+    public const string SeaweedFsDisconnectedMessage = "SeaweedFS is currently unreachable. You can continue, but you cannot upload or download documents until SeaweedFS is back online.";
+
     private readonly IServiceProvider _services;
     private readonly ILogger<SystemConnectivityService>? _log;
+    private readonly StartupReadiness? _startup;
     private readonly SemaphoreSlim _checkGate = new(1, 1);
+    private volatile bool _objectStorageStartupPending;
     private SystemConnectivitySnapshot _current;
 
-    public SystemConnectivityService(IServiceProvider services, ILogger<SystemConnectivityService>? log = null)
+    public SystemConnectivityService(IServiceProvider services, ILogger<SystemConnectivityService>? log = null, StartupReadiness? startup = null)
     {
         _services = services;
         _log = log;
+        _startup = startup;
         var dbChecker = _services.GetService<IDatabaseHealthCheck>();
         var s3Checker = _services.GetService<IObjectStorageHealthCheck>();
+        _objectStorageStartupPending = s3Checker is not null;
+
+        var dbStarting = startup is not null && !startup.IsDatabaseReady;
         _current = new SystemConnectivitySnapshot(
             DatabaseProvider: dbChecker?.ProviderName ?? "in-memory",
-            DatabaseState: DependencyState.Ready,
-            DatabaseMessage: null,
+            DatabaseState: dbStarting
+                ? (startup!.HasDatabaseFailed ? DependencyState.Disconnected : DependencyState.StartingUp)
+                : DependencyState.Ready,
+            DatabaseMessage: dbStarting
+                ? (startup!.DatabaseMessage ?? WaitingForDatabaseMessage)
+                : null,
             ObjectStorageConfigured: s3Checker is not null,
             ObjectStorageName: s3Checker?.StorageName,
             ObjectStorageEndpoint: s3Checker?.Endpoint,
-            ObjectStorageState: s3Checker is not null ? DependencyState.Ready : DependencyState.Disabled,
-            ObjectStorageMessage: null,
+            ObjectStorageState: s3Checker is not null ? DependencyState.StartingUp : DependencyState.Disabled,
+            ObjectStorageMessage: s3Checker is not null ? WaitingForSeaweedFsMessage : null,
             CheckedAt: DateTimeOffset.MinValue);
     }
 
@@ -87,7 +101,22 @@ public sealed class SystemConnectivityService
             var dbState = DependencyState.Ready;
             string? dbMsg = null;
 
-            if (dbChecker is not null)
+            if (_startup is { IsDatabaseReady: false })
+            {
+                if (_startup.HasDatabaseFailed)
+                {
+                    dbState = DependencyState.Disconnected;
+                    dbMsg = _startup.DatabaseDetail ?? _startup.DatabaseMessage ?? "Database initialization failed.";
+                }
+                else
+                {
+                    dbState = DependencyState.StartingUp;
+                    dbMsg = string.IsNullOrWhiteSpace(_startup.DatabaseDetail)
+                        ? (_startup.DatabaseMessage ?? WaitingForDatabaseMessage)
+                        : $"{WaitingForDatabaseMessage} ({_startup.DatabaseDetail})";
+                }
+            }
+            else if (dbChecker is not null)
             {
                 using var dbCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
                 dbCts.CancelAfter(TimeSpan.FromSeconds(4));
@@ -105,7 +134,7 @@ public sealed class SystemConnectivityService
                     if (InfrastructureErrorHelper.IsDatabaseStartingUp(ex, out var detail))
                     {
                         dbState = DependencyState.StartingUp;
-                        dbMsg = $"PostgreSQL database is still starting up or recovering ({detail}). Please wait until initialization finishes.";
+                        dbMsg = $"{WaitingForDatabaseMessage} ({detail})";
                     }
                     else
                     {
@@ -125,16 +154,22 @@ public sealed class SystemConnectivityService
                 try
                 {
                     var (healthy, err) = await s3Checker.CheckHealthAsync(ct);
-                    if (!healthy)
+                    if (healthy)
                     {
-                        s3State = DependencyState.Disconnected;
-                        s3Msg = err ?? $"Cannot connect to SeaweedFS / Object Storage ({s3Checker.StorageName} at {s3Checker.Endpoint}).";
+                        _objectStorageStartupPending = false;
+                    }
+                    else
+                    {
+                        s3State = _objectStorageStartupPending ? DependencyState.StartingUp : DependencyState.Disconnected;
+                        var baseMsg = _objectStorageStartupPending ? WaitingForSeaweedFsMessage : SeaweedFsDisconnectedMessage;
+                        s3Msg = string.IsNullOrWhiteSpace(err) ? baseMsg : $"{baseMsg} ({err})";
                     }
                 }
                 catch (Exception ex)
                 {
-                    s3State = DependencyState.Disconnected;
-                    s3Msg = $"Cannot connect to SeaweedFS / Object Storage ({s3Checker.StorageName} at {s3Checker.Endpoint}): {InfrastructureErrorHelper.RootMessage(ex)}.";
+                    s3State = _objectStorageStartupPending ? DependencyState.StartingUp : DependencyState.Disconnected;
+                    var baseMsg = _objectStorageStartupPending ? WaitingForSeaweedFsMessage : SeaweedFsDisconnectedMessage;
+                    s3Msg = $"{baseMsg} ({InfrastructureErrorHelper.RootMessage(ex)})";
                     _log?.LogWarning(ex, "Object storage connectivity check failed: {Message}", s3Msg);
                 }
             }
@@ -159,14 +194,57 @@ public sealed class SystemConnectivityService
         }
     }
 
+    public void ReportObjectStorageWaiting(string? detail = null)
+    {
+        var msg = string.IsNullOrWhiteSpace(detail)
+            ? WaitingForSeaweedFsMessage
+            : $"{WaitingForSeaweedFsMessage} ({detail})";
+        UpdateSnapshot(_current with
+        {
+            ObjectStorageConfigured = true,
+            ObjectStorageState = DependencyState.StartingUp,
+            ObjectStorageMessage = msg,
+            CheckedAt = DateTimeOffset.UtcNow
+        });
+    }
+
+    public void ReportObjectStorageDisconnected(string? detail = null)
+    {
+        _objectStorageStartupPending = false;
+        var msg = string.IsNullOrWhiteSpace(detail)
+            ? SeaweedFsDisconnectedMessage
+            : $"{SeaweedFsDisconnectedMessage} ({detail})";
+        UpdateSnapshot(_current with
+        {
+            ObjectStorageConfigured = true,
+            ObjectStorageState = DependencyState.Disconnected,
+            ObjectStorageMessage = msg,
+            CheckedAt = DateTimeOffset.UtcNow
+        });
+    }
+
     public void ReportObjectStorageHealthy()
     {
+        _objectStorageStartupPending = false;
         if (_current.ObjectStorageState == DependencyState.Ready && _current.ObjectStorageMessage is null)
             return;
         UpdateSnapshot(_current with
         {
             ObjectStorageState = DependencyState.Ready,
             ObjectStorageMessage = null,
+            CheckedAt = DateTimeOffset.UtcNow
+        });
+    }
+
+    public void ReportDatabaseStartingUp(string? detail = null)
+    {
+        var msg = string.IsNullOrWhiteSpace(detail)
+            ? WaitingForDatabaseMessage
+            : $"{WaitingForDatabaseMessage} ({detail})";
+        UpdateSnapshot(_current with
+        {
+            DatabaseState = DependencyState.StartingUp,
+            DatabaseMessage = msg,
             CheckedAt = DateTimeOffset.UtcNow
         });
     }
@@ -187,11 +265,12 @@ public sealed class SystemConnectivityService
     {
         if (InfrastructureErrorHelper.IsObjectStorageError(ex, out var s3Detail))
         {
+            var baseMsg = _objectStorageStartupPending ? WaitingForSeaweedFsMessage : SeaweedFsDisconnectedMessage;
             UpdateSnapshot(_current with
             {
                 ObjectStorageConfigured = true,
-                ObjectStorageState = DependencyState.Disconnected,
-                ObjectStorageMessage = s3Detail,
+                ObjectStorageState = _objectStorageStartupPending ? DependencyState.StartingUp : DependencyState.Disconnected,
+                ObjectStorageMessage = $"{baseMsg} ({s3Detail})",
                 CheckedAt = DateTimeOffset.UtcNow
             });
         }
@@ -200,7 +279,7 @@ public sealed class SystemConnectivityService
             UpdateSnapshot(_current with
             {
                 DatabaseState = DependencyState.StartingUp,
-                DatabaseMessage = $"PostgreSQL database is still starting up or recovering ({startDetail}). Please wait a moment and try again.",
+                DatabaseMessage = $"{WaitingForDatabaseMessage} ({startDetail})",
                 CheckedAt = DateTimeOffset.UtcNow
             });
         }
@@ -239,14 +318,14 @@ public static class InfrastructureErrorHelper
         if (IsObjectStorageError(ex, out var s3Detail))
         {
             title = Tr("SeaweedFS Object Storage Not Connected");
-            message = $"{Tr("Cannot connect to SeaweedFS / Object Storage. Please ensure the SeaweedFS service is running.")} ({s3Detail})";
+            message = $"{Tr("SeaweedFS is not ready. You can continue, but you cannot upload or download documents.")} ({s3Detail})";
             return true;
         }
 
         if (IsDatabaseStartingUp(ex, out var startDetail))
         {
-            title = Tr("Database Not Ready");
-            message = $"{Tr("PostgreSQL database is not ready yet because it is still starting up or performing recovery. Please wait a moment and try again.")} ({startDetail})";
+            title = Tr("Waiting for Database");
+            message = $"{Tr("Waiting for the database to be ready. PostgreSQL is still starting up or performing recovery. Please wait a moment and try again.")} ({startDetail})";
             return true;
         }
 

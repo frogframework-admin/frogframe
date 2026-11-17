@@ -85,6 +85,8 @@ app.UseStatusCodePagesWithReExecute("/error/{0}");
 
 // 3. Global security headers (nosniff, SAMEORIGIN, CSP, Referrer, Permissions)
 app.UseFrogFrameSecurityHeaders();
+// 4. Startup gate: serves a clear English status page while PostgreSQL migrations/initialization are waiting on startup.
+app.UseFrogFrameStartupGate();
 
 app.UseAuthentication();
 // Bahasa UI per pengguna (Indonesia/Inggris: cookie → preferensi tersimpan → Localization:DefaultLanguage).
@@ -102,74 +104,116 @@ app.MapRazorComponents<App>()
    .AddInteractiveServerRenderMode()
    .AddAdditionalAssemblies(typeof(DeskLayout).Assembly);
 
-if (usePostgres)
+async Task InitializeDatabaseAndSeedAsync(CancellationToken ct)
 {
-    await app.Services.MigrateFrogFrameworkDatabaseAsync();
-    // Indeks dari metadata dibangun di latar belakang (CONCURRENTLY): startup tidak menunggu pembangunan indeks
-    // pada tabel besar, dan tabel tetap bisa ditulis selama proses. Diperbarui otomatis setiap metadata dipublikasikan.
-    _ = Task.Run(async () =>
+    if (usePostgres)
     {
-        try { await app.Services.SyncDocumentIndexesAsync(); }
-        catch (Exception ex) { app.Logger.LogError(ex, "Sinkronisasi indeks dokumen gagal"); }
-    });
-}
-// View pelaporan dibuat dari metadata aktif (dan diperbarui otomatis setiap publish).
-string? reportingProblem = null;
-if (useReporting)
-{
-    await app.Services.SyncReportingSchemaAsync();
-    // Peringatan di log bila user read-only belum siap. Aplikasi tetap berjalan; dashboard menampilkan pesannya.
-    reportingProblem = await app.Services.CheckReportingConnectionAsync();
-}
-
-// Pastikan menu default dan role default ter-seed untuk tenant bootstrap dan audit tenants
-var auditTenants = app.Configuration.GetSection("Metadata:AuditTenants").Get<string[]>() ?? [];
-var tenantToSeed = app.Configuration["Bootstrap:TenantId"] ?? "acme";
-var allTenants = new HashSet<string>(auditTenants, StringComparer.OrdinalIgnoreCase) { tenantToSeed };
-try
-{
-    var navStore = app.Services.GetRequiredService<Framework.Navigation.INavigationMenuStore>();
-    var roleStore = app.Services.GetRequiredService<Framework.Security.IRoleStore>();
-    foreach (var t in allTenants)
-    {
-        await navStore.EnsureDefaultMenusAsync(t);
-        await roleStore.EnsureDefaultRolesAsync(t);
+        await app.Services.MigrateFrogFrameworkDatabaseAsync(ct);
+        // Indeks dari metadata dibangun di latar belakang (CONCURRENTLY): startup tidak menunggu pembangunan indeks
+        // pada tabel besar, dan tabel tetap bisa ditulis selama proses. Diperbarui otomatis setiap metadata dipublikasikan.
+        _ = Task.Run(async () =>
+        {
+            try { await app.Services.SyncDocumentIndexesAsync(ct); }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+            catch (Exception ex) { app.Logger.LogError(ex, "Sinkronisasi indeks dokumen gagal"); }
+        }, ct);
     }
-}
-catch (Exception ex)
-{
-    app.Logger.LogWarning(ex, "Gagal seed awal navigasi menu/role");
-}
-
-// Audit metadata terhadap master role & modul tiap tenant yang dipantau (Metadata:AuditTenants).
-// Hanya melaporkan ke log; tidak mengubah metadata. Mencegah masalah baru ketahuan saat publish ulang.
-{
-    var registry = app.Services.GetRequiredService<MetadataRegistry>();
-    var catalog = app.Services.GetRequiredService<RoleCatalog>();
-    foreach (var tenant in auditTenants)
+    // View pelaporan dibuat dari metadata aktif (dan diperbarui otomatis setiap publish).
+    if (useReporting)
     {
-        foreach (var issue in registry.AuditAgainst(catalog.Scope(tenant)))
-            app.Logger.LogWarning("Metadata tidak cocok dengan master (tenant {Tenant}): {Source} › {Path}: {Message}",
-                tenant, issue.Source, issue.Path, issue.Message);
+        await app.Services.SyncReportingSchemaAsync(ct);
+        // Peringatan di log bila user read-only belum siap. Aplikasi tetap berjalan; dashboard menampilkan pesannya.
+        _ = await app.Services.CheckReportingConnectionAsync(ct);
     }
-}
 
-// Akun awal dari konfigurasi "Bootstrap" (pilot / production).
-await BootstrapAdmin.EnsureAsync(app.Services, app.Configuration);
-
-// Pastikan sample demo users ter-seed / tersinkronisasi bila Demo:SeedData aktif atau di Development
-if (app.Environment.IsDevelopment() || app.Configuration.GetValue("Demo:SeedData", false))
-{
+    // Pastikan menu default dan role default ter-seed untuk tenant bootstrap dan audit tenants
+    var auditTenants = app.Configuration.GetSection("Metadata:AuditTenants").Get<string[]>() ?? [];
+    var tenantToSeed = app.Configuration["Bootstrap:TenantId"] ?? "acme";
+    var allTenants = new HashSet<string>(auditTenants, StringComparer.OrdinalIgnoreCase) { tenantToSeed };
     try
     {
-        await Framework.Web.Services.DemoUsers.EnsureDemoUsersAsync(app.Services, app.Configuration["Demo:Password"]);
+        var navStore = app.Services.GetRequiredService<Framework.Navigation.INavigationMenuStore>();
+        var roleStore = app.Services.GetRequiredService<Framework.Security.IRoleStore>();
+        foreach (var t in allTenants)
+        {
+            await navStore.EnsureDefaultMenusAsync(t, ct);
+            await roleStore.EnsureDefaultRolesAsync(t, ct);
+        }
     }
-    catch (Exception ex)
+    catch (Exception ex) when (ex is not OperationCanceledException)
     {
-        app.Logger.LogWarning(ex, "Gagal seed sample demo users");
+        app.Logger.LogWarning(ex, "Gagal seed awal navigasi menu/role");
+    }
+
+    // Audit metadata terhadap master role & modul tiap tenant yang dipantau (Metadata:AuditTenants).
+    // Hanya melaporkan ke log; tidak mengubah metadata. Mencegah masalah baru ketahuan saat publish ulang.
+    {
+        var registry = app.Services.GetRequiredService<MetadataRegistry>();
+        var catalog = app.Services.GetRequiredService<RoleCatalog>();
+        foreach (var tenant in auditTenants)
+        {
+            foreach (var issue in registry.AuditAgainst(catalog.Scope(tenant)))
+                app.Logger.LogWarning("Metadata tidak cocok dengan master (tenant {Tenant}): {Source} › {Path}: {Message}",
+                    tenant, issue.Source, issue.Path, issue.Message);
+        }
+    }
+
+    // Akun awal dari konfigurasi "Bootstrap" (pilot / production).
+    await BootstrapAdmin.EnsureAsync(app.Services, app.Configuration);
+
+    // Pastikan sample demo users ter-seed / tersinkronisasi bila Demo:SeedData aktif atau di Development
+    if (app.Environment.IsDevelopment() || app.Configuration.GetValue("Demo:SeedData", false))
+    {
+        try
+        {
+            await Framework.Web.Services.DemoUsers.EnsureDemoUsersAsync(app.Services, app.Configuration["Demo:Password"]);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            app.Logger.LogWarning(ex, "Gagal seed sample demo users");
+        }
     }
 }
 
-app.Run();
+var startupReadiness = app.Services.GetRequiredService<Framework.Persistence.StartupReadiness>();
+var connectivity = app.Services.GetRequiredService<Framework.Web.Services.SystemConnectivityService>();
+
+if (usePostgres)
+{
+    startupReadiness.BeginDatabaseStartup("Waiting for the database to be ready...");
+    connectivity.ReportDatabaseStartingUp();
+}
+
+await app.StartAsync();
+
+if (usePostgres)
+{
+    _ = Task.Run(async () =>
+    {
+        var ct = app.Lifetime.ApplicationStopping;
+        try
+        {
+            await InitializeDatabaseAndSeedAsync(ct);
+            startupReadiness.ReportDatabaseReady();
+            connectivity.ReportDatabaseHealthy();
+            app.Logger.LogInformation("Database initialization complete; application is ready.");
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+        catch (Exception ex)
+        {
+            startupReadiness.ReportDatabaseFailed(ex.Message);
+            connectivity.ReportException(ex);
+            app.Logger.LogCritical(ex, "Database initialization failed during startup.");
+        }
+    });
+}
+else
+{
+    await InitializeDatabaseAndSeedAsync(app.Lifetime.ApplicationStopping);
+    startupReadiness.ReportDatabaseReady();
+    connectivity.ReportDatabaseHealthy();
+}
+
+await app.WaitForShutdownAsync();
 
 public partial class Program;

@@ -189,27 +189,70 @@ public sealed class S3BlobStorage : IBlobStorage, IObjectStorageHealthCheck, IDi
     public void Dispose() => _client.Dispose();
 }
 
-/// <summary>Checks (and optionally creates) the bucket at startup, so a wrong endpoint or key shows up in the log at once.</summary>
+/// <summary>
+/// Checks (and optionally creates) the bucket in the background at startup without blocking app startup.
+/// If SeaweedFS is not ready yet, users can continue using the app while upload/download remains unavailable until connected.
+/// </summary>
 public sealed class S3StartupCheck(S3BlobStorage storage, S3StorageOptions options, ILogger<S3StartupCheck> log,
-    Framework.Web.Services.SystemConnectivityService? connectivity = null) : IHostedService
+    Framework.Web.Services.SystemConnectivityService? connectivity = null) : BackgroundService
 {
-    public async Task StartAsync(CancellationToken cancellationToken)
+    private const int StartupGraceAttempts = 12; // ~60s at 5s interval
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        try
+        connectivity?.ReportObjectStorageWaiting();
+        var attempt = 0;
+
+        while (!stoppingToken.IsCancellationRequested)
         {
-            if (options.CreateBucket) await storage.EnsureBucketAsync(cancellationToken);
-            connectivity?.ReportObjectStorageHealthy();
-            log.LogInformation("File contents are stored in {Storage} ({Endpoint})", storage.Name, options.ServiceUrl ?? "AWS " + options.Region);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            connectivity?.ReportException(ex);
-            // Do not stop the app: uploads fail with a clear error until the object store is reachable.
-            log.LogError(ex, "Object storage {Storage} at {Endpoint} is not reachable; uploads and downloads will fail", storage.Name, options.ServiceUrl);
+            attempt++;
+            try
+            {
+                if (options.CreateBucket) await storage.EnsureBucketAsync(stoppingToken);
+                else
+                {
+                    var (healthy, err) = await storage.CheckHealthAsync(stoppingToken);
+                    if (!healthy) throw new ObjectStorageUnavailableException(storage.Name, storage.Endpoint ?? string.Empty, err ?? "Object storage health check failed.");
+                }
+
+                connectivity?.ReportObjectStorageHealthy();
+                log.LogInformation("File contents are stored in {Storage} ({Endpoint})", storage.Name, options.ServiceUrl ?? "AWS " + options.Region);
+                return;
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                var detail = ex is ObjectStorageUnavailableException ? ex.Message : ex.GetBaseException().Message;
+                if (attempt <= StartupGraceAttempts)
+                {
+                    connectivity?.ReportObjectStorageWaiting(detail);
+                    if (attempt == 1 || attempt % 6 == 0)
+                    {
+                        log.LogWarning(ex,
+                            "Waiting for SeaweedFS ({Storage} at {Endpoint}) to be ready (attempt {Attempt}). You can continue using the application, but you cannot upload or download documents.",
+                            storage.Name, options.ServiceUrl, attempt);
+                    }
+                }
+                else
+                {
+                    connectivity?.ReportObjectStorageDisconnected(detail);
+                    if (attempt == StartupGraceAttempts + 1)
+                    {
+                        log.LogError(ex,
+                            "SeaweedFS ({Storage} at {Endpoint}) is still unreachable; you can continue using the application, but document uploads and downloads will fail until SeaweedFS is running.",
+                            storage.Name, options.ServiceUrl);
+                    }
+                }
+
+                var delay = attempt < StartupGraceAttempts ? TimeSpan.FromSeconds(5) : TimeSpan.FromSeconds(30);
+                try { await Task.Delay(delay, stoppingToken); }
+                catch (OperationCanceledException) { return; }
+            }
         }
     }
-
-    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 }
 
 public static class ObjectStorageSetup

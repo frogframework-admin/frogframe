@@ -1,9 +1,11 @@
 @* Image field: upload (PNG/JPEG/WebP/GIF, max 2 MB, verified from file content), preview, replace, delete.
    Files are stored via FileService; field value = file id. Rendered via /files/{id} (checks tenant + doc permissions). *@
 @using Framework.Files
+@using Framework.Web.Services
 @using Microsoft.AspNetCore.Components.Forms
 @inject FileService Files
 @inject CurrentUser Current
+@inject SystemConnectivityService Connectivity
 
 <div class="image-field @(Compact ? "compact" : "")">
     <div class="image-frame">
@@ -56,9 +58,12 @@
             var id = await Files.UploadImageAsync(Current.Required, DocType, Field.Name, stream);
             await ValueChanged.InvokeAsync(id);
         }
-        catch (Exception ex) when (ex is FileRejectedException or PermissionDeniedException or IOException)
+        catch (Exception ex) when (ex is FileRejectedException or PermissionDeniedException or IOException or ObjectStorageUnavailableException)
         {
-            error = ex is IOException ? "Image size must be at most 2 MB." : ex.Message;
+            Connectivity.ReportException(ex);
+            error = ex is ObjectStorageUnavailableException
+                ? "Waiting for SeaweedFS to be ready. You can continue, but you cannot upload or download documents."
+                : ex is IOException ? "Image size must be at most 2 MB." : ex.Message;
         }
         finally { busy = false; }
     }

@@ -206,6 +206,13 @@ public static class HttpHardeningExtensions
     }
 
     /// <summary>
+    /// Serves a clear English status page (for browsers) or 503 JSON (for APIs) while PostgreSQL startup
+    /// migrations and initialization are still waiting for the database to become ready.
+    /// </summary>
+    public static IApplicationBuilder UseFrogFrameStartupGate(this IApplicationBuilder app) =>
+        app.UseMiddleware<FrogFrameStartupGateMiddleware>();
+
+    /// <summary>
     /// Maps sanitized, production-ready health check endpoints without leaking internal database error messages.
     /// /health/live: Liveness check
     /// /health/ready: Readiness check validating database connectivity
@@ -235,6 +242,7 @@ public static class HttpHardeningExtensions
                 var objStatus = snap.ObjectStorageState switch
                 {
                     DependencyState.Ready => "ready",
+                    DependencyState.StartingUp => "starting_up",
                     DependencyState.Disabled => "disabled",
                     _ => "unreachable"
                 };
@@ -331,5 +339,211 @@ public sealed class FrogFrameSecurityHeadersMiddleware(RequestDelegate next)
         }
 
         await next(context);
+    }
+}
+
+public sealed class FrogFrameStartupGateMiddleware(RequestDelegate next)
+{
+    public async Task InvokeAsync(HttpContext context)
+    {
+        var startup = context.RequestServices.GetService<StartupReadiness>();
+        if (startup is null || startup.IsDatabaseReady)
+        {
+            await next(context);
+            return;
+        }
+
+        var path = context.Request.Path;
+        if (path.Equals("/health", StringComparison.OrdinalIgnoreCase)
+            || path.Equals("/health/live", StringComparison.OrdinalIgnoreCase)
+            || path.Equals("/health/ready", StringComparison.OrdinalIgnoreCase)
+            || path.Equals("/favicon.ico", StringComparison.OrdinalIgnoreCase)
+            || path.Equals("/favicon.png", StringComparison.OrdinalIgnoreCase))
+        {
+            await next(context);
+            return;
+        }
+
+        context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+        context.Response.Headers["Retry-After"] = "3";
+        context.Response.Headers.CacheControl = "no-store, no-cache";
+
+        var accept = context.Request.Headers.Accept.ToString();
+        var wantsJson = path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWithSegments("/files", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWithSegments("/_blazor", StringComparison.OrdinalIgnoreCase)
+            || (!HttpMethods.IsGet(context.Request.Method) && !HttpMethods.IsHead(context.Request.Method))
+            || (accept.Contains("application/json", StringComparison.OrdinalIgnoreCase)
+                && !accept.Contains("text/html", StringComparison.OrdinalIgnoreCase));
+
+        if (wantsJson)
+        {
+            var title = startup.HasDatabaseFailed ? "Database initialization failed" : "Waiting for database";
+            var detail = startup.HasDatabaseFailed
+                ? (startup.DatabaseDetail ?? "Database initialization failed during startup.")
+                : "Waiting for the database to be ready. Please try again in a few seconds.";
+            context.Response.ContentType = "application/problem+json";
+            await context.Response.WriteAsJsonAsync(new
+            {
+                type = "https://httpstatuses.io/503",
+                title,
+                status = 503,
+                detail
+            }, context.RequestAborted);
+            return;
+        }
+
+        var connectivity = context.RequestServices.GetService<SystemConnectivityService>();
+        var showSeaweedNotice = connectivity is not null && connectivity.Current.ObjectStorageConfigured && !connectivity.Current.IsObjectStorageHealthy;
+        var failed = startup.HasDatabaseFailed;
+        var heading = failed ? "Database initialization failed" : "Waiting for the database to be ready...";
+        var bodyText = failed
+            ? "The application could not initialize the PostgreSQL database during startup."
+            : "FrogFrame is starting up and waiting for the database to accept connections and finish initialization. This page will continue automatically once the database is ready.";
+        var detailText = System.Net.WebUtility.HtmlEncode(startup.DatabaseDetail ?? string.Empty);
+
+        context.Response.ContentType = "text/html; charset=utf-8";
+        var html = $$"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{System.Net.WebUtility.HtmlEncode(heading)}} · FrogFrame</title>
+    <style>
+        :root { color-scheme: light dark; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            padding: 1.5rem;
+            font-family: 'Public Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f8fafc;
+            color: #0f172a;
+        }
+        @media (prefers-color-scheme: dark) {
+            body { background: #09090b; color: #f4f4f5; }
+            .card { background: #18181b !important; border-color: #27272a !important; }
+            .muted { color: #a1a1aa !important; }
+            .detail { background: #09090b !important; border-color: #27272a !important; color: #d4d4d8 !important; }
+        }
+        .card {
+            width: 100%;
+            max-width: 520px;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            padding: 2rem;
+            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+        }
+        .brand {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.6rem;
+            font-weight: 700;
+            font-size: 1rem;
+            margin-bottom: 1.25rem;
+        }
+        .mark {
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+            background: #2563eb;
+            color: #fff;
+            display: grid;
+            place-items: center;
+            font-weight: 800;
+        }
+        .row {
+            display: flex;
+            align-items: center;
+            gap: 0.85rem;
+            margin-bottom: 0.75rem;
+        }
+        .spinner {
+            width: 22px;
+            height: 22px;
+            border: 3px solid rgba(37, 99, 235, 0.2);
+            border-top-color: #2563eb;
+            border-radius: 50%;
+            animation: spin 0.9s linear infinite;
+            flex-shrink: 0;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        h1 { margin: 0; font-size: 1.25rem; font-weight: 700; }
+        p { margin: 0.5rem 0 0; line-height: 1.55; font-size: 0.95rem; }
+        .muted { color: #475569; }
+        .detail {
+            margin-top: 1rem;
+            padding: 0.75rem 0.9rem;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            background: #f8fafc;
+            font-size: 0.82rem;
+            color: #334155;
+            word-break: break-word;
+        }
+        .warn {
+            margin-top: 1rem;
+            padding: 0.8rem 0.95rem;
+            border-radius: 8px;
+            border: 1px solid #f59e0b;
+            background: rgba(245, 158, 11, 0.1);
+            color: #b45309;
+            font-size: 0.875rem;
+            line-height: 1.45;
+        }
+    </style>
+</head>
+<body>
+    <main class="card" role="status" aria-live="polite">
+        <div class="brand"><span class="mark" aria-hidden="true">F</span><span>FrogFrame</span></div>
+        <div class="row">
+            {{(failed ? "" : "<div class=\"spinner\" aria-hidden=\"true\"></div>")}}
+            <h1>{{System.Net.WebUtility.HtmlEncode(heading)}}</h1>
+        </div>
+        <p class="muted">{{System.Net.WebUtility.HtmlEncode(bodyText)}}</p>
+        <div id="db-detail" class="detail" style="{{(string.IsNullOrWhiteSpace(detailText) ? "display:none;" : "")}}">{{detailText}}</div>
+        <div id="s3-notice" class="warn" style="{{(showSeaweedNotice ? "" : "display:none;")}}">
+            <strong>Waiting for SeaweedFS:</strong> Once the database is ready, you can continue, but you cannot upload or download documents until SeaweedFS is ready.
+        </div>
+    </main>
+    {{(failed ? "" : """
+    <script>
+        (function () {
+            var pollMs = 2500;
+            async function check() {
+                try {
+                    var res = await fetch('/health/ready', { cache: 'no-store', credentials: 'omit' });
+                    if (res.ok) {
+                        window.location.reload();
+                        return;
+                    }
+                    var data = await res.json().catch(function () { return null; });
+                    if (data && data.database && data.database.message) {
+                        var el = document.getElementById('db-detail');
+                        if (el) {
+                            el.textContent = data.database.message;
+                            el.style.display = '';
+                        }
+                    }
+                    if (data && data.objectStorage) {
+                        var s3 = document.getElementById('s3-notice');
+                        if (s3) {
+                            s3.style.display = (data.objectStorage.status === 'ready' || data.objectStorage.status === 'disabled') ? 'none' : '';
+                        }
+                    }
+                } catch (e) {}
+                setTimeout(check, pollMs);
+            }
+            setTimeout(check, pollMs);
+        })();
+    </script>
+    """)}}
+</body>
+</html>
+""";
+        await context.Response.WriteAsync(html, context.RequestAborted);
     }
 }

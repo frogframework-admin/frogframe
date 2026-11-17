@@ -379,6 +379,7 @@ public static class ServiceCollectionExtensions
 
         services.AddScoped<CurrentUser>();
         services.AddScoped<GlobalSearchService>();
+        services.TryAddSingleton<StartupReadiness>();
         services.TryAddSingleton<SystemConnectivityService>();
 
         // Cetak & PDF
@@ -448,7 +449,8 @@ public sealed class OutboxWorker(
     OutboxProcessor processor,
     ILogger<OutboxWorker> log,
     IConfiguration? config = null,
-    OutboxWakeSignal? wakeSignal = null) : BackgroundService
+    OutboxWakeSignal? wakeSignal = null,
+    StartupReadiness? startup = null) : BackgroundService
 {
     /// <summary>Masa simpan pesan yang sudah diproses (Outbox:RetentionDays, default 7). Dead-letter tidak dihapus.</summary>
     private TimeSpan Retention => TimeSpan.FromDays(Math.Max(1, config?.GetValue("Outbox:RetentionDays", 7) ?? 7));
@@ -456,6 +458,8 @@ public sealed class OutboxWorker(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (startup is not null && !await startup.WaitForDatabaseReadyAsync(stoppingToken)) return;
+
         var pollInterval = TimeSpan.FromMilliseconds(750);
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -493,12 +497,15 @@ public sealed class SchedulerWorker(
     ScheduledJobRunner runner,
     TimeProvider clock,
     ILogger<SchedulerWorker> log,
-    IConfiguration? config = null) : BackgroundService
+    IConfiguration? config = null,
+    StartupReadiness? startup = null) : BackgroundService
 {
     private TimeSpan Interval => TimeSpan.FromSeconds(Math.Max(5, config?.GetValue("Scheduler:PollIntervalSeconds", 15) ?? 15));
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (startup is not null && !await startup.WaitForDatabaseReadyAsync(stoppingToken)) return;
+
         using var timer = new PeriodicTimer(Interval);
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
@@ -524,10 +531,13 @@ public sealed class SchedulerWorker(
 /// Menghapus file yang diunggah tetapi tidak pernah ditautkan ke dokumen (mis. dokumen tidak disimpan).
 /// Files:OrphanHours (default 24) = umur minimum; Files:PruneEveryHours (default 6) = jarak pembersihan.
 /// </summary>
-public sealed class FileOrphanWorker(IFileStore files, TimeProvider clock, ILogger<FileOrphanWorker> log, IConfiguration? config = null) : BackgroundService
+public sealed class FileOrphanWorker(IFileStore files, TimeProvider clock, ILogger<FileOrphanWorker> log, IConfiguration? config = null,
+    StartupReadiness? startup = null) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (startup is not null && !await startup.WaitForDatabaseReadyAsync(stoppingToken)) return;
+
         var every = TimeSpan.FromHours(Math.Max(1, config?.GetValue("Files:PruneEveryHours", 6) ?? 6));
         var keep = TimeSpan.FromHours(Math.Max(1, config?.GetValue("Files:OrphanHours", 24) ?? 24));
         using var timer = new PeriodicTimer(every);

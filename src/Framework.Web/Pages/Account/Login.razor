@@ -43,15 +43,17 @@
             @if (!Connectivity.Current.IsDatabaseHealthy)
             {
                 <div class="auth-alert" role="alert">
-                    <strong>@(Connectivity.Current.DatabaseState == DependencyState.StartingUp ? "Database is starting up:" : "Database is not connected:")</strong>
-                    @(Connectivity.Current.DatabaseMessage ?? "PostgreSQL is not ready yet. Please wait a moment and try again.")
+                    <strong>@(Connectivity.Current.DatabaseState == DependencyState.StartingUp ? "Waiting for database:" : "Database is not connected:")</strong>
+                    @(Connectivity.Current.DatabaseMessage ?? "Waiting for the database to be ready...")
                 </div>
             }
             @if (!Connectivity.Current.IsObjectStorageHealthy)
             {
                 <div class="auth-alert" role="alert" style="border-color: #f59e0b; background: rgba(245, 158, 11, 0.08); color: #b45309;">
-                    <strong>SeaweedFS Object Storage is not connected:</strong>
-                    @(Connectivity.Current.ObjectStorageMessage ?? "File and photo storage (SeaweedFS) is currently unreachable.")
+                    <strong>@(Connectivity.Current.ObjectStorageState == DependencyState.StartingUp ? "Waiting for SeaweedFS:" : "SeaweedFS is not connected:")</strong>
+                    @(Connectivity.Current.ObjectStorageState == DependencyState.StartingUp
+                        ? "Waiting for SeaweedFS to be ready. You can continue, but you cannot upload or download documents."
+                        : (Connectivity.Current.ObjectStorageMessage ?? "SeaweedFS is currently unreachable. You can continue, but you cannot upload or download documents until SeaweedFS is back online."))
                 </div>
             }
 

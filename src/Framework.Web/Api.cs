@@ -8,6 +8,7 @@ using Framework.Persistence;
 using Framework.Security;
 using Framework.Web.Printing;
 using Framework.Web.Identity;
+using Framework.Web.Services;
 using Microsoft.AspNetCore.Identity;
 using Framework.Files;
 using Framework.Reports;
@@ -36,7 +37,16 @@ public static class DocApi
             var user = ClaimsUserMapper.ToUserContext(http.User);
             if (user is null) return Results.Unauthorized();
             var sp = http.RequestServices;
-            var file = await sp.GetRequiredService<IFileStore>().GetAsync(user.TenantId, id, http.RequestAborted);
+            (FileRecord Record, byte[] Content)? file;
+            try
+            {
+                file = await sp.GetRequiredService<IFileStore>().GetAsync(user.TenantId, id, http.RequestAborted);
+            }
+            catch (ObjectStorageUnavailableException ex)
+            {
+                sp.GetService<SystemConnectivityService>()?.ReportException(ex);
+                return Problem(503, "SeaweedFS unavailable", SystemConnectivityService.WaitingForSeaweedFsMessage);
+            }
             if (file is not { } f) return Results.NotFound();
             bool allowed;
             if (f.Record.DocName is null || f.Record.DocType == "UserAccount")
@@ -78,6 +88,11 @@ public static class DocApi
             catch (KeyNotFoundException) { return Results.NotFound(); }
             catch (PermissionDeniedException) { return Results.NotFound(); }
             catch (DocumentNotFoundException) { return Results.NotFound(); }
+            catch (ObjectStorageUnavailableException ex)
+            {
+                http.RequestServices.GetService<SystemConnectivityService>()?.ReportException(ex);
+                return Problem(503, "SeaweedFS unavailable", SystemConnectivityService.WaitingForSeaweedFsMessage);
+            }
         });
 
         // ---------- Laporan file (Excel/Word) ----------
@@ -573,6 +588,11 @@ public static class DocApi
         catch (MetadataCompilationException ex) { return Problem(422, "Invalid metadata", "Check error list", ex.Errors.Select(e => new FieldError(e.Path, e.Message)).ToList()); }
         catch (JsonException ex) { return Problem(400, "Invalid JSON", ex.Message); }
         catch (PdfUnavailableException ex) { return Problem(501, "PDF unavailable", ex.Message); }
+        catch (ObjectStorageUnavailableException ex)
+        {
+            http.RequestServices.GetService<SystemConnectivityService>()?.ReportException(ex);
+            return Problem(503, "SeaweedFS unavailable", SystemConnectivityService.WaitingForSeaweedFsMessage);
+        }
         catch (InvalidOperationException ex) { return Problem(409, "Operation rejected", ex.Message); }
         catch (ApiMethodException ex) { return Problem(400, "Request rejected", ex.Message); }
         catch (Framework.Dashboards.QueryRejectedException ex) { return Problem(400, "Query rejected", ex.Message); }

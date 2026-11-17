@@ -3,6 +3,8 @@ using System.Reflection;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 
+using Framework.Persistence;
+
 namespace Framework.Persistence.PostgreSql;
 
 /// <summary>
@@ -16,7 +18,8 @@ public sealed class SchemaDataSource(NpgsqlDataSource source, bool owns = false)
     public ValueTask DisposeAsync() => owns ? Source.DisposeAsync() : ValueTask.CompletedTask;
 }
 
-public sealed class SchemaMigrator(SchemaDataSource schema, ILogger<SchemaMigrator> log, IEnumerable<IPostgresMigrationSource> migrationSources)
+public sealed class SchemaMigrator(SchemaDataSource schema, ILogger<SchemaMigrator> log, IEnumerable<IPostgresMigrationSource> migrationSources,
+    StartupReadiness? startup = null)
 {
     private readonly NpgsqlDataSource db = schema.Source;
     private const long LockKey = 0x46726F674672616D; // "FrogFrame"
@@ -71,8 +74,9 @@ public sealed class SchemaMigrator(SchemaDataSource schema, ILogger<SchemaMigrat
             }
             catch (Exception ex) when (attempt < maxAttempts && !ct.IsCancellationRequested && IsTransientStartupError(ex, out var reason))
             {
+                startup?.ReportDatabaseWaiting(reason);
                 log.LogWarning(
-                    "PostgreSQL database is not ready yet ({Reason}). Waiting {DelaySeconds}s before retrying (attempt {Attempt}/{MaxAttempts})...",
+                    "Waiting for the database to be ready ({Reason}). Retrying in {DelaySeconds}s (attempt {Attempt}/{MaxAttempts})...",
                     reason, (int)delay.TotalSeconds, attempt, maxAttempts);
                 await Task.Delay(delay, ct);
             }

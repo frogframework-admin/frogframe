@@ -1,4 +1,5 @@
 using Framework.Files;
+using Framework.Persistence;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -13,7 +14,7 @@ namespace Framework.Persistence.PostgreSql;
 /// at any moment: a row is emptied only after its object was written, and rows keep working either way.
 /// </summary>
 public sealed class PostgresBlobMigrationWorker(NpgsqlDataSource db, IServiceProvider services, IConfiguration configuration,
-    ILogger<PostgresBlobMigrationWorker> log) : BackgroundService
+    ILogger<PostgresBlobMigrationWorker> log, StartupReadiness? startup = null) : BackgroundService
 {
     private const long LockKey = 0x46524F47_424C4F42; // "FROGBLOB"
     private const int BatchSize = 20;
@@ -36,48 +37,75 @@ public sealed class PostgresBlobMigrationWorker(NpgsqlDataSource db, IServicePro
             return;
         }
 
+        if (startup is not null)
+        {
+            try
+            {
+                if (!await startup.WaitForDatabaseReadyAsync(stoppingToken)) return;
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
+        }
+
         try { await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken); } catch (OperationCanceledException) { return; } // let the app start first
 
-        await using var lockConn = await db.OpenConnectionAsync(stoppingToken);
-        await using (var tryLock = new NpgsqlCommand($"SELECT pg_try_advisory_lock({LockKey})", lockConn))
-            if (await tryLock.ExecuteScalarAsync(stoppingToken) is not true)
-            {
-                log.LogInformation("Another node is moving file contents to {Storage}", blobs.Name);
-                return;
-            }
-
+        NpgsqlConnection? lockConn = null;
         try
         {
-            foreach (var table in Tables)
-            {
-                var moved = 0;
-                while (!stoppingToken.IsCancellationRequested)
-                {
-                    var batch = await NextBatchAsync(table, stoppingToken);
-                    if (batch.Count == 0) break;
-                    foreach (var (id, tenant, contentType, content) in batch)
-                    {
-                        await blobs.PutAsync(table.Key(tenant, id), content, contentType, stoppingToken);
-                        // Only empty the row if it still holds the content we copied.
-                        await using var clear = db.CreateCommand($"UPDATE {table.Name} SET content = ''::bytea WHERE id = $1 AND tenant_id = $2 AND length(content) > 0");
-                        clear.Parameters.AddWithValue(id);
-                        clear.Parameters.AddWithValue(tenant);
-                        await clear.ExecuteNonQueryAsync(stoppingToken);
-                        moved++;
-                    }
-                }
-                if (moved > 0) log.LogInformation("Moved {Count} {Kind} contents from the database to {Storage}", moved, table.Kind, blobs.Name);
-            }
+            lockConn = await db.OpenConnectionAsync(stoppingToken);
         }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
         catch (Exception ex)
         {
-            log.LogError(ex, "Moving file contents to {Storage} stopped; it continues at the next start", blobs.Name);
+            log.LogWarning(ex, "Could not open database connection for blob migration; it will retry on the next start");
+            return;
         }
-        finally
+
+        await using (lockConn)
         {
-            await using var unlock = new NpgsqlCommand($"SELECT pg_advisory_unlock({LockKey})", lockConn);
-            await unlock.ExecuteScalarAsync(CancellationToken.None);
+            await using (var tryLock = new NpgsqlCommand($"SELECT pg_try_advisory_lock({LockKey})", lockConn))
+                if (await tryLock.ExecuteScalarAsync(stoppingToken) is not true)
+                {
+                    log.LogInformation("Another node is moving file contents to {Storage}", blobs.Name);
+                    return;
+                }
+
+            try
+            {
+                foreach (var table in Tables)
+                {
+                    var moved = 0;
+                    while (!stoppingToken.IsCancellationRequested)
+                    {
+                        var batch = await NextBatchAsync(table, stoppingToken);
+                        if (batch.Count == 0) break;
+                        foreach (var (id, tenant, contentType, content) in batch)
+                        {
+                            await blobs.PutAsync(table.Key(tenant, id), content, contentType, stoppingToken);
+                            // Only empty the row if it still holds the content we copied.
+                            await using var clear = db.CreateCommand($"UPDATE {table.Name} SET content = ''::bytea WHERE id = $1 AND tenant_id = $2 AND length(content) > 0");
+                            clear.Parameters.AddWithValue(id);
+                            clear.Parameters.AddWithValue(tenant);
+                            await clear.ExecuteNonQueryAsync(stoppingToken);
+                            moved++;
+                        }
+                    }
+                    if (moved > 0) log.LogInformation("Moved {Count} {Kind} contents from the database to {Storage}", moved, table.Kind, blobs.Name);
+                }
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
+            catch (Exception ex)
+            {
+                log.LogError(ex, "Moving file contents to {Storage} stopped; it continues at the next start", blobs.Name);
+            }
+            finally
+            {
+                try
+                {
+                    await using var unlock = new NpgsqlCommand($"SELECT pg_advisory_unlock({LockKey})", lockConn);
+                    await unlock.ExecuteScalarAsync(CancellationToken.None);
+                }
+                catch { }
+            }
         }
     }
 

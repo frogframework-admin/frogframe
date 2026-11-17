@@ -2,10 +2,12 @@
    content), download, replace, remove. Stored via FileService; field value = file id. Download via /files/{id}
    (tenant + document permission checks; non-images are sent as attachment with the original name). *@
 @using Framework.Files
+@using Framework.Web.Services
 @using Microsoft.AspNetCore.Components.Forms
 @inject FileService Files
 @inject IFileStore FileStore
 @inject CurrentUser Current
+@inject SystemConnectivityService Connectivity
 
 <div class="attach-field @(Compact ? "compact" : "")" style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
     @if (Value is not null)
@@ -71,9 +73,12 @@
             var id = await Files.UploadFieldFileAsync(Current.Required, DocType, Field.Name, e.File.Name, stream);
             await ValueChanged.InvokeAsync(id);
         }
-        catch (Exception ex) when (ex is FileRejectedException or PermissionDeniedException or IOException)
+        catch (Exception ex) when (ex is FileRejectedException or PermissionDeniedException or IOException or ObjectStorageUnavailableException)
         {
-            error = ex is IOException ? "File size must be at most 10 MB." : ex.Message;
+            Connectivity.ReportException(ex);
+            error = ex is ObjectStorageUnavailableException
+                ? "Waiting for SeaweedFS to be ready. You can continue, but you cannot upload or download documents."
+                : ex is IOException ? "File size must be at most 10 MB." : ex.Message;
         }
         finally { busy = false; }
     }
