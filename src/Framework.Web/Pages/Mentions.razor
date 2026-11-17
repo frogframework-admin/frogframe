@@ -29,19 +29,28 @@
 </header>
 
 <div class="stack">
-    <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-        <BbButton Size="ButtonSize.Small" Variant="@(!onlyUnread ? ButtonVariant.Default : ButtonVariant.Outline)" OnClick="() => SetFilter(false)">
-            @T["All"] (@allMentions.Count)
-        </BbButton>
-        <BbButton Size="ButtonSize.Small" Variant="@(onlyUnread ? ButtonVariant.Default : ButtonVariant.Outline)" OnClick="() => SetFilter(true)">
-            @T["Unread"] (@unreadCount)
-        </BbButton>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:.75rem;flex-wrap:wrap">
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+            <BbButton Size="ButtonSize.Small" Variant="@(!onlyUnread ? ButtonVariant.Default : ButtonVariant.Outline)" OnClick="() => SetFilter(false)">
+                @T["All"] (@allMentions.Count)
+            </BbButton>
+            <BbButton Size="ButtonSize.Small" Variant="@(onlyUnread ? ButtonVariant.Default : ButtonVariant.Outline)" OnClick="() => SetFilter(true)">
+                @T["Unread"] (@unreadCount)
+            </BbButton>
+        </div>
+        <div style="min-width:15rem;flex:1;max-width:22rem">
+            <BbInput Value="@searchQuery"
+                     ValueChanged="OnSearchChanged"
+                     UpdateTiming="UpdateTiming.Immediate"
+                     Placeholder="@(T["Search mentions, document, or sender…"])"
+                     AriaLabel="@(T["Search mentions"])" />
+        </div>
     </div>
 
     @if (VisibleMentions.Count == 0)
     {
-        <BbEmpty Title="@(onlyUnread ? T["No unread mentions"] : T["No mentions yet"])"
-                 Description="@(onlyUnread ? T["You have read all your mentions."] : T["When someone tags @you or @everyone in a document comment, it will appear here."])">
+        <BbEmpty Title="@(!string.IsNullOrWhiteSpace(searchQuery) ? T["No matching mentions"] : onlyUnread ? T["No unread mentions"] : T["No mentions yet"])"
+                 Description="@(!string.IsNullOrWhiteSpace(searchQuery) ? T["Try a different search keyword."] : onlyUnread ? T["You have read all your mentions."] : T["When someone tags @you or @everyone in a document comment, it will appear here."])">
             <Icon><LucideIcon Name="at-sign" Size="28" /></Icon>
         </BbEmpty>
     }
@@ -105,12 +114,15 @@
     private IReadOnlyList<Notification> allMentions = [];
     private int unreadCount;
     private bool onlyUnread;
+    private string searchQuery = "";
     private int pageSize = 20;
     private int displayLimit = 20;
     private IDisposable? liveSub;
 
     private IReadOnlyList<Notification> VisibleMentions =>
-        onlyUnread ? allMentions.Where(n => !n.Read).ToList() : allMentions;
+        (onlyUnread ? allMentions.Where(n => !n.Read) : allMentions)
+        .Where(MatchesSearch)
+        .ToList();
 
     private IReadOnlyList<Notification> PagedMentions =>
         VisibleMentions.Take(displayLimit).ToList();
@@ -134,6 +146,23 @@
     {
         onlyUnread = unread;
         displayLimit = pageSize;
+    }
+
+    private void OnSearchChanged(string? value)
+    {
+        searchQuery = value ?? "";
+        displayLimit = pageSize;
+    }
+
+    private bool MatchesSearch(Notification n)
+    {
+        var q = searchQuery.Trim();
+        if (q.Length == 0) return true;
+        var docTitle = n.DocType is not null && Metadata.Current.TryGet(n.DocType, out var dt) ? T.Title(dt) : n.DocType;
+        return n.Subject.Contains(q, StringComparison.OrdinalIgnoreCase)
+            || n.Body.Contains(q, StringComparison.OrdinalIgnoreCase)
+            || (!string.IsNullOrEmpty(n.DocName) && n.DocName.Contains(q, StringComparison.OrdinalIgnoreCase))
+            || (!string.IsNullOrEmpty(docTitle) && docTitle.Contains(q, StringComparison.OrdinalIgnoreCase));
     }
 
     private void LoadMore() => displayLimit += pageSize;

@@ -99,10 +99,6 @@ else if (meta is not null && doc is not null)
                       AdditionalAttributes="@(new Dictionary<string, object> { ["target"] = "_blank", ["title"] = T["A4 print preview"] })">
                 <LucideIcon Name="printer" Size="16" /> @T["Print"]
             </BbButton>
-            <BbButton Variant="ButtonVariant.Ghost" Href="@($"/api/print/{DocType}/{Name}/pdf")" Disabled="@dirty"
-                      AdditionalAttributes="@(new Dictionary<string, object> { ["title"] = T["Download PDF"] })">
-                <LucideIcon Name="file-down" Size="16" /> PDF
-            </BbButton>
             @if (meta.AllowAutoRepeat)
             {
                 <BbButton Variant="ButtonVariant.Ghost" Disabled="@dirty" OnClick="OpenAutoRepeatDrawer"
@@ -386,6 +382,13 @@ else if (meta is not null && doc is not null)
                                 <BbButton Size="ButtonSize.Small" Variant="@(historyFilter == "comments" ? ButtonVariant.Default : ButtonVariant.Outline)" OnClick='() => SetHistoryFilter("comments")'>@T["Comments"] (@CommentCount)</BbButton>
                                 <BbButton Size="ButtonSize.Small" Variant="@(historyFilter == "audit" ? ButtonVariant.Default : ButtonVariant.Outline)" OnClick='() => SetHistoryFilter("audit")'>@T["Audit Log"] (@AuditOnlyCount)</BbButton>
                             </div>
+                            <div style="min-width:14rem;flex:1;max-width:20rem">
+                                <BbInput Value="@historySearchQuery"
+                                         ValueChanged="OnHistorySearchChanged"
+                                         UpdateTiming="UpdateTiming.Immediate"
+                                         Placeholder="@(T["Search history & comments…"])"
+                                         AriaLabel="@(T["Search history & comments"])" />
+                            </div>
                         </div>
 
                         <div style="padding-top:.5rem">
@@ -523,6 +526,7 @@ else if (meta is not null && doc is not null)
     private IReadOnlyList<CommunicationEntry> communications = [];
     private IReadOnlyList<UserContext> mentionUsers = [];
     private string historyFilter = "all";
+    private string historySearchQuery = "";
     private int historyPageSize = 10;
     private int historyDisplayLimit = 10;
     private string newComment = "";
@@ -532,18 +536,37 @@ else if (meta is not null && doc is not null)
 
     private int CommentCount => audit.Count(a => a.Action == AuditActions.Comment);
     private int AuditOnlyCount => audit.Count(a => a.Action != AuditActions.Comment);
-    private IReadOnlyList<AuditEntry> FilteredAudit => historyFilter switch
+    private IReadOnlyList<AuditEntry> FilteredAudit => (historyFilter switch
     {
-        "comments" => audit.Where(a => a.Action == AuditActions.Comment).ToList(),
-        "audit" => audit.Where(a => a.Action != AuditActions.Comment).ToList(),
+        "comments" => audit.Where(a => a.Action == AuditActions.Comment),
+        "audit" => audit.Where(a => a.Action != AuditActions.Comment),
         _ => audit
-    };
+    }).Where(MatchesHistorySearch).ToList();
     private IReadOnlyList<AuditEntry> PagedAudit => FilteredAudit.Take(historyDisplayLimit).ToList();
     private bool HasMoreHistory => FilteredAudit.Count > historyDisplayLimit;
     private void SetHistoryFilter(string filter)
     {
         historyFilter = filter;
         historyDisplayLimit = historyPageSize;
+    }
+    private void OnHistorySearchChanged(string? value)
+    {
+        historySearchQuery = value ?? "";
+        historyDisplayLimit = historyPageSize;
+    }
+    private bool MatchesHistorySearch(AuditEntry a)
+    {
+        var q = historySearchQuery.Trim();
+        if (q.Length == 0) return true;
+        return a.Actor.Contains(q, StringComparison.OrdinalIgnoreCase)
+            || a.Action.Contains(q, StringComparison.OrdinalIgnoreCase)
+            || (!string.IsNullOrEmpty(a.Comment) && a.Comment.Contains(q, StringComparison.OrdinalIgnoreCase))
+            || (!string.IsNullOrEmpty(a.FromState) && a.FromState.Contains(q, StringComparison.OrdinalIgnoreCase))
+            || (!string.IsNullOrEmpty(a.ToState) && a.ToState.Contains(q, StringComparison.OrdinalIgnoreCase))
+            || a.Changes.Any(c =>
+                c.Field.Contains(q, StringComparison.OrdinalIgnoreCase)
+                || (!string.IsNullOrEmpty(c.Old) && c.Old.Contains(q, StringComparison.OrdinalIgnoreCase))
+                || (!string.IsNullOrEmpty(c.New) && c.New.Contains(q, StringComparison.OrdinalIgnoreCase)));
     }
     private void LoadMoreHistory() => historyDisplayLimit += historyPageSize;
     private IDisposable? liveNotifSub;
@@ -791,6 +814,7 @@ else if (meta is not null && doc is not null)
             audit = IsNew ? [] : await Docs.GetAuditAsync(User, DocType, Name);
             historyPageSize = UiOptions.From(Config).HistoryCommentsPageSize;
             historyDisplayLimit = historyPageSize;
+            historySearchQuery = "";
             attachments = IsNew ? [] : await Attachments.ListAsync(User, DocType, Name);
             communications = IsNew ? [] : await CommService.ListForDocumentAsync(User, DocType, Name);
             mentionUsers = IsNew ? [] : await Users.ListAsync(User.TenantId);
