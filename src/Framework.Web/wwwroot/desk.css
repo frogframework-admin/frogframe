@@ -2549,6 +2549,159 @@ table.desk-doc-table td.act-col {
   color: var(--accent-foreground);
 }
 
+/* Assign To header strip & My Tasks widget */
+.assignment-strip {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .25rem .65rem .25rem .35rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--foreground);
+  font-size: .78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color .15s ease, background-color .15s ease;
+}
+
+.assignment-strip:hover {
+  border-color: color-mix(in oklch, var(--brand) 40%, var(--border));
+  background: var(--muted);
+}
+
+.assignment-strip-avatars {
+  display: inline-flex;
+  align-items: center;
+}
+
+.assignment-avatar-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--brand) 16%, var(--card));
+  color: var(--brand);
+  font-size: .68rem;
+  font-weight: 700;
+  border: 1.5px solid var(--card);
+}
+
+.assignment-strip-avatars .assignment-avatar-chip + .assignment-avatar-chip {
+  margin-left: -.35rem;
+}
+
+.my-tasks-section {
+  display: flex;
+  flex-direction: column;
+  gap: .75rem;
+}
+
+.my-tasks-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .85rem;
+}
+
+.my-tasks-pill {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: .75rem 1.1rem;
+  border-radius: .8rem;
+  border: 1px solid color-mix(in oklch, var(--border) 85%, transparent);
+  background: var(--card);
+  text-decoration: none;
+  color: var(--muted-foreground);
+  font-size: .84rem;
+  font-weight: 500;
+}
+
+.my-tasks-pill strong {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+.my-tasks-pill.overdue {
+  border-color: rgba(220, 38, 38, .35);
+  background: rgba(220, 38, 38, .06);
+  color: #dc2626;
+}
+
+.my-tasks-pill.overdue strong {
+  color: #dc2626;
+}
+
+.my-task-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: .85rem 1.25rem;
+  border-bottom: 1px solid color-mix(in oklch, var(--border) 75%, transparent);
+}
+
+.my-task-row:last-child {
+  border-bottom: 0;
+}
+
+.my-task-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.my-task-title {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  flex-wrap: wrap;
+}
+
+.my-task-note {
+  margin-top: .2rem;
+  font-size: .8rem;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.my-task-meta {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  flex-shrink: 0;
+}
+
+.my-task-due {
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+
+.my-task-due.overdue {
+  color: #dc2626;
+}
+
+.my-task-due.today {
+  color: #d97706;
+}
+
+@media (max-width: 640px) {
+  .my-tasks-stats {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .my-task-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
 .admin-grid {
   display: grid;
   grid-template-columns: 15rem minmax(0, 1fr);

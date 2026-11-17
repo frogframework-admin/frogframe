@@ -96,7 +96,7 @@ This document summarizes the current development status of FrogFramework, includ
 |---|---|---|---|
 | **P1-4** | **Comments & @mention Timeline** | Internal collaboration thread directly beneath the document form (interleaved discussion and audit trail) with `@username` tagging and notification triggers. | High |
 | **P1-5** | **Export List & Bulk Actions** | Export tabular data to Excel (`.xlsx`) and `.csv` files (respecting user permissions and active filter scopes), plus bulk operations: **Bulk Submit**, **Bulk Cancel**, and **Bulk Edit Field** (extending existing Bulk Delete). | High |
-| **P1-7** | **Assign To / ToDo & "My Tasks" Widget** | Document delegation to specific staff/users, due date tracking, and a dedicated "My Tasks" dashboard widget for monitoring pending assignments. | Medium |
+| **P1-7** | **Assign To / ToDo & "My Tasks" Widget** *(Completed)* | Document delegation to specific staff/users, due date tracking, daily reminders, `/tasks` workspace, and a dedicated "My Tasks" Home widget. | Medium |
 | **P1-8** | **Saved Filters / Custom Views** | User-defined saved search filter combinations per DocType, persisting named presets via the established `IUserPreferenceStore` foundation. | Medium |
 
 ### Priority 2: Platform Scalability & Extensibility (P2)

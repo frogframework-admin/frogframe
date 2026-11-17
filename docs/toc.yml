@@ -38,6 +38,8 @@
       href: server-scripts.md
     - name: Inbound Email & Communication Timeline
       href: communications.md
+    - name: Document Assignments (Assign To / My Tasks)
+      href: assignments.md
     - name: Excel & CSV Data Import
       href: guides/excel-import.md
     - name: Custom Code Reports (IReportProvider)

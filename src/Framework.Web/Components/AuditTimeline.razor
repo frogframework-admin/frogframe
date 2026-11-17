@@ -68,14 +68,20 @@ else
         return "display:inline-block;padding:0 .3rem;border-radius:.25rem;background:var(--bb-accent);color:var(--bb-accent-foreground);font-weight:600";
     }
 
-    private static TimelineColor Color(AuditEntry e) => e.Action == AuditActions.Comment
-        ? TimelineColor.Secondary
-        : e.ToState switch
+    private static TimelineColor Color(AuditEntry e) => e.Action switch
+    {
+        AuditActions.Comment => TimelineColor.Secondary,
+        AssignmentAuditActions.Assigned => TimelineColor.Primary,
+        AssignmentAuditActions.Completed => TimelineColor.Primary,
+        AssignmentAuditActions.Cancelled => TimelineColor.Destructive,
+        AssignmentAuditActions.Updated => TimelineColor.Muted,
+        _ => e.ToState switch
         {
             "Ditolak" or "Dibatalkan" or "Cancelled" or "Rejected" => TimelineColor.Destructive,
             null => TimelineColor.Muted,
             _ => TimelineColor.Primary
-        };
+        }
+    };
 
     private static string IconName(AuditEntry e)
     {
@@ -86,6 +92,10 @@ else
         return e.Action.ToLowerInvariant() switch
         {
             "comment" => "message-square",
+            "assigned" => "user-plus",
+            "assignment completed" => "check-circle-2",
+            "assignment cancelled" => "user-x",
+            "assignment updated" => "calendar-clock",
             "dibuat" or "created" => "plus",
             "diubah" or "updated" or "modified" => "pencil",
             "amend" or "amended" => "copy",
@@ -100,6 +110,10 @@ else
         : T[e.Action.ToLowerInvariant() switch
         {
             "comment" => "commented",
+            "assigned" => "assigned document",
+            "assignment completed" => "completed assignment",
+            "assignment cancelled" => "cancelled assignment",
+            "assignment updated" => "updated assignment",
             "dibuat" or "created" => "created document",
             "diubah" or "updated" or "modified" => "updated document",
             "amend" or "amended" => "created amendment",

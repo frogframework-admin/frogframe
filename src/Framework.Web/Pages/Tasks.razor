@@ -1,0 +1,324 @@
+@page "/tasks"
+@using Framework.Notifications
+@using Microsoft.Extensions.Configuration
+@inject AssignmentService AssignmentsSvc
+@inject INotificationLiveFeed LiveNotifications
+@inject CurrentUser Current
+@inject NavigationManager Nav
+@inject ToastService Toasts
+@inject IConfiguration Config
+@inject UiText T
+@implements IDisposable
+
+<PageTitle>@T["My Tasks"] · FrogFrame</PageTitle>
+
+<header class="page-head">
+    <div>
+        <h1>@T["My Tasks"]</h1>
+        <p>@T["Documents assigned to you and tasks you delegated. Click an item to open the document or mark it complete."]</p>
+    </div>
+    <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+        <BbBadge Variant="BadgeVariant.Secondary">@T.Format("{0} Open", counts.Open)</BbBadge>
+        @if (counts.DueToday > 0)
+        {
+            <BbBadge Variant="BadgeVariant.Outline">@T.Format("{0} Due Today", counts.DueToday)</BbBadge>
+        }
+        @if (counts.Overdue > 0)
+        {
+            <BbBadge Variant="BadgeVariant.Destructive">@T.Format("{0} Overdue", counts.Overdue)</BbBadge>
+        }
+    </div>
+</header>
+
+<div class="stack">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:.75rem;flex-wrap:wrap">
+        <div style="display:flex;gap:.45rem;flex-wrap:wrap">
+            <BbButton Size="ButtonSize.Small" Variant="@(tab == "open" ? ButtonVariant.Default : ButtonVariant.Outline)" OnClick='() => SetTab("open")'>
+                @T["Open"] (@counts.Open)
+            </BbButton>
+            <BbButton Size="ButtonSize.Small" Variant="@(tab == "today" ? ButtonVariant.Default : ButtonVariant.Outline)" OnClick='() => SetTab("today")'>
+                @T["Due Today"] (@counts.DueToday)
+            </BbButton>
+            <BbButton Size="ButtonSize.Small" Variant="@(tab == "overdue" ? ButtonVariant.Default : ButtonVariant.Outline)" OnClick='() => SetTab("overdue")'>
+                @T["Overdue"] (@counts.Overdue)
+            </BbButton>
+            <BbButton Size="ButtonSize.Small" Variant="@(tab == "completed" ? ButtonVariant.Default : ButtonVariant.Outline)" OnClick='() => SetTab("completed")'>
+                @T["Completed"]
+            </BbButton>
+            <BbButton Size="ButtonSize.Small" Variant="@(tab == "assignedByMe" ? ButtonVariant.Default : ButtonVariant.Outline)" OnClick='() => SetTab("assignedByMe")'>
+                @T["Assigned by Me"]
+            </BbButton>
+        </div>
+        <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;flex:1;justify-content:flex-end;min-width:16rem">
+            <div style="min-width:13rem;flex:1;max-width:20rem">
+                <BbInput Value="@searchQuery"
+                         ValueChanged="OnSearchChanged"
+                         UpdateTiming="UpdateTiming.Immediate"
+                         Placeholder="@(T["Search tasks, document, or person…"])"
+                         AriaLabel="@(T["Search tasks"])" />
+            </div>
+            <div style="min-width:9.5rem">
+                <BbSelect TValue="string" Value="@sortBy" ValueChanged="OnSortChanged" Options="SortOptions" />
+            </div>
+        </div>
+    </div>
+
+    @if (loading)
+    {
+        <div class="stack"><BbSkeleton Height="4rem" /><BbSkeleton Height="4rem" /><BbSkeleton Height="4rem" /></div>
+    }
+    else if (SortedItems.Count == 0)
+    {
+        <BbEmpty Title="@EmptyTitle" Description="@EmptyDescription">
+            <Icon><LucideIcon Name="list-todo" Size="28" /></Icon>
+        </BbEmpty>
+    }
+    else
+    {
+        <BbCard>
+            <BbCardContent Style="padding:0">
+                @foreach (var item in PagedItems)
+                {
+                    var a = item.Assignment;
+                    var today = AssignmentsSvc.Today;
+                    var overdue = a.IsOverdue(today);
+                    var dueToday = a.IsDueToday(today);
+                    var docHref = $"/app/{a.DocType}/{a.DocName}";
+                    <div class="inbox-item @(overdue ? "unread" : "")" style="align-items:center">
+                        <BbAvatar>
+                            <BbAvatarFallback>
+                                <LucideIcon Name="@(a.Status == AssignmentStatus.Completed ? "check-circle-2" : a.Status == AssignmentStatus.Cancelled ? "x" : "clipboard-check")" Size="16" />
+                            </BbAvatarFallback>
+                        </BbAvatar>
+                        <div class="body">
+                            <div style="display:flex;align-items:center;gap:.45rem;flex-wrap:wrap">
+                                <a href="@docHref" style="font-weight:600">@a.DocName</a>
+                                <BbBadge Variant="BadgeVariant.Outline">@T[item.DocTypeTitle]</BbBadge>
+                                @if (!string.IsNullOrWhiteSpace(item.DocTitle) && !string.Equals(item.DocTitle, a.DocName, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    <span class="small" style="font-weight:500">@item.DocTitle</span>
+                                }
+                                <BbBadge Variant="@PriorityBadgeVariant(a.Priority)">@T[a.Priority.ToString()]</BbBadge>
+                                @if (!a.IsOpen)
+                                {
+                                    <BbBadge Variant="@(a.Status == AssignmentStatus.Completed ? BadgeVariant.SoftSuccess : BadgeVariant.Outline)">@T[a.Status.ToString()]</BbBadge>
+                                }
+                                else if (overdue)
+                                {
+                                    <BbBadge Variant="BadgeVariant.Destructive">@FormatDueBadge(a.DueDate, today)</BbBadge>
+                                }
+                                else if (dueToday)
+                                {
+                                    <BbBadge Variant="BadgeVariant.Secondary">@T["Due today"]</BbBadge>
+                                }
+                                else if (a.DueDate is { } dd)
+                                {
+                                    <BbBadge Variant="BadgeVariant.Outline">@T.Format("Due {0}", AssignmentFormat.Date(dd) ?? "")</BbBadge>
+                                }
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(a.Description))
+                            {
+                                <p style="white-space:pre-wrap">@a.Description</p>
+                            }
+                            <p class="muted small">
+                                @if (tab == "assignedByMe")
+                                {
+                                    @T.Format("Assigned to {0} · {1}", item.AssignedToName ?? a.AssignedTo, Fmt.When(a.CreatedAt))
+                                }
+                                else
+                                {
+                                    @T.Format("Assigned by {0} · {1}", item.AssignedByName ?? a.AssignedBy, Fmt.When(a.CreatedAt))
+                                }
+                            </p>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:.4rem;flex-shrink:0">
+                            @if (a.IsOpen)
+                            {
+                                <BbButton Size="ButtonSize.Small" Variant="ButtonVariant.Outline" Disabled="@busy" OnClick="() => CompleteAsync(a.Id)">
+                                    <LucideIcon Name="check" Size="14" /> @T["Complete"]
+                                </BbButton>
+                                <BbButton Size="ButtonSize.Small" Variant="ButtonVariant.Ghost" Disabled="@busy" OnClick="() => CancelAsync(a.Id)"
+                                          AdditionalAttributes="@(new Dictionary<string, object> { ["title"] = T["Cancel assignment"] })">
+                                    <LucideIcon Name="x" Size="14" />
+                                </BbButton>
+                            }
+                            <BbButton Size="ButtonSize.Small" Variant="ButtonVariant.Ghost" OnClick="@(() => Nav.NavigateTo(docHref))">
+                                @T["Open"]
+                            </BbButton>
+                        </div>
+                    </div>
+                }
+            </BbCardContent>
+        </BbCard>
+
+        @if (HasMore)
+        {
+            <div style="display:flex;justify-content:center;padding:.5rem 0">
+                <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick="LoadMore">
+                    @T["Load more"] (@PagedItems.Count / @SortedItems.Count)
+                </BbButton>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private IReadOnlyList<TaskItem> items = [];
+    private AssignmentCounts counts = new(0, 0, 0);
+    private string tab = "open";
+    private string searchQuery = "";
+    private string sortBy = "due";
+    private int pageSize = 20;
+    private int displayLimit = 20;
+    private bool loading = true;
+    private bool busy;
+    private IDisposable? liveSub;
+
+    private IReadOnlyList<SelectOption<string>> SortOptions =>
+    [
+        new("due", T["Sort: Due date"]),
+        new("priority", T["Sort: Priority"]),
+        new("newest", T["Sort: Newest"])
+    ];
+
+    private IReadOnlyList<TaskItem> SortedItems => (sortBy switch
+    {
+        "priority" => items.OrderByDescending(x => x.Assignment.Priority).ThenBy(x => x.Assignment.DueDate is null ? 1 : 0).ThenBy(x => x.Assignment.DueDate),
+        "newest" => items.OrderByDescending(x => x.Assignment.CreatedAt),
+        _ => items.OrderBy(x => x.Assignment.Status == AssignmentStatus.Open ? 0 : 1).ThenBy(x => x.Assignment.DueDate is null ? 1 : 0).ThenBy(x => x.Assignment.DueDate).ThenByDescending(x => x.Assignment.CreatedAt)
+    }).ToList();
+
+    private IReadOnlyList<TaskItem> PagedItems => SortedItems.Take(displayLimit).ToList();
+    private bool HasMore => SortedItems.Count > displayLimit;
+
+    private string EmptyTitle => !string.IsNullOrWhiteSpace(searchQuery)
+        ? T["No matching tasks"]
+        : tab switch
+        {
+            "today" => T["No tasks due today"],
+            "overdue" => T["No overdue tasks"],
+            "completed" => T["No completed tasks yet"],
+            "assignedByMe" => T["No delegated tasks"],
+            _ => T["No open tasks"]
+        };
+
+    private string EmptyDescription => !string.IsNullOrWhiteSpace(searchQuery)
+        ? T["Try a different search keyword."]
+        : tab switch
+        {
+            "assignedByMe" => T["Tasks you assign to teammates from a document will appear here."],
+            _ => T["You're all caught up — no pending tasks in this view."]
+        };
+
+    protected override async Task OnInitializedAsync()
+    {
+        pageSize = UiOptions.From(Config).TasksPageSize;
+        displayLimit = pageSize;
+        await RefreshAsync();
+        var u = Current.Required;
+        liveSub = LiveNotifications.Subscribe(u.TenantId, u.Id, _ => InvokeAsync(async () =>
+        {
+            await RefreshAsync();
+            StateHasChanged();
+        }));
+    }
+
+    private async Task RefreshAsync()
+    {
+        loading = items.Count == 0;
+        try
+        {
+            var u = Current.Required;
+            counts = await AssignmentsSvc.CountMyTasksAsync(u);
+            items = tab switch
+            {
+                "today" => await AssignmentsSvc.ListMyTasksAsync(u, AssignmentStatus.Open, onlyDueToday: true, search: searchQuery, take: AssignmentLimits.MaxQueryTake),
+                "overdue" => await AssignmentsSvc.ListMyTasksAsync(u, AssignmentStatus.Open, onlyOverdue: true, search: searchQuery, take: AssignmentLimits.MaxQueryTake),
+                "completed" => await AssignmentsSvc.ListMyTasksAsync(u, AssignmentStatus.Completed, search: searchQuery, take: AssignmentLimits.MaxQueryTake),
+                "assignedByMe" => await AssignmentsSvc.ListAssignedByMeAsync(u, status: null, search: searchQuery, take: AssignmentLimits.MaxQueryTake),
+                _ => await AssignmentsSvc.ListMyTasksAsync(u, AssignmentStatus.Open, search: searchQuery, take: AssignmentLimits.MaxQueryTake)
+            };
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task SetTab(string next)
+    {
+        tab = next;
+        displayLimit = pageSize;
+        await RefreshAsync();
+    }
+
+    private async Task OnSearchChanged(string? value)
+    {
+        searchQuery = value ?? "";
+        displayLimit = pageSize;
+        await RefreshAsync();
+    }
+
+    private void OnSortChanged(string? value)
+    {
+        sortBy = string.IsNullOrEmpty(value) ? "due" : value;
+    }
+
+    private void LoadMore() => displayLimit += pageSize;
+
+    private async Task CompleteAsync(Guid id)
+    {
+        if (busy) return;
+        busy = true;
+        try
+        {
+            await AssignmentsSvc.CompleteAsync(Current.Required, id);
+            Toasts.Success(T["Task marked as complete."], T["Completed"]);
+            await RefreshAsync();
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error(T.Message(ex.Message), T["Error"]);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task CancelAsync(Guid id)
+    {
+        if (busy) return;
+        busy = true;
+        try
+        {
+            await AssignmentsSvc.CancelAsync(Current.Required, id);
+            Toasts.Info(T["Assignment cancelled."], T["Cancelled"]);
+            await RefreshAsync();
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error(T.Message(ex.Message), T["Error"]);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private string FormatDueBadge(DateOnly? due, DateOnly today)
+    {
+        if (due is not { } d) return "";
+        var days = today.DayNumber - d.DayNumber;
+        return days == 1 ? T["1 day overdue"] : T.Format("{0} days overdue", days);
+    }
+
+    private static BadgeVariant PriorityBadgeVariant(AssignmentPriority p) => p switch
+    {
+        AssignmentPriority.High => BadgeVariant.Destructive,
+        AssignmentPriority.Low => BadgeVariant.Outline,
+        _ => BadgeVariant.Secondary
+    };
+
+    public void Dispose() => liveSub?.Dispose();
+}

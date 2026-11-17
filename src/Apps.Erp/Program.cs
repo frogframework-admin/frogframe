@@ -60,6 +60,7 @@ builder.Services.AddScheduledJob<NotificationRuleDateJob>();
 builder.Services.AddScheduledJob<Framework.Integrations.AutoRepeatJob>();
 builder.Services.AddScheduledJob<Framework.Scripting.ServerScriptScheduledJob>();
 builder.Services.AddScheduledJob<Framework.Communication.EmailAccountPollJob>();
+builder.Services.AddScheduledJob<Framework.Assignments.AssignmentReminderJob>();
 
 // Hardening HTTP production: ForwardedHeaders & HSTS
 builder.Services.AddFrogFrameHttpHardening(builder.Configuration);

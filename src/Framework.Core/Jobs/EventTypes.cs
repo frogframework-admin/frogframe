@@ -14,6 +14,7 @@ public static class EventTypes
     public const string DocumentSubmit = "document.submit";
     public const string DocumentCancel = "document.cancel";
     public const string CommentAdded = "document.comment";
+    public const string AssignmentChanged = "document.assignment";
 
     /// <summary>
     /// Generates a standardized lowercase event name for document actions, e.g. "document.submit", "document.cancel".
@@ -32,7 +33,8 @@ public static class EventTypes
         WorkflowTransitioned,
         DocumentSubmit,
         DocumentCancel,
-        CommentAdded
+        CommentAdded,
+        AssignmentChanged
     ];
 }
 

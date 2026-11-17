@@ -102,8 +102,10 @@ For full architectural context and runbooks, refer to [Production Readiness Guid
   - Live document presence indicator deduplication per user and exclusion of current user.
 - [ ] **P1-8 — Saved Filters / Custom Views** (Medium Urgency):
   - Persist and load user-defined named search filter combinations per DocType via `IUserPreferenceStore`.
-- [ ] **P1-7 — Assign To / ToDo & "My Tasks" Widget** (Medium Urgency):
-  - Implement document delegation to users, due date tracking, and a "My Tasks" dashboard widget for pending assignments.
+- [x] **P1-7 — Assign To / ToDo & "My Tasks" Widget** (Medium Urgency):
+  - Document delegation to one or more users with due date, priority, and notes (`036_assignments.sql`, `AssignmentService`).
+  - Real-time in-app notifications (`AssignmentNotifier`), daily due/overdue reminders (`AssignmentReminderJob`), and automatic cancellation on document deletion (`AssignmentDocumentCleanupHandler`).
+  - FormPage **Assign** drawer & header assignee strip, `/tasks` page, sidebar live badge, Home **My Tasks** widget, and REST API endpoints.
 
 ### Priority 2: Platform Scalability & Extensibility (P2)
 

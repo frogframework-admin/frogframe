@@ -147,6 +147,12 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<NotificationRuleEngine>();
         services.AddSingleton<IEventHandler, NotificationRuleEventHandler>();
         services.AddSingleton<IEventHandler, Framework.Documents.CommentMentionNotifier>();
+        services.TryAddSingleton<Framework.Assignments.IAssignmentStore, Framework.Assignments.InMemoryAssignmentStore>();
+        services.TryAddSingleton(sp => new Framework.Assignments.AssignmentNotificationOptions(
+            sp.GetService<IConfiguration>()?.GetValue("Assignments:SendEmail", false) ?? false));
+        services.AddSingleton<Framework.Assignments.AssignmentService>();
+        services.AddSingleton<IEventHandler, Framework.Assignments.AssignmentNotifier>();
+        services.AddSingleton<IEventHandler, Framework.Assignments.AssignmentDocumentCleanupHandler>();
         services.TryAddSingleton<IUserPreferenceStore, InMemoryUserPreferenceStore>();
         // Multi-bahasa (Indonesia/Inggris): kamus framework + aplikasi + terjemahan per tenant.
         Framework.Localization.LocalizationSetup.AddFrogFrameLocalization(services, options.Translations);

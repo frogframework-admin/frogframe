@@ -399,6 +399,68 @@ public static class DocApi
             return Results.Created($"/api/data/{doctype}/{name}/audit", entry);
         }));
 
+        // ---------- Assignments (ToDo / My Tasks) ----------
+        api.MapGet("/assignments/me", (HttpContext http, string? status, bool? overdue, bool? dueToday, string? search, int? skip, int? take) =>
+            Run(http, async (user, sp) =>
+            {
+                Framework.Assignments.AssignmentStatus? parsedStatus = Framework.Assignments.AssignmentStatus.Open;
+                if (!string.IsNullOrWhiteSpace(status))
+                {
+                    if (string.Equals(status, "all", StringComparison.OrdinalIgnoreCase))
+                        parsedStatus = null;
+                    else if (Enum.TryParse<Framework.Assignments.AssignmentStatus>(status, true, out var s))
+                        parsedStatus = s;
+                    else
+                        throw new InvalidPayloadException($"Unknown assignment status '{status}'.");
+                }
+                var items = await Assignments(sp).ListMyTasksAsync(user, parsedStatus, overdue ?? false, dueToday ?? false, search, skip ?? 0, take ?? 50, http.RequestAborted);
+                return Results.Ok(items);
+            }));
+
+        api.MapGet("/assignments/me/counts", (HttpContext http) => Run(http, async (user, sp) =>
+            Results.Ok(await Assignments(sp).CountMyTasksAsync(user, http.RequestAborted))));
+
+        api.MapGet("/data/{doctype}/{name}/assignments", (HttpContext http, string doctype, string name) => Run(http, $"doc:{doctype}:read", async (user, sp) =>
+        {
+            RequireApi(sp, doctype, "read");
+            return Results.Ok(await Assignments(sp).ListForDocumentAsync(user, doctype, name, http.RequestAborted));
+        }));
+
+        api.MapPost("/data/{doctype}/{name}/assignments", (HttpContext http, string doctype, string name, AssignBody body) => Run(http, $"doc:{doctype}:read", async (user, sp) =>
+        {
+            RequireApi(sp, doctype, "read");
+            DateOnly? dueDate = null;
+            if (!string.IsNullOrWhiteSpace(body.DueDate))
+                dueDate = Framework.Assignments.AssignmentFormat.ParseDate(body.DueDate) ?? throw new InvalidPayloadException("dueDate must be yyyy-MM-dd.");
+            var priority = Framework.Assignments.AssignmentPriority.Medium;
+            if (!string.IsNullOrWhiteSpace(body.Priority) && !Enum.TryParse(body.Priority, true, out priority))
+                throw new InvalidPayloadException($"Unknown priority '{body.Priority}'.");
+            var created = await Assignments(sp).AssignAsync(user, doctype, name, body.Assignees ?? [], dueDate, priority, body.Description, http.RequestAborted);
+            return Results.Created($"/api/data/{doctype}/{name}/assignments", created);
+        }));
+
+        api.MapPost("/assignments/{id:guid}/complete", (HttpContext http, Guid id, AssignmentCloseBody? body) => Run(http, async (user, sp) =>
+            Results.Ok(await Assignments(sp).CompleteAsync(user, id, body?.Note, http.RequestAborted))));
+
+        api.MapPost("/assignments/{id:guid}/cancel", (HttpContext http, Guid id, AssignmentCloseBody? body) => Run(http, async (user, sp) =>
+            Results.Ok(await Assignments(sp).CancelAsync(user, id, body?.Note, http.RequestAborted))));
+
+        api.MapMethods("/assignments/{id:guid}", ["PATCH"], (HttpContext http, Guid id, AssignmentPatchBody body) => Run(http, async (user, sp) =>
+        {
+            DateOnly? dueDate = null;
+            if (body.UpdateDueDate && !string.IsNullOrWhiteSpace(body.DueDate))
+                dueDate = Framework.Assignments.AssignmentFormat.ParseDate(body.DueDate) ?? throw new InvalidPayloadException("dueDate must be yyyy-MM-dd.");
+            Framework.Assignments.AssignmentPriority? priority = null;
+            if (!string.IsNullOrWhiteSpace(body.Priority))
+            {
+                if (!Enum.TryParse<Framework.Assignments.AssignmentPriority>(body.Priority, true, out var p))
+                    throw new InvalidPayloadException($"Unknown priority '{body.Priority}'.");
+                priority = p;
+            }
+            var req = new Framework.Assignments.UpdateAssignmentRequest(dueDate, body.UpdateDueDate, priority, body.AssignedTo, body.Description, body.UpdateDescription);
+            return Results.Ok(await Assignments(sp).UpdateAsync(user, id, req, http.RequestAborted));
+        }));
+
         // ?doctype=…&field=… (opsional): terapkan filter Link dari field asal, mis. hanya akun daun untuk baris jurnal.
         api.MapGet("/links/{target}", (HttpContext http, string target, string? q, string? doctype, string? field) => Run(http, $"doc:{target}:list", async (user, sp) =>
             Results.Ok(await Docs(sp).SearchLinkAsync(user, target, q, http.RequestAborted, doctype, field))));
@@ -474,12 +536,16 @@ public static class DocApi
     }
 
     public sealed record ActionBody(string? Comment);
+    public sealed record AssignBody(IReadOnlyList<string>? Assignees, string? DueDate, string? Priority, string? Description);
+    public sealed record AssignmentCloseBody(string? Note);
+    public sealed record AssignmentPatchBody(string? DueDate, bool UpdateDueDate, string? Priority, string? AssignedTo, string? Description, bool UpdateDescription);
     public sealed record LoginBody(string? UserName, string? Password);
     public sealed record ForgotPasswordBody(string? Identifier, string? Email);
     public sealed record ResetPasswordBody(string? UserId, string? Token, string? NewPassword);
     public sealed record GenerateReportBody(Dictionary<string, string?>? Parameters);
 
     private static DocumentService Docs(IServiceProvider sp) => sp.GetRequiredService<DocumentService>();
+    private static Framework.Assignments.AssignmentService Assignments(IServiceProvider sp) => sp.GetRequiredService<Framework.Assignments.AssignmentService>();
 
     private static void RequireRole(UserContext user, string role)
     {

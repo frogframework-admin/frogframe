@@ -28,6 +28,7 @@
 @inject PrintHtmlRenderer PrintHtml
 @inject IPdfRenderer PdfRenderer
 @inject IUserDirectory Users
+@inject AssignmentService AssignmentsSvc
 @inject INotificationLiveFeed LiveNotifications
 @inject UiText T
 @inject IConfiguration Config
@@ -64,6 +65,42 @@ else if (meta is not null && doc is not null)
             </p>
         </div>
         <div class="row" style="gap:.75rem;align-items:center;flex-wrap:wrap">
+            @if (!IsNew && OpenAssignments.Count > 0)
+            {
+                <button type="button"
+                        class="assignment-strip"
+                        @onclick="OpenAssignDrawer"
+                        title="@(T["Manage document assignments"])">
+                    <span class="assignment-strip-avatars">
+                        @foreach (var a in OpenAssignments.Take(3))
+                        {
+                            <span class="assignment-avatar-chip">@Initials(UserDisplayName(a.AssignedTo))</span>
+                        }
+                        @if (OpenAssignments.Count > 3)
+                        {
+                            <span class="assignment-avatar-chip">+@(OpenAssignments.Count - 3)</span>
+                        }
+                    </span>
+                    <span class="assignment-strip-text">
+                        @if (OpenAssignments.Count == 1)
+                        {
+                            @T.Format("Assigned to {0}", UserDisplayName(OpenAssignments[0].AssignedTo))
+                        }
+                        else
+                        {
+                            @T.Format("{0} assignees", OpenAssignments.Count)
+                        }
+                    </span>
+                    @if (OpenAssignments.Any(a => a.IsOverdue(AssignmentsSvc.Today)))
+                    {
+                        <BbBadge Variant="BadgeVariant.Destructive">@T["Overdue"]</BbBadge>
+                    }
+                    else if (OpenAssignments.Any(a => a.IsDueToday(AssignmentsSvc.Today)))
+                    {
+                        <BbBadge Variant="BadgeVariant.Secondary">@T["Due today"]</BbBadge>
+                    }
+                </button>
+            }
             @if (!IsNew)
             {
                 <DocumentPresenceBar Users="@presenceUsers" CurrentSessionId="@sessionId" CurrentUserId="@User.Id" />
@@ -113,6 +150,10 @@ else if (meta is not null && doc is not null)
             <BbButton Variant="ButtonVariant.Ghost" Disabled="@dirty" OnClick="OpenSendEmailDrawer"
                       AdditionalAttributes="@(new Dictionary<string, object> { ["title"] = T["Send email regarding this document"] })">
                 <LucideIcon Name="mail" Size="16" /> @T["Email"]
+            </BbButton>
+            <BbButton Variant="ButtonVariant.Ghost" Disabled="@dirty" OnClick="OpenAssignDrawer"
+                      AdditionalAttributes="@(new Dictionary<string, object> { ["title"] = T["Assign document to users"] })">
+                <LucideIcon Name="user-plus" Size="16" /> @T["Assign"]@(OpenAssignments.Count > 0 ? $" ({OpenAssignments.Count})" : "")
             </BbButton>
         }
         @if (!IsNew && !meta.Def.IsSingle && doc.DocStatus == DocStatus.Draft && meta.Def.Document.AllowDelete && Perms.Can(User, meta, DocActions.Delete))
@@ -574,6 +615,182 @@ else if (meta is not null && doc is not null)
                 </div>
             </FooterContent>
         </AdminDrawer>
+
+        <AdminDrawer Open="@isAssignDrawerOpen"
+                     OpenChanged="v => isAssignDrawerOpen = v"
+                     Title="@($"{T["Assign To"]} · {Name}")"
+                     WidthScale="1.3">
+            <ChildContent>
+                @if (assignError is not null)
+                {
+                    <BbAlert Variant="AlertVariant.Danger" Style="margin-bottom:1rem">
+                        <BbAlertDescription>@T.Message(assignError)</BbAlertDescription>
+                    </BbAlert>
+                }
+
+                <div style="display:flex;flex-direction:column;gap:1rem">
+                    <div>
+                        <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">@T["Assign To"] *</label>
+                        @if (AvailableAssigneeOptions.Any())
+                        {
+                            <BbMultiSelect TValue="string"
+                                           Values="@assignSelectedUsers"
+                                           ValuesChanged="OnAssigneesSelected"
+                                           Options="AvailableAssigneeOptions"
+                                           Placeholder="@(T["Select teammates…"])"
+                                           SearchPlaceholder="@(T["Search users…"])"
+                                           EmptyMessage="@(T["No matching users"])"
+                                           ShowSelectAll="false"
+                                           MaxDisplayTags="4"
+                                           MatchTriggerWidth="true" />
+                        }
+                        else
+                        {
+                            <div class="muted small" style="padding:.5rem .75rem;border:1px dashed var(--bb-border);border-radius:var(--radius)">
+                                @T["All eligible users with access are already assigned to this document."]
+                            </div>
+                        }
+                    </div>
+
+                    <div class="row" style="gap:1rem">
+                        <div style="flex:1">
+                            <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">@T["Due Date"]</label>
+                            <BbDatePicker Value="@assignDueDate"
+                                          ValueChanged="d => assignDueDate = d"
+                                          DateFormat="d MMM yyyy"
+                                          Placeholder="@(T["Optional"])" />
+                        </div>
+                        <div style="flex:1">
+                            <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">@T["Priority"]</label>
+                            <BbSelect TValue="string" @bind-Value="assignPriorityStr" Options="AssignPriorityOptions" />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">@T["Note"]</label>
+                        <BbTextarea @bind-Value="assignDescription"
+                                    Rows="3"
+                                    MaxLength="@AssignmentLimits.MaxDescriptionLength"
+                                    Placeholder="@(T["Optional instructions or context for the assignee…"])" />
+                    </div>
+
+                    <div style="display:flex;justify-content:flex-end">
+                        <BbButton Size="ButtonSize.Small"
+                                  Disabled="@(assignBusy || assignSelectedUsers.Count == 0)"
+                                  Loading="@assignBusy"
+                                  LoadingText="@(T["Assigning…"])"
+                                  OnClick="AssignDocumentAsync">
+                            <LucideIcon Name="user-plus" Size="14" /> @T["Assign"]
+                        </BbButton>
+                    </div>
+
+                    <hr style="border:0;border-top:1px solid var(--bb-border);margin:.25rem 0" />
+
+                    <div>
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
+                            <strong style="font-size:.9rem">@T["Assignments"] (@assignments.Count)</strong>
+                        </div>
+
+                        @if (assignments.Count == 0)
+                        {
+                            <div class="muted small" style="padding:.75rem;border:1px dashed var(--bb-border);border-radius:var(--radius)">
+                                @T["No assignments yet for this document."]
+                            </div>
+                        }
+                        else
+                        {
+                            var today = AssignmentsSvc.Today;
+                            <div style="display:flex;flex-direction:column;gap:.65rem">
+                                @foreach (var a in assignments)
+                                {
+                                    var canClose = CanCloseAssignment(a);
+                                    var canEdit = CanEditAssignment(a);
+                                    var overdue = a.IsOverdue(today);
+                                    var dueToday = a.IsDueToday(today);
+                                    <div style="padding:.75rem;border:1px solid var(--bb-border);border-radius:var(--radius);display:flex;flex-direction:column;gap:.45rem;opacity:@(a.IsOpen ? "1" : "0.72")">
+                                        <div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap">
+                                            <div style="display:flex;align-items:center;gap:.45rem;flex-wrap:wrap">
+                                                <span class="assignment-avatar-chip">@Initials(UserDisplayName(a.AssignedTo))</span>
+                                                <strong>@UserDisplayName(a.AssignedTo)</strong>
+                                                <BbBadge Variant="@PriorityBadgeVariant(a.Priority)">@T[a.Priority.ToString()]</BbBadge>
+                                                @if (!a.IsOpen)
+                                                {
+                                                    <BbBadge Variant="@(a.Status == AssignmentStatus.Completed ? BadgeVariant.SoftSuccess : BadgeVariant.Outline)">@T[a.Status.ToString()]</BbBadge>
+                                                }
+                                                else if (overdue)
+                                                {
+                                                    <BbBadge Variant="BadgeVariant.Destructive">@T.Format("Overdue ({0})", AssignmentFormat.Date(a.DueDate) ?? "")</BbBadge>
+                                                }
+                                                else if (dueToday)
+                                                {
+                                                    <BbBadge Variant="BadgeVariant.Secondary">@T["Due today"]</BbBadge>
+                                                }
+                                                else if (a.DueDate is { } dd)
+                                                {
+                                                    <BbBadge Variant="BadgeVariant.Outline">@T.Format("Due {0}", AssignmentFormat.Date(dd) ?? "")</BbBadge>
+                                                }
+                                            </div>
+                                            <span class="muted small">@T.Format("by {0}", UserDisplayName(a.AssignedBy))</span>
+                                        </div>
+
+                                        @if (!string.IsNullOrWhiteSpace(a.Description))
+                                        {
+                                            <div class="small" style="white-space:pre-wrap">@a.Description</div>
+                                        }
+                                        @if (!a.IsOpen && !string.IsNullOrWhiteSpace(a.CloseNote))
+                                        {
+                                            <div class="muted small">@T["Closure note:"] @a.CloseNote</div>
+                                        }
+
+                                        @if (a.IsOpen && (canClose || canEdit))
+                                        {
+                                            if (editingAssignmentId == a.Id)
+                                            {
+                                                <div style="display:flex;gap:.5rem;align-items:flex-end;flex-wrap:wrap;padding-top:.25rem">
+                                                    <div style="flex:1;min-width:9rem">
+                                                        <BbDatePicker Value="@editDueDate" ValueChanged="d => editDueDate = d" DateFormat="d MMM yyyy" Placeholder="@(T["No due date"])" />
+                                                    </div>
+                                                    <div style="min-width:7.5rem">
+                                                        <BbSelect TValue="string" @bind-Value="editPriorityStr" Options="AssignPriorityOptions" />
+                                                    </div>
+                                                    <BbButton Size="ButtonSize.Small" Disabled="@assignBusy" OnClick="() => SaveAssignmentEditAsync(a)">@T["Save"]</BbButton>
+                                                    <BbButton Size="ButtonSize.Small" Variant="ButtonVariant.Ghost" OnClick="() => editingAssignmentId = null">@T["Cancel"]</BbButton>
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <div style="display:flex;gap:.4rem;flex-wrap:wrap;padding-top:.2rem">
+                                                    @if (canClose)
+                                                    {
+                                                        <BbButton Size="ButtonSize.Small" Variant="ButtonVariant.Outline" Disabled="@assignBusy" OnClick="() => CompleteAssignmentAsync(a.Id)">
+                                                            <LucideIcon Name="check" Size="13" /> @T["Mark Complete"]
+                                                        </BbButton>
+                                                        <BbButton Size="ButtonSize.Small" Variant="ButtonVariant.Ghost" Disabled="@assignBusy" OnClick="() => CancelAssignmentAsync(a.Id)">
+                                                            <LucideIcon Name="x" Size="13" /> @T["Cancel"]
+                                                        </BbButton>
+                                                    }
+                                                    @if (canEdit)
+                                                    {
+                                                        <BbButton Size="ButtonSize.Small" Variant="ButtonVariant.Ghost" Disabled="@assignBusy" OnClick="() => BeginEditAssignment(a)">
+                                                            <LucideIcon Name="calendar-clock" Size="13" /> @T["Edit"]
+                                                        </BbButton>
+                                                    }
+                                                </div>
+                                            }
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            </ChildContent>
+            <FooterContent>
+                <div style="display:flex;justify-content:flex-end;width:100%">
+                    <BbButton Variant="ButtonVariant.Ghost" OnClick="() => isAssignDrawerOpen = false">@T["Close"]</BbButton>
+                </div>
+            </FooterContent>
+        </AdminDrawer>
     }
 }
 
@@ -600,6 +817,9 @@ else if (meta is not null && doc is not null)
     private IReadOnlyList<AttachmentRecord> attachments = [];
     private IReadOnlyList<CommunicationEntry> communications = [];
     private IReadOnlyList<UserContext> mentionUsers = [];
+    private IReadOnlyList<Assignment> assignments = [];
+    private IReadOnlyList<UserContext> eligibleAssignees = [];
+    private IReadOnlyList<Assignment> OpenAssignments => assignments.Where(a => a.IsOpen).ToList();
     private string historyFilter = "all";
     private string historySearchQuery = "";
     private int historyPageSize = 10;
@@ -906,6 +1126,8 @@ else if (meta is not null && doc is not null)
             attachments = IsNew ? [] : await Attachments.ListAsync(User, DocType, Name);
             communications = IsNew ? [] : await CommService.ListForDocumentAsync(User, DocType, Name);
             mentionUsers = IsNew ? [] : await Users.ListAsync(User.TenantId);
+            assignments = IsNew ? [] : await AssignmentsSvc.ListForDocumentAsync(User, DocType, Name);
+            eligibleAssignees = IsNew ? [] : await AssignmentsSvc.ListEligibleAssigneesAsync(User, DocType, Name);
             newComment = ""; mentionQuery = ""; showMentionPicker = false;
 
             if (!IsNew)
@@ -922,6 +1144,7 @@ else if (meta is not null && doc is not null)
                         await InvokeAsync(async () =>
                         {
                             audit = await Docs.GetAuditAsync(User, DocType, Name);
+                            assignments = await AssignmentsSvc.ListForDocumentAsync(User, DocType, Name);
                             StateHasChanged();
                         });
                     }
@@ -1746,6 +1969,180 @@ else if (meta is not null && doc is not null)
             postingComment = false;
         }
     }
+
+    private bool isAssignDrawerOpen;
+    private bool assignBusy;
+    private string? assignError;
+    private List<string> assignSelectedUsers = [];
+    private DateTime? assignDueDate;
+    private string assignPriorityStr = nameof(AssignmentPriority.Medium);
+    private string assignDescription = "";
+    private Guid? editingAssignmentId;
+    private DateTime? editDueDate;
+    private string editPriorityStr = nameof(AssignmentPriority.Medium);
+
+    private IReadOnlyList<SelectOption<string>> AssignPriorityOptions =>
+    [
+        new(nameof(AssignmentPriority.Low), T["Low"]),
+        new(nameof(AssignmentPriority.Medium), T["Medium"]),
+        new(nameof(AssignmentPriority.High), T["High"])
+    ];
+
+    private IEnumerable<SelectOption<string>> AvailableAssigneeOptions
+    {
+        get
+        {
+            var alreadyOpen = OpenAssignments.Select(a => a.AssignedTo).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            return eligibleAssignees
+                .Where(u => !alreadyOpen.Contains(u.Id))
+                .Select(u => new SelectOption<string>(u.Id, $"{u.FullName} (@{u.Id})"));
+        }
+    }
+
+    private void OnAssigneesSelected(IEnumerable<string> values) =>
+        assignSelectedUsers = values.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+    private void OpenAssignDrawer()
+    {
+        assignError = null;
+        assignSelectedUsers = [];
+        assignDueDate = null;
+        assignPriorityStr = nameof(AssignmentPriority.Medium);
+        assignDescription = "";
+        editingAssignmentId = null;
+        isAssignDrawerOpen = true;
+    }
+
+    private async Task AssignDocumentAsync()
+    {
+        if (assignBusy) return;
+        assignError = null;
+        assignBusy = true;
+        try
+        {
+            DateOnly? due = assignDueDate is { } dt ? DateOnly.FromDateTime(dt.Date) : null;
+            var priority = Enum.TryParse<AssignmentPriority>(assignPriorityStr, out var p) ? p : AssignmentPriority.Medium;
+            var created = await AssignmentsSvc.AssignAsync(User, DocType, Name, assignSelectedUsers, due, priority, assignDescription);
+            assignSelectedUsers = [];
+            assignDueDate = null;
+            assignDescription = "";
+            assignments = await AssignmentsSvc.ListForDocumentAsync(User, DocType, Name);
+            audit = await Docs.GetAuditAsync(User, DocType, Name);
+            if (created.Count > 0)
+                Toasts.Success(T.Format("Assigned to {0} user(s).", created.Count), T["Assigned"]);
+        }
+        catch (Exception ex) when (ex is ValidationFailedException or PermissionDeniedException or DocumentNotFoundException)
+        {
+            assignError = ex.Message;
+        }
+        finally
+        {
+            assignBusy = false;
+        }
+    }
+
+    private async Task CompleteAssignmentAsync(Guid id)
+    {
+        if (assignBusy) return;
+        assignError = null;
+        assignBusy = true;
+        try
+        {
+            await AssignmentsSvc.CompleteAsync(User, id);
+            assignments = await AssignmentsSvc.ListForDocumentAsync(User, DocType, Name);
+            audit = await Docs.GetAuditAsync(User, DocType, Name);
+            Toasts.Success(T["Task marked as complete."], T["Completed"]);
+        }
+        catch (Exception ex)
+        {
+            assignError = ex.Message;
+        }
+        finally
+        {
+            assignBusy = false;
+        }
+    }
+
+    private async Task CancelAssignmentAsync(Guid id)
+    {
+        if (assignBusy) return;
+        assignError = null;
+        assignBusy = true;
+        try
+        {
+            await AssignmentsSvc.CancelAsync(User, id);
+            assignments = await AssignmentsSvc.ListForDocumentAsync(User, DocType, Name);
+            audit = await Docs.GetAuditAsync(User, DocType, Name);
+            Toasts.Info(T["Assignment cancelled."], T["Cancelled"]);
+        }
+        catch (Exception ex)
+        {
+            assignError = ex.Message;
+        }
+        finally
+        {
+            assignBusy = false;
+        }
+    }
+
+    private void BeginEditAssignment(Assignment a)
+    {
+        editingAssignmentId = a.Id;
+        editDueDate = a.DueDate is { } d ? d.ToDateTime(TimeOnly.MinValue) : null;
+        editPriorityStr = a.Priority.ToString();
+    }
+
+    private async Task SaveAssignmentEditAsync(Assignment a)
+    {
+        if (assignBusy) return;
+        assignError = null;
+        assignBusy = true;
+        try
+        {
+            DateOnly? due = editDueDate is { } dt ? DateOnly.FromDateTime(dt.Date) : null;
+            var priority = Enum.TryParse<AssignmentPriority>(editPriorityStr, out var p) ? p : a.Priority;
+            await AssignmentsSvc.UpdateAsync(User, a.Id, new UpdateAssignmentRequest(DueDate: due, UpdateDueDate: true, Priority: priority));
+            editingAssignmentId = null;
+            assignments = await AssignmentsSvc.ListForDocumentAsync(User, DocType, Name);
+            audit = await Docs.GetAuditAsync(User, DocType, Name);
+            Toasts.Success(T["Assignment updated."], T["Updated"]);
+        }
+        catch (Exception ex)
+        {
+            assignError = ex.Message;
+        }
+        finally
+        {
+            assignBusy = false;
+        }
+    }
+
+    private bool CanCloseAssignment(Assignment a) =>
+        User.IsAdmin
+        || string.Equals(User.Id, a.AssignedTo, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(User.Id, a.AssignedBy, StringComparison.OrdinalIgnoreCase);
+
+    private bool CanEditAssignment(Assignment a) =>
+        User.IsAdmin || string.Equals(User.Id, a.AssignedBy, StringComparison.OrdinalIgnoreCase);
+
+    private string UserDisplayName(string userId) =>
+        mentionUsers.FirstOrDefault(u => string.Equals(u.Id, userId, StringComparison.OrdinalIgnoreCase))?.FullName ?? userId;
+
+    private static string Initials(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "?";
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length == 1
+            ? parts[0][..Math.Min(2, parts[0].Length)].ToUpperInvariant()
+            : $"{char.ToUpperInvariant(parts[0][0])}{char.ToUpperInvariant(parts[^1][0])}";
+    }
+
+    private static BadgeVariant PriorityBadgeVariant(AssignmentPriority p) => p switch
+    {
+        AssignmentPriority.High => BadgeVariant.Destructive,
+        AssignmentPriority.Low => BadgeVariant.Outline,
+        _ => BadgeVariant.Secondary
+    };
 
     public async ValueTask DisposeAsync()
     {
