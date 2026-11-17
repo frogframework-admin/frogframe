@@ -1,4 +1,8 @@
 @page "/app/{DocType}"
+@using System.Globalization
+@using Framework.Preferences
+@using Framework.Persistence
+@using Framework.Expressions
 @inject DocumentService Docs
 @inject CurrentUser Current
 @inject IMetadataProvider Metadata
@@ -114,11 +118,45 @@ else if (meta is not null)
                     TableContainerClass="table-wrap">
             <Toolbar>
                 <div class="filters" role="search" style="margin-bottom:.75rem;width:100%">
+                    <div class="filter view-select" style="min-width:11rem;max-width:16rem">
+                        <span>@T["View / Filter"]</span>
+                        <BbSelect TValue="string"
+                                  Value="@selectedViewId"
+                                  ValueChanged="OnSelectViewChanged"
+                                  Options="ViewSelectOptions"
+                                  AriaLabel="@(T["View / Filter"])" />
+                    </div>
                     <div class="filter search">
                         <span>@T["Search"]</span>
                         <BbInput Value="@search" ValueChanged="OnSearch" UpdateTiming="UpdateTiming.Debounced" DebounceInterval="300"
                                  Placeholder="@($"{string.Join(" / ", meta.Def.ListView.SearchFields.Select(LabelOf))}…")" AriaLabel="@(T["Search"])" />
                     </div>
+                    <div class="filter-action-btn" style="align-self:flex-end">
+                        <BbButton Variant="@(activeFilters.Count > 0 ? ButtonVariant.Default : ButtonVariant.Outline)"
+                                  Size="ButtonSize.Small"
+                                  Class="btn-filter-trigger"
+                                  OnClick="OpenFilterDrawer"
+                                  Title="@(T["Filter documents by field values"])">
+                            <LucideIcon Name="filter" Size="14" />
+                            <span>@T["Filter"]</span>
+                            @if (activeFilters.Count > 0)
+                            {
+                                <span class="filter-badge">@activeFilters.Count</span>
+                            }
+                        </BbButton>
+                    </div>
+                    @if (activeFilters.Count > 0 || !string.IsNullOrWhiteSpace(search))
+                    {
+                        <div class="filter-action-btn" style="align-self:flex-end">
+                            <BbButton Variant="ButtonVariant.Outline"
+                                      Size="ButtonSize.Small"
+                                      OnClick="OpenSaveViewDrawer"
+                                      Title="@(T["Save current filter combination as a custom view"])">
+                                <LucideIcon Name="bookmark-plus" Size="14" />
+                                <span>@T["Save View"]</span>
+                            </BbButton>
+                        </div>
+                    }
                     <div style="margin-left:auto;align-self:flex-end;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
                         @if (CanExport)
                         {
@@ -145,6 +183,43 @@ else if (meta is not null)
                         <BbDataGridColumnVisibility TData="Dictionary<string, object?>" />
                     </div>
                 </div>
+
+                @if (activeFilters.Count > 0 || !string.IsNullOrWhiteSpace(search) || SelectedView is not null)
+                {
+                    <div class="active-filter-strip">
+                        @if (SelectedView is not null)
+                        {
+                            <span class="active-view-chip" title="@(T["Active custom view"])">
+                                <LucideIcon Name="bookmark" Size="13" />
+                                <span>@SelectedView.Name</span>
+                            </span>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(search))
+                        {
+                            <span class="filter-chip">
+                                <span class="chip-label">@T["Search"]:</span>
+                                <span class="chip-val">"@search"</span>
+                                <button type="button" class="chip-close" @onclick="ClearSearch" title="@(T["Clear search"])">✕</button>
+                            </span>
+                        }
+                        @foreach (var f in activeFilters)
+                        {
+                            var fieldLabel = LabelOf(f.Field);
+                            var opDisplay = FormatOperator(f.Op);
+                            var valDisplay = FormatFilterValue(f);
+                            <span class="filter-chip">
+                                <span class="chip-label">@fieldLabel</span>
+                                <span class="chip-op">@opDisplay</span>
+                                <span class="chip-val">@valDisplay</span>
+                                <button type="button" class="chip-close" @onclick="() => RemoveFilter(f)" title="@(T["Remove filter condition"])">✕</button>
+                            </span>
+                        }
+                        <button type="button" class="btn-clear-all-chips" @onclick="ClearAllFilters">
+                            <LucideIcon Name="x" Size="12" />
+                            <span>@T["Clear All"]</span>
+                        </button>
+                    </div>
+                }
             </Toolbar>
             <EmptyTemplate>
                 <div style="padding:2.5rem 1rem">
@@ -307,6 +382,187 @@ else if (meta is not null)
                 </BbButton>
             </FooterContent>
         </AdminDrawer>
+
+        <AdminDrawer Open="@filterDrawerOpen"
+                     OpenChanged="v => filterDrawerOpen = v"
+                     Title="@(T.Format("Filters & Views · {0}", T.Title(meta)))"
+                     Description="@T["Filter documents by one or more field conditions or save presets."]"
+                     WidthScale="1.4">
+            <ChildContent>
+                <div class="filter-builder-list">
+                    @for (int i = 0; i < draftFilters.Count; i++)
+                    {
+                        var idx = i;
+                        var row = draftFilters[idx];
+                        var cf = meta.ByName.GetValueOrDefault(row.Field);
+                        <div class="filter-row-item">
+                            <div>
+                                <BbSelect TValue="string"
+                                          Value="@row.Field"
+                                          ValueChanged="v => OnFilterFieldChanged(idx, v)"
+                                          Options="FilterableFieldOptions"
+                                          AriaLabel="@(T["Field"])" />
+                            </div>
+                            <div>
+                                <BbSelect TValue="string"
+                                          Value="@row.Op"
+                                          ValueChanged="@(v => row.Op = v ?? "=")"
+                                          Options="@GetOperatorOptions(row.Field)"
+                                          AriaLabel="@(T["Operator"])" />
+                            </div>
+                            <div class="filter-row-input-group">
+                                @if (cf?.Type.Editor == "check")
+                                {
+                                    <BbSelect TValue="string"
+                                              Value="@row.RawValue"
+                                              ValueChanged='@(v => row.RawValue = v ?? "false")'
+                                              Options="@([new SelectOption<string>("true", T["Yes"]), new SelectOption<string>("false", T["No"])])"
+                                              AriaLabel="@T.Label(cf)" />
+                                }
+                                else if (row.Field == StandardFields.DocStatus)
+                                {
+                                    <BbSelect TValue="string"
+                                              Value="@row.RawValue"
+                                              ValueChanged='@(v => row.RawValue = v ?? "0")'
+                                              Options="@([new SelectOption<string>("0", T["Draft"]), new SelectOption<string>("1", T["Submitted"]), new SelectOption<string>("2", T["Cancelled"])])"
+                                              AriaLabel="@T["Document Status"]" />
+                                }
+                                else if (row.Field == StandardFields.WorkflowState && meta.Workflow is not null)
+                                {
+                                    <BbSelect TValue="string"
+                                              Value="@row.RawValue"
+                                              ValueChanged='@(v => row.RawValue = v ?? "")'
+                                              Placeholder="@T["Select state…"]"
+                                              Options="@(meta.Workflow.States.Keys.Select(s => new SelectOption<string>(s, T[s])))"
+                                              AriaLabel="@T["Status"]" />
+                                }
+                                else if (cf?.Type.Editor == "select" && cf.Def.Options is { Count: > 0 } opts)
+                                {
+                                    <BbSelect TValue="string"
+                                              Value="@row.RawValue"
+                                              ValueChanged='@(v => row.RawValue = v ?? "")'
+                                              Placeholder="@T["Select option…"]"
+                                              Options="@(opts.Select(o => new SelectOption<string>(o, T[o])))"
+                                              AriaLabel="@T.Label(cf)" />
+                                }
+                                else
+                                {
+                                    <BbInput Value="@row.RawValue" ValueChanged='@(v => row.RawValue = v ?? "")' Placeholder="@T["Value…"]" AriaLabel="@(cf is not null ? T.Label(cf) : LabelOf(row.Field))" />
+                                }
+                            </div>
+                            <div>
+                                <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" OnClick="() => RemoveDraftFilter(idx)" Title="@(T["Remove filter condition"])">
+                                    <LucideIcon Name="trash-2" Size="14" />
+                                </BbButton>
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick="AddDraftFilter">
+                    <LucideIcon Name="plus" Size="14" />
+                    <span>@T["Add Condition"]</span>
+                </BbButton>
+
+                <div class="save-view-section">
+                    <h4 class="save-view-title">@T["Save as Named Custom View"]</h4>
+                    <BbInput Value="@draftViewName" ValueChanged='@(v => draftViewName = v ?? "")' Placeholder="@(T["e.g. Pending POs This Month, Unpaid Invoices…"])" AriaLabel="@(T["View name…"])" />
+                    <div style="display:flex;align-items:center;gap:.5rem">
+                        <BbCheckbox Checked="@draftViewIsDefault" CheckedChanged="v => draftViewIsDefault = v" AriaLabel="@(T["Set as default view for this DocType"])" />
+                        <span class="small" style="cursor:pointer" @onclick="() => draftViewIsDefault = !draftViewIsDefault">@T["Set as default view for this DocType"]</span>
+                    </div>
+                </div>
+            </ChildContent>
+            <FooterContent>
+                <BbButton Variant="ButtonVariant.Outline" OnClick="ResetDraftFilters">@T["Clear All"]</BbButton>
+                @if (!string.IsNullOrWhiteSpace(draftViewName))
+                {
+                    <BbButton Variant="ButtonVariant.Outline" OnClick="SaveDraftAsView">
+                        <LucideIcon Name="bookmark-plus" Size="15" />
+                        <span>@T["Save View"]</span>
+                    </BbButton>
+                }
+                <BbButton OnClick="ApplyDraftFilters">
+                    <LucideIcon Name="check" Size="15" />
+                    <span>@T["Apply Filters"]</span>
+                </BbButton>
+            </FooterContent>
+        </AdminDrawer>
+
+        <AdminDrawer Open="@manageViewsOpen"
+                     OpenChanged="v => manageViewsOpen = v"
+                     Title="@(T.Format("Manage Saved Views · {0}", T.Title(meta)))"
+                     Description="@T["View, rename, set default, or delete saved filter combinations for this DocType."]"
+                     WidthScale="1.4">
+            <ChildContent>
+                @if (savedViewsPref.Views.Count == 0)
+                {
+                    <div style="padding:2rem 0">
+                        <BbEmpty Title="@T["No Saved Views"]"
+                                 Description="@T["You have not saved any custom views for this DocType yet."]">
+                            <Icon><LucideIcon Name="bookmark" Size="28" /></Icon>
+                        </BbEmpty>
+                    </div>
+                }
+                else
+                {
+                    <div class="manage-views-list">
+                        @foreach (var v in savedViewsPref.Views)
+                        {
+                            var isCurrent = v.Id == selectedViewId;
+                            <div class="manage-view-card @(isCurrent ? "selected" : "")">
+                                <div class="manage-view-info">
+                                    <div class="manage-view-title-row">
+                                        <span class="manage-view-name">@v.Name</span>
+                                        @if (v.IsDefault)
+                                        {
+                                            <span class="badge-default-view">★ @T["Default"]</span>
+                                        }
+                                    </div>
+                                    <div class="manage-view-summary">
+                                        @if (v.Filters.Count > 0)
+                                        {
+                                            <span>@string.Join(", ", v.Filters.Select(f => $"{LabelOf(f.Field)} {FormatOperator(f.Op)} {FormatFilterValue(f.ToFilterClause())}"))</span>
+                                        }
+                                        else if (!string.IsNullOrWhiteSpace(v.Search))
+                                        {
+                                            <span>@T["Search"]: "@v.Search"</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="muted">@T["No filter criteria"]</span>
+                                        }
+                                    </div>
+                                </div>
+                                <div class="manage-view-actions">
+                                    <BbButton Variant="ButtonVariant.Ghost"
+                                              Size="ButtonSize.Small"
+                                              OnClick="@(() => ToggleDefaultView(v.Id))"
+                                              Title="@(v.IsDefault ? T["Remove Default"] : T["Set as Default"])">
+                                        <LucideIcon Name="@(v.IsDefault ? "star-off" : "star")" Size="14" />
+                                    </BbButton>
+                                    <BbButton Variant="ButtonVariant.Ghost"
+                                              Size="ButtonSize.Small"
+                                              OnClick="@(() => RenameSavedView(v.Id))"
+                                              Title="@(T["Rename view"])">
+                                        <LucideIcon Name="pencil" Size="14" />
+                                    </BbButton>
+                                    <BbButton Variant="ButtonVariant.Ghost"
+                                              Size="ButtonSize.Small"
+                                              OnClick="@(() => DeleteSavedView(v.Id))"
+                                              Title="@(T["Delete view"])">
+                                        <LucideIcon Name="trash-2" Size="14" />
+                                    </BbButton>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </ChildContent>
+            <FooterContent>
+                <BbButton Variant="ButtonVariant.Outline" OnClick="() => manageViewsOpen = false">@T["Cancel"]</BbButton>
+            </FooterContent>
+        </AdminDrawer>
     }
 }
 
@@ -318,6 +574,26 @@ else if (meta is not null)
     private string? search, sortField, error, fatal; private int fatalStatus = 404;
     private readonly HashSet<string> selectedItems = [];
     private bool busy;
+
+    // Saved Views & Custom Filters
+    private DocTypeCustomViewsPreference savedViewsPref = new();
+    private string selectedViewId = "";
+    private readonly List<FilterClause> activeFilters = [];
+    private bool filterDrawerOpen;
+    private bool manageViewsOpen;
+    private readonly List<DraftFilterRow> draftFilters = [];
+    private string draftViewName = "";
+    private bool draftViewIsDefault;
+
+    private SavedCustomView? SelectedView =>
+        string.IsNullOrEmpty(selectedViewId) ? null : savedViewsPref.Views.FirstOrDefault(v => v.Id == selectedViewId);
+
+    private sealed class DraftFilterRow
+    {
+        public string Field { get; set; } = StandardFields.Name;
+        public string Op { get; set; } = "=";
+        public string RawValue { get; set; } = "";
+    }
 
     private IReadOnlyList<CompiledField> bulkEditableFields = [];
     private bool bulkEditOpen;
@@ -343,6 +619,132 @@ else if (meta is not null)
     private bool hasCustomLayout;
     private int gridRenderKey;
     private System.Threading.Timer? saveDebounceTimer;
+
+    private IReadOnlyList<SelectOption<string>> ViewSelectOptions
+    {
+        get
+        {
+            var list = new List<SelectOption<string>>
+            {
+                new("", T["All Documents"])
+            };
+            foreach (var v in savedViewsPref.Views)
+            {
+                var label = v.IsDefault ? $"★ {v.Name} ({T["Default"]})" : v.Name;
+                list.Add(new(v.Id, label));
+            }
+            list.Add(new("__manage__", $"⚙ {T["Manage Saved Views…"]}"));
+            return list;
+        }
+    }
+
+    private IReadOnlyList<SelectOption<string>> FilterableFieldOptions
+    {
+        get
+        {
+            if (meta is null) return [];
+            var list = new List<SelectOption<string>>
+            {
+                new(StandardFields.Name, T["Number"])
+            };
+            if (HasStatus)
+            {
+                list.Add(new(StandardFields.WorkflowState, T["Status"]));
+                list.Add(new(StandardFields.DocStatus, T["Document Status"]));
+            }
+            list.Add(new(StandardFields.Owner, T["Owner / Created By"]));
+            list.Add(new(StandardFields.Modified, T["Last Modified"]));
+
+            foreach (var f in meta.Fields.Where(f => f.Def.Type != "Table" && meta.IsQueryable(f.Name) && !f.IsLayout && f.Def.Type != "Password" && Perms.CanReadField(Current.Required, meta, f)))
+            {
+                if (list.Any(x => x.Value.Equals(f.Name, StringComparison.OrdinalIgnoreCase))) continue;
+                list.Add(new(f.Name, T.Label(f)));
+            }
+            return list;
+        }
+    }
+
+    private IReadOnlyList<SelectOption<string>> GetOperatorOptions(string field)
+    {
+        var cf = meta?.ByName.GetValueOrDefault(field);
+        if (cf?.Type.Editor == "check")
+        {
+            return [new("=", "=")];
+        }
+        if (cf?.Type.Editor is "number" or "currency" or "percent" or "int" || field is StandardFields.Modified or "created")
+        {
+            return
+            [
+                new("=", "="),
+                new("!=", "≠"),
+                new(">", ">"),
+                new(">=", "≥"),
+                new("<", "<"),
+                new("<=", "≤")
+            ];
+        }
+        if (cf?.Type.Editor is "date" or "datetime")
+        {
+            return
+            [
+                new("=", "="),
+                new("!=", "≠"),
+                new(">", ">"),
+                new(">=", "≥"),
+                new("<", "<"),
+                new("<=", "≤")
+            ];
+        }
+        if (cf?.Type.Editor is "select" || field is StandardFields.WorkflowState or StandardFields.DocStatus)
+        {
+            return
+            [
+                new("=", "="),
+                new("!=", "≠")
+            ];
+        }
+        return
+        [
+            new("like", T["contains"]),
+            new("=", "="),
+            new("!=", "≠")
+        ];
+    }
+
+    private string FormatOperator(string op) => op switch
+    {
+        "=" => "=",
+        "!=" => "≠",
+        ">" => ">",
+        ">=" => "≥",
+        "<" => "<",
+        "<=" => "≤",
+        "like" => T["contains"],
+        "in" => T["in"],
+        _ => op
+    };
+
+    private string FormatFilterValue(FilterClause f)
+    {
+        if (f.Value is null) return "—";
+        if (f.Field == StandardFields.DocStatus)
+        {
+            return Values.ToDecimal(f.Value) switch
+            {
+                0 => T["Draft"],
+                1 => T["Submitted"],
+                2 => T["Cancelled"],
+                _ => f.Value.ToString() ?? ""
+            };
+        }
+        if (meta?.ByName.TryGetValue(f.Field, out var cf) == true)
+        {
+            if (cf.Type.Editor == "check")
+                return (f.Value is true || (f.Value is string s && (s == "1" || string.Equals(s, "true", StringComparison.OrdinalIgnoreCase)))) ? T["Yes"] : T["No"];
+            return T.Value(cf, f.Value) ?? f.Value.ToString() ?? "";
+        }
+        return f.Value.ToString() ?? "";
+    }
 
     private System.Linq.Expressions.Expression<Func<Dictionary<string, object?>, object?>> GetColAccessor(string colKey)
     {
@@ -451,6 +853,10 @@ else if (meta is not null)
         selectedBulkField = bulkEditableFields.FirstOrDefault();
         bulkEditValue = selectedBulkField?.StaticDefault;
 
+        savedViewsPref = new();
+        selectedViewId = "";
+        activeFilters.Clear();
+
         if (Current.User is { } u)
         {
             var saved = await UserPrefs.GetAsync<Framework.Preferences.DataGridPreference>(u.TenantId, u.Id, $"grid:{DocType}");
@@ -464,6 +870,16 @@ else if (meta is not null)
                 gridPref = new();
                 hasCustomLayout = false;
             }
+
+            savedViewsPref = await UserPrefs.GetCustomViewsAsync(u.TenantId, u.Id, DocType);
+            if (!string.IsNullOrEmpty(savedViewsPref.DefaultViewId) &&
+                savedViewsPref.Views.FirstOrDefault(v => v.Id == savedViewsPref.DefaultViewId) is { } defView)
+            {
+                selectedViewId = defView.Id;
+                search = defView.Search;
+                sortField = defView.SortField;
+                activeFilters.AddRange(defView.Filters.Select(f => f.ToFilterClause()));
+            }
         }
 
         await Reload();
@@ -475,7 +891,9 @@ else if (meta is not null)
     {
         "name" => T["Number"],
         StandardFields.WorkflowState => T["Status"],
-        StandardFields.Modified => T["Modified"],
+        StandardFields.DocStatus => T["Document Status"],
+        StandardFields.Owner => T["Owner / Created By"],
+        StandardFields.Modified => T["Last Modified"],
         _ => meta!.ByName.TryGetValue(field, out var f) ? T.Label(f) : field
     };
 
@@ -494,11 +912,12 @@ else if (meta is not null)
         {
             var visibleCols = result?.Columns.Where(IsColVisible).ToList();
             var selected = selectedItems.Count > 0 ? selectedItems.ToList() : null;
+            var clauses = activeFilters.Count > 0 ? activeFilters : null;
             var output = await Docs.ExportListAsync(
                 Current.Required,
                 DocType,
                 format,
-                new ListRequest(null, search, sortField, null),
+                new ListRequest(clauses, search, sortField, null),
                 selected,
                 visibleCols);
             var token = Downloads.Put(Current.Required.TenantId, Current.Required.Id, output);
@@ -515,6 +934,296 @@ else if (meta is not null)
         {
             busy = false;
         }
+    }
+
+    private void OpenFilterDrawer()
+    {
+        draftFilters.Clear();
+        foreach (var f in activeFilters)
+        {
+            var raw = f.Value switch
+            {
+                null => "",
+                bool b => b ? "true" : "false",
+                _ => Convert.ToString(f.Value, CultureInfo.InvariantCulture) ?? ""
+            };
+            draftFilters.Add(new DraftFilterRow { Field = f.Field, Op = f.Op, RawValue = raw });
+        }
+        if (draftFilters.Count == 0)
+        {
+            draftFilters.Add(new DraftFilterRow
+            {
+                Field = HasStatus ? StandardFields.WorkflowState : StandardFields.Name,
+                Op = HasStatus ? "=" : "like",
+                RawValue = ""
+            });
+        }
+        draftViewName = SelectedView?.Name ?? "";
+        draftViewIsDefault = SelectedView?.IsDefault ?? false;
+        filterDrawerOpen = true;
+    }
+
+    private void OpenSaveViewDrawer()
+    {
+        OpenFilterDrawer();
+    }
+
+    private void OnFilterFieldChanged(int index, string? newField)
+    {
+        if (index < 0 || index >= draftFilters.Count || string.IsNullOrEmpty(newField)) return;
+        var row = draftFilters[index];
+        row.Field = newField;
+        var validOps = GetOperatorOptions(newField);
+        if (!validOps.Any(o => o.Value == row.Op))
+        {
+            row.Op = validOps.FirstOrDefault()?.Value ?? "=";
+        }
+        row.RawValue = "";
+    }
+
+    private void AddDraftFilter()
+    {
+        draftFilters.Add(new DraftFilterRow
+        {
+            Field = HasStatus ? StandardFields.WorkflowState : StandardFields.Name,
+            Op = HasStatus ? "=" : "like",
+            RawValue = ""
+        });
+    }
+
+    private void RemoveDraftFilter(int index)
+    {
+        if (index >= 0 && index < draftFilters.Count)
+        {
+            draftFilters.RemoveAt(index);
+        }
+    }
+
+    private void ResetDraftFilters()
+    {
+        draftFilters.Clear();
+        draftViewName = "";
+        draftViewIsDefault = false;
+    }
+
+    private FilterClause? ConvertToFilterClause(DraftFilterRow row)
+    {
+        if (string.IsNullOrWhiteSpace(row.Field) || string.IsNullOrWhiteSpace(row.RawValue)) return null;
+
+        object? val;
+        if (row.Field == StandardFields.DocStatus)
+        {
+            val = decimal.TryParse(row.RawValue, out var ds) ? ds : 0m;
+        }
+        else if (meta?.ByName.TryGetValue(row.Field, out var cf) == true)
+        {
+            if (cf.Type.Editor == "check")
+            {
+                val = string.Equals(row.RawValue, "true", StringComparison.OrdinalIgnoreCase) || row.RawValue == "1";
+            }
+            else if (cf.Type.Editor is "number" or "currency" or "percent" or "int")
+            {
+                if (decimal.TryParse(row.RawValue, NumberStyles.Any, CultureInfo.InvariantCulture, out var nv))
+                    val = nv;
+                else if (decimal.TryParse(row.RawValue, out var nv2))
+                    val = nv2;
+                else
+                    val = row.RawValue;
+            }
+            else
+            {
+                val = string.IsNullOrWhiteSpace(row.RawValue) ? null : row.RawValue.Trim();
+            }
+        }
+        else
+        {
+            val = string.IsNullOrWhiteSpace(row.RawValue) ? null : row.RawValue.Trim();
+        }
+
+        if (val is null && row.Op is not ("=" or "!=")) return null;
+        return new FilterClause(row.Field, row.Op, val);
+    }
+
+    private async Task ApplyDraftFilters()
+    {
+        var clauses = draftFilters
+            .Select(ConvertToFilterClause)
+            .Where(f => f is not null)
+            .Select(f => f!)
+            .ToList();
+
+        activeFilters.Clear();
+        activeFilters.AddRange(clauses);
+        if (SelectedView is not null && !IsMatchingView(SelectedView, activeFilters, search))
+        {
+            selectedViewId = "";
+        }
+        filterDrawerOpen = false;
+        gridState.Pagination.Reset();
+        await Reload();
+    }
+
+    private async Task SaveDraftAsView()
+    {
+        if (string.IsNullOrWhiteSpace(draftViewName) || Current.User is not { } u) return;
+
+        var clauses = draftFilters
+            .Select(ConvertToFilterClause)
+            .Where(f => f is not null)
+            .Select(f => f!)
+            .ToList();
+
+        var view = new SavedCustomView
+        {
+            Id = SelectedView is not null && string.Equals(SelectedView.Name, draftViewName.Trim(), StringComparison.OrdinalIgnoreCase)
+                ? SelectedView.Id
+                : Guid.NewGuid().ToString("N"),
+            Name = draftViewName.Trim(),
+            Search = search,
+            Filters = clauses.Select(f => new SavedFilterClause { Field = f.Field, Op = f.Op, Value = f.Value }).ToList(),
+            SortField = sortField,
+            IsDefault = draftViewIsDefault
+        };
+
+        await UserPrefs.SaveCustomViewAsync(u.TenantId, u.Id, DocType, view);
+        savedViewsPref = await UserPrefs.GetCustomViewsAsync(u.TenantId, u.Id, DocType);
+        selectedViewId = view.Id;
+        activeFilters.Clear();
+        activeFilters.AddRange(clauses);
+        filterDrawerOpen = false;
+
+        Toasts.Success(T.Format("Saved view '{0}'.", view.Name), T["View Saved"]);
+        gridState.Pagination.Reset();
+        await Reload();
+    }
+
+    private static bool IsMatchingView(SavedCustomView v, List<FilterClause> filters, string? searchStr)
+    {
+        if (!string.Equals(v.Search ?? "", searchStr ?? "", StringComparison.Ordinal)) return false;
+        if (v.Filters.Count != filters.Count) return false;
+        for (int i = 0; i < v.Filters.Count; i++)
+        {
+            var vf = v.Filters[i];
+            var f = filters[i];
+            if (!string.Equals(vf.Field, f.Field, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(vf.Op, f.Op, StringComparison.OrdinalIgnoreCase) ||
+                !Equals(CustomViewExtensions.UnwrapValue(vf.Value), CustomViewExtensions.UnwrapValue(f.Value)))
+                return false;
+        }
+        return true;
+    }
+
+    private async Task OnSelectViewChanged(string? viewId)
+    {
+        if (viewId == "__manage__")
+        {
+            manageViewsOpen = true;
+            return;
+        }
+
+        if (string.IsNullOrEmpty(viewId))
+        {
+            selectedViewId = "";
+            activeFilters.Clear();
+            search = null;
+            gridState.Pagination.Reset();
+            await Reload();
+            return;
+        }
+
+        var found = savedViewsPref.Views.FirstOrDefault(v => v.Id == viewId);
+        if (found is not null)
+        {
+            selectedViewId = found.Id;
+            search = found.Search;
+            sortField = found.SortField;
+            activeFilters.Clear();
+            activeFilters.AddRange(found.Filters.Select(f => f.ToFilterClause()));
+            gridState.Pagination.Reset();
+            await Reload();
+        }
+    }
+
+    private async Task ClearAllFilters()
+    {
+        activeFilters.Clear();
+        search = null;
+        selectedViewId = "";
+        gridState.Pagination.Reset();
+        await Reload();
+    }
+
+    private async Task RemoveFilter(FilterClause f)
+    {
+        activeFilters.Remove(f);
+        selectedViewId = "";
+        gridState.Pagination.Reset();
+        await Reload();
+    }
+
+    private async Task ClearSearch()
+    {
+        search = null;
+        gridState.Pagination.Reset();
+        await Reload();
+    }
+
+    private async Task ToggleDefaultView(string viewId)
+    {
+        if (Current.User is not { } u) return;
+        var target = savedViewsPref.Views.FirstOrDefault(v => v.Id == viewId);
+        if (target is null) return;
+
+        var newDefault = target.IsDefault ? null : viewId;
+        await UserPrefs.SetDefaultCustomViewAsync(u.TenantId, u.Id, DocType, newDefault);
+        savedViewsPref = await UserPrefs.GetCustomViewsAsync(u.TenantId, u.Id, DocType);
+        Toasts.Success(
+            newDefault is not null ? T.Format("View '{0}' set as default.", target.Name) : T["Default view cleared."],
+            T["Default Updated"]);
+    }
+
+    private async Task RenameSavedView(string viewId)
+    {
+        if (Current.User is not { } u) return;
+        var target = savedViewsPref.Views.FirstOrDefault(v => v.Id == viewId);
+        if (target is null) return;
+
+        var prompt = await Dialogs.PromptAsync(
+            T.Format("Rename view '{0}'", target.Name),
+            T["Enter a new name for this saved custom view."],
+            new PromptDialogOptions { Placeholder = target.Name, ConfirmText = T["Rename"], CancelText = T["Cancel"] });
+
+        if (prompt.Cancelled || string.IsNullOrWhiteSpace(prompt.Value)) return;
+
+        var updated = target with { Name = prompt.Value.Trim() };
+        await UserPrefs.SaveCustomViewAsync(u.TenantId, u.Id, DocType, updated);
+        savedViewsPref = await UserPrefs.GetCustomViewsAsync(u.TenantId, u.Id, DocType);
+        Toasts.Success(T.Format("View renamed to '{0}'.", updated.Name), T["Renamed"]);
+    }
+
+    private async Task DeleteSavedView(string viewId)
+    {
+        if (Current.User is not { } u) return;
+        var target = savedViewsPref.Views.FirstOrDefault(v => v.Id == viewId);
+        if (target is null) return;
+
+        var confirm = await Dialogs.ConfirmAsync(
+            T.Format("Delete view '{0}'?", target.Name),
+            T["This saved view will be permanently removed for your account."],
+            new ConfirmDialogOptions { Destructive = true, ConfirmText = T["Delete"], CancelText = T["Cancel"] });
+
+        if (!confirm.Confirmed) return;
+
+        await UserPrefs.DeleteCustomViewAsync(u.TenantId, u.Id, DocType, viewId);
+        savedViewsPref = await UserPrefs.GetCustomViewsAsync(u.TenantId, u.Id, DocType);
+        if (selectedViewId == viewId)
+        {
+            selectedViewId = "";
+            activeFilters.Clear();
+            search = null;
+            await Reload();
+        }
+        Toasts.Success(T.Format("View '{0}' deleted.", target.Name), T["Deleted"]);
     }
 
     private void OpenBulkEdit()
@@ -666,7 +1375,8 @@ else if (meta is not null)
         {
             error = null;
             selectedItems.Clear();
-            result = await Docs.ListAsync(Current.Required, DocType, new ListRequest(null, search, sortField, null, 1, Framework.Persistence.QueryLimits.CountCap));
+            var clauses = activeFilters.Count > 0 ? activeFilters : null;
+            result = await Docs.ListAsync(Current.Required, DocType, new ListRequest(clauses, search, sortField, null, 1, Framework.Persistence.QueryLimits.CountCap), allowAllReadableFields: true);
         }
         catch (Exception ex) when (ex is InvalidPayloadException or PermissionDeniedException)
         {

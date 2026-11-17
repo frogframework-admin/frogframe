@@ -40,6 +40,8 @@
       href: communications.md
     - name: Document Assignments (Assign To / My Tasks)
       href: assignments.md
+    - name: Saved Filters & Custom Views
+      href: custom-views.md
     - name: Excel & CSV Data Import
       href: guides/excel-import.md
     - name: Custom Code Reports (IReportProvider)

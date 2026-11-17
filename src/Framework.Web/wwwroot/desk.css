@@ -6012,3 +6012,220 @@ aside[data-state="collapsed"] .sidebar-user-chevron {
   padding-top: 1rem;
   border-top: 1px solid var(--border);
 }
+
+/* ---------- Saved Filters / Custom Views & Active Filter Chips ---------- */
+.btn-filter-trigger {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.filter-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 0.3rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+  border-radius: 9999px;
+  background: var(--brand, #16a34a);
+  color: #ffffff;
+}
+
+.active-filter-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  padding: 0.4rem 0.65rem;
+  background: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 2px);
+  margin-bottom: 0.75rem;
+  font-size: 0.8rem;
+}
+
+.active-view-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  padding: 0.2rem 0.6rem;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 0.775rem;
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.2rem 0.5rem;
+  color: var(--foreground);
+  font-size: 0.785rem;
+}
+
+.chip-label {
+  color: var(--muted-foreground);
+  font-weight: 500;
+}
+
+.chip-op {
+  font-weight: 700;
+  color: var(--foreground);
+  font-size: 0.75rem;
+}
+
+.chip-val {
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.chip-close {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--muted-foreground);
+  padding: 0 0.15rem;
+  font-size: 0.75rem;
+  line-height: 1;
+  transition: color 0.15s ease;
+}
+
+.chip-close:hover {
+  color: var(--destructive);
+}
+
+.btn-clear-all-chips {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-left: auto;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.btn-clear-all-chips:hover {
+  color: var(--destructive);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+/* Filter drawer condition builder */
+.filter-builder-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+}
+
+.filter-row-item {
+  display: grid;
+  grid-template-columns: 2fr 1.4fr 3fr auto;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.5rem;
+  background: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 2px);
+}
+
+.filter-row-input-group {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.save-view-section {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px dashed var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.save-view-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--foreground);
+  margin: 0;
+}
+
+/* Manage views list cards */
+.manage-views-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.manage-view-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 0.85rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 2px);
+  gap: 0.75rem;
+  transition: border-color 0.15s ease;
+}
+
+.manage-view-card.selected {
+  border-color: var(--primary);
+  background: rgba(22, 163, 74, 0.05);
+}
+
+.manage-view-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.manage-view-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.manage-view-name {
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--foreground);
+}
+
+.badge-default-view {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.1rem 0.4rem;
+  border-radius: 9999px;
+  background: rgba(234, 179, 8, 0.15);
+  color: #ca8a04;
+}
+
+.manage-view-summary {
+  font-size: 0.775rem;
+  color: var(--muted-foreground);
+  margin-top: 0.2rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.manage-view-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}

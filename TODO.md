@@ -100,8 +100,10 @@ For full architectural context and runbooks, refer to [Production Readiness Guid
   - Custom activity icons on `AuditTimeline` replacing empty circle markers (`message-square`, `pencil`, `plus`, `check`, `x`, etc.).
   - Document Send Email drawer enhanced with `BbRichTextEditor`, automatic Document Print PDF attachment, multi-attachment upload, and filename editing.
   - Live document presence indicator deduplication per user and exclusion of current user.
-- [ ] **P1-8 — Saved Filters / Custom Views** (Medium Urgency):
-  - Persist and load user-defined named search filter combinations per DocType via `IUserPreferenceStore`.
+- [x] **P1-8 — Saved Filters / Custom Views** (Medium Urgency):
+  - Persist and load user-defined named search filter combinations per DocType via `IUserPreferenceStore` (`SavedFilterClause`, `SavedCustomView`, `DocTypeCustomViewsPreference`).
+  - View selector dropdown, interactive filter condition builder drawer, active filter chips bar with quick-remove, and Manage Saved Views drawer in `ListPage.razor`.
+  - Seamless query filtering in `Docs.ListAsync` and consistent export filtering in `Docs.ExportListAsync`.
 - [x] **P1-7 — Assign To / ToDo & "My Tasks" Widget** (Medium Urgency):
   - Document delegation to one or more users with due date, priority, and notes (`036_assignments.sql`, `AssignmentService`).
   - Real-time in-app notifications (`AssignmentNotifier`), daily due/overdue reminders (`AssignmentReminderJob`), and automatic cancellation on document deletion (`AssignmentDocumentCleanupHandler`).
