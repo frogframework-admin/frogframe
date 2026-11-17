@@ -213,6 +213,7 @@ python3 tools/check_hook_fields.py      # nama field di C# vs metadata
 python3 tools/check_option_literals.py  # nilai pilihan di C# vs metadata
 python3 tools/check_seed.py             # seed SQL vs metadata (field, pilihan, wajib, Link + filter, default, docstatus, jurnal seimbang, akun)
 python3 tools/scenario_expected.py      # angka skenario uji dari seed (payroll, jurnal per langkah, neraca saldo, stok); cek angka tetap fase 8
+python3 tools/generate_ai_rules.py     # katalog aturan hook untuk AI Assistant (docs/rules); --check di CI
 python3 tools/sim_posting.py            # simulasi aturan posting
 ```
 

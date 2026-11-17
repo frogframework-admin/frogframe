@@ -32,7 +32,9 @@ public sealed record AiKnowledgeHit(
 public sealed partial class AiKnowledgeIndex
 {
     private const int MaxChunkChars = 2200;
+    private const string GlossaryFileName = "glossary-id.md";
     private readonly List<IndexedChunk> _chunks = [];
+    private readonly List<(string Term, Regex Pattern, string Expansion)> _glossary = [];
 
     private sealed record IndexedChunk(
         AiKnowledgeChunk Chunk,
@@ -43,6 +45,9 @@ public sealed partial class AiKnowledgeIndex
         Dictionary<string, int> ContentTokenCounts);
 
     public IReadOnlyList<AiKnowledgeChunk> Chunks => _chunks.Select(c => c.Chunk).ToList();
+
+    /// <summary>Number of Indonesian terms loaded from the bundled glossary (<c>guides/glossary-id.md</c>).</summary>
+    public int GlossaryTermCount => _glossary.Count;
 
     /// <summary>
     /// Creates and populates the knowledge index from the application base directory and optional additional directories.
@@ -65,7 +70,8 @@ public sealed partial class AiKnowledgeIndex
 
         var trimmed = query.Trim();
         var lowerQuery = trimmed.ToLowerInvariant();
-        var tokens = Tokenize(trimmed).Distinct(StringComparer.Ordinal).ToList();
+        // Indonesian terms ("cuti", "faktur penjualan") are expanded with the app's English DocType names from the glossary.
+        var tokens = Tokenize(ExpandQuery(trimmed)).Distinct(StringComparer.Ordinal).ToList();
         if (tokens.Count == 0)
             return [];
 
@@ -140,6 +146,56 @@ public sealed partial class AiKnowledgeIndex
             .ToList();
     }
 
+    /// <summary>
+    /// Appends the application terms for every glossary term found in <paramref name="query"/>
+    /// (e.g. "kenapa cuti saya ditolak" adds "LeaveApplication Leave Application"). Returns the query unchanged when nothing matches.
+    /// </summary>
+    public string ExpandQuery(string? query)
+    {
+        if (string.IsNullOrWhiteSpace(query) || _glossary.Count == 0)
+            return query ?? string.Empty;
+        var lower = query.ToLowerInvariant();
+        var additions = new List<string>();
+        foreach (var (_, pattern, expansion) in _glossary)
+        {
+            if (pattern.IsMatch(lower) && !additions.Contains(expansion, StringComparer.Ordinal))
+                additions.Add(expansion);
+        }
+        return additions.Count == 0 ? query : $"{query} {string.Join(' ', additions)}";
+    }
+
+    /// <summary>Glossary terms (lowercase) that occur in <paramref name="query"/>.</summary>
+    public IReadOnlyList<string> MatchGlossaryTerms(string? query)
+    {
+        if (string.IsNullOrWhiteSpace(query)) return [];
+        var lower = query.ToLowerInvariant();
+        return _glossary.Where(g => g.Pattern.IsMatch(lower)).Select(g => g.Term).Distinct(StringComparer.Ordinal).ToList();
+    }
+
+    private void LoadGlossary(string markdown)
+    {
+        foreach (var raw in markdown.Replace("\r\n", "\n").Split('\n'))
+        {
+            var line = raw.Trim();
+            if (!line.StartsWith('|') || line.StartsWith("|---", StringComparison.Ordinal))
+                continue;
+            var cells = line.Trim('|').Split('|');
+            if (cells.Length < 2) continue;
+            var expansion = cells[1].Replace("`", string.Empty).Trim();
+            if (expansion.Length == 0 || cells[0].Trim().StartsWith("Istilah", StringComparison.OrdinalIgnoreCase))
+                continue;
+            foreach (var term in cells[0].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                var lowerTerm = term.ToLowerInvariant();
+                if (lowerTerm.Length < 2) continue;
+                var pattern = new Regex($@"(?<![\p{{L}}\p{{N}}]){Regex.Escape(lowerTerm)}(?![\p{{L}}\p{{N}}])", RegexOptions.CultureInvariant);
+                _glossary.Add((lowerTerm, pattern, expansion));
+            }
+        }
+        // Longer phrases first so "faktur penjualan" wins over "faktur".
+        _glossary.Sort((a, b) => b.Term.Length.CompareTo(a.Term.Length));
+    }
+
     private static string? ResolveMarkdownDirectory(string baseDir)
     {
         var bundled = Path.Combine(baseDir, "KnowledgeBase");
@@ -173,9 +229,13 @@ public sealed partial class AiKnowledgeIndex
             {
                 var relativePath = Path.GetRelativePath(rootDir, file).Replace('\\', '/');
                 var text = File.ReadAllText(file, Encoding.UTF8);
+                if (string.Equals(Path.GetFileName(file), GlossaryFileName, StringComparison.OrdinalIgnoreCase))
+                    LoadGlossary(text);
+                // docs/rules/*.md are generated from hook code by tools/generate_ai_rules.py (validation messages, conditions, buttons).
+                var kind = relativePath.StartsWith("rules/", StringComparison.OrdinalIgnoreCase) ? "Rule" : "Guide";
                 foreach (var (section, content) in SplitMarkdownSections(relativePath, text))
                 {
-                    AddChunk(new AiKnowledgeChunk(relativePath, section, "Guide", content));
+                    AddChunk(new AiKnowledgeChunk(relativePath, section, kind, content));
                 }
             }
             catch

@@ -7,6 +7,8 @@
     <EmbeddedResource Include="Migrations\*.sql" />
     <Content Include="..\..\docs\*.md" Link="KnowledgeBase\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\..\docs\guides\*.md" Link="KnowledgeBase\guides\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <!-- Business rules generated from hook code by tools/generate_ai_rules.py (Markdown for search_knowledge, JSON for explain_error). -->
+    <Content Include="..\..\docs\rules\*.md;..\..\docs\rules\*.json" Link="KnowledgeBase\rules\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <ProjectReference Include="..\Framework.Core\Framework.Core.csproj" />
     <ProjectReference Include="..\Framework.Web\Framework.Web.csproj" />
     <ProjectReference Include="..\Framework.Persistence.PostgreSql\Framework.Persistence.PostgreSql.csproj" />

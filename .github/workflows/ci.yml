@@ -30,6 +30,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Check AI rule catalog matches hook code
+        run: python3 tools/generate_ai_rules.py --check
+
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v4
         with:

@@ -12,7 +12,7 @@ Analysis of real ERP user interactions shows four primary categories of question
 |---|---|---|
 | **1. Navigation & Discovery** | *"Where is the organization structure page?"*<br>*"Where do I create Word/Excel report templates?"* | `INavigationMenuStore`, `IEnumerable<DeskMenuItem>`, `ReportService`, and `MetadataRegistry` routes filtered by the user's roles. |
 | **2. SOP & How-To Guides** | *"How do I create a custom report?"*<br>*"What is the sequence for testing initial stock and invoices?"* | Bundled Markdown guides (`docs/ERP_README.md`, `docs/ERP_TEST_SCENARIOS.md`, `docs/guides/*.md`). |
-| **3. Business Rules & Semantics** | *"Is Accounting Period generated automatically?"*<br>*"Why does `EMP-0001` show a `Draft` badge?"* | `MetadataRegistry` (`allowSubmit: false` master data vs submittable transactions, field `compute` formulas, `rules`, workflows) + compiled C# XML doc comments (`Apps.Erp.xml`). |
+| **3. Business Rules & Semantics** | *"Is Accounting Period generated automatically?"*<br>*"Why does `EMP-0001` show a `Draft` badge?"*<br>*"Kenapa muncul 'Only 1 of ITM-LAP-001 available'?"* | `MetadataRegistry` (`allowSubmit: false` master data vs submittable transactions, field `compute` formulas, `rules`, workflows) + compiled C# XML doc comments (`Apps.Erp.xml`) + rule catalog generated from hook code (`KnowledgeBase/rules/`, `explain_error`). |
 | **4. Live Data & Diagnostics** | *"Why is my Trial Balance report showing all zeros?"*<br>*"What is the status of `JV-2026-000001`?"* | Read-only `DocumentService` queries (`docstatus = 0` Draft vs `1` Submitted, available workflow transitions, and custom `IFormAction` buttons) scoped to the user's tenant and permissions. |
 
 ---
@@ -83,6 +83,60 @@ flowchart TB
 - [x] Add an **"Ask AI"** button in the `DeskLayout` top bar and Awesomebar (`Ctrl+K`).
 - [x] Build a non-blocking slide-over chat drawer using Blazor Blueprint's chat message and bubble components. The layout-level drawer preserves the conversation across page navigation and refreshes page context with each question.
 - [x] Render Markdown answers as sanitized HTML so model-generated links remain clickable without allowing unsafe markup.
+
+### Phase 5: Code Rule Catalog, `explain_error`, and Indonesian Glossary — *Completed*
+
+Antigravity answers precisely because it reads the C# source; the published app does not ship `.cs` files, and most business rules
+live inside method bodies (validation messages, `if` conditions, button visibility), not in `/// <summary>` comments. Phase 5 packages them:
+
+- [x] **Rule catalog generator** `tools/generate_ai_rules.py` scans `src/Apps.Erp/Hooks` and `src/Apps.Erp/Accounting` and writes `docs/rules/`:
+  - `<DocType>.md`: behaviour summary, every validation error (field, message, triggering C# condition, source file:line) grouped by event
+    (save/submit, after submit, cancel, workflow action, button), warnings, failed-button messages, and each form button with its `IsVisible` condition.
+  - `_shared-<Helper>.md`: rules in shared helpers (accounting periods, invoices, stock valuation, budgets, ledger guards), mapped transitively to
+    the DocTypes whose hooks use them.
+  - `error-catalog.json`: one entry per message with a regex where interpolations (`{item}`, `{balance}`) are wildcards.
+  `Apps.Erp.csproj` copies `docs/rules/*` to `KnowledgeBase/rules/`; `AiKnowledgeIndex` indexes the Markdown as kind `Rule`.
+- [x] **`explain_error(message, docType?)`** tool (`AiErrorCatalog`): the user pastes the message they saw ("Only 1 of ITM-LAP-001 available in
+  Gudang Utama Cikarang"); the tool returns the rule, its field, when it runs, the triggering condition, and the related rule guide. The assistant
+  then uses `inspect_document` to find the value that triggers it.
+- [x] **Indonesian glossary** `docs/guides/glossary-id.md`: `AiKnowledgeIndex.Search` expands Indonesian terms with the app's DocType names
+  ("cuti" → `LeaveApplication`, "faktur penjualan" → `SalesInvoice`, "tombol" → form actions), so Indonesian questions find English metadata and rules.
+
+### How to Update & Regenerate the AI Rule Catalog
+
+Whenever business logic, validation rules, error messages, or form action buttons in `src/Apps.Erp/Hooks/` or `src/Apps.Erp/Accounting/` are added or changed, the rule catalog must be regenerated so that the AI Assistant and CI remain in sync:
+
+1. **Regenerate rules and error catalog**:
+   ```bash
+   python3 tools/generate_ai_rules.py
+   ```
+   This command scans the C# hook code, parses validation messages and conditions, and updates:
+   - `docs/rules/<DocType>.md`
+   - `docs/rules/_shared-*.md`
+   - `docs/rules/error-catalog.json`
+
+2. **Verify consistency (as run in CI)**:
+   ```bash
+   python3 tools/generate_ai_rules.py --check
+   ```
+   Exits with code `0` when `docs/rules/` exactly matches the hook implementation, or `1` with a diff if any rule is out of date.
+
+3. **Rebuild or redeploy**:
+   - Rebuilding the project (`dotnet build`) copies the refreshed `docs/rules/*` files to `KnowledgeBase/rules/` inside the build output.
+   - For local container testing, execute `./redeploy.ps1`.
+
+4. **Commit changes**:
+   Commit both the C# hook modifications and the resulting updates in `docs/rules/` together in git.
+
+**Maintenance**
+
+```bash
+python3 tools/generate_ai_rules.py           # after changing hook code; commit docs/rules/
+python3 tools/generate_ai_rules.py --check   # CI: fails when docs/rules/ is stale
+```
+
+Add a glossary row whenever the assistant misses an answer because users call something by a different name. Write rule messages in hooks as
+full sentences that say what to fix; they become the assistant's answer.
 
 ---
 

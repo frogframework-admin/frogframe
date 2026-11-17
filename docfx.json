@@ -28,6 +28,9 @@
           "**/*.md",
           "**/toc.yml"
         ],
+        "exclude": [
+          "rules/**"
+        ],
         "src": "docs",
         "dest": "docs"
       },

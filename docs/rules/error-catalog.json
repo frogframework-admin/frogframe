@@ -1,0 +1,5245 @@
+{
+ "generatedBy": "tools/generate_ai_rules.py",
+ "entries": [
+  {
+   "id": "Ledger.cs:64",
+   "kind": "Error",
+   "message": "Akun wajib diisi",
+   "pattern": "Akun\\s+wajib\\s+diisi",
+   "field": "{p}",
+   "condition": "string.IsNullOrWhiteSpace(l.Account)",
+   "docTypes": [],
+   "event": "Pemeriksaan ValidateShape",
+   "className": "LedgerException",
+   "method": "ValidateShape",
+   "file": "src/Apps.Erp/Accounting/Ledger.cs",
+   "line": 64,
+   "shared": true
+  },
+  {
+   "id": "Ledger.cs:65",
+   "kind": "Error",
+   "message": "Debit dan kredit tidak boleh negatif",
+   "pattern": "Debit\\s+dan\\s+kredit\\s+tidak\\s+boleh\\s+negatif",
+   "field": "{p}",
+   "condition": "l.Debit < 0 || l.Credit < 0",
+   "docTypes": [],
+   "event": "Pemeriksaan ValidateShape",
+   "className": "LedgerException",
+   "method": "ValidateShape",
+   "file": "src/Apps.Erp/Accounting/Ledger.cs",
+   "line": 65,
+   "shared": true
+  },
+  {
+   "id": "Ledger.cs:66",
+   "kind": "Error",
+   "message": "Setiap baris harus berisi debit ATAU kredit (tidak boleh keduanya atau kosong)",
+   "pattern": "Setiap\\s+baris\\s+harus\\s+berisi\\s+debit\\s+ATAU\\s+kredit\\s+\\(tidak\\s+boleh\\s+keduanya\\s+atau\\s+kosong\\)",
+   "field": "{p}",
+   "condition": "(l.Debit > 0) == (l.Credit > 0)",
+   "docTypes": [],
+   "event": "Pemeriksaan ValidateShape",
+   "className": "LedgerException",
+   "method": "ValidateShape",
+   "file": "src/Apps.Erp/Accounting/Ledger.cs",
+   "line": 66,
+   "shared": true
+  },
+  {
+   "id": "Ledger.cs:67",
+   "kind": "Error",
+   "message": "Nilai maksimal 2 desimal",
+   "pattern": "Nilai\\s+maksimal\\s+2\\s+desimal",
+   "field": "{p}",
+   "condition": "decimal.Round(l.Debit, 2) != l.Debit || decimal.Round(l.Credit, 2) != l.Credit",
+   "docTypes": [],
+   "event": "Pemeriksaan ValidateShape",
+   "className": "LedgerException",
+   "method": "ValidateShape",
+   "file": "src/Apps.Erp/Accounting/Ledger.cs",
+   "line": 67,
+   "shared": true
+  },
+  {
+   "id": "Ledger.cs:72",
+   "kind": "Error",
+   "message": "Jurnal {g.Key.DocType} {g.Key.Name} tidak seimbang: debit {d} ≠ kredit {c}",
+   "pattern": "Jurnal\\s+.+?\\s+.+?\\s+tidak\\s+seimbang:\\s+debit\\s+.+?\\s+≠\\s+kredit\\s+.+?",
+   "field": "ledger",
+   "condition": "d != c",
+   "docTypes": [],
+   "event": "Pemeriksaan ValidateShape",
+   "className": "LedgerException",
+   "method": "ValidateShape",
+   "file": "src/Apps.Erp/Accounting/Ledger.cs",
+   "line": 72,
+   "shared": true
+  },
+  {
+   "id": "PostgresLedgerExtensionHandler.cs:58",
+   "kind": "Error",
+   "message": "Tanggal posting {date} tidak berada di periode akuntansi yang Terbuka (Open)",
+   "pattern": "Tanggal\\s+posting\\s+.+?\\s+tidak\\s+berada\\s+di\\s+periode\\s+akuntansi\\s+yang\\s+Terbuka\\s+\\(Open\\)",
+   "field": null,
+   "condition": "await q.ExecuteScalarAsync(ct) as string tidak ditemukan/kosong",
+   "docTypes": [],
+   "event": "Pemeriksaan WriteLedgerAsync",
+   "className": "PostgresLedgerExtensionHandler",
+   "method": "WriteLedgerAsync",
+   "file": "src/Apps.Erp/Accounting/PostgresLedgerExtensionHandler.cs",
+   "line": 58,
+   "shared": true
+  },
+  {
+   "id": "PostgresLedgerExtensionHandler.cs:72",
+   "kind": "Error",
+   "message": "Akun '{account}' tidak ditemukan",
+   "pattern": "Akun\\s+'.+?'\\s+tidak\\s+ditemukan",
+   "field": null,
+   "condition": "!found.TryGetValue(account, out var info)",
+   "docTypes": [],
+   "event": "Pemeriksaan WriteLedgerAsync",
+   "className": "PostgresLedgerExtensionHandler",
+   "method": "WriteLedgerAsync",
+   "file": "src/Apps.Erp/Accounting/PostgresLedgerExtensionHandler.cs",
+   "line": 72,
+   "shared": true
+  },
+  {
+   "id": "PostgresLedgerExtensionHandler.cs:73",
+   "kind": "Error",
+   "message": "Akun '{account}' adalah akun induk dan tidak bisa menerima posting",
+   "pattern": "Akun\\s+'.+?'\\s+adalah\\s+akun\\s+induk\\s+dan\\s+tidak\\s+bisa\\s+menerima\\s+posting",
+   "field": null,
+   "condition": "info.Group == \"true\"",
+   "docTypes": [],
+   "event": "Pemeriksaan WriteLedgerAsync",
+   "className": "PostgresLedgerExtensionHandler",
+   "method": "WriteLedgerAsync",
+   "file": "src/Apps.Erp/Accounting/PostgresLedgerExtensionHandler.cs",
+   "line": 73,
+   "shared": true
+  },
+  {
+   "id": "PostgresLedgerExtensionHandler.cs:74",
+   "kind": "Error",
+   "message": "Akun '{account}' nonaktif",
+   "pattern": "Akun\\s+'.+?'\\s+nonaktif",
+   "field": null,
+   "condition": "info.Active == \"false\"",
+   "docTypes": [],
+   "event": "Pemeriksaan WriteLedgerAsync",
+   "className": "PostgresLedgerExtensionHandler",
+   "method": "WriteLedgerAsync",
+   "file": "src/Apps.Erp/Accounting/PostgresLedgerExtensionHandler.cs",
+   "line": 74,
+   "shared": true
+  },
+  {
+   "id": "AccountingExtraHooks.cs:20",
+   "kind": "Error",
+   "message": "The same exchange rate already exists in {dup.Name}",
+   "pattern": "The\\s+same\\s+exchange\\s+rate\\s+already\\s+exists\\s+in\\s+.+?",
+   "field": "rate_date",
+   "condition": "dup is not null",
+   "docTypes": [
+    "CurrencyExchangeRate"
+   ],
+   "event": "Pemeriksaan CheckAsync",
+   "className": "CurrencyExchangeRateRulesHook",
+   "method": "CheckAsync",
+   "file": "src/Apps.Erp/Hooks/AccountingExtraHooks.cs",
+   "line": 20,
+   "shared": false
+  },
+  {
+   "id": "AccountingExtraHooks.cs:38",
+   "kind": "Error",
+   "message": "{r.Str(\"link_name\")} already has a primary {c.Meta.Def.Title.ToLowerInvariant()}: {o.Name}",
+   "pattern": ".+?\\s+already\\s+has\\s+a\\s+primary\\s+.+?:\\s+.+?",
+   "field": "is_primary",
+   "condition": "!(!c.Doc.Data.Bool(\"is_primary\")) && mine.Contains((r.Str(\"link_doctype\"), r.Str(\"link_name\")))",
+   "docTypes": [
+    "Address",
+    "Contact"
+   ],
+   "event": "Pemeriksaan CheckAsync",
+   "className": "PartyPrimaryHook",
+   "method": "CheckAsync",
+   "file": "src/Apps.Erp/Hooks/AccountingExtraHooks.cs",
+   "line": 38,
+   "shared": false
+  },
+  {
+   "id": "AccountingExtraHooks.cs:58",
+   "kind": "Error",
+   "message": "Fiscal year {fy.Name} is already closed",
+   "pattern": "Fiscal\\s+year\\s+.+?\\s+is\\s+already\\s+closed",
+   "field": "fiscal_year",
+   "condition": "fy.Data.Str(\"status\") == \"Closed\"",
+   "docTypes": [
+    "PeriodClosingVoucher"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PeriodClosingVoucherHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/AccountingExtraHooks.cs",
+   "line": 58,
+   "shared": false
+  },
+  {
+   "id": "AccountingExtraHooks.cs:61",
+   "kind": "Error",
+   "message": "The posting date must be the last day of the fiscal year ({fy.Data.Str(\"end_date\")})",
+   "pattern": "The\\s+posting\\s+date\\s+must\\s+be\\s+the\\s+last\\s+day\\s+of\\s+the\\s+fiscal\\s+year\\s+\\(.+?\\)",
+   "field": "posting_date",
+   "condition": "d.Date(\"posting_date\") != fy.Data.Date(\"end_date\")",
+   "docTypes": [
+    "PeriodClosingVoucher"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PeriodClosingVoucherHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/AccountingExtraHooks.cs",
+   "line": 61,
+   "shared": false
+  },
+  {
+   "id": "AccountingExtraHooks.cs:64",
+   "kind": "Error",
+   "message": "Fiscal year {fy.Name} was already closed by {dup.Name}",
+   "pattern": "Fiscal\\s+year\\s+.+?\\s+was\\s+already\\s+closed\\s+by\\s+.+?",
+   "field": "fiscal_year",
+   "condition": "dup is not null",
+   "docTypes": [
+    "PeriodClosingVoucher"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PeriodClosingVoucherHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/AccountingExtraHooks.cs",
+   "line": 64,
+   "shared": false
+  },
+  {
+   "id": "AccountingExtraHooks.cs:76",
+   "kind": "Error",
+   "message": "The retained earnings account is required",
+   "pattern": "The\\s+retained\\s+earnings\\s+account\\s+is\\s+required",
+   "field": "closing_account",
+   "condition": "!(c.Doc.DocStatus != DocStatus.Submitted || c.Previous?.DocStatus != DocStatus.Draft)",
+   "docTypes": [
+    "PeriodClosingVoucher"
+   ],
+   "event": "Setelah simpan/submit (posting, efek ke dokumen lain)",
+   "className": "PeriodClosingVoucherHook",
+   "method": "AfterSaveAsync",
+   "file": "src/Apps.Erp/Hooks/AccountingExtraHooks.cs",
+   "line": 76,
+   "shared": false
+  },
+  {
+   "id": "AccountingExtraHooks.cs:91",
+   "kind": "Error",
+   "message": "The closing entry is out of balance",
+   "pattern": "The\\s+closing\\s+entry\\s+is\\s+out\\s+of\\s+balance",
+   "field": "name",
+   "condition": "!(c.Doc.DocStatus != DocStatus.Submitted || c.Previous?.DocStatus != DocStatus.Draft) && !(acc?.Data.Str(\"report_type\") != \"Profit and Loss\") && posting.Difference != 0",
+   "docTypes": [
+    "PeriodClosingVoucher"
+   ],
+   "event": "Setelah simpan/submit (posting, efek ke dokumen lain)",
+   "className": "PeriodClosingVoucherHook",
+   "method": "AfterSaveAsync",
+   "file": "src/Apps.Erp/Hooks/AccountingExtraHooks.cs",
+   "line": 91,
+   "shared": false
+  },
+  {
+   "id": "AccountingHooks.cs:24",
+   "kind": "Error",
+   "message": "The root type must match the parent account ({root})",
+   "pattern": "The\\s+root\\s+type\\s+must\\s+match\\s+the\\s+parent\\s+account\\s+\\(.+?\\)",
+   "field": "root_type",
+   "condition": "!(parent is null) && root is not null && root != c.Doc.Data.Str(\"root_type\")",
+   "docTypes": [
+    "Account"
+   ],
+   "event": "Pemeriksaan CheckParentAsync",
+   "className": "AccountRulesHook",
+   "method": "CheckParentAsync",
+   "file": "src/Apps.Erp/Hooks/AccountingHooks.cs",
+   "line": 24,
+   "shared": false
+  },
+  {
+   "id": "AccountingHooks.cs:38",
+   "kind": "Error",
+   "message": "The account number cannot be changed after creation (number = document name)",
+   "pattern": "The\\s+account\\s+number\\s+cannot\\s+be\\s+changed\\s+after\\s+creation\\s+\\(number\\s+=\\s+document\\s+name\\)",
+   "field": "account_code",
+   "condition": "!(c.Previous is null) && c.Previous.Data.Str(\"account_code\") != c.Doc.Data.Str(\"account_code\")",
+   "docTypes": [
+    "Account"
+   ],
+   "event": "Saat perubahan disimpan",
+   "className": "AccountRulesHook",
+   "method": "BeforeUpdateAsync",
+   "file": "src/Apps.Erp/Hooks/AccountingHooks.cs",
+   "line": 38,
+   "shared": false
+  },
+  {
+   "id": "AccountingHooks.cs:40",
+   "kind": "Error",
+   "message": "This account still has child accounts; move them first",
+   "pattern": "This\\s+account\\s+still\\s+has\\s+child\\s+accounts;\\s+move\\s+them\\s+first",
+   "field": "is_group",
+   "condition": "!(c.Previous is null) && !(c.Previous.Data.Str(\"account_code\") != c.Doc.Data.Str(\"account_code\")) && c.Previous.Data.Bool(\"is_group\") && !c.Doc.Data.Bool(\"is_group\") && await HasChildrenAsync(m, c.Doc.Name, ct)",
+   "docTypes": [
+    "Account"
+   ],
+   "event": "Saat perubahan disimpan",
+   "className": "AccountRulesHook",
+   "method": "BeforeUpdateAsync",
+   "file": "src/Apps.Erp/Hooks/AccountingHooks.cs",
+   "line": 40,
+   "shared": false
+  },
+  {
+   "id": "AccountingHooks.cs:44",
+   "kind": "Error",
+   "message": "The account is already used in the ledger; root type, report type, normal balance, and group status cannot be changed",
+   "pattern": "The\\s+account\\s+is\\s+already\\s+used\\s+in\\s+the\\s+ledger;\\s+root\\s+type,\\s+report\\s+type,\\s+normal\\s+balance,\\s+and\\s+group\\s+status\\s+cannot\\s+be\\s+changed",
+   "field": "{f}",
+   "condition": "!(c.Previous is null) && !(c.Previous.Data.Str(\"account_code\") != c.Doc.Data.Str(\"account_code\")) && !(c.Previous.Data.Bool(\"is_group\") && !c.Doc.Data.Bool(\"is_group\") && await HasChildrenAsync(m, c.Doc.Name, ct)) && !Equals(c.Previous.Data.GetValueOrDefault(f), c.Doc.Data.GetValueOrDefault(f))",
+   "docTypes": [
+    "Account"
+   ],
+   "event": "Saat perubahan disimpan",
+   "className": "AccountRulesHook",
+   "method": "BeforeUpdateAsync",
+   "file": "src/Apps.Erp/Hooks/AccountingHooks.cs",
+   "line": 44,
+   "shared": false
+  },
+  {
+   "id": "AccountingHooks.cs:50",
+   "kind": "Error",
+   "message": "Account {c.Doc.Name} is already used in the ledger and cannot be deleted. Deactivate it instead.",
+   "pattern": "Account\\s+.+?\\s+is\\s+already\\s+used\\s+in\\s+the\\s+ledger\\s+and\\s+cannot\\s+be\\s+deleted\\.\\s+Deactivate\\s+it\\s+instead\\.",
+   "field": "name",
+   "condition": "await ledger.AccountUsedAsync(c.Doc.TenantId, c.Doc.Name, ct)",
+   "docTypes": [
+    "Account"
+   ],
+   "event": "Saat hapus",
+   "className": "AccountRulesHook",
+   "method": "BeforeDeleteAsync",
+   "file": "src/Apps.Erp/Hooks/AccountingHooks.cs",
+   "line": 50,
+   "shared": false
+  },
+  {
+   "id": "AccountingHooks.cs:52",
+   "kind": "Error",
+   "message": "Account {c.Doc.Name} still has child accounts",
+   "pattern": "Account\\s+.+?\\s+still\\s+has\\s+child\\s+accounts",
+   "field": "name",
+   "condition": "await HasChildrenAsync(new Masters(store, c.Doc.TenantId), c.Doc.Name, ct)",
+   "docTypes": [
+    "Account"
+   ],
+   "event": "Saat hapus",
+   "className": "AccountRulesHook",
+   "method": "BeforeDeleteAsync",
+   "file": "src/Apps.Erp/Hooks/AccountingHooks.cs",
+   "line": 52,
+   "shared": false
+  },
+  {
+   "id": "AccountingHooks.cs:67",
+   "kind": "Error",
+   "message": "Overlaps with fiscal year {y.Name}",
+   "pattern": "Overlaps\\s+with\\s+fiscal\\s+year\\s+.+?",
+   "field": "start_date",
+   "condition": "!(y.Name == c.Doc.Name) && start <= y.Data.Date(\"end_date\") && y.Data.Date(\"start_date\") <= end",
+   "docTypes": [
+    "FiscalYear"
+   ],
+   "event": "Pemeriksaan CheckAsync",
+   "className": "FiscalYearRulesHook",
+   "method": "CheckAsync",
+   "file": "src/Apps.Erp/Hooks/AccountingHooks.cs",
+   "line": 67,
+   "shared": false
+  },
+  {
+   "id": "AccountingHooks.cs:90",
+   "kind": "Error",
+   "message": "The period must fall within fiscal year {fy.Name}",
+   "pattern": "The\\s+period\\s+must\\s+fall\\s+within\\s+fiscal\\s+year\\s+.+?",
+   "field": "start_date",
+   "condition": "!(start is null || end is null) && await m.GetAsync(\"FiscalYear\", d.Str(\"fiscal_year\"), ct) is { } fy && (start < fy.Data.Date(\"start_date\") || end > fy.Data.Date(\"end_date\"))",
+   "docTypes": [
+    "AccountingPeriod"
+   ],
+   "event": "Pemeriksaan CheckAsync",
+   "className": "AccountingPeriodRulesHook",
+   "method": "CheckAsync",
+   "file": "src/Apps.Erp/Hooks/AccountingHooks.cs",
+   "line": 90,
+   "shared": false
+  },
+  {
+   "id": "AccountingHooks.cs:96",
+   "kind": "Error",
+   "message": "The period overlaps with {p.Name}",
+   "pattern": "The\\s+period\\s+overlaps\\s+with\\s+.+?",
+   "field": "start_date",
+   "condition": "!(p.Name == c.Doc.Name) && start <= p.Data.Date(\"end_date\") && p.Data.Date(\"start_date\") <= end",
+   "docTypes": [
+    "AccountingPeriod"
+   ],
+   "event": "Pemeriksaan CheckAsync",
+   "className": "AccountingPeriodRulesHook",
+   "method": "CheckAsync",
+   "file": "src/Apps.Erp/Hooks/AccountingHooks.cs",
+   "line": 96,
+   "shared": false
+  },
+  {
+   "id": "AccountingHooks.cs:108",
+   "kind": "Error",
+   "message": "Only a System Manager can reopen a closed period",
+   "pattern": "Only\\s+a\\s+System\\s+Manager\\s+can\\s+reopen\\s+a\\s+closed\\s+period",
+   "field": "status",
+   "condition": "!c.User.IsAdmin",
+   "docTypes": [
+    "AccountingPeriod"
+   ],
+   "event": "Pemeriksaan CheckAsync",
+   "className": "AccountingPeriodRulesHook",
+   "method": "CheckAsync",
+   "file": "src/Apps.Erp/Hooks/AccountingHooks.cs",
+   "line": 108,
+   "shared": false
+  },
+  {
+   "id": "AccountingHooks.cs:142",
+   "kind": "Error",
+   "message": "A journal needs at least 2 lines",
+   "pattern": "A\\s+journal\\s+needs\\s+at\\s+least\\s+2\\s+lines",
+   "field": "accounts",
+   "condition": "rows.Count < 2",
+   "docTypes": [
+    "JournalEntry"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "JournalEntryHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/AccountingHooks.cs",
+   "line": 142,
+   "shared": false
+  },
+  {
+   "id": "AccountingHooks.cs:155",
+   "kind": "Error",
+   "message": "Account {acc.Name} is a control account; use invoices/payments, or an Opening Entry journal",
+   "pattern": "Account\\s+.+?\\s+is\\s+a\\s+control\\s+account;\\s+use\\s+invoices/payments,\\s+or\\s+an\\s+Opening\\s+Entry\\s+journal",
+   "field": "{p}.account",
+   "condition": "isControl && !isOpening",
+   "docTypes": [
+    "JournalEntry"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "JournalEntryHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/AccountingHooks.cs",
+   "line": 155,
+   "shared": false
+  },
+  {
+   "id": "AccountingHooks.cs:157",
+   "kind": "Error",
+   "message": "Account {acc.Name} requires a party",
+   "pattern": "Account\\s+.+?\\s+requires\\s+a\\s+party",
+   "field": "{p}.party",
+   "condition": "(isControl || type is \"Receivable\" or \"Payable\") && row.Str(\"party\") is null",
+   "docTypes": [
+    "JournalEntry"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "JournalEntryHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/AccountingHooks.cs",
+   "line": 157,
+   "shared": false
+  },
+  {
+   "id": "AccountingHooks.cs:159",
+   "kind": "Error",
+   "message": "A receivable account cannot be used for a supplier",
+   "pattern": "A\\s+receivable\\s+account\\s+cannot\\s+be\\s+used\\s+for\\s+a\\s+supplier",
+   "field": "{p}.party_type",
+   "condition": "type == \"Receivable\" && row.Str(\"party_type\") is \"Vendor\"",
+   "docTypes": [
+    "JournalEntry"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "JournalEntryHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/AccountingHooks.cs",
+   "line": 159,
+   "shared": false
+  },
+  {
+   "id": "AccountingHooks.cs:161",
+   "kind": "Error",
+   "message": "A payable account cannot be used for a customer",
+   "pattern": "A\\s+payable\\s+account\\s+cannot\\s+be\\s+used\\s+for\\s+a\\s+customer",
+   "field": "{p}.party_type",
+   "condition": "type == \"Payable\" && row.Str(\"party_type\") is \"Customer\"",
+   "docTypes": [
+    "JournalEntry"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "JournalEntryHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/AccountingHooks.cs",
+   "line": 161,
+   "shared": false
+  },
+  {
+   "id": "AccountingHooks.cs:165",
+   "kind": "Error",
+   "message": "Account {acc.Name} requires a cost center",
+   "pattern": "Account\\s+.+?\\s+requires\\s+a\\s+cost\\s+center",
+   "field": "{p}.cost_center",
+   "condition": "needsCc && row.Str(\"cost_center\") is null",
+   "docTypes": [
+    "JournalEntry"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "JournalEntryHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/AccountingHooks.cs",
+   "line": 165,
+   "shared": false
+  },
+  {
+   "id": "AccountingHooks.cs:175",
+   "kind": "Error",
+   "message": "The posting date is required",
+   "pattern": "The\\s+posting\\s+date\\s+is\\s+required",
+   "field": "posting_date",
+   "condition": "!(c.Doc.DocStatus != DocStatus.Submitted || c.Previous?.DocStatus != DocStatus.Draft)",
+   "docTypes": [
+    "JournalEntry"
+   ],
+   "event": "Setelah simpan/submit (posting, efek ke dokumen lain)",
+   "className": "JournalEntryHook",
+   "method": "AfterSaveAsync",
+   "file": "src/Apps.Erp/Hooks/AccountingHooks.cs",
+   "line": 175,
+   "shared": false
+  },
+  {
+   "id": "AccountingHooks.cs:200",
+   "kind": "Error",
+   "message": "Opening balances in {c.Doc.Name} have been settled; cancel the payments first",
+   "pattern": "Opening\\s+balances\\s+in\\s+.+?\\s+have\\s+been\\s+settled;\\s+cancel\\s+the\\s+payments\\s+first",
+   "field": "name",
+   "condition": "await OpenItems.HasSettlementAsync(ledger, c.Doc.TenantId, c.Doc.DocType, c.Doc.Name, ct)",
+   "docTypes": [
+    "JournalEntry"
+   ],
+   "event": "Saat cancel",
+   "className": "JournalEntryHook",
+   "method": "OnCancelAsync",
+   "file": "src/Apps.Erp/Hooks/AccountingHooks.cs",
+   "line": 200,
+   "shared": false
+  },
+  {
+   "id": "AssetHooks.cs:70",
+   "kind": "Error",
+   "message": "{label} is not set on category {cat.Name}",
+   "pattern": ".+?\\s+is\\s+not\\s+set\\s+on\\s+category\\s+.+?",
+   "field": "{path}",
+   "condition": "> cat.Data.Str(f) tidak ditemukan/kosong",
+   "docTypes": [
+    "Asset",
+    "AssetDisposal",
+    "DepreciationRun",
+    "EmploymentContract"
+   ],
+   "event": "Pemeriksaan AccountsAsync",
+   "className": "AssetBook",
+   "method": "AccountsAsync",
+   "file": "src/Apps.Erp/Hooks/AssetHooks.cs",
+   "line": 70,
+   "shared": true
+  },
+  {
+   "id": "AssetHooks.cs:96",
+   "kind": "Error",
+   "message": "The useful life of {life} months has ended before the depreciation start date",
+   "pattern": "The\\s+useful\\s+life\\s+of\\s+.+?\\s+months\\s+has\\s+ended\\s+before\\s+the\\s+depreciation\\s+start\\s+date",
+   "field": "depreciation_start_date",
+   "condition": "!(available is null || start is null || life <= 0) && remaining <= 0",
+   "docTypes": [
+    "Asset"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "AssetHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/AssetHooks.cs",
+   "line": 96,
+   "shared": false
+  },
+  {
+   "id": "AssetHooks.cs:97",
+   "kind": "Error",
+   "message": "Opening accumulated depreciation exceeds the depreciable amount",
+   "pattern": "Opening\\s+accumulated\\s+depreciation\\s+exceeds\\s+the\\s+depreciable\\s+amount",
+   "field": "opening_accumulated_depreciation",
+   "condition": "!(available is null || start is null || life <= 0) && gross - salvage - opening < 0",
+   "docTypes": [
+    "Asset"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "AssetHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/AssetHooks.cs",
+   "line": 97,
+   "shared": false
+  },
+  {
+   "id": "AssetHooks.cs:99",
+   "kind": "Error",
+   "message": "{pi} is not submitted",
+   "pattern": ".+?\\s+is\\s+not\\s+submitted",
+   "field": "purchase_invoice",
+   "condition": "!(available is null || start is null || life <= 0) && d.Str(\"purchase_invoice\") is { } pi && (await m.GetAsync(\"PurchaseInvoice\", pi, ct))?.DocStatus != DocStatus.Submitted",
+   "docTypes": [
+    "Asset"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "AssetHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/AssetHooks.cs",
+   "line": 99,
+   "shared": false
+  },
+  {
+   "id": "AssetHooks.cs:108",
+   "kind": "Error",
+   "message": "The depreciation schedule is empty",
+   "pattern": "The\\s+depreciation\\s+schedule\\s+is\\s+empty",
+   "field": "schedule",
+   "condition": "c.Doc.Data.Rows(\"schedule\").Count == 0",
+   "docTypes": [
+    "Asset"
+   ],
+   "event": "Setelah simpan/submit (posting, efek ke dokumen lain)",
+   "className": "AssetHook",
+   "method": "AfterSaveAsync",
+   "file": "src/Apps.Erp/Hooks/AssetHooks.cs",
+   "line": 108,
+   "shared": false
+  },
+  {
+   "id": "AssetHooks.cs:111",
+   "kind": "Warning",
+   "message": "This asset is not linked to a purchase invoice; make sure its acquisition has been booked to the fixed asset account.",
+   "pattern": "This\\s+asset\\s+is\\s+not\\s+linked\\s+to\\s+a\\s+purchase\\s+invoice;\\s+make\\s+sure\\s+its\\s+acquisition\\s+has\\s+been\\s+booked\\s+to\\s+the\\s+fixed\\s+asset\\s+account\\.",
+   "field": null,
+   "condition": "!(c.Doc.Data.Rows(\"schedule\").Count == 0) && c.Doc.Data.Str(\"purchase_invoice\") is null && !c.Doc.Data.Bool(\"is_existing_asset\")",
+   "docTypes": [
+    "Asset"
+   ],
+   "event": "Setelah simpan/submit (posting, efek ke dokumen lain)",
+   "className": "AssetHook",
+   "method": "AfterSaveAsync",
+   "file": "src/Apps.Erp/Hooks/AssetHooks.cs",
+   "line": 111,
+   "shared": false
+  },
+  {
+   "id": "AssetHooks.cs:119",
+   "kind": "Error",
+   "message": "The asset has been depreciated by {posted[0].Run}; cancel that depreciation run first",
+   "pattern": "The\\s+asset\\s+has\\s+been\\s+depreciated\\s+by\\s+.+?;\\s+cancel\\s+that\\s+depreciation\\s+run\\s+first",
+   "field": "name",
+   "condition": "posted.Count > 0",
+   "docTypes": [
+    "Asset"
+   ],
+   "event": "Saat cancel",
+   "className": "AssetHook",
+   "method": "OnCancelAsync",
+   "file": "src/Apps.Erp/Hooks/AssetHooks.cs",
+   "line": 119,
+   "shared": false
+  },
+  {
+   "id": "AssetHooks.cs:170",
+   "kind": "Error",
+   "message": "No depreciation is due up to {D.Iso(date)}",
+   "pattern": "No\\s+depreciation\\s+is\\s+due\\s+up\\s+to\\s+.+?",
+   "field": "items",
+   "condition": "d.Rows(\"items\").Count == 0",
+   "docTypes": [
+    "DepreciationRun"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "DepreciationRunHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/AssetHooks.cs",
+   "line": 170,
+   "shared": false
+  },
+  {
+   "id": "AssetHooks.cs:190",
+   "kind": "Error",
+   "message": "Asset {it.Str(\"asset\")} is not active",
+   "pattern": "Asset\\s+.+?\\s+is\\s+not\\s+active",
+   "field": "items[{i}].asset",
+   "condition": "asset is null || asset.DocStatus != DocStatus.Submitted",
+   "docTypes": [
+    "DepreciationRun"
+   ],
+   "event": "Setelah simpan/submit (posting, efek ke dokumen lain)",
+   "className": "DepreciationRunHook",
+   "method": "AfterSaveAsync",
+   "file": "src/Apps.Erp/Hooks/AssetHooks.cs",
+   "line": 190,
+   "shared": false
+  },
+  {
+   "id": "AssetHooks.cs:191",
+   "kind": "Error",
+   "message": "Depreciation of {asset.Name} for {it.Str(\"schedule_date\")} is already posted",
+   "pattern": "Depreciation\\s+of\\s+.+?\\s+for\\s+.+?\\s+is\\s+already\\s+posted",
+   "field": "items[{i}].asset",
+   "condition": "posted.Contains((asset.Name, it.Str(\"schedule_date\") ?? \"\"))",
+   "docTypes": [
+    "DepreciationRun"
+   ],
+   "event": "Setelah simpan/submit (posting, efek ke dokumen lain)",
+   "className": "DepreciationRunHook",
+   "method": "AfterSaveAsync",
+   "file": "src/Apps.Erp/Hooks/AssetHooks.cs",
+   "line": 191,
+   "shared": false
+  },
+  {
+   "id": "AssetHooks.cs:216",
+   "kind": "Error",
+   "message": "Asset {asset.Name} is not active",
+   "pattern": "Asset\\s+.+?\\s+is\\s+not\\s+active",
+   "field": "asset",
+   "condition": "asset.DocStatus != DocStatus.Submitted",
+   "docTypes": [
+    "AssetDisposal"
+   ],
+   "event": "Pemeriksaan ValueAsync",
+   "className": "AssetDisposalHook",
+   "method": "ValueAsync",
+   "file": "src/Apps.Erp/Hooks/AssetHooks.cs",
+   "line": 216,
+   "shared": false
+  },
+  {
+   "id": "AssetHooks.cs:218",
+   "kind": "Error",
+   "message": "Asset {asset.Name} was already disposed by {other.Name}",
+   "pattern": "Asset\\s+.+?\\s+was\\s+already\\s+disposed\\s+by\\s+.+?",
+   "field": "asset",
+   "condition": "await AssetBook.DisposalAsync(m, asset.Name, ct) is { } other && other.Name != c.Doc.Name",
+   "docTypes": [
+    "AssetDisposal"
+   ],
+   "event": "Pemeriksaan ValueAsync",
+   "className": "AssetDisposalHook",
+   "method": "ValueAsync",
+   "file": "src/Apps.Erp/Hooks/AssetHooks.cs",
+   "line": 218,
+   "shared": false
+  },
+  {
+   "id": "AssetHooks.cs:219",
+   "kind": "Error",
+   "message": "The disposal date is required",
+   "pattern": "The\\s+disposal\\s+date\\s+is\\s+required",
+   "field": "disposal_date",
+   "condition": "d.Date(\"disposal_date\") tidak ditemukan/kosong",
+   "docTypes": [
+    "AssetDisposal"
+   ],
+   "event": "Pemeriksaan ValueAsync",
+   "className": "AssetDisposalHook",
+   "method": "ValueAsync",
+   "file": "src/Apps.Erp/Hooks/AssetHooks.cs",
+   "line": 219,
+   "shared": false
+  },
+  {
+   "id": "AssetHooks.cs:224",
+   "kind": "Error",
+   "message": "Depreciation for {missing.Str(\"schedule_date\")} is not posted; run a Depreciation Run up to the disposal date",
+   "pattern": "Depreciation\\s+for\\s+.+?\\s+is\\s+not\\s+posted;\\s+run\\s+a\\s+Depreciation\\s+Run\\s+up\\s+to\\s+the\\s+disposal\\s+date",
+   "field": "disposal_date",
+   "condition": "missing is not null",
+   "docTypes": [
+    "AssetDisposal"
+   ],
+   "event": "Pemeriksaan ValueAsync",
+   "className": "AssetDisposalHook",
+   "method": "ValueAsync",
+   "file": "src/Apps.Erp/Hooks/AssetHooks.cs",
+   "line": 224,
+   "shared": false
+  },
+  {
+   "id": "BudgetHooks.cs:50",
+   "kind": "Error",
+   "message": "Budget {b.Name} exceeded for {account}{(cc is null ? \"\" : $\" / {cc}\")}: actual {actual} + this {amount} = {actual + amount} > {(ytd ? \"year-to-date budget\" : \"budget\")} {limit}",
+   "pattern": "Budget\\s+.+?\\s+exceeded\\s+for\\s+.+?.+?:\\s+actual\\s+.+?\\s+\\+\\s+this\\s+.+?\\s+=\\s+.+?\\s+>\\s+.+?\\s+.+?",
+   "field": "name",
+   "condition": "!(row is null) && !(cc is not null && cc != dept) && !(actual + amount <= limit) && b.Data.Str(\"action_if_exceeded\") == \"Stop\"",
+   "docTypes": [
+    "CommissionStatement",
+    "ExpenseClaim",
+    "JournalEntry",
+    "PayrollRun",
+    "PurchaseDebitNote",
+    "PurchaseInvoice",
+    "SalesCreditNote",
+    "SalesInvoice",
+    "StockEntry"
+   ],
+   "event": "Pemeriksaan CheckAsync",
+   "className": "BudgetControl",
+   "method": "CheckAsync",
+   "file": "src/Apps.Erp/Hooks/BudgetHooks.cs",
+   "line": 50,
+   "shared": true
+  },
+  {
+   "id": "BudgetHooks.cs:51",
+   "kind": "Warning",
+   "message": "Budget {b.Name} exceeded for {account}{(cc is null ? \"\" : $\" / {cc}\")}: actual {actual} + this {amount} = {actual + amount} > {(ytd ? \"year-to-date budget\" : \"budget\")} {limit}",
+   "pattern": "Budget\\s+.+?\\s+exceeded\\s+for\\s+.+?.+?:\\s+actual\\s+.+?\\s+\\+\\s+this\\s+.+?\\s+=\\s+.+?\\s+>\\s+.+?\\s+.+?",
+   "field": null,
+   "condition": "!(row is null) && !(cc is not null && cc != dept) && !(actual + amount <= limit) && !(b.Data.Str(\"action_if_exceeded\") == \"Stop\")",
+   "docTypes": [
+    "CommissionStatement",
+    "ExpenseClaim",
+    "JournalEntry",
+    "PayrollRun",
+    "PurchaseDebitNote",
+    "PurchaseInvoice",
+    "SalesCreditNote",
+    "SalesInvoice",
+    "StockEntry"
+   ],
+   "event": "Pemeriksaan CheckAsync",
+   "className": "BudgetControl",
+   "method": "CheckAsync",
+   "file": "src/Apps.Erp/Hooks/BudgetHooks.cs",
+   "line": 51,
+   "shared": true
+  },
+  {
+   "id": "BudgetHooks.cs:65",
+   "kind": "Error",
+   "message": "{g.Key} appears more than once",
+   "pattern": ".+?\\s+appears\\s+more\\s+than\\s+once",
+   "field": "accounts",
+   "condition": null,
+   "docTypes": [
+    "Budget"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "BudgetHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/BudgetHooks.cs",
+   "line": 65,
+   "shared": false
+  },
+  {
+   "id": "BudgetHooks.cs:69",
+   "kind": "Error",
+   "message": "{dup.Name} is already the active budget for this fiscal year and cost center; amend it instead",
+   "pattern": ".+?\\s+is\\s+already\\s+the\\s+active\\s+budget\\s+for\\s+this\\s+fiscal\\s+year\\s+and\\s+cost\\s+center;\\s+amend\\s+it\\s+instead",
+   "field": "cost_center",
+   "condition": "dup is not null",
+   "docTypes": [
+    "Budget"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "BudgetHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/BudgetHooks.cs",
+   "line": 69,
+   "shared": false
+  },
+  {
+   "id": "Common.cs:125",
+   "kind": "Error",
+   "message": "{label} '{name}' not found",
+   "pattern": ".+?\\s+'.+?'\\s+not\\s+found",
+   "field": "{path}",
+   "condition": "nama DocType (DocHookRegistration memakai typeof(TDoc).Name). // --------------------------------------------------------------------------------------------- public sealed class Account { } public sealed class AccountingPeriod { } public sealed class FiscalYear { } public sealed class JournalEntry { } public sealed class SalesInvoice { } public sealed class SalesCreditNote { } public sealed class PurchaseInvoice { } public sealed class PurchaseDebitNote { } public sealed class PaymentEntry { } public sealed class CurrencyExchangeRate { } public sealed class Address { } public sealed class Contact { } public sealed class PeriodClosingVoucher { } public sealed class TaxInvoice { } public sealed class WithholdingCertificate { } public sealed class Asset { } public sealed class DepreciationRun { } public sealed class AssetDisposal { } public sealed class ExpenseClaim { } public sealed class EmployeeAdvance { } public sealed class BankStatement { } public sealed class BankReconciliation { } public sealed class PaymentReconciliation { } public sealed class Employee { } public sealed class Position { } public sealed class OrganizationUnit { } public sealed class JobChange { } public sealed class EmployeeSeparation { } public sealed class EmploymentContract { } public sealed class LeaveAllocation { } public sealed class LeaveApplication { } public sealed class Lead { } public sealed class Opportunity { } public sealed class Quotation { } /// <summary>Akses aman ke Document.Data (nilai sudah dinormalisasi framework: decimal, bool, \"yyyy-MM-dd\", List&lt;Dictionary&gt;).</summary> internal static class D { public static string? Str(this IDictionary<string, object?> d, string key) => d.TryGetValue(key, out var v) && v is string { Length: > 0 } s ? s : null; public static decimal Dec(this IDictionary<string, object?> d, string key) => d.TryGetValue(key, out var v) ? ToDec(v) : 0m; public static bool Bool(this IDictionary<string, object?> d, string key) => d.TryGetValue(key, out var v) && v is true; public static DateOnly? Date(this IDictionary<string, object?> d, string key) => d.TryGetValue(key, out var v) ? ToDate(v) : null; public static List<Dictionary<string, object?>> Rows(this IDictionary<string, object?> d, string key) => d.TryGetValue(key, out var v) && v is IEnumerable<Dictionary<string, object?>> rows ? rows.ToList() : []; public static decimal ToDec(object? v) => v switch { null => 0m, decimal x => x, long x => x, int x => x, double x => (decimal)x, string s when decimal.TryParse(s, NumberStyles.Number, CultureInfo.InvariantCulture, out var r) => r, _ => 0m, }; public static DateOnly? ToDate(object? v) => v switch { DateOnly x => x, string s when DateOnly.TryParseExact(s, \"yyyy-MM-dd\", CultureInfo.InvariantCulture, DateTimeStyles.None, out var r) => r, _ => null, }; /// <summary>Isi nilai bila field belum ada/kosong. (Jangan memakai d[key] ??= v: getter Dictionary melempar bila key belum ada.)</summary> public static void SetIfEmpty(this IDictionary<string, object?> d, string key, object? value) { if (value is null) return; if (!d.TryGetValue(key, out var current) || current is null || current is string { Length: 0 }) d[key] = value; } public static string Iso(DateOnly d) => d.ToString(\"yyyy-MM-dd\", CultureInfo.InvariantCulture); /// <summary>Sama dengan fungsi round() di ekspresi metadata (AwayFromZero).</summary> public static decimal R2(decimal v) => Math.Round(v, 2, MidpointRounding.AwayFromZero); } /// <summary>Pengumpul error per field; dilempar sekaligus agar pengguna melihat semua masalah.</summary> internal sealed class Errors { private readonly List<FieldError> _list = []; public void Add(string path, string message) => _list.Add(new FieldError(path, message)); public bool Any => _list.Count > 0; public void ThrowIfAny() { if (_list.Count > 0) throw new ValidationFailedException(_list); } public static Exception One(string path, string message) => new ValidationFailedException([new FieldError(path, message)]); } /// <summary> /// Pembaca master langsung dari store (dibatasi tenant, tidak dibatasi role user). Hook harus bisa membaca Account/Company/TaxCode /// walaupun user yang menyimpan dokumen (mis. Sales, Employee) tidak punya izin baca master tersebut. Di-cache per operasi. /// </summary> internal sealed class Masters(IDocumentStore store, string tenant) { private readonly Dictionary<(string, string), Document?> _cache = new(); public string Tenant => tenant; public async Task<Document?> GetAsync(string docType, string? name, CancellationToken ct) { if (string.IsNullOrEmpty(name)) return null; if (_cache.TryGetValue((docType, name), out var hit)) return hit; var doc = await store.GetAsync(tenant, docType, name, ct); _cache[(docType, name)] = doc; return doc; } public async Task<Document> RequireAsync(string docType, string? name, string path, string label, CancellationToken ct) => await GetAsync(docType, name, ct) tidak ditemukan/kosong",
+   "docTypes": [
+    "Account",
+    "AccountingPeriod",
+    "Address",
+    "Appraisal",
+    "Asset",
+    "AssetDisposal",
+    "Attendance",
+    "BankReconciliation",
+    "BankStatement",
+    "Budget",
+    "Campaign",
+    "CommissionStatement",
+    "Contact",
+    "CurrencyExchangeRate",
+    "CustomerContract",
+    "DepreciationRun",
+    "Employee",
+    "EmployeeAdvance",
+    "EmployeeSeparation",
+    "EmploymentContract",
+    "ExpenseClaim",
+    "FiscalYear",
+    "GoodsReceipt",
+    "JobApplicant",
+    "JobChange",
+    "JobOffer",
+    "JobRequisition",
+    "JournalEntry",
+    "Lead",
+    "LeaveAllocation",
+    "LeaveApplication",
+    "Opportunity",
+    "OvertimeRequest",
+    "PaymentEntry",
+    "PaymentReconciliation",
+    "PaymentRun",
+    "PayrollRun",
+    "Payslip",
+    "PeriodClosingVoucher",
+    "Position",
+    "PurchaseDebitNote",
+    "PurchaseInvoice",
+    "PurchaseOrder",
+    "PurchaseRequest",
+    "Quotation",
+    "SalaryAssignment",
+    "SalesCreditNote",
+    "SalesInvoice",
+    "SalesOrder",
+    "StockEntry",
+    "StockReconciliation",
+    "TaxInvoice",
+    "TrainingEvent",
+    "WithholdingCertificate"
+   ],
+   "event": "Pemeriksaan RequireAsync",
+   "className": "Masters",
+   "method": "RequireAsync",
+   "file": "src/Apps.Erp/Hooks/Common.cs",
+   "line": 125,
+   "shared": true
+  },
+  {
+   "id": "Common.cs:172",
+   "kind": "Error",
+   "message": "No {rateType} exchange rate {from}→{to} for {day}. Add a Currency Exchange Rate or type the rate manually.",
+   "pattern": "No\\s+.+?\\s+exchange\\s+rate\\s+.+?→.+?\\s+for\\s+.+?\\.\\s+Add\\s+a\\s+Currency\\s+Exchange\\s+Rate\\s+or\\s+type\\s+the\\s+rate\\s+manually\\.",
+   "field": "exchange_rate",
+   "condition": "!(from == to) && !(await Find(from, to) is { } direct) && !(await Find(to, from) is { } inverse)",
+   "docTypes": [
+    "GoodsReceipt",
+    "JournalEntry",
+    "PaymentEntry",
+    "PurchaseDebitNote",
+    "PurchaseInvoice",
+    "SalesCreditNote",
+    "SalesInvoice"
+   ],
+   "event": "Pemeriksaan Find",
+   "className": "Rates",
+   "method": "Find",
+   "file": "src/Apps.Erp/Hooks/Common.cs",
+   "line": 172,
+   "shared": true
+  },
+  {
+   "id": "Common.cs:200",
+   "kind": "Error",
+   "message": "No accounting period exists for {D.Iso(date)}",
+   "pattern": "No\\s+accounting\\s+period\\s+exists\\s+for\\s+.+?",
+   "field": "{path}",
+   "condition": "period is null",
+   "docTypes": [
+    "AssetDisposal",
+    "CommissionStatement",
+    "DepreciationRun",
+    "EmployeeAdvance",
+    "ExpenseClaim",
+    "GoodsReceipt",
+    "JournalEntry",
+    "PaymentEntry",
+    "PaymentReconciliation",
+    "PayrollRun",
+    "PeriodClosingVoucher",
+    "PurchaseDebitNote",
+    "PurchaseInvoice",
+    "SalesCreditNote",
+    "SalesInvoice",
+    "StockEntry",
+    "StockReconciliation"
+   ],
+   "event": "Pemeriksaan CheckAsync",
+   "className": "Periods",
+   "method": "CheckAsync",
+   "file": "src/Apps.Erp/Hooks/Common.cs",
+   "line": 200,
+   "shared": true
+  },
+  {
+   "id": "Common.cs:201",
+   "kind": "Error",
+   "message": "Period {period.Name} is closed",
+   "pattern": "Period\\s+.+?\\s+is\\s+closed",
+   "field": "{path}",
+   "condition": "period.Data.Str(\"status\") != \"Open\"",
+   "docTypes": [
+    "AssetDisposal",
+    "CommissionStatement",
+    "DepreciationRun",
+    "EmployeeAdvance",
+    "ExpenseClaim",
+    "GoodsReceipt",
+    "JournalEntry",
+    "PaymentEntry",
+    "PaymentReconciliation",
+    "PayrollRun",
+    "PeriodClosingVoucher",
+    "PurchaseDebitNote",
+    "PurchaseInvoice",
+    "SalesCreditNote",
+    "SalesInvoice",
+    "StockEntry",
+    "StockReconciliation"
+   ],
+   "event": "Pemeriksaan CheckAsync",
+   "className": "Periods",
+   "method": "CheckAsync",
+   "file": "src/Apps.Erp/Hooks/Common.cs",
+   "line": 201,
+   "shared": true
+  },
+  {
+   "id": "Common.cs:203",
+   "kind": "Error",
+   "message": "Period {period.Name} is locked for this transaction (subledger close)",
+   "pattern": "Period\\s+.+?\\s+is\\s+locked\\s+for\\s+this\\s+transaction\\s+\\(subledger\\s+close\\)",
+   "field": "{path}",
+   "condition": "lockField is not null && period.Data.Bool(lockField) && !user.IsAdmin",
+   "docTypes": [
+    "AssetDisposal",
+    "CommissionStatement",
+    "DepreciationRun",
+    "EmployeeAdvance",
+    "ExpenseClaim",
+    "GoodsReceipt",
+    "JournalEntry",
+    "PaymentEntry",
+    "PaymentReconciliation",
+    "PayrollRun",
+    "PeriodClosingVoucher",
+    "PurchaseDebitNote",
+    "PurchaseInvoice",
+    "SalesCreditNote",
+    "SalesInvoice",
+    "StockEntry",
+    "StockReconciliation"
+   ],
+   "event": "Pemeriksaan CheckAsync",
+   "className": "Periods",
+   "method": "CheckAsync",
+   "file": "src/Apps.Erp/Hooks/Common.cs",
+   "line": 203,
+   "shared": true
+  },
+  {
+   "id": "Common.cs:207",
+   "kind": "Error",
+   "message": "Books are frozen until {D.Iso(frozen)}",
+   "pattern": "Books\\s+are\\s+frozen\\s+until\\s+.+?",
+   "field": "{path}",
+   "condition": "settings.Date(\"books_frozen_until\") is { } frozen && date <= frozen && !user.IsAdmin",
+   "docTypes": [
+    "AssetDisposal",
+    "CommissionStatement",
+    "DepreciationRun",
+    "EmployeeAdvance",
+    "ExpenseClaim",
+    "GoodsReceipt",
+    "JournalEntry",
+    "PaymentEntry",
+    "PaymentReconciliation",
+    "PayrollRun",
+    "PeriodClosingVoucher",
+    "PurchaseDebitNote",
+    "PurchaseInvoice",
+    "SalesCreditNote",
+    "SalesInvoice",
+    "StockEntry",
+    "StockReconciliation"
+   ],
+   "event": "Pemeriksaan CheckAsync",
+   "className": "Periods",
+   "method": "CheckAsync",
+   "file": "src/Apps.Erp/Hooks/Common.cs",
+   "line": 207,
+   "shared": true
+  },
+  {
+   "id": "Common.cs:213",
+   "kind": "Error",
+   "message": "The posting date cannot be in the future (see Accounting Settings)",
+   "pattern": "The\\s+posting\\s+date\\s+cannot\\s+be\\s+in\\s+the\\s+future\\s+\\(see\\s+Accounting\\s+Settings\\)",
+   "field": "{path}",
+   "condition": "date > today && !(await m.SingleAsync(\"AccountingSettings\", ct)).Bool(\"allow_future_posting\")",
+   "docTypes": [
+    "AssetDisposal",
+    "CommissionStatement",
+    "DepreciationRun",
+    "EmployeeAdvance",
+    "ExpenseClaim",
+    "GoodsReceipt",
+    "JournalEntry",
+    "PaymentEntry",
+    "PaymentReconciliation",
+    "PayrollRun",
+    "PeriodClosingVoucher",
+    "PurchaseDebitNote",
+    "PurchaseInvoice",
+    "SalesCreditNote",
+    "SalesInvoice",
+    "StockEntry",
+    "StockReconciliation"
+   ],
+   "event": "Pemeriksaan CheckFutureAsync",
+   "className": "Periods",
+   "method": "CheckFutureAsync",
+   "file": "src/Apps.Erp/Hooks/Common.cs",
+   "line": 213,
+   "shared": true
+  },
+  {
+   "id": "Common.cs:252",
+   "kind": "Error",
+   "message": "Entry is out of balance by {diff} (exceeds the {what} tolerance of {tolerance})",
+   "pattern": "Entry\\s+is\\s+out\\s+of\\s+balance\\s+by\\s+.+?\\s+\\(exceeds\\s+the\\s+.+?\\s+tolerance\\s+of\\s+.+?\\)",
+   "field": "name",
+   "condition": "!(diff == 0) && Math.Abs(diff) > tolerance",
+   "docTypes": [
+    "AssetDisposal",
+    "CommissionStatement",
+    "DepreciationRun",
+    "EmployeeAdvance",
+    "ExpenseClaim",
+    "GoodsReceipt",
+    "JournalEntry",
+    "PaymentEntry",
+    "PaymentReconciliation",
+    "PayrollRun",
+    "PeriodClosingVoucher",
+    "PurchaseDebitNote",
+    "PurchaseInvoice",
+    "SalesCreditNote",
+    "SalesInvoice",
+    "StockEntry",
+    "StockReconciliation"
+   ],
+   "event": "Pemeriksaan Balance",
+   "className": "Posting",
+   "method": "Balance",
+   "file": "src/Apps.Erp/Hooks/Common.cs",
+   "line": 252,
+   "shared": true
+  },
+  {
+   "id": "Common.cs:254",
+   "kind": "Error",
+   "message": "There is a {what} difference of {diff}; set the {what} account on the Company",
+   "pattern": "There\\s+is\\s+a\\s+.+?\\s+difference\\s+of\\s+.+?;\\s+set\\s+the\\s+.+?\\s+account\\s+on\\s+the\\s+Company",
+   "field": "company",
+   "condition": "!(diff == 0) && account is null",
+   "docTypes": [
+    "AssetDisposal",
+    "CommissionStatement",
+    "DepreciationRun",
+    "EmployeeAdvance",
+    "ExpenseClaim",
+    "GoodsReceipt",
+    "JournalEntry",
+    "PaymentEntry",
+    "PaymentReconciliation",
+    "PayrollRun",
+    "PeriodClosingVoucher",
+    "PurchaseDebitNote",
+    "PurchaseInvoice",
+    "SalesCreditNote",
+    "SalesInvoice",
+    "StockEntry",
+    "StockReconciliation"
+   ],
+   "event": "Pemeriksaan Balance",
+   "className": "Posting",
+   "method": "Balance",
+   "file": "src/Apps.Erp/Hooks/Common.cs",
+   "line": 254,
+   "shared": true
+  },
+  {
+   "id": "Common.cs:262",
+   "kind": "Error",
+   "message": "A posting needs at least 2 lines",
+   "pattern": "A\\s+posting\\s+needs\\s+at\\s+least\\s+2\\s+lines",
+   "field": "name",
+   "condition": "_lines.Count < 2",
+   "docTypes": [
+    "AssetDisposal",
+    "CommissionStatement",
+    "DepreciationRun",
+    "EmployeeAdvance",
+    "ExpenseClaim",
+    "GoodsReceipt",
+    "JournalEntry",
+    "PaymentEntry",
+    "PaymentReconciliation",
+    "PayrollRun",
+    "PeriodClosingVoucher",
+    "PurchaseDebitNote",
+    "PurchaseInvoice",
+    "SalesCreditNote",
+    "SalesInvoice",
+    "StockEntry",
+    "StockReconciliation"
+   ],
+   "event": "Pemeriksaan Build",
+   "className": "Posting",
+   "method": "Build",
+   "file": "src/Apps.Erp/Hooks/Common.cs",
+   "line": 262,
+   "shared": true
+  },
+  {
+   "id": "Common.cs:423",
+   "kind": "Error",
+   "message": "Account {acc.Name} is a group account",
+   "pattern": "Account\\s+.+?\\s+is\\s+a\\s+group\\s+account",
+   "field": "{path}",
+   "condition": "acc.Data.Bool(\"is_group\")",
+   "docTypes": [
+    "EmployeeAdvance",
+    "ExpenseClaim",
+    "JournalEntry",
+    "PaymentEntry",
+    "PurchaseDebitNote",
+    "PurchaseInvoice",
+    "SalesCreditNote",
+    "SalesInvoice"
+   ],
+   "event": "Pemeriksaan RequirePostableAsync",
+   "className": "Accounts",
+   "method": "RequirePostableAsync",
+   "file": "src/Apps.Erp/Hooks/Common.cs",
+   "line": 423,
+   "shared": true
+  },
+  {
+   "id": "Common.cs:424",
+   "kind": "Error",
+   "message": "Account {acc.Name} is inactive",
+   "pattern": "Account\\s+.+?\\s+is\\s+inactive",
+   "field": "{path}",
+   "condition": "acc.Data.TryGetValue(\"is_active\", out var active) && active is false",
+   "docTypes": [
+    "EmployeeAdvance",
+    "ExpenseClaim",
+    "JournalEntry",
+    "PaymentEntry",
+    "PurchaseDebitNote",
+    "PurchaseInvoice",
+    "SalesCreditNote",
+    "SalesInvoice"
+   ],
+   "event": "Pemeriksaan RequirePostableAsync",
+   "className": "Accounts",
+   "method": "RequirePostableAsync",
+   "file": "src/Apps.Erp/Hooks/Common.cs",
+   "line": 424,
+   "shared": true
+  },
+  {
+   "id": "Common.cs:425",
+   "kind": "Error",
+   "message": "Account {acc.Name} is frozen",
+   "pattern": "Account\\s+.+?\\s+is\\s+frozen",
+   "field": "{path}",
+   "condition": "acc.Data.Bool(\"is_frozen\") && !user.IsAdmin",
+   "docTypes": [
+    "EmployeeAdvance",
+    "ExpenseClaim",
+    "JournalEntry",
+    "PaymentEntry",
+    "PurchaseDebitNote",
+    "PurchaseInvoice",
+    "SalesCreditNote",
+    "SalesInvoice"
+   ],
+   "event": "Pemeriksaan RequirePostableAsync",
+   "className": "Accounts",
+   "method": "RequirePostableAsync",
+   "file": "src/Apps.Erp/Hooks/Common.cs",
+   "line": 425,
+   "shared": true
+  },
+  {
+   "id": "CrmExtraHooks.cs:55",
+   "kind": "Error",
+   "message": "{q.Name} is {q.WorkflowState}; only an accepted quotation becomes an order",
+   "pattern": ".+?\\s+is\\s+.+?;\\s+only\\s+an\\s+accepted\\s+quotation\\s+becomes\\s+an\\s+order",
+   "field": "quotation",
+   "condition": "c.Doc.DocStatus == DocStatus.Draft && q.WorkflowState is not (\"Accepted\" or \"Billed\")",
+   "docTypes": [
+    "SalesOrder"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "SalesOrderHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/CrmExtraHooks.cs",
+   "line": 55,
+   "shared": false
+  },
+  {
+   "id": "CrmExtraHooks.cs:56",
+   "kind": "Error",
+   "message": "This quotation is still for a lead; convert the lead to a customer first",
+   "pattern": "This\\s+quotation\\s+is\\s+still\\s+for\\s+a\\s+lead;\\s+convert\\s+the\\s+lead\\s+to\\s+a\\s+customer\\s+first",
+   "field": "quotation",
+   "condition": "q.Data.Str(\"customer\") is null",
+   "docTypes": [
+    "SalesOrder"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "SalesOrderHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/CrmExtraHooks.cs",
+   "line": 56,
+   "shared": false
+  },
+  {
+   "id": "CrmExtraHooks.cs:95",
+   "kind": "Error",
+   "message": "{so.Name} belongs to another customer",
+   "pattern": ".+?\\s+belongs\\s+to\\s+another\\s+customer",
+   "field": "sales_order",
+   "condition": "so.Data.Str(\"customer\") != d.Str(\"customer\")",
+   "docTypes": [
+    "SalesInvoice"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "SalesInvoiceSalesRepHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/CrmExtraHooks.cs",
+   "line": 95,
+   "shared": false
+  },
+  {
+   "id": "CrmExtraHooks.cs:126",
+   "kind": "ActionFailure",
+   "message": "Sales order creation failed: {ex.Message}",
+   "pattern": "Sales\\s+order\\s+creation\\s+failed:\\s+.+?",
+   "field": null,
+   "condition": null,
+   "docTypes": [
+    "Quotation"
+   ],
+   "event": "Saat tombol aksi diklik",
+   "className": "QuotationMakeSalesOrderAction",
+   "method": "ExecuteAsync",
+   "file": "src/Apps.Erp/Hooks/CrmExtraHooks.cs",
+   "line": 126,
+   "shared": false
+  },
+  {
+   "id": "CrmExtraHooks.cs:159",
+   "kind": "ActionFailure",
+   "message": "Invoice creation failed: {ex.Message}",
+   "pattern": "Invoice\\s+creation\\s+failed:\\s+.+?",
+   "field": null,
+   "condition": null,
+   "docTypes": [
+    "SalesOrder"
+   ],
+   "event": "Saat tombol aksi diklik",
+   "className": "SalesOrderMakeInvoiceAction",
+   "method": "ExecuteAsync",
+   "file": "src/Apps.Erp/Hooks/CrmExtraHooks.cs",
+   "line": 159,
+   "shared": false
+  },
+  {
+   "id": "CrmExtraHooks.cs:172",
+   "kind": "Error",
+   "message": "{prev.Name} belongs to another customer",
+   "pattern": ".+?\\s+belongs\\s+to\\s+another\\s+customer",
+   "field": "renewal_of",
+   "condition": "await m.GetAsync(\"CustomerContract\", d.Str(\"renewal_of\"), ct) is { } prev && prev.Data.Str(\"customer\") != d.Str(\"customer\")",
+   "docTypes": [
+    "CustomerContract"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "CustomerContractHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/CrmExtraHooks.cs",
+   "line": 172,
+   "shared": false
+  },
+  {
+   "id": "CrmExtraHooks.cs:209",
+   "kind": "Error",
+   "message": "{plan.Name} is not valid in {period}",
+   "pattern": ".+?\\s+is\\s+not\\s+valid\\s+in\\s+.+?",
+   "field": "commission_plan",
+   "condition": "!(rep is null || period is null || company is null) && plan.Data.Date(\"valid_from\") > end || (plan.Data.Date(\"valid_to\") is { } to && to < start)",
+   "docTypes": [
+    "CommissionStatement"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "CommissionStatementHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/CrmExtraHooks.cs",
+   "line": 209,
+   "shared": false
+  },
+  {
+   "id": "CrmExtraHooks.cs:212",
+   "kind": "Error",
+   "message": "{rep} is not a participant of {plan.Name}",
+   "pattern": ".+?\\s+is\\s+not\\s+a\\s+participant\\s+of\\s+.+?",
+   "field": "sales_rep",
+   "condition": "!(rep is null || period is null || company is null) && reps.Count > 0 && mine is null",
+   "docTypes": [
+    "CommissionStatement"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "CommissionStatementHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/CrmExtraHooks.cs",
+   "line": 212,
+   "shared": false
+  },
+  {
+   "id": "CrmExtraHooks.cs:218",
+   "kind": "Error",
+   "message": "{dup.Name} already covers {rep} for {period}",
+   "pattern": ".+?\\s+already\\s+covers\\s+.+?\\s+for\\s+.+?",
+   "field": "period",
+   "condition": "!(rep is null || period is null || company is null) && dup is not null",
+   "docTypes": [
+    "CommissionStatement"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "CommissionStatementHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/CrmExtraHooks.cs",
+   "line": 218,
+   "shared": false
+  },
+  {
+   "id": "CrmExtraHooks.cs:249",
+   "kind": "Error",
+   "message": "Commission is negative (credit notes exceed invoices); carry it to the next period instead",
+   "pattern": "Commission\\s+is\\s+negative\\s+\\(credit\\s+notes\\s+exceed\\s+invoices\\);\\s+carry\\s+it\\s+to\\s+the\\s+next\\s+period\\s+instead",
+   "field": "total_commission",
+   "condition": "!(c.Doc.DocStatus != DocStatus.Submitted || c.Previous?.DocStatus != DocStatus.Draft) && !(total == 0) && total < 0",
+   "docTypes": [
+    "CommissionStatement"
+   ],
+   "event": "Setelah simpan/submit (posting, efek ke dokumen lain)",
+   "className": "CommissionStatementHook",
+   "method": "AfterSaveAsync",
+   "file": "src/Apps.Erp/Hooks/CrmExtraHooks.cs",
+   "line": 249,
+   "shared": false
+  },
+  {
+   "id": "CrmExtraHooks.cs:251",
+   "kind": "Error",
+   "message": "Set the commission expense account on {plan.Name}",
+   "pattern": "Set\\s+the\\s+commission\\s+expense\\s+account\\s+on\\s+.+?",
+   "field": "commission_plan",
+   "condition": "!(c.Doc.DocStatus != DocStatus.Submitted || c.Previous?.DocStatus != DocStatus.Draft) && !(total == 0) && !(total < 0)",
+   "docTypes": [
+    "CommissionStatement"
+   ],
+   "event": "Setelah simpan/submit (posting, efek ke dokumen lain)",
+   "className": "CommissionStatementHook",
+   "method": "AfterSaveAsync",
+   "file": "src/Apps.Erp/Hooks/CrmExtraHooks.cs",
+   "line": 251,
+   "shared": false
+  },
+  {
+   "id": "CrmExtraHooks.cs:252",
+   "kind": "Error",
+   "message": "Set the commission payable account on {plan.Name}",
+   "pattern": "Set\\s+the\\s+commission\\s+payable\\s+account\\s+on\\s+.+?",
+   "field": "commission_plan",
+   "condition": "!(c.Doc.DocStatus != DocStatus.Submitted || c.Previous?.DocStatus != DocStatus.Draft) && !(total == 0) && !(total < 0)",
+   "docTypes": [
+    "CommissionStatement"
+   ],
+   "event": "Setelah simpan/submit (posting, efek ke dokumen lain)",
+   "className": "CommissionStatementHook",
+   "method": "AfterSaveAsync",
+   "file": "src/Apps.Erp/Hooks/CrmExtraHooks.cs",
+   "line": 252,
+   "shared": false
+  },
+  {
+   "id": "CrmExtraHooks.cs:253",
+   "kind": "Error",
+   "message": "The posting date is required",
+   "pattern": "The\\s+posting\\s+date\\s+is\\s+required",
+   "field": "posting_date",
+   "condition": "!(c.Doc.DocStatus != DocStatus.Submitted || c.Previous?.DocStatus != DocStatus.Draft) && !(total == 0) && !(total < 0)",
+   "docTypes": [
+    "CommissionStatement"
+   ],
+   "event": "Setelah simpan/submit (posting, efek ke dokumen lain)",
+   "className": "CommissionStatementHook",
+   "method": "AfterSaveAsync",
+   "file": "src/Apps.Erp/Hooks/CrmExtraHooks.cs",
+   "line": 253,
+   "shared": false
+  },
+  {
+   "id": "CrmHooks.cs:55",
+   "kind": "Warning",
+   "message": "Possible duplicate: {docType} {dup.Name} has the same {field} ({value})",
+   "pattern": "Possible\\s+duplicate:\\s+.+?\\s+.+?\\s+has\\s+the\\s+same\\s+.+?\\s+\\(.+?\\)",
+   "field": null,
+   "condition": "!(mode == \"No\") && (await m.QueryAsync(docType, [new FilterClause(field, \"=\", value)], ct, take: 1)).FirstOrDefault() is { } dup",
+   "docTypes": [
+    "Lead"
+   ],
+   "event": "Saat dokumen baru disimpan",
+   "className": "LeadHook",
+   "method": "BeforeInsertAsync",
+   "file": "src/Apps.Erp/Hooks/CrmHooks.cs",
+   "line": 55,
+   "shared": false
+  },
+  {
+   "id": "CrmHooks.cs:94",
+   "kind": "ActionFailure",
+   "message": "Set 'Customer group for converted leads' in CRM Settings",
+   "pattern": "Set\\s+'Customer\\s+group\\s+for\\s+converted\\s+leads'\\s+in\\s+CRM\\s+Settings",
+   "field": null,
+   "condition": "group is null",
+   "docTypes": [
+    "Lead"
+   ],
+   "event": "Saat tombol aksi diklik",
+   "className": "LeadConvertAction",
+   "method": "ExecuteAsync",
+   "file": "src/Apps.Erp/Hooks/CrmHooks.cs",
+   "line": 94,
+   "shared": false
+  },
+  {
+   "id": "CrmHooks.cs:123",
+   "kind": "Error",
+   "message": "Set the default company (General Settings) and sales stages",
+   "pattern": "Set\\s+the\\s+default\\s+company\\s+\\(General\\s+Settings\\)\\s+and\\s+sales\\s+stages",
+   "field": "name",
+   "condition": "company is null || stage is null",
+   "docTypes": [
+    "Lead"
+   ],
+   "event": "Saat tombol aksi diklik",
+   "className": "LeadConvertAction",
+   "method": "ExecuteAsync",
+   "file": "src/Apps.Erp/Hooks/CrmHooks.cs",
+   "line": 123,
+   "shared": false
+  },
+  {
+   "id": "CrmHooks.cs:142",
+   "kind": "ActionFailure",
+   "message": "Conversion failed: {ex.Message}.{tail}",
+   "pattern": "Conversion\\s+failed:\\s+.+?\\..+?",
+   "field": null,
+   "condition": null,
+   "docTypes": [
+    "Lead"
+   ],
+   "event": "Saat tombol aksi diklik",
+   "className": "LeadConvertAction",
+   "method": "ExecuteAsync",
+   "file": "src/Apps.Erp/Hooks/CrmHooks.cs",
+   "line": 142,
+   "shared": false
+  },
+  {
+   "id": "CrmHooks.cs:249",
+   "kind": "ActionFailure",
+   "message": "This quotation is still for a lead; convert the lead to a customer first",
+   "pattern": "This\\s+quotation\\s+is\\s+still\\s+for\\s+a\\s+lead;\\s+convert\\s+the\\s+lead\\s+to\\s+a\\s+customer\\s+first",
+   "field": null,
+   "condition": "q.Str(\"customer\") is null",
+   "docTypes": [
+    "Quotation"
+   ],
+   "event": "Saat tombol aksi diklik",
+   "className": "QuotationMakeInvoiceAction",
+   "method": "ExecuteAsync",
+   "file": "src/Apps.Erp/Hooks/CrmHooks.cs",
+   "line": 249,
+   "shared": false
+  },
+  {
+   "id": "CrmHooks.cs:269",
+   "kind": "ActionFailure",
+   "message": "Invoice creation failed: {ex.Message}",
+   "pattern": "Invoice\\s+creation\\s+failed:\\s+.+?",
+   "field": null,
+   "condition": null,
+   "docTypes": [
+    "Quotation"
+   ],
+   "event": "Saat tombol aksi diklik",
+   "className": "QuotationMakeInvoiceAction",
+   "method": "ExecuteAsync",
+   "file": "src/Apps.Erp/Hooks/CrmHooks.cs",
+   "line": 269,
+   "shared": false
+  },
+  {
+   "id": "EmployeeFinanceHooks.cs:19",
+   "kind": "Error",
+   "message": "{emp.Name} has left",
+   "pattern": ".+?\\s+has\\s+left",
+   "field": "employee",
+   "condition": "emp.Data.Str(\"status\") == \"Left\"",
+   "docTypes": [
+    "Attendance",
+    "EmployeeAdvance",
+    "EmployeeSeparation",
+    "EmploymentContract",
+    "ExpenseClaim",
+    "JobChange",
+    "LeaveAllocation",
+    "LeaveApplication",
+    "OvertimeRequest",
+    "PaymentEntry",
+    "PaymentRun",
+    "Payslip",
+    "PurchaseOrder",
+    "PurchaseRequest"
+   ],
+   "event": "Pemeriksaan ActiveEmployeeAsync",
+   "className": "Approval",
+   "method": "ActiveEmployeeAsync",
+   "file": "src/Apps.Erp/Hooks/EmployeeFinanceHooks.cs",
+   "line": 19,
+   "shared": true
+  },
+  {
+   "id": "EmployeeFinanceHooks.cs:53",
+   "kind": "Error",
+   "message": "The advance account is not set",
+   "pattern": "The\\s+advance\\s+account\\s+is\\s+not\\s+set",
+   "field": "advance_account",
+   "condition": "!(!Approval.JustApproved(c))",
+   "docTypes": [
+    "EmployeeAdvance"
+   ],
+   "event": "Setelah simpan/submit (posting, efek ke dokumen lain)",
+   "className": "EmployeeAdvanceHook",
+   "method": "AfterSaveAsync",
+   "file": "src/Apps.Erp/Hooks/EmployeeFinanceHooks.cs",
+   "line": 53,
+   "shared": false
+  },
+  {
+   "id": "EmployeeFinanceHooks.cs:54",
+   "kind": "Error",
+   "message": "The company's default payable account is not set",
+   "pattern": "The\\s+company's\\s+default\\s+payable\\s+account\\s+is\\s+not\\s+set",
+   "field": "company",
+   "condition": "!(!Approval.JustApproved(c))",
+   "docTypes": [
+    "EmployeeAdvance"
+   ],
+   "event": "Setelah simpan/submit (posting, efek ke dokumen lain)",
+   "className": "EmployeeAdvanceHook",
+   "method": "AfterSaveAsync",
+   "file": "src/Apps.Erp/Hooks/EmployeeFinanceHooks.cs",
+   "line": 54,
+   "shared": false
+  },
+  {
+   "id": "EmployeeFinanceHooks.cs:66",
+   "kind": "Error",
+   "message": "{c.Doc.Name} has been paid or settled; cancel those documents first",
+   "pattern": ".+?\\s+has\\s+been\\s+paid\\s+or\\s+settled;\\s+cancel\\s+those\\s+documents\\s+first",
+   "field": "name",
+   "condition": "await OpenItems.HasSettlementAsync(ledger, c.Doc.TenantId, c.Doc.DocType, c.Doc.Name, ct)",
+   "docTypes": [
+    "EmployeeAdvance"
+   ],
+   "event": "Saat cancel",
+   "className": "EmployeeAdvanceHook",
+   "method": "OnCancelAsync",
+   "file": "src/Apps.Erp/Hooks/EmployeeFinanceHooks.cs",
+   "line": 66,
+   "shared": false
+  },
+  {
+   "id": "EmployeeFinanceHooks.cs:100",
+   "kind": "Error",
+   "message": "Choose the advance being settled",
+   "pattern": "Choose\\s+the\\s+advance\\s+being\\s+settled",
+   "field": "advance_settled",
+   "condition": "settle != 0",
+   "docTypes": [
+    "ExpenseClaim"
+   ],
+   "event": "Pemeriksaan AdvanceAsync",
+   "className": "ExpenseClaimHook",
+   "method": "AdvanceAsync",
+   "file": "src/Apps.Erp/Hooks/EmployeeFinanceHooks.cs",
+   "line": 100,
+   "shared": false
+  },
+  {
+   "id": "EmployeeFinanceHooks.cs:101",
+   "kind": "Error",
+   "message": "{adv.Name} belongs to another employee",
+   "pattern": ".+?\\s+belongs\\s+to\\s+another\\s+employee",
+   "field": "employee_advance",
+   "condition": "adv.Data.Str(\"employee\") != d.Str(\"employee\")",
+   "docTypes": [
+    "ExpenseClaim"
+   ],
+   "event": "Pemeriksaan AdvanceAsync",
+   "className": "ExpenseClaimHook",
+   "method": "AdvanceAsync",
+   "file": "src/Apps.Erp/Hooks/EmployeeFinanceHooks.cs",
+   "line": 101,
+   "shared": false
+  },
+  {
+   "id": "EmployeeFinanceHooks.cs:102",
+   "kind": "Error",
+   "message": "{adv.Name} is not approved",
+   "pattern": ".+?\\s+is\\s+not\\s+approved",
+   "field": "employee_advance",
+   "condition": "adv.WorkflowState != Approval.Approved",
+   "docTypes": [
+    "ExpenseClaim"
+   ],
+   "event": "Pemeriksaan AdvanceAsync",
+   "className": "ExpenseClaimHook",
+   "method": "AdvanceAsync",
+   "file": "src/Apps.Erp/Hooks/EmployeeFinanceHooks.cs",
+   "line": 102,
+   "shared": false
+  },
+  {
+   "id": "EmployeeFinanceHooks.cs:103",
+   "kind": "Error",
+   "message": "The advance deduction cannot exceed the total claimed; return the unused advance through a Payment Entry",
+   "pattern": "The\\s+advance\\s+deduction\\s+cannot\\s+exceed\\s+the\\s+total\\s+claimed;\\s+return\\s+the\\s+unused\\s+advance\\s+through\\s+a\\s+Payment\\s+Entry",
+   "field": "advance_settled",
+   "condition": "settle > total",
+   "docTypes": [
+    "ExpenseClaim"
+   ],
+   "event": "Pemeriksaan AdvanceAsync",
+   "className": "ExpenseClaimHook",
+   "method": "AdvanceAsync",
+   "file": "src/Apps.Erp/Hooks/EmployeeFinanceHooks.cs",
+   "line": 103,
+   "shared": false
+  },
+  {
+   "id": "EmployeeFinanceHooks.cs:105",
+   "kind": "Error",
+   "message": "Exceeds the open balance of advance {adv.Name} ({(open is null ? 0m : open.NetBase):N2})",
+   "pattern": "Exceeds\\s+the\\s+open\\s+balance\\s+of\\s+advance\\s+.+?\\s+\\(.+?\\)",
+   "field": "advance_settled",
+   "condition": "settle > 0 && (open is null || settle > open.NetBase)",
+   "docTypes": [
+    "ExpenseClaim"
+   ],
+   "event": "Pemeriksaan AdvanceAsync",
+   "className": "ExpenseClaimHook",
+   "method": "AdvanceAsync",
+   "file": "src/Apps.Erp/Hooks/EmployeeFinanceHooks.cs",
+   "line": 105,
+   "shared": false
+  },
+  {
+   "id": "EmployeeFinanceHooks.cs:126",
+   "kind": "Error",
+   "message": "{type.Name} requires a receipt",
+   "pattern": ".+?\\s+requires\\s+a\\s+receipt",
+   "field": "{p}.receipt",
+   "condition": "!(type is null) && type.Data.Bool(\"requires_receipt\") && r.Str(\"receipt\") is null",
+   "docTypes": [
+    "ExpenseClaim"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "ExpenseClaimHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/EmployeeFinanceHooks.cs",
+   "line": 126,
+   "shared": false
+  },
+  {
+   "id": "EmployeeFinanceHooks.cs:128",
+   "kind": "Error",
+   "message": "Exceeds the {type.Name} limit ({max})",
+   "pattern": "Exceeds\\s+the\\s+.+?\\s+limit\\s+\\(.+?\\)",
+   "field": "{p}.amount",
+   "condition": "!(type is null) && max > 0 && r.Dec(\"amount\") > max",
+   "docTypes": [
+    "ExpenseClaim"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "ExpenseClaimHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/EmployeeFinanceHooks.cs",
+   "line": 128,
+   "shared": false
+  },
+  {
+   "id": "EmployeeFinanceHooks.cs:129",
+   "kind": "Error",
+   "message": "Amount must be greater than 0",
+   "pattern": "Amount\\s+must\\s+be\\s+greater\\s+than\\s+0",
+   "field": "{p}.amount",
+   "condition": "!(type is null) && r.Dec(\"amount\") <= 0",
+   "docTypes": [
+    "ExpenseClaim"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "ExpenseClaimHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/EmployeeFinanceHooks.cs",
+   "line": 129,
+   "shared": false
+  },
+  {
+   "id": "EmployeeFinanceHooks.cs:150",
+   "kind": "Error",
+   "message": "The employee payable account is not set",
+   "pattern": "The\\s+employee\\s+payable\\s+account\\s+is\\s+not\\s+set",
+   "field": "payable_account",
+   "condition": "!(!Approval.JustApproved(c))",
+   "docTypes": [
+    "ExpenseClaim"
+   ],
+   "event": "Setelah simpan/submit (posting, efek ke dokumen lain)",
+   "className": "ExpenseClaimHook",
+   "method": "AfterSaveAsync",
+   "file": "src/Apps.Erp/Hooks/EmployeeFinanceHooks.cs",
+   "line": 150,
+   "shared": false
+  },
+  {
+   "id": "EmployeeFinanceHooks.cs:155",
+   "kind": "Error",
+   "message": "The line expense account is not set",
+   "pattern": "The\\s+line\\s+expense\\s+account\\s+is\\s+not\\s+set",
+   "field": "items",
+   "condition": "g.Key.Acc tidak ditemukan/kosong",
+   "docTypes": [
+    "ExpenseClaim"
+   ],
+   "event": "Setelah simpan/submit (posting, efek ke dokumen lain)",
+   "className": "ExpenseClaimHook",
+   "method": "AfterSaveAsync",
+   "file": "src/Apps.Erp/Hooks/EmployeeFinanceHooks.cs",
+   "line": 155,
+   "shared": false
+  },
+  {
+   "id": "EmployeeFinanceHooks.cs:161",
+   "kind": "Error",
+   "message": "The advance account is not set",
+   "pattern": "The\\s+advance\\s+account\\s+is\\s+not\\s+set",
+   "field": "employee_advance",
+   "condition": "!(!Approval.JustApproved(c)) && settle > 0 && adv is not null",
+   "docTypes": [
+    "ExpenseClaim"
+   ],
+   "event": "Setelah simpan/submit (posting, efek ke dokumen lain)",
+   "className": "ExpenseClaimHook",
+   "method": "AfterSaveAsync",
+   "file": "src/Apps.Erp/Hooks/EmployeeFinanceHooks.cs",
+   "line": 161,
+   "shared": false
+  },
+  {
+   "id": "EmployeeFinanceHooks.cs:171",
+   "kind": "Error",
+   "message": "{c.Doc.Name} has been paid; cancel the payment first",
+   "pattern": ".+?\\s+has\\s+been\\s+paid;\\s+cancel\\s+the\\s+payment\\s+first",
+   "field": "name",
+   "condition": "await OpenItems.HasSettlementAsync(ledger, c.Doc.TenantId, c.Doc.DocType, c.Doc.Name, ct)",
+   "docTypes": [
+    "ExpenseClaim"
+   ],
+   "event": "Saat cancel",
+   "className": "ExpenseClaimHook",
+   "method": "OnCancelAsync",
+   "file": "src/Apps.Erp/Hooks/EmployeeFinanceHooks.cs",
+   "line": 171,
+   "shared": false
+  },
+  {
+   "id": "HrHooks.cs:60",
+   "kind": "Error",
+   "message": "The Left status is applied through Employee Separation",
+   "pattern": "The\\s+Left\\s+status\\s+is\\s+applied\\s+through\\s+Employee\\s+Separation",
+   "field": "status",
+   "condition": "sep is null && !c.User.IsAdmin",
+   "docTypes": [
+    "Employee"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "EmployeeHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/HrHooks.cs",
+   "line": 60,
+   "shared": false
+  },
+  {
+   "id": "HrHooks.cs:71",
+   "kind": "Error",
+   "message": "Position {pos.Name} is {pos.Data.Str(\"status\")}",
+   "pattern": "Position\\s+.+?\\s+is\\s+.+?",
+   "field": "position",
+   "condition": "pos.Data.Str(\"status\") is \"Closed\" or \"Frozen\"",
+   "docTypes": [
+    "Employee"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "EmployeeHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/HrHooks.cs",
+   "line": 71,
+   "shared": false
+  },
+  {
+   "id": "HrHooks.cs:72",
+   "kind": "Error",
+   "message": "Position {pos.Name} is already filled by {holder.Name}",
+   "pattern": "Position\\s+.+?\\s+is\\s+already\\s+filled\\s+by\\s+.+?",
+   "field": "position",
+   "condition": "await Hr.HolderAsync(m, pos.Name, me, ct) is { } holder",
+   "docTypes": [
+    "Employee"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "EmployeeHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/HrHooks.cs",
+   "line": 72,
+   "shared": false
+  },
+  {
+   "id": "HrHooks.cs:93",
+   "kind": "Error",
+   "message": "The probation end date is before the date of joining",
+   "pattern": "The\\s+probation\\s+end\\s+date\\s+is\\s+before\\s+the\\s+date\\s+of\\s+joining",
+   "field": "probation_end_date",
+   "condition": "d.Date(\"probation_end_date\") is { } pe && d.Date(\"hire_date\") is { } hd && pe < hd",
+   "docTypes": [
+    "Employee"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "EmployeeHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/HrHooks.cs",
+   "line": 93,
+   "shared": false
+  },
+  {
+   "id": "HrHooks.cs:94",
+   "kind": "Error",
+   "message": "An employee cannot report to themselves",
+   "pattern": "An\\s+employee\\s+cannot\\s+report\\s+to\\s+themselves",
+   "field": "reports_to",
+   "condition": "d.Str(\"reports_to\") == me",
+   "docTypes": [
+    "Employee"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "EmployeeHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/HrHooks.cs",
+   "line": 94,
+   "shared": false
+  },
+  {
+   "id": "HrHooks.cs:126",
+   "kind": "Error",
+   "message": "The position is still filled by {holder.Name}; move the employee first",
+   "pattern": "The\\s+position\\s+is\\s+still\\s+filled\\s+by\\s+.+?;\\s+move\\s+the\\s+employee\\s+first",
+   "field": "status",
+   "condition": "holder is not null && status is \"Closed\" or \"Frozen\"",
+   "docTypes": [
+    "Position"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PositionHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/HrHooks.cs",
+   "line": 126,
+   "shared": false
+  },
+  {
+   "id": "HrHooks.cs:155",
+   "kind": "Error",
+   "message": "The effective date is before the employee's date of joining",
+   "pattern": "The\\s+effective\\s+date\\s+is\\s+before\\s+the\\s+employee's\\s+date\\s+of\\s+joining",
+   "field": "effective_date",
+   "condition": "d.Date(\"effective_date\") is { } eff && emp.Data.Date(\"hire_date\") is { } hire && eff < hire",
+   "docTypes": [
+    "JobChange"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "JobChangeHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/HrHooks.cs",
+   "line": 155,
+   "shared": false
+  },
+  {
+   "id": "HrHooks.cs:159",
+   "kind": "Error",
+   "message": "Position {np} is {pos.Data.Str(\"status\")}",
+   "pattern": "Position\\s+.+?\\s+is\\s+.+?",
+   "field": "new_position",
+   "condition": "pos.Data.Str(\"status\") is \"Closed\" or \"Frozen\"",
+   "docTypes": [
+    "JobChange"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "JobChangeHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/HrHooks.cs",
+   "line": 159,
+   "shared": false
+  },
+  {
+   "id": "HrHooks.cs:160",
+   "kind": "Error",
+   "message": "Position {np} is still filled by {holder.Name}",
+   "pattern": "Position\\s+.+?\\s+is\\s+still\\s+filled\\s+by\\s+.+?",
+   "field": "new_position",
+   "condition": "await Hr.HolderAsync(m, np, emp.Name, ct) is { } holder",
+   "docTypes": [
+    "JobChange"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "JobChangeHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/HrHooks.cs",
+   "line": 160,
+   "shared": false
+  },
+  {
+   "id": "HrHooks.cs:180",
+   "kind": "Error",
+   "message": "This change has already been applied to the employee; create a new Job Change to reverse it",
+   "pattern": "This\\s+change\\s+has\\s+already\\s+been\\s+applied\\s+to\\s+the\\s+employee;\\s+create\\s+a\\s+new\\s+Job\\s+Change\\s+to\\s+reverse\\s+it",
+   "field": "name",
+   "condition": "emp?.Data.Str(\"last_job_change\") == c.Doc.Name",
+   "docTypes": [
+    "JobChange"
+   ],
+   "event": "Saat cancel",
+   "className": "JobChangeHook",
+   "method": "OnCancelAsync",
+   "file": "src/Apps.Erp/Hooks/HrHooks.cs",
+   "line": 180,
+   "shared": false
+  },
+  {
+   "id": "HrHooks.cs:201",
+   "kind": "Error",
+   "message": "The last working date is before the date of joining",
+   "pattern": "The\\s+last\\s+working\\s+date\\s+is\\s+before\\s+the\\s+date\\s+of\\s+joining",
+   "field": "last_working_date",
+   "condition": "d.Date(\"last_working_date\") is { } last && emp.Data.Date(\"hire_date\") is { } hire && last < hire",
+   "docTypes": [
+    "EmployeeSeparation"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "EmployeeSeparationHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/HrHooks.cs",
+   "line": 201,
+   "shared": false
+  },
+  {
+   "id": "HrHooks.cs:204",
+   "kind": "Error",
+   "message": "Separation {other.Name} already exists",
+   "pattern": "Separation\\s+.+?\\s+already\\s+exists",
+   "field": "employee",
+   "condition": "!(d.Date(\"last_working_date\") is { } last && emp.Data.Date(\"hire_date\") is { } hire && last < hire) && other is not null",
+   "docTypes": [
+    "EmployeeSeparation"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "EmployeeSeparationHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/HrHooks.cs",
+   "line": 204,
+   "shared": false
+  },
+  {
+   "id": "HrHooks.cs:221",
+   "kind": "Error",
+   "message": "The separation has already been applied; reactivate the employee through HR (status) before cancelling",
+   "pattern": "The\\s+separation\\s+has\\s+already\\s+been\\s+applied;\\s+reactivate\\s+the\\s+employee\\s+through\\s+HR\\s+\\(status\\)\\s+before\\s+cancelling",
+   "field": "name",
+   "condition": "emp?.Data.Str(\"status\") == Hr.Left",
+   "docTypes": [
+    "EmployeeSeparation"
+   ],
+   "event": "Saat cancel",
+   "className": "EmployeeSeparationHook",
+   "method": "OnCancelAsync",
+   "file": "src/Apps.Erp/Hooks/HrHooks.cs",
+   "line": 221,
+   "shared": false
+  },
+  {
+   "id": "HrHooks.cs:240",
+   "kind": "Error",
+   "message": "Overlaps with contract {o.Name}",
+   "pattern": "Overlaps\\s+with\\s+contract\\s+.+?",
+   "field": "start_date",
+   "condition": "Hr.Overlaps(start, end, o.Data.Date(\"start_date\"), o.Data.Date(\"end_date\"))",
+   "docTypes": [
+    "EmploymentContract"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "EmploymentContractHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/HrHooks.cs",
+   "line": 240,
+   "shared": false
+  },
+  {
+   "id": "HrHooks.cs:248",
+   "kind": "Error",
+   "message": "Total fixed-term (PKWT) duration including renewals is {months} months, exceeding {MaxPkwtMonths} months",
+   "pattern": "Total\\s+fixed\\-term\\s+\\(PKWT\\)\\s+duration\\s+including\\s+renewals\\s+is\\s+.+?\\s+months,\\s+exceeding\\s+.+?\\s+months",
+   "field": "end_date",
+   "condition": "months > MaxPkwtMonths",
+   "docTypes": [
+    "EmploymentContract"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "EmploymentContractHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/HrHooks.cs",
+   "line": 248,
+   "shared": false
+  },
+  {
+   "id": "HrHooks.cs:271",
+   "kind": "Error",
+   "message": "Overlaps with allocation {other.Name}",
+   "pattern": "Overlaps\\s+with\\s+allocation\\s+.+?",
+   "field": "from_date",
+   "condition": "other is not null",
+   "docTypes": [
+    "LeaveAllocation"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "LeaveAllocationHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/HrHooks.cs",
+   "line": 271,
+   "shared": false
+  },
+  {
+   "id": "HrHooks.cs:324",
+   "kind": "Error",
+   "message": "{type.Name} is only for {gender.ToLowerInvariant()} employees",
+   "pattern": ".+?\\s+is\\s+only\\s+for\\s+.+?\\s+employees",
+   "field": "leave_type",
+   "condition": "!(from is null || to is null || to < from) && gender is \"Female\" or \"Male\" && emp.Data.Str(\"gender\") != gender",
+   "docTypes": [
+    "LeaveApplication"
+   ],
+   "event": "Pemeriksaan CheckAsync",
+   "className": "LeaveApplicationHook",
+   "method": "CheckAsync",
+   "file": "src/Apps.Erp/Hooks/HrHooks.cs",
+   "line": 324,
+   "shared": false
+  },
+  {
+   "id": "HrHooks.cs:327",
+   "kind": "Error",
+   "message": "There are no working days in this date range",
+   "pattern": "There\\s+are\\s+no\\s+working\\s+days\\s+in\\s+this\\s+date\\s+range",
+   "field": "from_date",
+   "condition": "!(from is null || to is null || to < from) && days <= 0",
+   "docTypes": [
+    "LeaveApplication"
+   ],
+   "event": "Pemeriksaan CheckAsync",
+   "className": "LeaveApplicationHook",
+   "method": "CheckAsync",
+   "file": "src/Apps.Erp/Hooks/HrHooks.cs",
+   "line": 327,
+   "shared": false
+  },
+  {
+   "id": "HrHooks.cs:329",
+   "kind": "Error",
+   "message": "At most {max} consecutive days for {type.Name}",
+   "pattern": "At\\s+most\\s+.+?\\s+consecutive\\s+days\\s+for\\s+.+?",
+   "field": "to_date",
+   "condition": "!(from is null || to is null || to < from) && max > 0 && days > max",
+   "docTypes": [
+    "LeaveApplication"
+   ],
+   "event": "Pemeriksaan CheckAsync",
+   "className": "LeaveApplicationHook",
+   "method": "CheckAsync",
+   "file": "src/Apps.Erp/Hooks/HrHooks.cs",
+   "line": 329,
+   "shared": false
+  },
+  {
+   "id": "HrHooks.cs:335",
+   "kind": "Error",
+   "message": "Overlaps with application {clash.Name}",
+   "pattern": "Overlaps\\s+with\\s+application\\s+.+?",
+   "field": "from_date",
+   "condition": "!(from is null || to is null || to < from) && mine.FirstOrDefault(a => Hr.Overlaps(from, to, a.Data.Date(\"from_date\"), a.Data.Date(\"to_date\"))) is { } clash",
+   "docTypes": [
+    "LeaveApplication"
+   ],
+   "event": "Pemeriksaan CheckAsync",
+   "className": "LeaveApplicationHook",
+   "method": "CheckAsync",
+   "file": "src/Apps.Erp/Hooks/HrHooks.cs",
+   "line": 335,
+   "shared": false
+  },
+  {
+   "id": "HrHooks.cs:341",
+   "kind": "Error",
+   "message": "There is no {type.Name} allocation for this period",
+   "pattern": "There\\s+is\\s+no\\s+.+?\\s+allocation\\s+for\\s+this\\s+period",
+   "field": "leave_type",
+   "condition": "alloc is null",
+   "docTypes": [
+    "LeaveApplication"
+   ],
+   "event": "Pemeriksaan CheckAsync",
+   "className": "LeaveApplicationHook",
+   "method": "CheckAsync",
+   "file": "src/Apps.Erp/Hooks/HrHooks.cs",
+   "line": 341,
+   "shared": false
+  },
+  {
+   "id": "HrHooks.cs:350",
+   "kind": "Error",
+   "message": "Only {balance} days of {type.Name} remain",
+   "pattern": "Only\\s+.+?\\s+days\\s+of\\s+.+?\\s+remain",
+   "field": "to_date",
+   "condition": "days > balance",
+   "docTypes": [
+    "LeaveApplication"
+   ],
+   "event": "Pemeriksaan CheckAsync",
+   "className": "LeaveApplicationHook",
+   "method": "CheckAsync",
+   "file": "src/Apps.Erp/Hooks/HrHooks.cs",
+   "line": 350,
+   "shared": false
+  },
+  {
+   "id": "HrHooks.cs:431",
+   "kind": "Error",
+   "message": "Creating the user for {emp.Name} failed: {string.Join(\"; \", result.Errors.Select(e => e.Description))}",
+   "pattern": "Creating\\s+the\\s+user\\s+for\\s+.+?\\s+failed:\\s+.+?",
+   "field": null,
+   "condition": "!result.Succeeded",
+   "docTypes": [],
+   "event": "Pemeriksaan EnsureUserAsync",
+   "className": "HrApply",
+   "method": "EnsureUserAsync",
+   "file": "src/Apps.Erp/Hooks/HrHooks.cs",
+   "line": 431,
+   "shared": true
+  },
+  {
+   "id": "InvoiceHooks.cs:66",
+   "kind": "Error",
+   "message": "{party.Name} nonaktif",
+   "pattern": ".+?\\s+nonaktif",
+   "field": "{k.PartyField}",
+   "condition": "party.Data.TryGetValue(\"is_active\", out var active) && active is false",
+   "docTypes": [
+    "PurchaseDebitNote",
+    "PurchaseInvoice",
+    "SalesCreditNote",
+    "SalesInvoice"
+   ],
+   "event": "Pemeriksaan PrepareAsync",
+   "className": "InvoiceCore",
+   "method": "PrepareAsync",
+   "file": "src/Apps.Erp/Hooks/InvoiceHooks.cs",
+   "line": 66,
+   "shared": true
+  },
+  {
+   "id": "InvoiceHooks.cs:73",
+   "kind": "Error",
+   "message": "{origin.Name} is not submitted or has been cancelled",
+   "pattern": ".+?\\s+is\\s+not\\s+submitted\\s+or\\s+has\\s+been\\s+cancelled",
+   "field": "return_against",
+   "condition": "origin.DocStatus != DocStatus.Submitted",
+   "docTypes": [
+    "PurchaseDebitNote",
+    "PurchaseInvoice",
+    "SalesCreditNote",
+    "SalesInvoice"
+   ],
+   "event": "Pemeriksaan PrepareAsync",
+   "className": "InvoiceCore",
+   "method": "PrepareAsync",
+   "file": "src/Apps.Erp/Hooks/InvoiceHooks.cs",
+   "line": 73,
+   "shared": true
+  },
+  {
+   "id": "InvoiceHooks.cs:74",
+   "kind": "Error",
+   "message": "{origin.Name} does not belong to {party.Name}",
+   "pattern": ".+?\\s+does\\s+not\\s+belong\\s+to\\s+.+?",
+   "field": "return_against",
+   "condition": "origin.Data.Str(k.PartyField) != party.Name",
+   "docTypes": [
+    "PurchaseDebitNote",
+    "PurchaseInvoice",
+    "SalesCreditNote",
+    "SalesInvoice"
+   ],
+   "event": "Pemeriksaan PrepareAsync",
+   "className": "InvoiceCore",
+   "method": "PrepareAsync",
+   "file": "src/Apps.Erp/Hooks/InvoiceHooks.cs",
+   "line": 74,
+   "shared": true
+  },
+  {
+   "id": "InvoiceHooks.cs:75",
+   "kind": "Error",
+   "message": "{origin.Name} belongs to another company",
+   "pattern": ".+?\\s+belongs\\s+to\\s+another\\s+company",
+   "field": "return_against",
+   "condition": "origin.Data.Str(\"company\") != company.Name",
+   "docTypes": [
+    "PurchaseDebitNote",
+    "PurchaseInvoice",
+    "SalesCreditNote",
+    "SalesInvoice"
+   ],
+   "event": "Pemeriksaan PrepareAsync",
+   "className": "InvoiceCore",
+   "method": "PrepareAsync",
+   "file": "src/Apps.Erp/Hooks/InvoiceHooks.cs",
+   "line": 75,
+   "shared": true
+  },
+  {
+   "id": "InvoiceHooks.cs:90",
+   "kind": "Error",
+   "message": "The {k.ControlType.ToLowerInvariant()} account is not set on the party, group, or company",
+   "pattern": "The\\s+.+?\\s+account\\s+is\\s+not\\s+set\\s+on\\s+the\\s+party,\\s+group,\\s+or\\s+company",
+   "field": "{k.PartyAccountField}",
+   "condition": "partyAccount is null",
+   "docTypes": [
+    "PurchaseDebitNote",
+    "PurchaseInvoice",
+    "SalesCreditNote",
+    "SalesInvoice"
+   ],
+   "event": "Pemeriksaan PrepareAsync",
+   "className": "InvoiceCore",
+   "method": "PrepareAsync",
+   "file": "src/Apps.Erp/Hooks/InvoiceHooks.cs",
+   "line": 90,
+   "shared": true
+  },
+  {
+   "id": "InvoiceHooks.cs:96",
+   "kind": "Error",
+   "message": "Account {partyAccount} is not a {k.ControlType} account",
+   "pattern": "Account\\s+.+?\\s+is\\s+not\\s+a\\s+.+?\\s+account",
+   "field": "{k.PartyAccountField}",
+   "condition": "acc?.Data.Str(\"account_type\") != k.ControlType",
+   "docTypes": [
+    "PurchaseDebitNote",
+    "PurchaseInvoice",
+    "SalesCreditNote",
+    "SalesInvoice"
+   ],
+   "event": "Pemeriksaan PrepareAsync",
+   "className": "InvoiceCore",
+   "method": "PrepareAsync",
+   "file": "src/Apps.Erp/Hooks/InvoiceHooks.cs",
+   "line": 96,
+   "shared": true
+  },
+  {
+   "id": "InvoiceHooks.cs:113",
+   "kind": "Error",
+   "message": "At least one item line is required",
+   "pattern": "At\\s+least\\s+one\\s+item\\s+line\\s+is\\s+required",
+   "field": "items",
+   "condition": "rows.Count == 0",
+   "docTypes": [
+    "PurchaseDebitNote",
+    "PurchaseInvoice",
+    "SalesCreditNote",
+    "SalesInvoice"
+   ],
+   "event": "Pemeriksaan PrepareAsync",
+   "className": "InvoiceCore",
+   "method": "PrepareAsync",
+   "file": "src/Apps.Erp/Hooks/InvoiceHooks.cs",
+   "line": 113,
+   "shared": true
+  },
+  {
+   "id": "InvoiceHooks.cs:130",
+   "kind": "Error",
+   "message": "The fixed asset account of category {assetCategory} is not set",
+   "pattern": "The\\s+fixed\\s+asset\\s+account\\s+of\\s+category\\s+.+?\\s+is\\s+not\\s+set",
+   "field": "{p}.asset_category",
+   "condition": "fa is null",
+   "docTypes": [
+    "PurchaseDebitNote",
+    "PurchaseInvoice",
+    "SalesCreditNote",
+    "SalesInvoice"
+   ],
+   "event": "Pemeriksaan PrepareAsync",
+   "className": "InvoiceCore",
+   "method": "PrepareAsync",
+   "file": "src/Apps.Erp/Hooks/InvoiceHooks.cs",
+   "line": 130,
+   "shared": true
+  },
+  {
+   "id": "InvoiceHooks.cs:136",
+   "kind": "Error",
+   "message": "Quantity must be greater than 0 (returns use a credit/debit note)",
+   "pattern": "Quantity\\s+must\\s+be\\s+greater\\s+than\\s+0\\s+\\(returns\\s+use\\s+a\\s+credit/debit\\s+note\\)",
+   "field": "{p}.qty",
+   "condition": "r.Dec(\"qty\") <= 0",
+   "docTypes": [
+    "PurchaseDebitNote",
+    "PurchaseInvoice",
+    "SalesCreditNote",
+    "SalesInvoice"
+   ],
+   "event": "Pemeriksaan PrepareAsync",
+   "className": "InvoiceCore",
+   "method": "PrepareAsync",
+   "file": "src/Apps.Erp/Hooks/InvoiceHooks.cs",
+   "line": 136,
+   "shared": true
+  },
+  {
+   "id": "InvoiceHooks.cs:137",
+   "kind": "Error",
+   "message": "The line account is not set on the item, item group, or company",
+   "pattern": "The\\s+line\\s+account\\s+is\\s+not\\s+set\\s+on\\s+the\\s+item,\\s+item\\s+group,\\s+or\\s+company",
+   "field": "{p}.{k.LineAccountField}",
+   "condition": "r.Str(k.LineAccountField) is null",
+   "docTypes": [
+    "PurchaseDebitNote",
+    "PurchaseInvoice",
+    "SalesCreditNote",
+    "SalesInvoice"
+   ],
+   "event": "Pemeriksaan PrepareAsync",
+   "className": "InvoiceCore",
+   "method": "PrepareAsync",
+   "file": "src/Apps.Erp/Hooks/InvoiceHooks.cs",
+   "line": 137,
+   "shared": true
+  },
+  {
+   "id": "InvoiceHooks.cs:142",
+   "kind": "Error",
+   "message": "The total must be greater than 0",
+   "pattern": "The\\s+total\\s+must\\s+be\\s+greater\\s+than\\s+0",
+   "field": "items",
+   "condition": "totals.GrandTotal <= 0",
+   "docTypes": [
+    "PurchaseDebitNote",
+    "PurchaseInvoice",
+    "SalesCreditNote",
+    "SalesInvoice"
+   ],
+   "event": "Pemeriksaan PrepareAsync",
+   "className": "InvoiceCore",
+   "method": "PrepareAsync",
+   "file": "src/Apps.Erp/Hooks/InvoiceHooks.cs",
+   "line": 142,
+   "shared": true
+  },
+  {
+   "id": "InvoiceHooks.cs:143",
+   "kind": "Error",
+   "message": "Some lines are subject to withholding tax: choose a withholding tax code",
+   "pattern": "Some\\s+lines\\s+are\\s+subject\\s+to\\s+withholding\\s+tax:\\s+choose\\s+a\\s+withholding\\s+tax\\s+code",
+   "field": "wht_code",
+   "condition": "!k.IsSales && totals.WhtBase > 0 && d.Str(\"wht_code\") is null",
+   "docTypes": [
+    "PurchaseDebitNote",
+    "PurchaseInvoice",
+    "SalesCreditNote",
+    "SalesInvoice"
+   ],
+   "event": "Pemeriksaan PrepareAsync",
+   "className": "InvoiceCore",
+   "method": "PrepareAsync",
+   "file": "src/Apps.Erp/Hooks/InvoiceHooks.cs",
+   "line": 143,
+   "shared": true
+  },
+  {
+   "id": "InvoiceHooks.cs:154",
+   "kind": "Error",
+   "message": "Supplier invoice {billNo} is already recorded in {dup.Name}",
+   "pattern": "Supplier\\s+invoice\\s+.+?\\s+is\\s+already\\s+recorded\\s+in\\s+.+?",
+   "field": "bill_no",
+   "condition": "dup is not null",
+   "docTypes": [
+    "PurchaseDebitNote",
+    "PurchaseInvoice",
+    "SalesCreditNote",
+    "SalesInvoice"
+   ],
+   "event": "Pemeriksaan PrepareAsync",
+   "className": "InvoiceCore",
+   "method": "PrepareAsync",
+   "file": "src/Apps.Erp/Hooks/InvoiceHooks.cs",
+   "line": 154,
+   "shared": true
+  },
+  {
+   "id": "InvoiceHooks.cs:200",
+   "kind": "Error",
+   "message": "The posting date is required",
+   "pattern": "The\\s+posting\\s+date\\s+is\\s+required",
+   "field": "posting_date",
+   "condition": "d.Date(\"posting_date\") tidak ditemukan/kosong",
+   "docTypes": [
+    "PurchaseDebitNote",
+    "PurchaseInvoice",
+    "SalesCreditNote",
+    "SalesInvoice"
+   ],
+   "event": "Pemeriksaan PostAsync",
+   "className": "InvoiceCore",
+   "method": "PostAsync",
+   "file": "src/Apps.Erp/Hooks/InvoiceHooks.cs",
+   "line": 200,
+   "shared": true
+  },
+  {
+   "id": "InvoiceHooks.cs:210",
+   "kind": "Error",
+   "message": "The receivable/payable account is required",
+   "pattern": "The\\s+receivable/payable\\s+account\\s+is\\s+required",
+   "field": "{k.PartyAccountField}",
+   "condition": "d.Str(k.PartyAccountField) tidak ditemukan/kosong",
+   "docTypes": [
+    "PurchaseDebitNote",
+    "PurchaseInvoice",
+    "SalesCreditNote",
+    "SalesInvoice"
+   ],
+   "event": "Pemeriksaan PostAsync",
+   "className": "InvoiceCore",
+   "method": "PostAsync",
+   "file": "src/Apps.Erp/Hooks/InvoiceHooks.cs",
+   "line": 210,
+   "shared": true
+  },
+  {
+   "id": "InvoiceHooks.cs:214",
+   "kind": "Error",
+   "message": "The VAT account is not set on the tax code",
+   "pattern": "The\\s+VAT\\s+account\\s+is\\s+not\\s+set\\s+on\\s+the\\s+tax\\s+code",
+   "field": "vat_code",
+   "condition": "t.Vat != 0 && vatAccount is null",
+   "docTypes": [
+    "PurchaseDebitNote",
+    "PurchaseInvoice",
+    "SalesCreditNote",
+    "SalesInvoice"
+   ],
+   "event": "Pemeriksaan PostAsync",
+   "className": "InvoiceCore",
+   "method": "PostAsync",
+   "file": "src/Apps.Erp/Hooks/InvoiceHooks.cs",
+   "line": 214,
+   "shared": true
+  },
+  {
+   "id": "InvoiceHooks.cs:215",
+   "kind": "Error",
+   "message": "The withholding tax account is not set on the tax code",
+   "pattern": "The\\s+withholding\\s+tax\\s+account\\s+is\\s+not\\s+set\\s+on\\s+the\\s+tax\\s+code",
+   "field": "wht_code",
+   "condition": "!(t.Vat != 0 && vatAccount is null) && t.Wht != 0 && whtAccount is null",
+   "docTypes": [
+    "PurchaseDebitNote",
+    "PurchaseInvoice",
+    "SalesCreditNote",
+    "SalesInvoice"
+   ],
+   "event": "Pemeriksaan PostAsync",
+   "className": "InvoiceCore",
+   "method": "PostAsync",
+   "file": "src/Apps.Erp/Hooks/InvoiceHooks.cs",
+   "line": 215,
+   "shared": true
+  },
+  {
+   "id": "InvoiceHooks.cs:256",
+   "kind": "Error",
+   "message": "Receivable of {customer.Name} becomes {open + thisInvoice}, exceeding the credit limit of {limit}",
+   "pattern": "Receivable\\s+of\\s+.+?\\s+becomes\\s+.+?,\\s+exceeding\\s+the\\s+credit\\s+limit\\s+of\\s+.+?",
+   "field": "customer",
+   "condition": "!(customer is null || limit <= 0) && !(open + thisInvoice <= limit) && (await m.SingleAsync(\"FinanceSettings\", ct)).Str(\"credit_limit_action\") == \"Block\" && !c.User.HasRole(\"Finance\")",
+   "docTypes": [
+    "PurchaseDebitNote",
+    "PurchaseInvoice",
+    "SalesCreditNote",
+    "SalesInvoice"
+   ],
+   "event": "Pemeriksaan CheckCreditLimitAsync",
+   "className": "InvoiceCore",
+   "method": "CheckCreditLimitAsync",
+   "file": "src/Apps.Erp/Hooks/InvoiceHooks.cs",
+   "line": 256,
+   "shared": true
+  },
+  {
+   "id": "InvoiceHooks.cs:257",
+   "kind": "Warning",
+   "message": "Receivable of {customer.Name} becomes {open + thisInvoice}, exceeding the credit limit of {limit}",
+   "pattern": "Receivable\\s+of\\s+.+?\\s+becomes\\s+.+?,\\s+exceeding\\s+the\\s+credit\\s+limit\\s+of\\s+.+?",
+   "field": null,
+   "condition": "!(customer is null || limit <= 0) && !(open + thisInvoice <= limit) && !((await m.SingleAsync(\"FinanceSettings\", ct)).Str(\"credit_limit_action\") == \"Block\" && !c.User.HasRole(\"Finance\"))",
+   "docTypes": [
+    "PurchaseDebitNote",
+    "PurchaseInvoice",
+    "SalesCreditNote",
+    "SalesInvoice"
+   ],
+   "event": "Pemeriksaan CheckCreditLimitAsync",
+   "className": "InvoiceCore",
+   "method": "CheckCreditLimitAsync",
+   "file": "src/Apps.Erp/Hooks/InvoiceHooks.cs",
+   "line": 257,
+   "shared": true
+  },
+  {
+   "id": "InvoiceHooks.cs:300",
+   "kind": "Error",
+   "message": "{c.Doc.Name} has payments or credit notes. Cancel those documents first.",
+   "pattern": ".+?\\s+has\\s+payments\\s+or\\s+credit\\s+notes\\.\\s+Cancel\\s+those\\s+documents\\s+first\\.",
+   "field": "name",
+   "condition": "await OpenItems.HasSettlementAsync(ledger, c.Doc.TenantId, c.Doc.DocType, c.Doc.Name, ct)",
+   "docTypes": [
+    "SalesInvoice"
+   ],
+   "event": "Saat cancel",
+   "className": "SalesInvoiceHook",
+   "method": "OnCancelAsync",
+   "file": "src/Apps.Erp/Hooks/InvoiceHooks.cs",
+   "line": 300,
+   "shared": false
+  },
+  {
+   "id": "InvoiceHooks.cs:344",
+   "kind": "Error",
+   "message": "{c.Doc.Name} has payments or debit notes. Cancel those documents first.",
+   "pattern": ".+?\\s+has\\s+payments\\s+or\\s+debit\\s+notes\\.\\s+Cancel\\s+those\\s+documents\\s+first\\.",
+   "field": "name",
+   "condition": "await OpenItems.HasSettlementAsync(ledger, c.Doc.TenantId, c.Doc.DocType, c.Doc.Name, ct)",
+   "docTypes": [
+    "PurchaseInvoice"
+   ],
+   "event": "Saat cancel",
+   "className": "PurchaseInvoiceHook",
+   "method": "OnCancelAsync",
+   "file": "src/Apps.Erp/Hooks/InvoiceHooks.cs",
+   "line": 344,
+   "shared": false
+  },
+  {
+   "id": "PaymentHooks.cs:53",
+   "kind": "Error",
+   "message": "{refName} is allocated more than once",
+   "pattern": ".+?\\s+is\\s+allocated\\s+more\\s+than\\s+once",
+   "field": "{p}.reference_name",
+   "condition": "result.Any(a => a.DocType == refType && a.Name == refName)",
+   "docTypes": [
+    "PaymentEntry"
+   ],
+   "event": "Pemeriksaan ResolveAsync",
+   "className": "PaymentEntryHook",
+   "method": "ResolveAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentHooks.cs",
+   "line": 53,
+   "shared": false
+  },
+  {
+   "id": "PaymentHooks.cs:56",
+   "kind": "Error",
+   "message": "{refName} not found",
+   "pattern": ".+?\\s+not\\s+found",
+   "field": "{p}.reference_name",
+   "condition": "doc is null",
+   "docTypes": [
+    "PaymentEntry"
+   ],
+   "event": "Pemeriksaan ResolveAsync",
+   "className": "PaymentEntryHook",
+   "method": "ResolveAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentHooks.cs",
+   "line": 56,
+   "shared": false
+  },
+  {
+   "id": "PaymentHooks.cs:58",
+   "kind": "Error",
+   "message": "{refName} is not submitted/approved or has been cancelled",
+   "pattern": ".+?\\s+is\\s+not\\s+submitted/approved\\s+or\\s+has\\s+been\\s+cancelled",
+   "field": "{p}.reference_name",
+   "condition": "doc.DocStatus != DocStatus.Submitted || (doc.WorkflowState is not null && doc.WorkflowState != Approval.Approved)",
+   "docTypes": [
+    "PaymentEntry"
+   ],
+   "event": "Pemeriksaan ResolveAsync",
+   "className": "PaymentEntryHook",
+   "method": "ResolveAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentHooks.cs",
+   "line": 58,
+   "shared": false
+  },
+  {
+   "id": "PaymentHooks.cs:59",
+   "kind": "Error",
+   "message": "Payments for {refName} are on hold",
+   "pattern": "Payments\\s+for\\s+.+?\\s+are\\s+on\\s+hold",
+   "field": "{p}.reference_name",
+   "condition": "type == Pay && doc.Data.Bool(\"on_hold\")",
+   "docTypes": [
+    "PaymentEntry"
+   ],
+   "event": "Pemeriksaan ResolveAsync",
+   "className": "PaymentEntryHook",
+   "method": "ResolveAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentHooks.cs",
+   "line": 59,
+   "shared": false
+  },
+  {
+   "id": "PaymentHooks.cs:61",
+   "kind": "Error",
+   "message": "{refName} does not belong to {party}",
+   "pattern": ".+?\\s+does\\s+not\\s+belong\\s+to\\s+.+?",
+   "field": "{p}.reference_name",
+   "condition": "PartyFieldOf.TryGetValue(refType, out var pf) && doc.Data.Str(pf) != party",
+   "docTypes": [
+    "PaymentEntry"
+   ],
+   "event": "Pemeriksaan ResolveAsync",
+   "className": "PaymentEntryHook",
+   "method": "ResolveAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentHooks.cs",
+   "line": 61,
+   "shared": false
+  },
+  {
+   "id": "PaymentHooks.cs:63",
+   "kind": "Error",
+   "message": "The currency of {refName} ({doc.Data.Str(\"currency\")}) differs from the payment ({currency})",
+   "pattern": "The\\s+currency\\s+of\\s+.+?\\s+\\(.+?\\)\\s+differs\\s+from\\s+the\\s+payment\\s+\\(.+?\\)",
+   "field": "{p}.reference_name",
+   "condition": "(doc.Data.Str(\"currency\") ?? currency) != currency",
+   "docTypes": [
+    "PaymentEntry"
+   ],
+   "event": "Pemeriksaan ResolveAsync",
+   "className": "PaymentEntryHook",
+   "method": "ResolveAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentHooks.cs",
+   "line": 63,
+   "shared": false
+  },
+  {
+   "id": "PaymentHooks.cs:68",
+   "kind": "Error",
+   "message": "{refName} has no outstanding amount to {(type == Receive ? \"receive\" : \"pay\")} for {party}",
+   "pattern": ".+?\\s+has\\s+no\\s+outstanding\\s+amount\\s+to\\s+.+?\\s+for\\s+.+?",
+   "field": "{p}.reference_name",
+   "condition": "open is null || open.NetBase == 0 || (type == Receive ? open.NetBase < 0 : open.NetBase > 0)",
+   "docTypes": [
+    "PaymentEntry"
+   ],
+   "event": "Pemeriksaan ResolveAsync",
+   "className": "PaymentEntryHook",
+   "method": "ResolveAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentHooks.cs",
+   "line": 68,
+   "shared": false
+  },
+  {
+   "id": "PaymentHooks.cs:77",
+   "kind": "Error",
+   "message": "The allocated amount must be greater than 0",
+   "pattern": "The\\s+allocated\\s+amount\\s+must\\s+be\\s+greater\\s+than\\s+0",
+   "field": "{p}.allocated_amount",
+   "condition": "allocated <= 0",
+   "docTypes": [
+    "PaymentEntry"
+   ],
+   "event": "Pemeriksaan ResolveAsync",
+   "className": "PaymentEntryHook",
+   "method": "ResolveAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentHooks.cs",
+   "line": 77,
+   "shared": false
+  },
+  {
+   "id": "PaymentHooks.cs:78",
+   "kind": "Error",
+   "message": "Exceeds the outstanding amount of {refName} ({outstanding})",
+   "pattern": "Exceeds\\s+the\\s+outstanding\\s+amount\\s+of\\s+.+?\\s+\\(.+?\\)",
+   "field": "{p}.allocated_amount",
+   "condition": "allocated > outstanding",
+   "docTypes": [
+    "PaymentEntry"
+   ],
+   "event": "Pemeriksaan ResolveAsync",
+   "className": "PaymentEntryHook",
+   "method": "ResolveAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentHooks.cs",
+   "line": 78,
+   "shared": false
+  },
+  {
+   "id": "PaymentHooks.cs:110",
+   "kind": "Error",
+   "message": "Bank account {bank.Name} belongs to another company",
+   "pattern": "Bank\\s+account\\s+.+?\\s+belongs\\s+to\\s+another\\s+company",
+   "field": "bank_account",
+   "condition": "bank.Data.Str(\"company\") != company.Name",
+   "docTypes": [
+    "PaymentEntry"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PaymentEntryHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentHooks.cs",
+   "line": 110,
+   "shared": false
+  },
+  {
+   "id": "PaymentHooks.cs:111",
+   "kind": "Error",
+   "message": "Bank account {bank.Name} is inactive",
+   "pattern": "Bank\\s+account\\s+.+?\\s+is\\s+inactive",
+   "field": "bank_account",
+   "condition": "bank.Data.TryGetValue(\"is_active\", out var active) && active is false",
+   "docTypes": [
+    "PaymentEntry"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PaymentEntryHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentHooks.cs",
+   "line": 111,
+   "shared": false
+  },
+  {
+   "id": "PaymentHooks.cs:112",
+   "kind": "Error",
+   "message": "The payment currency must match the bank account ({bank.Data.Str(\"currency\")})",
+   "pattern": "The\\s+payment\\s+currency\\s+must\\s+match\\s+the\\s+bank\\s+account\\s+\\(.+?\\)",
+   "field": "currency",
+   "condition": "bank.Data.Str(\"currency\") != currency",
+   "docTypes": [
+    "PaymentEntry"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PaymentEntryHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentHooks.cs",
+   "line": 112,
+   "shared": false
+  },
+  {
+   "id": "PaymentHooks.cs:118",
+   "kind": "Error",
+   "message": "Intercompany transfers are not supported yet",
+   "pattern": "Intercompany\\s+transfers\\s+are\\s+not\\s+supported\\s+yet",
+   "field": "to_bank_account",
+   "condition": "to.Data.Str(\"company\") != company.Name",
+   "docTypes": [
+    "PaymentEntry"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PaymentEntryHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentHooks.cs",
+   "line": 118,
+   "shared": false
+  },
+  {
+   "id": "PaymentHooks.cs:119",
+   "kind": "Error",
+   "message": "Cross-currency transfers are not supported yet",
+   "pattern": "Cross\\-currency\\s+transfers\\s+are\\s+not\\s+supported\\s+yet",
+   "field": "to_bank_account",
+   "condition": "to.Data.Str(\"currency\") != currency",
+   "docTypes": [
+    "PaymentEntry"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PaymentEntryHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentHooks.cs",
+   "line": 119,
+   "shared": false
+  },
+  {
+   "id": "PaymentHooks.cs:121",
+   "kind": "Error",
+   "message": "Internal transfers do not use allocations or deductions",
+   "pattern": "Internal\\s+transfers\\s+do\\s+not\\s+use\\s+allocations\\s+or\\s+deductions",
+   "field": "references",
+   "condition": "d.Rows(\"references\").Count > 0 || d.Rows(\"deductions\").Count > 0",
+   "docTypes": [
+    "PaymentEntry"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PaymentEntryHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentHooks.cs",
+   "line": 121,
+   "shared": false
+  },
+  {
+   "id": "PaymentHooks.cs:131",
+   "kind": "Error",
+   "message": "Payments to {partyName} are on hold",
+   "pattern": "Payments\\s+to\\s+.+?\\s+are\\s+on\\s+hold",
+   "field": "party",
+   "condition": "type == Pay && partyType == \"Vendor\" && party.Data.Bool(\"on_hold\")",
+   "docTypes": [
+    "PaymentEntry"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PaymentEntryHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentHooks.cs",
+   "line": 131,
+   "shared": false
+  },
+  {
+   "id": "PaymentHooks.cs:145",
+   "kind": "Error",
+   "message": "The party's receivable/payable account is not set",
+   "pattern": "The\\s+party's\\s+receivable/payable\\s+account\\s+is\\s+not\\s+set",
+   "field": "party_account",
+   "condition": "!(deductions[i].Str(\"account\") is not { } acc) && d.Str(\"party_account\") is null",
+   "docTypes": [
+    "PaymentEntry"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PaymentEntryHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentHooks.cs",
+   "line": 145,
+   "shared": false
+  },
+  {
+   "id": "PaymentHooks.cs:156",
+   "kind": "Error",
+   "message": "The posting date is required",
+   "pattern": "The\\s+posting\\s+date\\s+is\\s+required",
+   "field": "posting_date",
+   "condition": "!(c.Doc.DocStatus != DocStatus.Submitted || c.Previous?.DocStatus != DocStatus.Draft)",
+   "docTypes": [
+    "PaymentEntry"
+   ],
+   "event": "Setelah simpan/submit (posting, efek ke dokumen lain)",
+   "className": "PaymentEntryHook",
+   "method": "AfterSaveAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentHooks.cs",
+   "line": 156,
+   "shared": false
+  },
+  {
+   "id": "PaymentHooks.cs:171",
+   "kind": "Error",
+   "message": "The bank account is not linked to a GL account",
+   "pattern": "The\\s+bank\\s+account\\s+is\\s+not\\s+linked\\s+to\\s+a\\s+GL\\s+account",
+   "field": "bank_account",
+   "condition": "!(c.Doc.DocStatus != DocStatus.Submitted || c.Previous?.DocStatus != DocStatus.Draft)",
+   "docTypes": [
+    "PaymentEntry"
+   ],
+   "event": "Setelah simpan/submit (posting, efek ke dokumen lain)",
+   "className": "PaymentEntryHook",
+   "method": "AfterSaveAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentHooks.cs",
+   "line": 171,
+   "shared": false
+  },
+  {
+   "id": "PaymentHooks.cs:178",
+   "kind": "Error",
+   "message": "The target bank account is not linked to a GL account",
+   "pattern": "The\\s+target\\s+bank\\s+account\\s+is\\s+not\\s+linked\\s+to\\s+a\\s+GL\\s+account",
+   "field": "to_bank_account",
+   "condition": "type == Transfer",
+   "docTypes": [
+    "PaymentEntry"
+   ],
+   "event": "Setelah simpan/submit (posting, efek ke dokumen lain)",
+   "className": "PaymentEntryHook",
+   "method": "AfterSaveAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentHooks.cs",
+   "line": 178,
+   "shared": false
+  },
+  {
+   "id": "PaymentHooks.cs:184",
+   "kind": "Error",
+   "message": "The party is required",
+   "pattern": "The\\s+party\\s+is\\s+required",
+   "field": "party",
+   "condition": "!(c.Doc.DocStatus != DocStatus.Submitted || c.Previous?.DocStatus != DocStatus.Draft) && partyType is null || party is null",
+   "docTypes": [
+    "PaymentEntry"
+   ],
+   "event": "Setelah simpan/submit (posting, efek ke dokumen lain)",
+   "className": "PaymentEntryHook",
+   "method": "AfterSaveAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentHooks.cs",
+   "line": 184,
+   "shared": false
+  },
+  {
+   "id": "PaymentHooks.cs:208",
+   "kind": "Error",
+   "message": "Total allocated exceeds paid amount + deductions",
+   "pattern": "Total\\s+allocated\\s+exceeds\\s+paid\\s+amount\\s+\\+\\s+deductions",
+   "field": "references",
+   "condition": "!(c.Doc.DocStatus != DocStatus.Submitted || c.Previous?.DocStatus != DocStatus.Draft) && !(partyType is null || party is null) && unallocated < 0",
+   "docTypes": [
+    "PaymentEntry"
+   ],
+   "event": "Setelah simpan/submit (posting, efek ke dokumen lain)",
+   "className": "PaymentEntryHook",
+   "method": "AfterSaveAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentHooks.cs",
+   "line": 208,
+   "shared": false
+  },
+  {
+   "id": "PaymentHooks.cs:211",
+   "kind": "Error",
+   "message": "The party account is required for an advance",
+   "pattern": "The\\s+party\\s+account\\s+is\\s+required\\s+for\\s+an\\s+advance",
+   "field": "party_account",
+   "condition": "unallocated > 0",
+   "docTypes": [
+    "PaymentEntry"
+   ],
+   "event": "Setelah simpan/submit (posting, efek ke dokumen lain)",
+   "className": "PaymentEntryHook",
+   "method": "AfterSaveAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentHooks.cs",
+   "line": 211,
+   "shared": false
+  },
+  {
+   "id": "PaymentHooks.cs:249",
+   "kind": "Error",
+   "message": "Add at least one allocation",
+   "pattern": "Add\\s+at\\s+least\\s+one\\s+allocation",
+   "field": "allocations",
+   "condition": "!(partyType is null || party is null) && rows.Count == 0",
+   "docTypes": [
+    "PaymentReconciliation"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PaymentReconciliationHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentHooks.cs",
+   "line": 249,
+   "shared": false
+  },
+  {
+   "id": "PaymentHooks.cs:259",
+   "kind": "Error",
+   "message": "A {partyType} advance can only be allocated to a {invoiceType}",
+   "pattern": "A\\s+.+?\\s+advance\\s+can\\s+only\\s+be\\s+allocated\\s+to\\s+a\\s+.+?",
+   "field": "{p}.invoice_type",
+   "condition": "invType != invoiceType",
+   "docTypes": [
+    "PaymentReconciliation"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PaymentReconciliationHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentHooks.cs",
+   "line": 259,
+   "shared": false
+  },
+  {
+   "id": "PaymentHooks.cs:262",
+   "kind": "Error",
+   "message": "{payName} is not submitted or has been cancelled",
+   "pattern": ".+?\\s+is\\s+not\\s+submitted\\s+or\\s+has\\s+been\\s+cancelled",
+   "field": "{p}.payment_entry",
+   "condition": "pay is null || pay.DocStatus != DocStatus.Submitted",
+   "docTypes": [
+    "PaymentReconciliation"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PaymentReconciliationHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentHooks.cs",
+   "line": 262,
+   "shared": false
+  },
+  {
+   "id": "PaymentHooks.cs:263",
+   "kind": "Error",
+   "message": "{payName} does not belong to {party}",
+   "pattern": ".+?\\s+does\\s+not\\s+belong\\s+to\\s+.+?",
+   "field": "{p}.payment_entry",
+   "condition": "pay.Data.Str(\"party_type\") != partyType || pay.Data.Str(\"party\") != party",
+   "docTypes": [
+    "PaymentReconciliation"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PaymentReconciliationHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentHooks.cs",
+   "line": 263,
+   "shared": false
+  },
+  {
+   "id": "PaymentHooks.cs:264",
+   "kind": "Error",
+   "message": "{payName} belongs to another company",
+   "pattern": ".+?\\s+belongs\\s+to\\s+another\\s+company",
+   "field": "{p}.payment_entry",
+   "condition": "pay.Data.Str(\"company\") != company.Name",
+   "docTypes": [
+    "PaymentReconciliation"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PaymentReconciliationHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentHooks.cs",
+   "line": 264,
+   "shared": false
+  },
+  {
+   "id": "PaymentHooks.cs:266",
+   "kind": "Error",
+   "message": "{invName} is not submitted or has been cancelled",
+   "pattern": ".+?\\s+is\\s+not\\s+submitted\\s+or\\s+has\\s+been\\s+cancelled",
+   "field": "{p}.invoice",
+   "condition": "inv is null || inv.DocStatus != DocStatus.Submitted",
+   "docTypes": [
+    "PaymentReconciliation"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PaymentReconciliationHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentHooks.cs",
+   "line": 266,
+   "shared": false
+  },
+  {
+   "id": "PaymentHooks.cs:267",
+   "kind": "Error",
+   "message": "{invName} does not belong to {party}",
+   "pattern": ".+?\\s+does\\s+not\\s+belong\\s+to\\s+.+?",
+   "field": "{p}.invoice",
+   "condition": "inv.Data.Str(partyField) != party",
+   "docTypes": [
+    "PaymentReconciliation"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PaymentReconciliationHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentHooks.cs",
+   "line": 267,
+   "shared": false
+  },
+  {
+   "id": "PaymentHooks.cs:268",
+   "kind": "Error",
+   "message": "{invName} belongs to another company",
+   "pattern": ".+?\\s+belongs\\s+to\\s+another\\s+company",
+   "field": "{p}.invoice",
+   "condition": "inv.Data.Str(\"company\") != company.Name",
+   "docTypes": [
+    "PaymentReconciliation"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PaymentReconciliationHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentHooks.cs",
+   "line": 268,
+   "shared": false
+  },
+  {
+   "id": "PaymentHooks.cs:270",
+   "kind": "Error",
+   "message": "Foreign-currency advances cannot be allocated here yet; use a journal with exchange gain/loss",
+   "pattern": "Foreign\\-currency\\s+advances\\s+cannot\\s+be\\s+allocated\\s+here\\s+yet;\\s+use\\s+a\\s+journal\\s+with\\s+exchange\\s+gain/loss",
+   "field": "{p}.payment_entry",
+   "condition": "(pay.Data.Str(\"currency\") ?? company.BaseCurrency) != company.BaseCurrency || (inv.Data.Str(\"currency\") ?? company.BaseCurrency) != company.BaseCurrency",
+   "docTypes": [
+    "PaymentReconciliation"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PaymentReconciliationHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentHooks.cs",
+   "line": 270,
+   "shared": false
+  },
+  {
+   "id": "PaymentHooks.cs:278",
+   "kind": "Error",
+   "message": "{payName} has no unallocated advance balance",
+   "pattern": ".+?\\s+has\\s+no\\s+unallocated\\s+advance\\s+balance",
+   "field": "{p}.payment_entry",
+   "condition": "payItem is null || advance <= 0",
+   "docTypes": [
+    "PaymentReconciliation"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PaymentReconciliationHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentHooks.cs",
+   "line": 278,
+   "shared": false
+  },
+  {
+   "id": "PaymentHooks.cs:279",
+   "kind": "Error",
+   "message": "{invName} has no outstanding amount",
+   "pattern": ".+?\\s+has\\s+no\\s+outstanding\\s+amount",
+   "field": "{p}.invoice",
+   "condition": "invItem is null || outstanding <= 0",
+   "docTypes": [
+    "PaymentReconciliation"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PaymentReconciliationHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentHooks.cs",
+   "line": 279,
+   "shared": false
+  },
+  {
+   "id": "PaymentHooks.cs:281",
+   "kind": "Error",
+   "message": "{payName} and {invName} use different control accounts ({payItem.Account} vs {invItem.Account})",
+   "pattern": ".+?\\s+and\\s+.+?\\s+use\\s+different\\s+control\\s+accounts\\s+\\(.+?\\s+vs\\s+.+?\\)",
+   "field": "{p}.invoice",
+   "condition": "payItem.Account != invItem.Account",
+   "docTypes": [
+    "PaymentReconciliation"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PaymentReconciliationHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentHooks.cs",
+   "line": 281,
+   "shared": false
+  },
+  {
+   "id": "PaymentHooks.cs:283",
+   "kind": "Error",
+   "message": "All allocations must use the same control account ({control})",
+   "pattern": "All\\s+allocations\\s+must\\s+use\\s+the\\s+same\\s+control\\s+account\\s+\\(.+?\\)",
+   "field": "{p}.payment_entry",
+   "condition": "payItem.Account != control",
+   "docTypes": [
+    "PaymentReconciliation"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PaymentReconciliationHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentHooks.cs",
+   "line": 283,
+   "shared": false
+  },
+  {
+   "id": "PaymentHooks.cs:286",
+   "kind": "Error",
+   "message": "The allocated amount must be greater than 0",
+   "pattern": "The\\s+allocated\\s+amount\\s+must\\s+be\\s+greater\\s+than\\s+0",
+   "field": "{p}.allocated_amount",
+   "condition": "amount <= 0",
+   "docTypes": [
+    "PaymentReconciliation"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PaymentReconciliationHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentHooks.cs",
+   "line": 286,
+   "shared": false
+  },
+  {
+   "id": "PaymentHooks.cs:289",
+   "kind": "Error",
+   "message": "Exceeds the advance balance of {payName} ({advance})",
+   "pattern": "Exceeds\\s+the\\s+advance\\s+balance\\s+of\\s+.+?\\s+\\(.+?\\)",
+   "field": "{p}.allocated_amount",
+   "condition": "!(payName is null || invType is null || invName is null) && perPayment[payName] > advance",
+   "docTypes": [
+    "PaymentReconciliation"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PaymentReconciliationHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentHooks.cs",
+   "line": 289,
+   "shared": false
+  },
+  {
+   "id": "PaymentHooks.cs:290",
+   "kind": "Error",
+   "message": "Exceeds the outstanding amount of {invName} ({outstanding})",
+   "pattern": "Exceeds\\s+the\\s+outstanding\\s+amount\\s+of\\s+.+?\\s+\\(.+?\\)",
+   "field": "{p}.allocated_amount",
+   "condition": "!(payName is null || invType is null || invName is null) && perInvoice[invName] > outstanding",
+   "docTypes": [
+    "PaymentReconciliation"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PaymentReconciliationHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentHooks.cs",
+   "line": 290,
+   "shared": false
+  },
+  {
+   "id": "PaymentHooks.cs:303",
+   "kind": "Error",
+   "message": "The posting date is required",
+   "pattern": "The\\s+posting\\s+date\\s+is\\s+required",
+   "field": "posting_date",
+   "condition": "!(c.Doc.DocStatus != DocStatus.Submitted || c.Previous?.DocStatus != DocStatus.Draft)",
+   "docTypes": [
+    "PaymentReconciliation"
+   ],
+   "event": "Setelah simpan/submit (posting, efek ke dokumen lain)",
+   "className": "PaymentReconciliationHook",
+   "method": "AfterSaveAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentHooks.cs",
+   "line": 303,
+   "shared": false
+  },
+  {
+   "id": "PaymentHooks.cs:305",
+   "kind": "Error",
+   "message": "The receivable/payable account is required",
+   "pattern": "The\\s+receivable/payable\\s+account\\s+is\\s+required",
+   "field": "receivable_payable_account",
+   "condition": "!(c.Doc.DocStatus != DocStatus.Submitted || c.Previous?.DocStatus != DocStatus.Draft)",
+   "docTypes": [
+    "PaymentReconciliation"
+   ],
+   "event": "Setelah simpan/submit (posting, efek ke dokumen lain)",
+   "className": "PaymentReconciliationHook",
+   "method": "AfterSaveAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentHooks.cs",
+   "line": 305,
+   "shared": false
+  },
+  {
+   "id": "PaymentRunHooks.cs:54",
+   "kind": "Error",
+   "message": "Bank account {bank.Name} belongs to another company",
+   "pattern": "Bank\\s+account\\s+.+?\\s+belongs\\s+to\\s+another\\s+company",
+   "field": "bank_account",
+   "condition": "bank.Data.Str(\"company\") != company.Name",
+   "docTypes": [
+    "PaymentRun"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PaymentRunHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentRunHooks.cs",
+   "line": 54,
+   "shared": false
+  },
+  {
+   "id": "PaymentRunHooks.cs:56",
+   "kind": "Error",
+   "message": "Payment runs from foreign-currency bank accounts are not supported yet",
+   "pattern": "Payment\\s+runs\\s+from\\s+foreign\\-currency\\s+bank\\s+accounts\\s+are\\s+not\\s+supported\\s+yet",
+   "field": "bank_account",
+   "condition": "currency != company.BaseCurrency",
+   "docTypes": [
+    "PaymentRun"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PaymentRunHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentRunHooks.cs",
+   "line": 56,
+   "shared": false
+  },
+  {
+   "id": "PaymentRunHooks.cs:66",
+   "kind": "Error",
+   "message": "{refName} is listed more than once",
+   "pattern": ".+?\\s+is\\s+listed\\s+more\\s+than\\s+once",
+   "field": "{p}.reference_name",
+   "condition": "!seen.Add((refType, refName))",
+   "docTypes": [
+    "PaymentRun"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PaymentRunHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentRunHooks.cs",
+   "line": 66,
+   "shared": false
+  },
+  {
+   "id": "PaymentRunHooks.cs:69",
+   "kind": "Error",
+   "message": "{refName} is not submitted/approved or has been cancelled",
+   "pattern": ".+?\\s+is\\s+not\\s+submitted/approved\\s+or\\s+has\\s+been\\s+cancelled",
+   "field": "{p}.reference_name",
+   "condition": "doc is null || doc.DocStatus != DocStatus.Submitted || (doc.WorkflowState is not null && doc.WorkflowState != Approval.Approved)",
+   "docTypes": [
+    "PaymentRun"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PaymentRunHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentRunHooks.cs",
+   "line": 69,
+   "shared": false
+  },
+  {
+   "id": "PaymentRunHooks.cs:71",
+   "kind": "Error",
+   "message": "{refType} is paid to a {expectedType}",
+   "pattern": ".+?\\s+is\\s+paid\\s+to\\s+a\\s+.+?",
+   "field": "{p}.party_type",
+   "condition": "partyType != expectedType",
+   "docTypes": [
+    "PaymentRun"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PaymentRunHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentRunHooks.cs",
+   "line": 71,
+   "shared": false
+  },
+  {
+   "id": "PaymentRunHooks.cs:72",
+   "kind": "Error",
+   "message": "{refName} does not belong to {party}",
+   "pattern": ".+?\\s+does\\s+not\\s+belong\\s+to\\s+.+?",
+   "field": "{p}.party",
+   "condition": "PayRun.PartyField.TryGetValue(refType, out var pf) && doc.Data.Str(pf) != party",
+   "docTypes": [
+    "PaymentRun"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PaymentRunHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentRunHooks.cs",
+   "line": 72,
+   "shared": false
+  },
+  {
+   "id": "PaymentRunHooks.cs:73",
+   "kind": "Error",
+   "message": "{refName} belongs to another company",
+   "pattern": ".+?\\s+belongs\\s+to\\s+another\\s+company",
+   "field": "{p}.reference_name",
+   "condition": "(doc.Data.Str(\"company\") ?? company.Name) != company.Name",
+   "docTypes": [
+    "PaymentRun"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PaymentRunHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentRunHooks.cs",
+   "line": 73,
+   "shared": false
+  },
+  {
+   "id": "PaymentRunHooks.cs:74",
+   "kind": "Error",
+   "message": "{refName} is not in {currency}",
+   "pattern": ".+?\\s+is\\s+not\\s+in\\s+.+?",
+   "field": "{p}.reference_name",
+   "condition": "(doc.Data.Str(\"currency\") ?? currency) != currency",
+   "docTypes": [
+    "PaymentRun"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PaymentRunHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentRunHooks.cs",
+   "line": 74,
+   "shared": false
+  },
+  {
+   "id": "PaymentRunHooks.cs:76",
+   "kind": "Error",
+   "message": "Payments for {refName} are on hold",
+   "pattern": "Payments\\s+for\\s+.+?\\s+are\\s+on\\s+hold",
+   "field": "{p}.reference_name",
+   "condition": "doc.Data.Bool(\"on_hold\") || (partyType == \"Vendor\" && (await m.GetAsync(\"Vendor\", party, ct))?.Data.Bool(\"on_hold\") == true)",
+   "docTypes": [
+    "PaymentRun"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PaymentRunHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentRunHooks.cs",
+   "line": 76,
+   "shared": false
+  },
+  {
+   "id": "PaymentRunHooks.cs:81",
+   "kind": "Error",
+   "message": "{refName} has nothing left to pay",
+   "pattern": ".+?\\s+has\\s+nothing\\s+left\\s+to\\s+pay",
+   "field": "{p}.reference_name",
+   "condition": "outstanding <= 0",
+   "docTypes": [
+    "PaymentRun"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PaymentRunHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentRunHooks.cs",
+   "line": 81,
+   "shared": false
+  },
+  {
+   "id": "PaymentRunHooks.cs:82",
+   "kind": "Error",
+   "message": "Amount must be greater than 0",
+   "pattern": "Amount\\s+must\\s+be\\s+greater\\s+than\\s+0",
+   "field": "{p}.amount",
+   "condition": "r.Dec(\"amount\") <= 0",
+   "docTypes": [
+    "PaymentRun"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PaymentRunHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentRunHooks.cs",
+   "line": 82,
+   "shared": false
+  },
+  {
+   "id": "PaymentRunHooks.cs:83",
+   "kind": "Error",
+   "message": "Exceeds the outstanding amount of {refName} ({outstanding})",
+   "pattern": "Exceeds\\s+the\\s+outstanding\\s+amount\\s+of\\s+.+?\\s+\\(.+?\\)",
+   "field": "{p}.amount",
+   "condition": "r.Dec(\"amount\") > outstanding",
+   "docTypes": [
+    "PaymentRun"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PaymentRunHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentRunHooks.cs",
+   "line": 83,
+   "shared": false
+  },
+  {
+   "id": "PaymentRunHooks.cs:92",
+   "kind": "Error",
+   "message": "Add at least one item; use 'Get open items'",
+   "pattern": "Add\\s+at\\s+least\\s+one\\s+item;\\s+use\\s+'Get\\s+open\\s+items'",
+   "field": "items",
+   "condition": "!(refType is null || refName is null || partyType is null || party is null) && c.Doc.DocStatus == DocStatus.Submitted && c.Previous?.DocStatus == DocStatus.Draft && rows.Count == 0",
+   "docTypes": [
+    "PaymentRun"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PaymentRunHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentRunHooks.cs",
+   "line": 92,
+   "shared": false
+  },
+  {
+   "id": "PaymentRunHooks.cs:107",
+   "kind": "Error",
+   "message": "{live.Count} payment entries were created by this run; cancel them first ({string.Join(\", \", live.Take(5).Select(p => p.Name))})",
+   "pattern": ".+?\\s+payment\\s+entries\\s+were\\s+created\\s+by\\s+this\\s+run;\\s+cancel\\s+them\\s+first\\s+\\(.+?\\)",
+   "field": "name",
+   "condition": "live.Count > 0",
+   "docTypes": [
+    "PaymentRun"
+   ],
+   "event": "Saat cancel",
+   "className": "PaymentRunHook",
+   "method": "OnCancelAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentRunHooks.cs",
+   "line": 107,
+   "shared": false
+  },
+  {
+   "id": "PaymentRunHooks.cs:155",
+   "kind": "Error",
+   "message": "{runName}: {failures.Count} payments failed — {string.Join(\"; \", failures.Take(5))}",
+   "pattern": ".+?:\\s+.+?\\s+payments\\s+failed\\s+—\\s+.+?",
+   "field": null,
+   "condition": "!(run is null || run.DocStatus != DocStatus.Submitted) && failures.Count > 0",
+   "docTypes": [],
+   "event": "Saat tombol aksi diklik",
+   "className": "PaymentRunExecutor",
+   "method": "ExecuteAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentRunHooks.cs",
+   "line": 155,
+   "shared": true
+  },
+  {
+   "id": "PaymentRunHooks.cs:175",
+   "kind": "ActionFailure",
+   "message": "Set the company first",
+   "pattern": "Set\\s+the\\s+company\\s+first",
+   "field": null,
+   "condition": "company is null",
+   "docTypes": [
+    "PaymentRun"
+   ],
+   "event": "Saat tombol aksi diklik",
+   "className": "PaymentRunGetItemsAction",
+   "method": "ExecuteAsync",
+   "file": "src/Apps.Erp/Hooks/PaymentRunHooks.cs",
+   "line": 175,
+   "shared": false
+  },
+  {
+   "id": "PayrollHooks.cs:117",
+   "kind": "Error",
+   "message": "TER category {cat} needs a last row without an upper limit",
+   "pattern": "TER\\s+category\\s+.+?\\s+needs\\s+a\\s+last\\s+row\\s+without\\s+an\\s+upper\\s+limit",
+   "field": "ter_rates",
+   "condition": "!d.Rows(\"ter_rates\").Any(r => r.Str(\"ter_category\") == cat && r.Dec(\"up_to\") == 0)",
+   "docTypes": [
+    "PayrollSettings"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PayrollSettingsHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PayrollHooks.cs",
+   "line": 117,
+   "shared": false
+  },
+  {
+   "id": "PayrollHooks.cs:118",
+   "kind": "Error",
+   "message": "Article 17 rates need a last row without an upper limit",
+   "pattern": "Article\\s+17\\s+rates\\s+need\\s+a\\s+last\\s+row\\s+without\\s+an\\s+upper\\s+limit",
+   "field": "tax_brackets",
+   "condition": "!d.Rows(\"tax_brackets\").Any(r => r.Dec(\"up_to\") == 0)",
+   "docTypes": [
+    "PayrollSettings"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PayrollSettingsHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PayrollHooks.cs",
+   "line": 118,
+   "shared": false
+  },
+  {
+   "id": "PayrollHooks.cs:120",
+   "kind": "Error",
+   "message": "PTKP status {s.Key} appears more than once",
+   "pattern": "PTKP\\s+status\\s+.+?\\s+appears\\s+more\\s+than\\s+once",
+   "field": "ptkp_rates",
+   "condition": null,
+   "docTypes": [
+    "PayrollSettings"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PayrollSettingsHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PayrollHooks.cs",
+   "line": 120,
+   "shared": false
+  },
+  {
+   "id": "PayrollHooks.cs:139",
+   "kind": "Error",
+   "message": "{rows[i].Str(\"salary_component\")} is a {t.ToLowerInvariant()}, not a {type.ToLowerInvariant()}",
+   "pattern": ".+?\\s+is\\s+a\\s+.+?,\\s+not\\s+a\\s+.+?",
+   "field": "{table}[{i}].salary_component",
+   "condition": "await m.StrAsync(\"SalaryComponent\", rows[i].Str(\"salary_component\"), \"component_type\", ct) is { } t && t != type",
+   "docTypes": [
+    "SalaryAssignment"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "SalaryAssignmentHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PayrollHooks.cs",
+   "line": 139,
+   "shared": false
+  },
+  {
+   "id": "PayrollHooks.cs:143",
+   "kind": "Error",
+   "message": "{dup.Name} already starts on this date for this employee",
+   "pattern": ".+?\\s+already\\s+starts\\s+on\\s+this\\s+date\\s+for\\s+this\\s+employee",
+   "field": "from_date",
+   "condition": "dup is not null",
+   "docTypes": [
+    "SalaryAssignment"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "SalaryAssignmentHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PayrollHooks.cs",
+   "line": 143,
+   "shared": false
+  },
+  {
+   "id": "PayrollHooks.cs:164",
+   "kind": "Error",
+   "message": "Open Payroll Settings and save it once to load the PTKP, TER, and Article 17 tables",
+   "pattern": "Open\\s+Payroll\\s+Settings\\s+and\\s+save\\s+it\\s+once\\s+to\\s+load\\s+the\\s+PTKP,\\s+TER,\\s+and\\s+Article\\s+17\\s+tables",
+   "field": "name",
+   "condition": "s.Rows(\"ter_rates\").Count == 0 || s.Rows(\"ptkp_rates\").Count == 0 || s.Rows(\"tax_brackets\").Count == 0",
+   "docTypes": [
+    "CommissionStatement",
+    "JobOffer",
+    "PaymentEntry",
+    "PayrollRun",
+    "Payslip"
+   ],
+   "event": "Pemeriksaan SettingsAsync",
+   "className": "Payroll",
+   "method": "SettingsAsync",
+   "file": "src/Apps.Erp/Hooks/PayrollHooks.cs",
+   "line": 164,
+   "shared": true
+  },
+  {
+   "id": "PayrollHooks.cs:202",
+   "kind": "Error",
+   "message": "{run.Name} is already submitted; create a new payroll run",
+   "pattern": ".+?\\s+is\\s+already\\s+submitted;\\s+create\\s+a\\s+new\\s+payroll\\s+run",
+   "field": "payroll_run",
+   "condition": "run.DocStatus != DocStatus.Draft && c.Doc.DocStatus == DocStatus.Draft && c.Previous is null",
+   "docTypes": [
+    "Payslip"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PayslipHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PayrollHooks.cs",
+   "line": 202,
+   "shared": false
+  },
+  {
+   "id": "PayrollHooks.cs:209",
+   "kind": "Error",
+   "message": "{emp.Name} belongs to another company",
+   "pattern": ".+?\\s+belongs\\s+to\\s+another\\s+company",
+   "field": "employee",
+   "condition": "emp.Data.Str(\"company\") != run.Data.Str(\"company\")",
+   "docTypes": [
+    "Payslip"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PayslipHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PayrollHooks.cs",
+   "line": 209,
+   "shared": false
+  },
+  {
+   "id": "PayrollHooks.cs:214",
+   "kind": "Error",
+   "message": "{emp.Name} already has payslip {others[0].Name} for {period}",
+   "pattern": ".+?\\s+already\\s+has\\s+payslip\\s+.+?\\s+for\\s+.+?",
+   "field": "employee",
+   "condition": "others.Count > 0",
+   "docTypes": [
+    "Payslip"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PayslipHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PayrollHooks.cs",
+   "line": 214,
+   "shared": false
+  },
+  {
+   "id": "PayrollHooks.cs:217",
+   "kind": "Error",
+   "message": "{emp.Name} has no active salary assignment valid on {D.Iso(periodEnd)}",
+   "pattern": ".+?\\s+has\\s+no\\s+active\\s+salary\\s+assignment\\s+valid\\s+on\\s+.+?",
+   "field": "employee",
+   "condition": "assignment is null",
+   "docTypes": [
+    "Payslip"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PayslipHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PayrollHooks.cs",
+   "line": 217,
+   "shared": false
+  },
+  {
+   "id": "PayrollHooks.cs:235",
+   "kind": "Warning",
+   "message": "Overtime: {ot.WeightedHours} paid hours × {ot.HourlyWage} = {ot.Amount}",
+   "pattern": "Overtime:\\s+.+?\\s+paid\\s+hours\\s+×\\s+.+?\\s+=\\s+.+?",
+   "field": null,
+   "condition": null,
+   "docTypes": [
+    "Payslip"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PayslipHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PayrollHooks.cs",
+   "line": 235,
+   "shared": false
+  },
+  {
+   "id": "PayrollHooks.cs:247",
+   "kind": "Error",
+   "message": "{comp.Name} is not a {type.ToLowerInvariant()}",
+   "pattern": ".+?\\s+is\\s+not\\s+a\\s+.+?",
+   "field": "{table}[{i}].salary_component",
+   "condition": "comp.Data.Str(\"component_type\") != type",
+   "docTypes": [
+    "Payslip"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PayslipHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PayrollHooks.cs",
+   "line": 247,
+   "shared": false
+  },
+  {
+   "id": "PayrollHooks.cs:261",
+   "kind": "Error",
+   "message": "Set the GL account of deduction component {comp.Name}",
+   "pattern": "Set\\s+the\\s+GL\\s+account\\s+of\\s+deduction\\s+component\\s+.+?",
+   "field": "{table}[{i}].salary_component",
+   "condition": "comp.Data.Str(\"account\") is null",
+   "docTypes": [
+    "Payslip"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PayslipHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PayrollHooks.cs",
+   "line": 261,
+   "shared": false
+  },
+  {
+   "id": "PayrollHooks.cs:294",
+   "kind": "Error",
+   "message": "Set the PTKP status of {emp.Name} (Employee, Identity & Tax)",
+   "pattern": "Set\\s+the\\s+PTKP\\s+status\\s+of\\s+.+?\\s+\\(Employee,\\s+Identity\\s+\\&\\s+Tax\\)",
+   "field": "employee",
+   "condition": "!(comp is null)",
+   "docTypes": [
+    "Payslip"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PayslipHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PayrollHooks.cs",
+   "line": 294,
+   "shared": false
+  },
+  {
+   "id": "PayrollHooks.cs:386",
+   "kind": "Error",
+   "message": "{run.Name} is submitted; cancel the payroll run first",
+   "pattern": ".+?\\s+is\\s+submitted;\\s+cancel\\s+the\\s+payroll\\s+run\\s+first",
+   "field": "name",
+   "condition": "run is not null && run.DocStatus == DocStatus.Submitted",
+   "docTypes": [
+    "Payslip"
+   ],
+   "event": "Saat cancel",
+   "className": "PayslipHook",
+   "method": "OnCancelAsync",
+   "file": "src/Apps.Erp/Hooks/PayrollHooks.cs",
+   "line": 386,
+   "shared": false
+  },
+  {
+   "id": "PayrollHooks.cs:405",
+   "kind": "Error",
+   "message": "{dup.Name} already covers this company, period, and unit",
+   "pattern": ".+?\\s+already\\s+covers\\s+this\\s+company,\\s+period,\\s+and\\s+unit",
+   "field": "period",
+   "condition": "dup is not null",
+   "docTypes": [
+    "PayrollRun"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PayrollRunHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/PayrollHooks.cs",
+   "line": 405,
+   "shared": false
+  },
+  {
+   "id": "PayrollHooks.cs:425",
+   "kind": "Error",
+   "message": "{all.Count(s => s.DocStatus == DocStatus.Draft)} payslips are still draft; submit or delete them first",
+   "pattern": ".+?\\s+payslips\\s+are\\s+still\\s+draft;\\s+submit\\s+or\\s+delete\\s+them\\s+first",
+   "field": "name",
+   "condition": "!(c.Doc.DocStatus != DocStatus.Submitted || c.Previous?.DocStatus != DocStatus.Draft) && all.Any(s => s.DocStatus == DocStatus.Draft)",
+   "docTypes": [
+    "PayrollRun"
+   ],
+   "event": "Setelah simpan/submit (posting, efek ke dokumen lain)",
+   "className": "PayrollRunHook",
+   "method": "AfterSaveAsync",
+   "file": "src/Apps.Erp/Hooks/PayrollHooks.cs",
+   "line": 425,
+   "shared": false
+  },
+  {
+   "id": "PayrollHooks.cs:426",
+   "kind": "Error",
+   "message": "There are no submitted payslips in this payroll run",
+   "pattern": "There\\s+are\\s+no\\s+submitted\\s+payslips\\s+in\\s+this\\s+payroll\\s+run",
+   "field": "name",
+   "condition": "!(c.Doc.DocStatus != DocStatus.Submitted || c.Previous?.DocStatus != DocStatus.Draft) && all.Count == 0",
+   "docTypes": [
+    "PayrollRun"
+   ],
+   "event": "Setelah simpan/submit (posting, efek ke dokumen lain)",
+   "className": "PayrollRunHook",
+   "method": "AfterSaveAsync",
+   "file": "src/Apps.Erp/Hooks/PayrollHooks.cs",
+   "line": 426,
+   "shared": false
+  },
+  {
+   "id": "PayrollHooks.cs:428",
+   "kind": "Error",
+   "message": "The posting date is required",
+   "pattern": "The\\s+posting\\s+date\\s+is\\s+required",
+   "field": "posting_date",
+   "condition": "!(c.Doc.DocStatus != DocStatus.Submitted || c.Previous?.DocStatus != DocStatus.Draft) && !(all.Count == 0)",
+   "docTypes": [
+    "PayrollRun"
+   ],
+   "event": "Setelah simpan/submit (posting, efek ke dokumen lain)",
+   "className": "PayrollRunHook",
+   "method": "AfterSaveAsync",
+   "file": "src/Apps.Erp/Hooks/PayrollHooks.cs",
+   "line": 428,
+   "shared": false
+  },
+  {
+   "id": "PayrollHooks.cs:431",
+   "kind": "Error",
+   "message": "Set '{label}' in Payroll Settings",
+   "pattern": "Set\\s+'.+?'\\s+in\\s+Payroll\\s+Settings",
+   "field": "name",
+   "condition": "!(c.Doc.DocStatus != DocStatus.Submitted || c.Previous?.DocStatus != DocStatus.Draft) && !(all.Count == 0)",
+   "docTypes": [
+    "PayrollRun"
+   ],
+   "event": "Setelah simpan/submit (posting, efek ke dokumen lain)",
+   "className": "PayrollRunHook",
+   "method": "AfterSaveAsync",
+   "file": "src/Apps.Erp/Hooks/PayrollHooks.cs",
+   "line": 431,
+   "shared": false
+  },
+  {
+   "id": "PayrollHooks.cs:452",
+   "kind": "Error",
+   "message": "Payroll entry is out of balance by {posting.Difference}",
+   "pattern": "Payroll\\s+entry\\s+is\\s+out\\s+of\\s+balance\\s+by\\s+.+?",
+   "field": "name",
+   "condition": "!(c.Doc.DocStatus != DocStatus.Submitted || c.Previous?.DocStatus != DocStatus.Draft) && !(all.Count == 0) && posting.Difference != 0",
+   "docTypes": [
+    "PayrollRun"
+   ],
+   "event": "Setelah simpan/submit (posting, efek ke dokumen lain)",
+   "className": "PayrollRunHook",
+   "method": "AfterSaveAsync",
+   "file": "src/Apps.Erp/Hooks/PayrollHooks.cs",
+   "line": 452,
+   "shared": false
+  },
+  {
+   "id": "PayrollHooks.cs:476",
+   "kind": "ActionFailure",
+   "message": "Set the period first",
+   "pattern": "Set\\s+the\\s+period\\s+first",
+   "field": null,
+   "condition": "period is null",
+   "docTypes": [
+    "PayrollRun"
+   ],
+   "event": "Saat tombol aksi diklik",
+   "className": "PayrollRunCreatePayslipsAction",
+   "method": "ExecuteAsync",
+   "file": "src/Apps.Erp/Hooks/PayrollHooks.cs",
+   "line": 476,
+   "shared": false
+  },
+  {
+   "id": "PayrollHooks.cs:505",
+   "kind": "ActionFailure",
+   "message": "{msg} Failed: {string.Join(\"; \", failed.Take(10))}",
+   "pattern": ".+?\\s+Failed:\\s+.+?",
+   "field": null,
+   "condition": "!(period is null)",
+   "docTypes": [
+    "PayrollRun"
+   ],
+   "event": "Saat tombol aksi diklik",
+   "className": "PayrollRunCreatePayslipsAction",
+   "method": "ExecuteAsync",
+   "file": "src/Apps.Erp/Hooks/PayrollHooks.cs",
+   "line": 505,
+   "shared": false
+  },
+  {
+   "id": "PayrollHooks.cs:534",
+   "kind": "ActionFailure",
+   "message": "{msg} Failed: {string.Join(\"; \", failed.Take(10))}",
+   "pattern": ".+?\\s+Failed:\\s+.+?",
+   "field": null,
+   "condition": null,
+   "docTypes": [
+    "PayrollRun"
+   ],
+   "event": "Saat tombol aksi diklik",
+   "className": "PayrollRunSubmitPayslipsAction",
+   "method": "ExecuteAsync",
+   "file": "src/Apps.Erp/Hooks/PayrollHooks.cs",
+   "line": 534,
+   "shared": false
+  },
+  {
+   "id": "ProcurementHooks.cs:78",
+   "kind": "Error",
+   "message": "{pr.Name} is {pr.WorkflowState}, not Approved",
+   "pattern": ".+?\\s+is\\s+.+?,\\s+not\\s+Approved",
+   "field": "purchase_request",
+   "condition": "c.Doc.DocStatus == DocStatus.Draft && pr.WorkflowState != Approval.Approved",
+   "docTypes": [
+    "PurchaseOrder"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PurchaseOrderHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/ProcurementHooks.cs",
+   "line": 78,
+   "shared": false
+  },
+  {
+   "id": "ProcurementHooks.cs:93",
+   "kind": "Warning",
+   "message": "Supplier {vendor.Name} is on hold: invoices can be recorded but payments are blocked",
+   "pattern": "Supplier\\s+.+?\\s+is\\s+on\\s+hold:\\s+invoices\\s+can\\s+be\\s+recorded\\s+but\\s+payments\\s+are\\s+blocked",
+   "field": null,
+   "condition": "vendor.Data.Bool(\"on_hold\")",
+   "docTypes": [
+    "PurchaseOrder"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PurchaseOrderHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/ProcurementHooks.cs",
+   "line": 93,
+   "shared": false
+  },
+  {
+   "id": "ProcurementHooks.cs:119",
+   "kind": "Error",
+   "message": "{po.Name} is not submitted or has been cancelled",
+   "pattern": ".+?\\s+is\\s+not\\s+submitted\\s+or\\s+has\\s+been\\s+cancelled",
+   "field": "purchase_order",
+   "condition": "po.DocStatus != DocStatus.Submitted",
+   "docTypes": [
+    "GoodsReceipt"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "GoodsReceiptHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/ProcurementHooks.cs",
+   "line": 119,
+   "shared": false
+  },
+  {
+   "id": "ProcurementHooks.cs:128",
+   "kind": "Error",
+   "message": "Everything on {po.Name} has been received",
+   "pattern": "Everything\\s+on\\s+.+?\\s+has\\s+been\\s+received",
+   "field": "items",
+   "condition": "rows.Count == 0",
+   "docTypes": [
+    "GoodsReceipt"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "GoodsReceiptHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/ProcurementHooks.cs",
+   "line": 128,
+   "shared": false
+  },
+  {
+   "id": "ProcurementHooks.cs:132",
+   "kind": "Error",
+   "message": "{po.Name} has no line {line}",
+   "pattern": ".+?\\s+has\\s+no\\s+line\\s+.+?",
+   "field": "items[{k}].po_line",
+   "condition": "line < 1 || line > lines.Count",
+   "docTypes": [
+    "GoodsReceipt"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "GoodsReceiptHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/ProcurementHooks.cs",
+   "line": 132,
+   "shared": false
+  },
+  {
+   "id": "ProcurementHooks.cs:136",
+   "kind": "Error",
+   "message": "Line {line}: only {Pending(line)} not yet received",
+   "pattern": "Line\\s+.+?:\\s+only\\s+.+?\\s+not\\s+yet\\s+received",
+   "field": "items[{k}].received_qty",
+   "condition": "r.Dec(\"received_qty\") > Pending(line)",
+   "docTypes": [
+    "GoodsReceipt"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "GoodsReceiptHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/ProcurementHooks.cs",
+   "line": 136,
+   "shared": false
+  },
+  {
+   "id": "ProcurementHooks.cs:150",
+   "kind": "Error",
+   "message": "{po.Name} belongs to another supplier",
+   "pattern": ".+?\\s+belongs\\s+to\\s+another\\s+supplier",
+   "field": "purchase_order",
+   "condition": "!(await m.GetAsync(\"PurchaseOrder\", d.Str(\"purchase_order\"), ct) is not { } po) && po.Data.Str(\"vendor\") != d.Str(\"vendor\")",
+   "docTypes": [
+    "PurchaseInvoice"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PurchaseInvoicePoHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/ProcurementHooks.cs",
+   "line": 150,
+   "shared": false
+  },
+  {
+   "id": "ProcurementHooks.cs:173",
+   "kind": "Error",
+   "message": "3-way match: {po.Name} billed {billed} exceeds the received value {received}; record the goods receipt first",
+   "pattern": "3\\-way\\s+match:\\s+.+?\\s+billed\\s+.+?\\s+exceeds\\s+the\\s+received\\s+value\\s+.+?;\\s+record\\s+the\\s+goods\\s+receipt\\s+first",
+   "field": "purchase_order",
+   "condition": "!(c.Doc.DocStatus != DocStatus.Submitted || c.Previous?.DocStatus != DocStatus.Draft) && !(await m.GetAsync(\"PurchaseOrder\", c.Doc.Data.Str(\"purchase_order\"), ct) is not { } po) && !(mode == \"Off\") && !(billed <= received + 1m) && mode == \"Stop\"",
+   "docTypes": [
+    "PurchaseInvoice"
+   ],
+   "event": "Setelah simpan/submit (posting, efek ke dokumen lain)",
+   "className": "PurchaseInvoicePoHook",
+   "method": "AfterSaveAsync",
+   "file": "src/Apps.Erp/Hooks/ProcurementHooks.cs",
+   "line": 173,
+   "shared": false
+  },
+  {
+   "id": "ProcurementHooks.cs:174",
+   "kind": "Warning",
+   "message": "3-way match: {po.Name} billed {billed} exceeds the received value {received}",
+   "pattern": "3\\-way\\s+match:\\s+.+?\\s+billed\\s+.+?\\s+exceeds\\s+the\\s+received\\s+value\\s+.+?",
+   "field": null,
+   "condition": "!(c.Doc.DocStatus != DocStatus.Submitted || c.Previous?.DocStatus != DocStatus.Draft) && !(await m.GetAsync(\"PurchaseOrder\", c.Doc.Data.Str(\"purchase_order\"), ct) is not { } po) && !(mode == \"Off\") && !(billed <= received + 1m) && !(mode == \"Stop\")",
+   "docTypes": [
+    "PurchaseInvoice"
+   ],
+   "event": "Setelah simpan/submit (posting, efek ke dokumen lain)",
+   "className": "PurchaseInvoicePoHook",
+   "method": "AfterSaveAsync",
+   "file": "src/Apps.Erp/Hooks/ProcurementHooks.cs",
+   "line": 174,
+   "shared": false
+  },
+  {
+   "id": "ProcurementHooks.cs:189",
+   "kind": "ActionFailure",
+   "message": "Choose the suggested supplier on the request first, or create the order manually",
+   "pattern": "Choose\\s+the\\s+suggested\\s+supplier\\s+on\\s+the\\s+request\\s+first,\\s+or\\s+create\\s+the\\s+order\\s+manually",
+   "field": null,
+   "condition": "ctx.Doc.Data.Str(\"suggested_vendor\") is not { } vendor",
+   "docTypes": [
+    "PurchaseRequest"
+   ],
+   "event": "Saat tombol aksi diklik",
+   "className": "PurchaseRequestMakeOrderAction",
+   "method": "ExecuteAsync",
+   "file": "src/Apps.Erp/Hooks/ProcurementHooks.cs",
+   "line": 189,
+   "shared": false
+  },
+  {
+   "id": "ProcurementHooks.cs:201",
+   "kind": "ActionFailure",
+   "message": "Purchase order creation failed: {ex.Message}",
+   "pattern": "Purchase\\s+order\\s+creation\\s+failed:\\s+.+?",
+   "field": null,
+   "condition": null,
+   "docTypes": [
+    "PurchaseRequest"
+   ],
+   "event": "Saat tombol aksi diklik",
+   "className": "PurchaseRequestMakeOrderAction",
+   "method": "ExecuteAsync",
+   "file": "src/Apps.Erp/Hooks/ProcurementHooks.cs",
+   "line": 201,
+   "shared": false
+  },
+  {
+   "id": "ProcurementHooks.cs:226",
+   "kind": "ActionFailure",
+   "message": "Goods receipt creation failed: {ex.Message}",
+   "pattern": "Goods\\s+receipt\\s+creation\\s+failed:\\s+.+?",
+   "field": null,
+   "condition": null,
+   "docTypes": [
+    "PurchaseOrder"
+   ],
+   "event": "Saat tombol aksi diklik",
+   "className": "PurchaseOrderReceiveAction",
+   "method": "ExecuteAsync",
+   "file": "src/Apps.Erp/Hooks/ProcurementHooks.cs",
+   "line": 226,
+   "shared": false
+  },
+  {
+   "id": "RecruitmentHooks.cs:23",
+   "kind": "Error",
+   "message": "Position {pos.Name} is {pos.Data.Str(\"status\")}, not Vacant",
+   "pattern": "Position\\s+.+?\\s+is\\s+.+?,\\s+not\\s+Vacant",
+   "field": "position",
+   "condition": "c.Doc.DocStatus == DocStatus.Draft && pos.Data.Str(\"status\") != \"Vacant\"",
+   "docTypes": [
+    "JobRequisition"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "JobRequisitionHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/RecruitmentHooks.cs",
+   "line": 23,
+   "shared": false
+  },
+  {
+   "id": "RecruitmentHooks.cs:32",
+   "kind": "Warning",
+   "message": "The salary range exceeds the maximum of grade {grade.Name} ({max})",
+   "pattern": "The\\s+salary\\s+range\\s+exceeds\\s+the\\s+maximum\\s+of\\s+grade\\s+.+?\\s+\\(.+?\\)",
+   "field": null,
+   "condition": "max > 0 && d.Dec(\"salary_max\") > max",
+   "docTypes": [
+    "JobRequisition"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "JobRequisitionHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/RecruitmentHooks.cs",
+   "line": 32,
+   "shared": false
+  },
+  {
+   "id": "RecruitmentHooks.cs:61",
+   "kind": "Error",
+   "message": "{req.Name} is not open",
+   "pattern": ".+?\\s+is\\s+not\\s+open",
+   "field": "job_requisition",
+   "condition": "c.Previous is null && req.DocStatus != DocStatus.Submitted",
+   "docTypes": [
+    "JobApplicant"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "JobApplicantHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/RecruitmentHooks.cs",
+   "line": 61,
+   "shared": false
+  },
+  {
+   "id": "RecruitmentHooks.cs:66",
+   "kind": "Error",
+   "message": "{email} already applied to {req.Name} ({dup.Name})",
+   "pattern": ".+?\\s+already\\s+applied\\s+to\\s+.+?\\s+\\(.+?\\)",
+   "field": "email",
+   "condition": "dup is not null",
+   "docTypes": [
+    "JobApplicant"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "JobApplicantHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/RecruitmentHooks.cs",
+   "line": 66,
+   "shared": false
+  },
+  {
+   "id": "RecruitmentHooks.cs:68",
+   "kind": "Error",
+   "message": "'Hired' is set by 'Create employee' on an accepted job offer",
+   "pattern": "'Hired'\\s+is\\s+set\\s+by\\s+'Create\\s+employee'\\s+on\\s+an\\s+accepted\\s+job\\s+offer",
+   "field": "status",
+   "condition": "d.Str(\"status\") == \"Hired\" && d.Str(\"employee\") is null && !c.User.IsAdmin",
+   "docTypes": [
+    "JobApplicant"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "JobApplicantHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/RecruitmentHooks.cs",
+   "line": 68,
+   "shared": false
+  },
+  {
+   "id": "RecruitmentHooks.cs:93",
+   "kind": "Error",
+   "message": "{applicant.Name} already has an active offer {other.Name}",
+   "pattern": ".+?\\s+already\\s+has\\s+an\\s+active\\s+offer\\s+.+?",
+   "field": "job_applicant",
+   "condition": "other is not null",
+   "docTypes": [
+    "JobOffer"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "JobOfferHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/RecruitmentHooks.cs",
+   "line": 93,
+   "shared": false
+  },
+  {
+   "id": "RecruitmentHooks.cs:118",
+   "kind": "ActionFailure",
+   "message": "The applicant no longer exists",
+   "pattern": "The\\s+applicant\\s+no\\s+longer\\s+exists",
+   "field": null,
+   "condition": "applicant is null",
+   "docTypes": [
+    "JobOffer"
+   ],
+   "event": "Saat tombol aksi diklik",
+   "className": "JobOfferCreateEmployeeAction",
+   "method": "ExecuteAsync",
+   "file": "src/Apps.Erp/Hooks/RecruitmentHooks.cs",
+   "line": 118,
+   "shared": false
+  },
+  {
+   "id": "RecruitmentHooks.cs:121",
+   "kind": "ActionFailure",
+   "message": "The offer has no employee number",
+   "pattern": "The\\s+offer\\s+has\\s+no\\s+employee\\s+number",
+   "field": null,
+   "condition": "!(applicant is null) && number is null",
+   "docTypes": [
+    "JobOffer"
+   ],
+   "event": "Saat tombol aksi diklik",
+   "className": "JobOfferCreateEmployeeAction",
+   "method": "ExecuteAsync",
+   "file": "src/Apps.Erp/Hooks/RecruitmentHooks.cs",
+   "line": 121,
+   "shared": false
+  },
+  {
+   "id": "RecruitmentHooks.cs:123",
+   "kind": "ActionFailure",
+   "message": "Fill gender and date of birth on applicant {applicant.Name} first",
+   "pattern": "Fill\\s+gender\\s+and\\s+date\\s+of\\s+birth\\s+on\\s+applicant\\s+.+?\\s+first",
+   "field": null,
+   "condition": "!(applicant is null) && !(number is null) && a.Str(\"gender\") is null || a.Str(\"date_of_birth\") is null",
+   "docTypes": [
+    "JobOffer"
+   ],
+   "event": "Saat tombol aksi diklik",
+   "className": "JobOfferCreateEmployeeAction",
+   "method": "ExecuteAsync",
+   "file": "src/Apps.Erp/Hooks/RecruitmentHooks.cs",
+   "line": 123,
+   "shared": false
+  },
+  {
+   "id": "RecruitmentHooks.cs:158",
+   "kind": "ActionFailure",
+   "message": "Creating the employee failed: {ex.Message}",
+   "pattern": "Creating\\s+the\\s+employee\\s+failed:\\s+.+?",
+   "field": null,
+   "condition": null,
+   "docTypes": [
+    "JobOffer"
+   ],
+   "event": "Saat tombol aksi diklik",
+   "className": "JobOfferCreateEmployeeAction",
+   "method": "ExecuteAsync",
+   "file": "src/Apps.Erp/Hooks/RecruitmentHooks.cs",
+   "line": 158,
+   "shared": false
+  },
+  {
+   "id": "StockHooks.cs:106",
+   "kind": "Error",
+   "message": "Set the inventory account on warehouse {warehouse} or in Stock Settings",
+   "pattern": "Set\\s+the\\s+inventory\\s+account\\s+on\\s+warehouse\\s+.+?\\s+or\\s+in\\s+Stock\\s+Settings",
+   "field": "name",
+   "condition": "DateOnly.MinValue; public decimal Rate => Qty > 0 ? Value / Qty : 0m; } /// <summary> /// Persediaan perpetual dengan rata-rata bergerak (PSAK 14 rata-rata tertimbang). Tidak ada tabel buku stok terpisah: saldo dihitung dari /// dokumen mutasi yang sudah submit (Stock Entry, Goods Receipt, faktur/nota dengan Update stock, Stock Opname). Nilai tiap baris dikunci /// di dokumennya saat submit. Agar nilai rata-rata tidak perlu dihitung ulang: posting mundur sebelum mutasi terakhir item-gudang ditolak, /// dan pembatalan hanya boleh bila belum ada mutasi sesudahnya. /// </summary> internal static class Stock { public static readonly string[] Sources = [\"StockEntry\", \"GoodsReceipt\", \"SalesInvoice\", \"SalesCreditNote\", \"PurchaseInvoice\", \"StockReconciliation\"]; public static bool HasStock(IDictionary<string, object?> row) => row.TryGetValue(\"stock_amount\", out var v) && v is not null; public static DateOnly DateOf(Document d) => d.Data.Date(\"posting_date\") ?? d.Data.Date(\"receipt_date\") ?? DateOnly.FromDateTime(d.Created.UtcDateTime); /// <summary>Mutasi yang tercatat di satu dokumen (dari nilai yang dikunci saat submit).</summary> public static IEnumerable<Movement> Extract(Document doc) { var d = doc.Data; var date = DateOf(doc); Movement Mv(string? item, string? wh, decimal qty, decimal value) => new(item ?? \"\", wh ?? \"\", date, doc.Created, doc.DocType, doc.Name, qty, value); switch (doc.DocType) { case \"StockEntry\": var purpose = d.Str(\"purpose\"); foreach (var r in d.Rows(\"items\")) { var s = purpose == \"Material Receipt\" ? null : r.Str(\"s_warehouse\") ?? d.Str(\"from_warehouse\"); var t = purpose == \"Material Issue\" ? null : r.Str(\"t_warehouse\") ?? d.Str(\"to_warehouse\"); if (s is not null) yield return Mv(r.Str(\"item\"), s, -r.Dec(\"qty\"), -r.Dec(\"amount\")); if (t is not null) yield return Mv(r.Str(\"item\"), t, r.Dec(\"qty\"), r.Dec(\"amount\")); } break; case \"GoodsReceipt\": foreach (var r in d.Rows(\"items\").Where(r => r.Bool(\"is_stock_item\"))) yield return Mv(r.Str(\"item\"), d.Str(\"warehouse\"), r.Dec(\"received_qty\"), r.Dec(\"amount\")); break; case \"SalesInvoice\": case \"SalesCreditNote\": case \"PurchaseInvoice\": if (!d.Bool(\"update_stock\")) break; var sign = doc.DocType == \"SalesInvoice\" ? -1m : 1m; foreach (var r in d.Rows(\"items\").Where(HasStock)) yield return Mv(r.Str(\"item\"), d.Str(\"warehouse\"), sign * r.Dec(\"qty\"), sign * r.Dec(\"stock_amount\")); break; case \"StockReconciliation\": foreach (var r in d.Rows(\"items\")) yield return Mv(r.Str(\"item\"), d.Str(\"warehouse\"), r.Dec(\"qty_difference\"), r.Dec(\"amount_difference\")); break; } } /// <summary>Semua mutasi dari dokumen submit (kecuali satu dokumen), urut tanggal lalu waktu dibuat.</summary> public static async Task<List<Movement>> AllAsync(Masters m, string? exceptType, string? exceptName, CancellationToken ct) { var all = new List<Movement>(); foreach (var type in Sources) { IReadOnlyList<FilterClause> filter = type is \"SalesInvoice\" or \"SalesCreditNote\" or \"PurchaseInvoice\" ? [new FilterClause(\"update_stock\", \"=\", true)] : []; foreach (var doc in await m.QueryAsync(type, filter, ct, take: 200_000)) if (doc.DocStatus == DocStatus.Submitted && !(doc.DocType == exceptType && doc.Name == exceptName)) all.AddRange(Extract(doc)); } return all.Where(x => x.Item != \"\" && x.Warehouse != \"\").OrderBy(x => x.Date).ThenBy(x => x.Created).ToList(); } public static Dictionary<(string Item, string Wh), Bin> Bins(IEnumerable<Movement> moves, DateOnly? asOf = null) { var bins = new Dictionary<(string, string), Bin>(); foreach (var x in moves.Where(x => asOf is null || x.Date <= asOf)) { if (!bins.TryGetValue((x.Item, x.Warehouse), out var b)) bins[(x.Item, x.Warehouse)] = b = new Bin(); b.Qty += x.Qty; b.Value += x.Value; if (x.Date > b.LastDate) b.LastDate = x.Date; } return bins; } public static async Task<IDictionary<string, object?>> SettingsAsync(Masters m, CancellationToken ct) => await m.SingleAsync(\"StockSettings\", ct); public static async Task<string> InventoryAccountAsync(Masters m, string warehouse, CancellationToken ct) => await m.StrAsync(\"Warehouse\", warehouse, \"inventory_account\", ct) ?? (await SettingsAsync(m, ct)).Str(\"inventory_account\") tidak ditemukan/kosong",
+   "docTypes": [
+    "GoodsReceipt",
+    "PurchaseDebitNote",
+    "PurchaseInvoice",
+    "PurchaseOrder",
+    "SalesCreditNote",
+    "SalesInvoice",
+    "StockEntry",
+    "StockReconciliation"
+   ],
+   "event": "Pemeriksaan InventoryAccountAsync",
+   "className": "Stock",
+   "method": "InventoryAccountAsync",
+   "file": "src/Apps.Erp/Hooks/StockHooks.cs",
+   "line": 106,
+   "shared": true
+  },
+  {
+   "id": "StockHooks.cs:109",
+   "kind": "Error",
+   "message": "Set '{label}' in Stock Settings",
+   "pattern": "Set\\s+'.+?'\\s+in\\s+Stock\\s+Settings",
+   "field": "name",
+   "condition": "DateOnly.MinValue; public decimal Rate => Qty > 0 ? Value / Qty : 0m; } /// <summary> /// Persediaan perpetual dengan rata-rata bergerak (PSAK 14 rata-rata tertimbang). Tidak ada tabel buku stok terpisah: saldo dihitung dari /// dokumen mutasi yang sudah submit (Stock Entry, Goods Receipt, faktur/nota dengan Update stock, Stock Opname). Nilai tiap baris dikunci /// di dokumennya saat submit. Agar nilai rata-rata tidak perlu dihitung ulang: posting mundur sebelum mutasi terakhir item-gudang ditolak, /// dan pembatalan hanya boleh bila belum ada mutasi sesudahnya. /// </summary> internal static class Stock { public static readonly string[] Sources = [\"StockEntry\", \"GoodsReceipt\", \"SalesInvoice\", \"SalesCreditNote\", \"PurchaseInvoice\", \"StockReconciliation\"]; public static bool HasStock(IDictionary<string, object?> row) => row.TryGetValue(\"stock_amount\", out var v) && v is not null; public static DateOnly DateOf(Document d) => d.Data.Date(\"posting_date\") ?? d.Data.Date(\"receipt_date\") ?? DateOnly.FromDateTime(d.Created.UtcDateTime); /// <summary>Mutasi yang tercatat di satu dokumen (dari nilai yang dikunci saat submit).</summary> public static IEnumerable<Movement> Extract(Document doc) { var d = doc.Data; var date = DateOf(doc); Movement Mv(string? item, string? wh, decimal qty, decimal value) => new(item ?? \"\", wh ?? \"\", date, doc.Created, doc.DocType, doc.Name, qty, value); switch (doc.DocType) { case \"StockEntry\": var purpose = d.Str(\"purpose\"); foreach (var r in d.Rows(\"items\")) { var s = purpose == \"Material Receipt\" ? null : r.Str(\"s_warehouse\") ?? d.Str(\"from_warehouse\"); var t = purpose == \"Material Issue\" ? null : r.Str(\"t_warehouse\") ?? d.Str(\"to_warehouse\"); if (s is not null) yield return Mv(r.Str(\"item\"), s, -r.Dec(\"qty\"), -r.Dec(\"amount\")); if (t is not null) yield return Mv(r.Str(\"item\"), t, r.Dec(\"qty\"), r.Dec(\"amount\")); } break; case \"GoodsReceipt\": foreach (var r in d.Rows(\"items\").Where(r => r.Bool(\"is_stock_item\"))) yield return Mv(r.Str(\"item\"), d.Str(\"warehouse\"), r.Dec(\"received_qty\"), r.Dec(\"amount\")); break; case \"SalesInvoice\": case \"SalesCreditNote\": case \"PurchaseInvoice\": if (!d.Bool(\"update_stock\")) break; var sign = doc.DocType == \"SalesInvoice\" ? -1m : 1m; foreach (var r in d.Rows(\"items\").Where(HasStock)) yield return Mv(r.Str(\"item\"), d.Str(\"warehouse\"), sign * r.Dec(\"qty\"), sign * r.Dec(\"stock_amount\")); break; case \"StockReconciliation\": foreach (var r in d.Rows(\"items\")) yield return Mv(r.Str(\"item\"), d.Str(\"warehouse\"), r.Dec(\"qty_difference\"), r.Dec(\"amount_difference\")); break; } } /// <summary>Semua mutasi dari dokumen submit (kecuali satu dokumen), urut tanggal lalu waktu dibuat.</summary> public static async Task<List<Movement>> AllAsync(Masters m, string? exceptType, string? exceptName, CancellationToken ct) { var all = new List<Movement>(); foreach (var type in Sources) { IReadOnlyList<FilterClause> filter = type is \"SalesInvoice\" or \"SalesCreditNote\" or \"PurchaseInvoice\" ? [new FilterClause(\"update_stock\", \"=\", true)] : []; foreach (var doc in await m.QueryAsync(type, filter, ct, take: 200_000)) if (doc.DocStatus == DocStatus.Submitted && !(doc.DocType == exceptType && doc.Name == exceptName)) all.AddRange(Extract(doc)); } return all.Where(x => x.Item != \"\" && x.Warehouse != \"\").OrderBy(x => x.Date).ThenBy(x => x.Created).ToList(); } public static Dictionary<(string Item, string Wh), Bin> Bins(IEnumerable<Movement> moves, DateOnly? asOf = null) { var bins = new Dictionary<(string, string), Bin>(); foreach (var x in moves.Where(x => asOf is null || x.Date <= asOf)) { if (!bins.TryGetValue((x.Item, x.Warehouse), out var b)) bins[(x.Item, x.Warehouse)] = b = new Bin(); b.Qty += x.Qty; b.Value += x.Value; if (x.Date > b.LastDate) b.LastDate = x.Date; } return bins; } public static async Task<IDictionary<string, object?>> SettingsAsync(Masters m, CancellationToken ct) => await m.SingleAsync(\"StockSettings\", ct); public static async Task<string> InventoryAccountAsync(Masters m, string warehouse, CancellationToken ct) => await m.StrAsync(\"Warehouse\", warehouse, \"inventory_account\", ct) ?? (await SettingsAsync(m, ct)).Str(\"inventory_account\") tidak ditemukan/kosong",
+   "docTypes": [
+    "GoodsReceipt",
+    "PurchaseDebitNote",
+    "PurchaseInvoice",
+    "PurchaseOrder",
+    "SalesCreditNote",
+    "SalesInvoice",
+    "StockEntry",
+    "StockReconciliation"
+   ],
+   "event": "Pemeriksaan SettingAccountAsync",
+   "className": "Stock",
+   "method": "SettingAccountAsync",
+   "file": "src/Apps.Erp/Hooks/StockHooks.cs",
+   "line": 109,
+   "shared": true
+  },
+  {
+   "id": "StockHooks.cs:114",
+   "kind": "Error",
+   "message": "{doc.Name} is not a stock item (tick 'Maintain stock' on the item)",
+   "pattern": ".+?\\s+is\\s+not\\s+a\\s+stock\\s+item\\s+\\(tick\\s+'Maintain\\s+stock'\\s+on\\s+the\\s+item\\)",
+   "field": "{path}",
+   "condition": "!doc.Data.Bool(\"is_stock_item\")",
+   "docTypes": [
+    "GoodsReceipt",
+    "PurchaseDebitNote",
+    "PurchaseInvoice",
+    "PurchaseOrder",
+    "SalesCreditNote",
+    "SalesInvoice",
+    "StockEntry",
+    "StockReconciliation"
+   ],
+   "event": "Pemeriksaan StockItemAsync",
+   "className": "Stock",
+   "method": "StockItemAsync",
+   "file": "src/Apps.Erp/Hooks/StockHooks.cs",
+   "line": 114,
+   "shared": true
+  },
+  {
+   "id": "StockHooks.cs:127",
+   "kind": "Error",
+   "message": "{later.DocType} {later.DocName} moved {later.Item} in {later.Warehouse} after this document; cancel it first",
+   "pattern": ".+?\\s+.+?\\s+moved\\s+.+?\\s+in\\s+.+?\\s+after\\s+this\\s+document;\\s+cancel\\s+it\\s+first",
+   "field": "name",
+   "condition": "!(mine.Count == 0) && later is not null",
+   "docTypes": [
+    "GoodsReceipt",
+    "PurchaseDebitNote",
+    "PurchaseInvoice",
+    "PurchaseOrder",
+    "SalesCreditNote",
+    "SalesInvoice",
+    "StockEntry",
+    "StockReconciliation"
+   ],
+   "event": "Pemeriksaan CheckCancelAsync",
+   "className": "Stock",
+   "method": "CheckCancelAsync",
+   "file": "src/Apps.Erp/Hooks/StockHooks.cs",
+   "line": 127,
+   "shared": true
+  },
+  {
+   "id": "StockHooks.cs:150",
+   "kind": "Error",
+   "message": "{item} in {wh} already has stock movements on {D.Iso(b.LastDate)}; stock postings before that date are not allowed",
+   "pattern": ".+?\\s+in\\s+.+?\\s+already\\s+has\\s+stock\\s+movements\\s+on\\s+.+?;\\s+stock\\s+postings\\s+before\\s+that\\s+date\\s+are\\s+not\\s+allowed",
+   "field": "{path}",
+   "condition": "!(b.LastDate <= _date)",
+   "docTypes": [
+    "GoodsReceipt",
+    "PurchaseDebitNote",
+    "PurchaseInvoice",
+    "SalesCreditNote",
+    "SalesInvoice",
+    "StockEntry",
+    "StockReconciliation"
+   ],
+   "event": "Pemeriksaan Backdated",
+   "className": "StockPlan",
+   "method": "Backdated",
+   "file": "src/Apps.Erp/Hooks/StockHooks.cs",
+   "line": 150,
+   "shared": true
+  },
+  {
+   "id": "StockHooks.cs:159",
+   "kind": "Error",
+   "message": "Only {b.Qty} of {item} available in {wh}",
+   "pattern": "Only\\s+.+?\\s+of\\s+.+?\\s+available\\s+in\\s+.+?",
+   "field": "{path}",
+   "condition": "qty > b.Qty && !_allowNegative",
+   "docTypes": [
+    "GoodsReceipt",
+    "PurchaseDebitNote",
+    "PurchaseInvoice",
+    "SalesCreditNote",
+    "SalesInvoice",
+    "StockEntry",
+    "StockReconciliation"
+   ],
+   "event": "Pemeriksaan Out",
+   "className": "StockPlan",
+   "method": "Out",
+   "file": "src/Apps.Erp/Hooks/StockHooks.cs",
+   "line": 159,
+   "shared": true
+  },
+  {
+   "id": "StockHooks.cs:201",
+   "kind": "Error",
+   "message": "Set the source warehouse",
+   "pattern": "Set\\s+the\\s+source\\s+warehouse",
+   "field": "{p}.s_warehouse",
+   "condition": "purpose != \"Material Receipt\" && s is null",
+   "docTypes": [
+    "StockEntry"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "StockEntryHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/StockHooks.cs",
+   "line": 201,
+   "shared": false
+  },
+  {
+   "id": "StockHooks.cs:202",
+   "kind": "Error",
+   "message": "Set the target warehouse",
+   "pattern": "Set\\s+the\\s+target\\s+warehouse",
+   "field": "{p}.t_warehouse",
+   "condition": "purpose != \"Material Issue\" && t is null",
+   "docTypes": [
+    "StockEntry"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "StockEntryHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/StockHooks.cs",
+   "line": 202,
+   "shared": false
+  },
+  {
+   "id": "StockHooks.cs:203",
+   "kind": "Error",
+   "message": "Source and target warehouses must differ",
+   "pattern": "Source\\s+and\\s+target\\s+warehouses\\s+must\\s+differ",
+   "field": "{p}.t_warehouse",
+   "condition": "purpose == \"Material Transfer\" && s == t",
+   "docTypes": [
+    "StockEntry"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "StockEntryHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/StockHooks.cs",
+   "line": 203,
+   "shared": false
+  },
+  {
+   "id": "StockHooks.cs:204",
+   "kind": "Error",
+   "message": "Enter the cost per unit for a receipt",
+   "pattern": "Enter\\s+the\\s+cost\\s+per\\s+unit\\s+for\\s+a\\s+receipt",
+   "field": "{p}.basic_rate",
+   "condition": "purpose == \"Material Receipt\" && r.Dec(\"basic_rate\") <= 0",
+   "docTypes": [
+    "StockEntry"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "StockEntryHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/StockHooks.cs",
+   "line": 204,
+   "shared": false
+  },
+  {
+   "id": "StockHooks.cs:268",
+   "kind": "Error",
+   "message": "{g.Key} is listed more than once",
+   "pattern": ".+?\\s+is\\s+listed\\s+more\\s+than\\s+once",
+   "field": "items",
+   "condition": "!(wh is null)",
+   "docTypes": [
+    "StockReconciliation"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "StockReconciliationHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/StockHooks.cs",
+   "line": 268,
+   "shared": false
+  },
+  {
+   "id": "StockHooks.cs:282",
+   "kind": "Error",
+   "message": "{item.Name} has no valuation rate yet; enter the cost per unit",
+   "pattern": ".+?\\s+has\\s+no\\s+valuation\\s+rate\\s+yet;\\s+enter\\s+the\\s+cost\\s+per\\s+unit",
+   "field": "items[{i}].new_rate",
+   "condition": "r.Dec(\"counted_qty\") > 0 && rate <= 0",
+   "docTypes": [
+    "StockReconciliation"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "StockReconciliationHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/StockHooks.cs",
+   "line": 282,
+   "shared": false
+  },
+  {
+   "id": "StockHooks.cs:329",
+   "kind": "ActionFailure",
+   "message": "Choose the warehouse first",
+   "pattern": "Choose\\s+the\\s+warehouse\\s+first",
+   "field": null,
+   "condition": "wh is null",
+   "docTypes": [
+    "StockReconciliation"
+   ],
+   "event": "Saat tombol aksi diklik",
+   "className": "StockReconciliationFetchAction",
+   "method": "ExecuteAsync",
+   "file": "src/Apps.Erp/Hooks/StockHooks.cs",
+   "line": 329,
+   "shared": false
+  },
+  {
+   "id": "StockHooks.cs:361",
+   "kind": "Error",
+   "message": "Choose the warehouse that receives the stock items",
+   "pattern": "Choose\\s+the\\s+warehouse\\s+that\\s+receives\\s+the\\s+stock\\s+items",
+   "field": "warehouse",
+   "condition": "!(await m.GetAsync(\"PurchaseOrder\", d.Str(\"purchase_order\"), ct) is not { } po) && !(line < 1 || line > lines.Count) && anyStock && d.Str(\"warehouse\") is null",
+   "docTypes": [
+    "GoodsReceipt"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "GoodsReceiptStockHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/StockHooks.cs",
+   "line": 361,
+   "shared": false
+  },
+  {
+   "id": "StockHooks.cs:419",
+   "kind": "Error",
+   "message": "Choose the warehouse for 'Update stock'",
+   "pattern": "Choose\\s+the\\s+warehouse\\s+for\\s+'Update\\s+stock'",
+   "field": "warehouse",
+   "condition": "d.Str(\"warehouse\") is null",
+   "docTypes": [
+    "SalesCreditNote",
+    "SalesInvoice"
+   ],
+   "event": "Pemeriksaan PrepareAsync",
+   "className": "SalesStockHook",
+   "method": "PrepareAsync",
+   "file": "src/Apps.Erp/Hooks/StockHooks.cs",
+   "line": 419,
+   "shared": false
+  },
+  {
+   "id": "StockHooks.cs:484",
+   "kind": "Error",
+   "message": "Choose the warehouse for 'Update stock'",
+   "pattern": "Choose\\s+the\\s+warehouse\\s+for\\s+'Update\\s+stock'",
+   "field": "warehouse",
+   "condition": "d.Str(\"warehouse\") is null",
+   "docTypes": [
+    "PurchaseDebitNote",
+    "PurchaseInvoice"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PurchaseStockHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/StockHooks.cs",
+   "line": 484,
+   "shared": false
+  },
+  {
+   "id": "StockHooks.cs:487",
+   "kind": "Error",
+   "message": "{po} is already received with goods receipts; untick 'Update stock' so the invoice clears 'stock received not billed'",
+   "pattern": ".+?\\s+is\\s+already\\s+received\\s+with\\s+goods\\s+receipts;\\s+untick\\s+'Update\\s+stock'\\s+so\\s+the\\s+invoice\\s+clears\\s+'stock\\s+received\\s+not\\s+billed'",
+   "field": "update_stock",
+   "condition": "!(d.Str(\"warehouse\") is null) && d.Str(\"purchase_order\") is { } po && (await m.QueryAsync(\"GoodsReceipt\", [new FilterClause(\"purchase_order\", \"=\", po)], ct, take: 50)) .Any(g => g.DocStatus == DocStatus.Submitted && g.Data.Rows(\"items\").Any(r => r.Bool(\"is_stock_item\")))",
+   "docTypes": [
+    "PurchaseDebitNote",
+    "PurchaseInvoice"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PurchaseStockHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/StockHooks.cs",
+   "line": 487,
+   "shared": false
+  },
+  {
+   "id": "StockHooks.cs:497",
+   "kind": "Warning",
+   "message": "{item.Name} is a stock item but this invoice does not update stock; it is booked to {r.Str(\"expense_account\") ?? \"the expense account\"}",
+   "pattern": ".+?\\s+is\\s+a\\s+stock\\s+item\\s+but\\s+this\\s+invoice\\s+does\\s+not\\s+update\\s+stock;\\s+it\\s+is\\s+booked\\s+to\\s+.+?",
+   "field": null,
+   "condition": null,
+   "docTypes": [
+    "PurchaseDebitNote",
+    "PurchaseInvoice"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "PurchaseStockHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/StockHooks.cs",
+   "line": 497,
+   "shared": false
+  },
+  {
+   "id": "StockHooks.cs:526",
+   "kind": "Error",
+   "message": "Debit notes do not move stock; issue the returned goods with a Material Issue stock entry",
+   "pattern": "Debit\\s+notes\\s+do\\s+not\\s+move\\s+stock;\\s+issue\\s+the\\s+returned\\s+goods\\s+with\\s+a\\s+Material\\s+Issue\\s+stock\\s+entry",
+   "field": "update_stock",
+   "condition": "!(d.Str(\"warehouse\") is null) && !(c.Doc.DocStatus != DocStatus.Submitted || c.Previous?.DocStatus != DocStatus.Draft || !c.Doc.Data.Bool(\"update_stock\")) && !((await m.GetAsync(\"Item\", r.Str(\"item\"), ct))?.Data.Bool(\"is_stock_item\") != true)",
+   "docTypes": [
+    "PurchaseDebitNote",
+    "PurchaseInvoice"
+   ],
+   "event": "Setelah simpan/submit (posting, efek ke dokumen lain)",
+   "className": "PurchaseStockHook",
+   "method": "AfterSaveAsync",
+   "file": "src/Apps.Erp/Hooks/StockHooks.cs",
+   "line": 526,
+   "shared": false
+  },
+  {
+   "id": "TalentHooks.cs:27",
+   "kind": "Error",
+   "message": "{d.Str(\"employee\")} already has appraisal {dup.Name} in this cycle",
+   "pattern": ".+?\\s+already\\s+has\\s+appraisal\\s+.+?\\s+in\\s+this\\s+cycle",
+   "field": "appraisal_cycle",
+   "condition": "dup is not null",
+   "docTypes": [
+    "Appraisal"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "AppraisalHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/TalentHooks.cs",
+   "line": 27,
+   "shared": false
+  },
+  {
+   "id": "TalentHooks.cs:36",
+   "kind": "Error",
+   "message": "Only the reviewer fills the manager scores",
+   "pattern": "Only\\s+the\\s+reviewer\\s+fills\\s+the\\s+manager\\s+scores",
+   "field": "goals",
+   "condition": "me == d.Str(\"employee\") && Sig(before, \"manager_score\") != Sig(after, \"manager_score\")",
+   "docTypes": [
+    "Appraisal"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "AppraisalHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/TalentHooks.cs",
+   "line": 36,
+   "shared": false
+  },
+  {
+   "id": "TalentHooks.cs:38",
+   "kind": "Error",
+   "message": "Only the employee fills the self scores",
+   "pattern": "Only\\s+the\\s+employee\\s+fills\\s+the\\s+self\\s+scores",
+   "field": "goals",
+   "condition": "!(me == d.Str(\"employee\") && Sig(before, \"manager_score\") != Sig(after, \"manager_score\")) && me == d.Str(\"reviewer\") && me != d.Str(\"employee\") && Sig(before, \"self_score\") != Sig(after, \"self_score\")",
+   "docTypes": [
+    "Appraisal"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "AppraisalHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/TalentHooks.cs",
+   "line": 38,
+   "shared": false
+  },
+  {
+   "id": "TalentHooks.cs:48",
+   "kind": "Error",
+   "message": "Fill the manager score for every goal before completing",
+   "pattern": "Fill\\s+the\\s+manager\\s+score\\s+for\\s+every\\s+goal\\s+before\\s+completing",
+   "field": "goals",
+   "condition": "!(c.ToState != \"Completed\") && d.Rows(\"goals\").Any(r => r.Dec(\"manager_score\") <= 0)",
+   "docTypes": [
+    "Appraisal"
+   ],
+   "event": "Saat aksi workflow (approve/reject/...)",
+   "className": "AppraisalHook",
+   "method": "BeforeTransitionAsync",
+   "file": "src/Apps.Erp/Hooks/TalentHooks.cs",
+   "line": 48,
+   "shared": false
+  },
+  {
+   "id": "TalentHooks.cs:50",
+   "kind": "Error",
+   "message": "The appraisal cycle is {status}; appraisals can be completed only while it is In progress",
+   "pattern": "The\\s+appraisal\\s+cycle\\s+is\\s+.+?;\\s+appraisals\\s+can\\s+be\\s+completed\\s+only\\s+while\\s+it\\s+is\\s+In\\s+progress",
+   "field": "appraisal_cycle",
+   "condition": "!(c.ToState != \"Completed\") && !(d.Rows(\"goals\").Any(r => r.Dec(\"manager_score\") <= 0)) && status != \"In progress\"",
+   "docTypes": [
+    "Appraisal"
+   ],
+   "event": "Saat aksi workflow (approve/reject/...)",
+   "className": "AppraisalHook",
+   "method": "BeforeTransitionAsync",
+   "file": "src/Apps.Erp/Hooks/TalentHooks.cs",
+   "line": 50,
+   "shared": false
+  },
+  {
+   "id": "TalentHooks.cs:63",
+   "kind": "Error",
+   "message": "{g.Key} is listed more than once",
+   "pattern": ".+?\\s+is\\s+listed\\s+more\\s+than\\s+once",
+   "field": "attendees",
+   "condition": null,
+   "docTypes": [
+    "TrainingEvent"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "TrainingEventHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/TalentHooks.cs",
+   "line": 63,
+   "shared": false
+  },
+  {
+   "id": "TaxBankHooks.cs:18",
+   "kind": "Error",
+   "message": "{refName} is not submitted or has been cancelled",
+   "pattern": ".+?\\s+is\\s+not\\s+submitted\\s+or\\s+has\\s+been\\s+cancelled",
+   "field": "reference_name",
+   "condition": "!(refType is null || refName is null) && src.DocStatus != DocStatus.Submitted",
+   "docTypes": [
+    "TaxInvoice"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "TaxInvoiceHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/TaxBankHooks.cs",
+   "line": 18,
+   "shared": false
+  },
+  {
+   "id": "TaxBankHooks.cs:35",
+   "kind": "Error",
+   "message": "{refName} already has tax invoice {others[0].Name}; create a replacement by filling 'Replacement for'",
+   "pattern": ".+?\\s+already\\s+has\\s+tax\\s+invoice\\s+.+?;\\s+create\\s+a\\s+replacement\\s+by\\s+filling\\s+'Replacement\\s+for'",
+   "field": "reference_name",
+   "condition": "!(refType is null || refName is null) && others.Count > 0",
+   "docTypes": [
+    "TaxInvoice"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "TaxInvoiceHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/TaxBankHooks.cs",
+   "line": 35,
+   "shared": false
+  },
+  {
+   "id": "TaxBankHooks.cs:44",
+   "kind": "Warning",
+   "message": "The original invoice {origin} has no active tax invoice yet; fill 'Original tax invoice (return)' manually",
+   "pattern": "The\\s+original\\s+invoice\\s+.+?\\s+has\\s+no\\s+active\\s+tax\\s+invoice\\s+yet;\\s+fill\\s+'Original\\s+tax\\s+invoice\\s+\\(return\\)'\\s+manually",
+   "field": null,
+   "condition": null,
+   "docTypes": [
+    "TaxInvoice"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "TaxInvoiceHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/TaxBankHooks.cs",
+   "line": 44,
+   "shared": false
+  },
+  {
+   "id": "TaxBankHooks.cs:61",
+   "kind": "Error",
+   "message": "{refName} is not submitted or has been cancelled",
+   "pattern": ".+?\\s+is\\s+not\\s+submitted\\s+or\\s+has\\s+been\\s+cancelled",
+   "field": "reference_name",
+   "condition": "src.DocStatus != DocStatus.Submitted",
+   "docTypes": [
+    "WithholdingCertificate"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "WithholdingCertificateHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/TaxBankHooks.cs",
+   "line": 61,
+   "shared": false
+  },
+  {
+   "id": "TaxBankHooks.cs:77",
+   "kind": "Error",
+   "message": "{code.Name} bukan kode PPh potong/pungut",
+   "pattern": ".+?\\s+bukan\\s+kode\\s+PPh\\s+potong/pungut",
+   "field": "tax_code",
+   "condition": "code is not null && !code.Data.Bool(\"is_withholding\")",
+   "docTypes": [
+    "WithholdingCertificate"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "WithholdingCertificateHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/TaxBankHooks.cs",
+   "line": 77,
+   "shared": false
+  },
+  {
+   "id": "TaxBankHooks.cs:141",
+   "kind": "Error",
+   "message": "Reconciling foreign-currency bank accounts is not supported yet",
+   "pattern": "Reconciling\\s+foreign\\-currency\\s+bank\\s+accounts\\s+is\\s+not\\s+supported\\s+yet",
+   "field": "bank_account",
+   "condition": "bank.Data.Str(\"currency\") != company.BaseCurrency",
+   "docTypes": [
+    "BankReconciliation"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "BankReconciliationHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/TaxBankHooks.cs",
+   "line": 141,
+   "shared": false
+  },
+  {
+   "id": "TaxBankHooks.cs:142",
+   "kind": "Error",
+   "message": "The bank account is not linked to a GL account",
+   "pattern": "The\\s+bank\\s+account\\s+is\\s+not\\s+linked\\s+to\\s+a\\s+GL\\s+account",
+   "field": "bank_account",
+   "condition": "!(bank.Data.Str(\"currency\") != company.BaseCurrency)",
+   "docTypes": [
+    "BankReconciliation"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "BankReconciliationHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/TaxBankHooks.cs",
+   "line": 142,
+   "shared": false
+  },
+  {
+   "id": "TaxBankHooks.cs:143",
+   "kind": "Error",
+   "message": "The date is required",
+   "pattern": "The\\s+date\\s+is\\s+required",
+   "field": "period_end",
+   "condition": "!(bank.Data.Str(\"currency\") != company.BaseCurrency)",
+   "docTypes": [
+    "BankReconciliation"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "BankReconciliationHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/TaxBankHooks.cs",
+   "line": 143,
+   "shared": false
+  },
+  {
+   "id": "TaxBankHooks.cs:192",
+   "kind": "Error",
+   "message": "There is still a difference of {c.Doc.Data.Dec(\"difference\")}; the reconciliation cannot be submitted yet",
+   "pattern": "There\\s+is\\s+still\\s+a\\s+difference\\s+of\\s+.+?;\\s+the\\s+reconciliation\\s+cannot\\s+be\\s+submitted\\s+yet",
+   "field": "difference",
+   "condition": "c.Doc.DocStatus == DocStatus.Submitted && c.Previous?.DocStatus == DocStatus.Draft && c.Doc.Data.Dec(\"difference\") != 0",
+   "docTypes": [
+    "BankReconciliation"
+   ],
+   "event": "Setelah simpan/submit (posting, efek ke dokumen lain)",
+   "className": "BankReconciliationHook",
+   "method": "AfterSaveAsync",
+   "file": "src/Apps.Erp/Hooks/TaxBankHooks.cs",
+   "line": 192,
+   "shared": false
+  },
+  {
+   "id": "TimeHooks.cs:64",
+   "kind": "Error",
+   "message": "Payslip {paid.Name} for {period} is already submitted; this month is locked",
+   "pattern": "Payslip\\s+.+?\\s+for\\s+.+?\\s+is\\s+already\\s+submitted;\\s+this\\s+month\\s+is\\s+locked",
+   "field": "{path}",
+   "condition": "!(employee is null) && paid is not null",
+   "docTypes": [
+    "Attendance",
+    "OvertimeRequest",
+    "Payslip"
+   ],
+   "event": "Pemeriksaan CheckNotPaidAsync",
+   "className": "Overtime",
+   "method": "CheckNotPaidAsync",
+   "file": "src/Apps.Erp/Hooks/TimeHooks.cs",
+   "line": 64,
+   "shared": true
+  },
+  {
+   "id": "TimeHooks.cs:76",
+   "kind": "Error",
+   "message": "The date is required",
+   "pattern": "The\\s+date\\s+is\\s+required",
+   "field": "attendance_date",
+   "condition": "d.Date(\"attendance_date\") tidak ditemukan/kosong",
+   "docTypes": [
+    "Attendance"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "AttendanceHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/TimeHooks.cs",
+   "line": 76,
+   "shared": false
+  },
+  {
+   "id": "TimeHooks.cs:80",
+   "kind": "Error",
+   "message": "{emp.Name} already has attendance {dup.Name} on {D.Iso(date)}",
+   "pattern": ".+?\\s+already\\s+has\\s+attendance\\s+.+?\\s+on\\s+.+?",
+   "field": "attendance_date",
+   "condition": "dup is not null",
+   "docTypes": [
+    "Attendance"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "AttendanceHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/TimeHooks.cs",
+   "line": 80,
+   "shared": false
+  },
+  {
+   "id": "TimeHooks.cs:99",
+   "kind": "Warning",
+   "message": "Approved leave {leave.Name} covers this date; consider status 'On leave'",
+   "pattern": "Approved\\s+leave\\s+.+?\\s+covers\\s+this\\s+date;\\s+consider\\s+status\\s+'On\\s+leave'",
+   "field": null,
+   "condition": "leave is not null && d.Str(\"status\") is \"Present\" or \"Absent\"",
+   "docTypes": [
+    "Attendance"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "AttendanceHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/TimeHooks.cs",
+   "line": 99,
+   "shared": false
+  },
+  {
+   "id": "TimeHooks.cs:117",
+   "kind": "Error",
+   "message": "The date is required",
+   "pattern": "The\\s+date\\s+is\\s+required",
+   "field": "overtime_date",
+   "condition": "d.Date(\"overtime_date\") tidak ditemukan/kosong",
+   "docTypes": [
+    "OvertimeRequest"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "OvertimeRequestHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/TimeHooks.cs",
+   "line": 117,
+   "shared": false
+  },
+  {
+   "id": "TimeHooks.cs:126",
+   "kind": "Error",
+   "message": "'Public holiday on the shortest working day' only applies to a 6-day work week",
+   "pattern": "'Public\\s+holiday\\s+on\\s+the\\s+shortest\\s+working\\s+day'\\s+only\\s+applies\\s+to\\s+a\\s+6\\-day\\s+work\\s+week",
+   "field": "day_type",
+   "condition": "dayType == Overtime.ShortestDay && week != 6",
+   "docTypes": [
+    "OvertimeRequest"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "OvertimeRequestHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/TimeHooks.cs",
+   "line": 126,
+   "shared": false
+  },
+  {
+   "id": "TimeHooks.cs:129",
+   "kind": "Error",
+   "message": "At most {max} overtime hours on a {dayType.ToLowerInvariant()} ({week}-day work week)",
+   "pattern": "At\\s+most\\s+.+?\\s+overtime\\s+hours\\s+on\\s+a\\s+.+?\\s+\\(.+?\\-day\\s+work\\s+week\\)",
+   "field": "hours",
+   "condition": "!(dayType == Overtime.ShortestDay && week != 6) && hours > max",
+   "docTypes": [
+    "OvertimeRequest"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "OvertimeRequestHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/TimeHooks.cs",
+   "line": 129,
+   "shared": false
+  },
+  {
+   "id": "TimeHooks.cs:139",
+   "kind": "Error",
+   "message": "Overtime would total {others + hours} hours in the week of {D.Iso(monday)}; the limit is {Overtime.MaxPerWeek} hours",
+   "pattern": "Overtime\\s+would\\s+total\\s+.+?\\s+hours\\s+in\\s+the\\s+week\\s+of\\s+.+?;\\s+the\\s+limit\\s+is\\s+.+?\\s+hours",
+   "field": "hours",
+   "condition": "!(dayType == Overtime.ShortestDay && week != 6) && others + hours > Overtime.MaxPerWeek",
+   "docTypes": [
+    "OvertimeRequest"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "OvertimeRequestHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/TimeHooks.cs",
+   "line": 139,
+   "shared": false
+  }
+ ]
+}

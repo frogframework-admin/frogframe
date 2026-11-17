@@ -34,7 +34,8 @@ public sealed class AiAssistantTools(
     INavigationMenuStore? menuStore = null,
     IEnumerable<DeskMenuItem>? deskItems = null,
     ReportService? reports = null,
-    IEnumerable<IFormAction>? formActions = null)
+    IEnumerable<IFormAction>? formActions = null,
+    AiErrorCatalog? errorCatalog = null)
 {
     private static readonly JsonSerializerOptions Json = new(MetadataJson.Options)
     {
@@ -55,7 +56,8 @@ public sealed class AiAssistantTools(
         sp.GetService<INavigationMenuStore>(),
         sp.GetService<IEnumerable<DeskMenuItem>>(),
         sp.GetService<ReportService>(),
-        sp.GetService<IEnumerable<IFormAction>>());
+        sp.GetService<IEnumerable<IFormAction>>(),
+        sp.GetService<AiErrorCatalog>());
 
     /// <summary>
     /// Returns the list of <see cref="AITool"/> functions that an <see cref="IChatClient"/> agent may invoke.
@@ -72,7 +74,63 @@ public sealed class AiAssistantTools(
             "Reads a specific document by DocType and name (enforcing the user's tenant, role, row scope, and field permissions), returning its status, why it is Draft/Submitted, available next actions, and field values."),
         AIFunctionFactory.Create(DiagnoseDocTypeRecordsAsync, "diagnose_doctype_records",
             "Summarizes visible records of a DocType by status (Draft vs Submitted vs Cancelled) and lists recent records to diagnose why a report is empty or which documents are pending submission."),
+        AIFunctionFactory.Create(ExplainError, "explain_error",
+            "Finds the exact business rule in the application code behind an error, warning, or failed-button message the user saw: the DocType, when it runs (save/submit/cancel/approve/button), the field, and the code condition that triggers it. Call this whenever the user pastes or describes a rejection message."),
     ];
+
+    // ================================================================== 0. Error message → code rule
+
+    public string ExplainError(
+        [Description("The message exactly as the user saw it, e.g. 'Only 1 of ITM-LAP-001 available in Gudang Utama Cikarang' or 'Period 2026-01 is closed'")] string message,
+        [Description("Optional DocType the user was working on, e.g. 'SalesInvoice'")] string? docType = null)
+    {
+        if (errorCatalog is null || errorCatalog.Count == 0)
+            return Serialize(new
+            {
+                Found = false,
+                Hint = "The rule catalog is not installed (docs/rules/error-catalog.json). Use search_knowledge with the message text instead."
+            });
+
+        var matches = errorCatalog.Match(message, docType, maxResults: 3);
+        if (matches.Count == 0)
+            return Serialize(new
+            {
+                Found = false,
+                Message = message,
+                Hint = "No rule in the catalog matches this text. It may come from the framework (required field, permission, workflow) " +
+                       "rather than an application hook: use explain_doctype for required fields and workflow conditions, or search_knowledge."
+            });
+
+        return Serialize(new
+        {
+            Found = true,
+            Message = message,
+            Matches = matches.Select(m => new
+            {
+                m.MatchType,
+                m.Score,
+                m.Entry.Kind,
+                Meaning = m.Entry.Kind switch
+                {
+                    "Warning" => "Warning only: the document was still saved/submitted.",
+                    "ActionFailure" => "A form button (custom action) could not finish; nothing was changed by that button.",
+                    _ => "Validation error: the document was not saved or the step was rejected."
+                },
+                RuleMessage = m.Entry.Message,
+                m.Entry.Field,
+                TriggeredWhen = m.Entry.Condition,
+                m.Entry.DocTypes,
+                When = m.Entry.Event,
+                SharedRule = m.Entry.Shared,
+                Source = $"{m.Entry.ClassName} ({Path.GetFileName(m.Entry.File)}:{m.Entry.Line})",
+                RelatedGuide = m.Entry.Shared
+                    ? $"rules/_shared-{m.Entry.ClassName}.md"
+                    : m.Entry.DocTypes.Count > 0 ? $"rules/{m.Entry.DocTypes[0]}.md" : null
+            }),
+            Hint = "TriggeredWhen is C# code: translate it into plain business language for the user and tell them what to change. " +
+                   "Use inspect_document on the user's document to confirm which value causes it."
+        });
+    }
 
     // ================================================================== 1. Knowledge Base Search
 
