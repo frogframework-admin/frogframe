@@ -68,7 +68,7 @@ else if (meta is not null && doc is not null)
             {
                 <DocumentPresenceBar Users="@presenceUsers" CurrentSessionId="@sessionId" CurrentUserId="@User.Id" />
             }
-            @if (!IsNew || meta.Workflow is not null)
+            @if (HasStatus && (!IsNew || meta?.Workflow is not null))
             {
                 <StatusStamp Label="@(T.State(doc.WorkflowState, doc.DocStatus))" Tone="@Fmt.Tone(meta, doc)" />
             }
@@ -79,7 +79,7 @@ else if (meta is not null && doc is not null)
         @if (Editable)
         {
             <BbButton Disabled="@(busy || (!IsNew && !dirty))" Loading="@(busy && savingNow)" LoadingText="@(T["Saving…"])" OnClick="Save">
-                <LucideIcon Name="check" Size="16" /> @T[IsNew ? "Save draft" : dirty ? "Save changes" : "Saved"]
+                <LucideIcon Name="check" Size="16" /> @T[IsNew ? (HasStatus ? "Save draft" : "Save") : dirty ? "Save changes" : "Saved"]
             </BbButton>
         }
         @foreach (var a in actions)
@@ -118,7 +118,7 @@ else if (meta is not null && doc is not null)
         @if (!IsNew && !meta.Def.IsSingle && doc.DocStatus == DocStatus.Draft && meta.Def.Document.AllowDelete && Perms.Can(User, meta, DocActions.Delete))
         {
             <BbButton Variant="ButtonVariant.Ghost" Disabled="@busy" OnClick="Delete">
-                <LucideIcon Name="trash-2" Size="16" /> @T["Delete draft"]
+                <LucideIcon Name="trash-2" Size="16" /> @T[HasStatus ? "Delete draft" : "Delete"]
             </BbButton>
         }
         @if (!Editable && !IsNew && doc.DocStatus != DocStatus.Draft)
@@ -694,6 +694,7 @@ else if (meta is not null && doc is not null)
         presenceUsers.Where(u => u.SessionId != sessionId && u.Status == PresenceStatus.Editing).ToList();
 
     private bool IsNew => Name == "new" || (meta?.Def.IsSingle == true && (doc == null || doc.Version == 0));
+    private bool HasStatus => meta?.Workflow is not null || meta?.Def.Document.AllowSubmit == true;
     private UserContext User => Current.Required;
 
     private bool Editable => doc is not null && doc.DocStatus == DocStatus.Draft &&
@@ -1225,8 +1226,9 @@ else if (meta is not null && doc is not null)
 
     private async Task Delete()
     {
-        var confirm = await Dialogs.ConfirmAsync(T.Format("Delete {0}?", Name), T["This draft will be deleted. Deletion history remains recorded."],
-            new ConfirmDialogOptions { Destructive = true, ConfirmText = T["Delete draft"], CancelText = T["Cancel"] });
+        var confirm = await Dialogs.ConfirmAsync(T.Format("Delete {0}?", Name),
+            HasStatus ? T["This draft will be deleted. Deletion history remains recorded."] : T["This document will be deleted. Deletion history remains recorded."],
+            new ConfirmDialogOptions { Destructive = true, ConfirmText = HasStatus ? T["Delete draft"] : T["Delete"], CancelText = T["Cancel"] });
         if (!confirm.Confirmed) return;
         busy = true;
         try

@@ -31,7 +31,7 @@ public sealed record PrintModel
     public required string Title { get; init; }
     public required string DocName { get; init; }
     public required string DocType { get; init; }
-    public required string StateLabel { get; init; }
+    public string? StateLabel { get; init; }
     public required string StateTone { get; init; }
     public string? Watermark { get; init; }
     public required DateTimeOffset Created { get; init; }
@@ -164,10 +164,11 @@ public sealed class PrintService(DocumentService docs, IMetadataProvider metadat
                 : new PrintSignature(sg.Label, entry.Actor, entry.At, Code($"{doc.TenantId}|{doc.Name}|{entry.Id}|{entry.Actor}|{entry.At:O}", 8)));
         }
 
-        var stateLabel = Fmt.StateLabel(doc.WorkflowState, doc.DocStatus);
-        string? watermark = !pf.Watermark ? null
+        var hasStatus = meta.Workflow is not null || meta.Def.Document.AllowSubmit;
+        var stateLabel = hasStatus ? Fmt.StateLabel(doc.WorkflowState, doc.DocStatus) : null;
+        string? watermark = !pf.Watermark || !hasStatus ? null
             : doc.DocStatus == DocStatus.Draft ? "DRAFT"
-            : doc.DocStatus == DocStatus.Cancelled ? stateLabel.ToUpperInvariant()
+            : doc.DocStatus == DocStatus.Cancelled ? (stateLabel ?? "CANCELLED").ToUpperInvariant()
             : tone == "pending" ? "BELUM DISETUJUI" : null;
 
         return new PrintModel

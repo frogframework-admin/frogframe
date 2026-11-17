@@ -78,7 +78,7 @@ For full architectural context and runbooks, refer to [Production Readiness Guid
 - [ ] **Formalized Service Level Objectives (SLOs)**:
   - Document availability targets, p95 latency SLOs, and quarterly DR drill schedules.
 - [x] **Test Badge & Documentation Alignment**:
-  - Synchronize README test badges with latest CI test counts (250 In-Memory + 34 PostgreSQL = 284 total).
+  - Synchronize README test badges with latest CI test counts (268 In-Memory + 34 PostgreSQL = 302 total).
 
 ---
 
@@ -91,7 +91,15 @@ For full architectural context and runbooks, refer to [Production Readiness Guid
   - Implement bulk operations: Bulk Submit, Bulk Cancel, and Bulk Edit Field (extending existing Bulk Delete).
 - [x] **P1-4 — Comments & @mention Timeline** (High Urgency):
   - Embed internal collaboration thread below `FormPage.razor` interleaved with audit trail history.
-  - Deliver automated in-app notifications when a user is tagged with `@username`.
+  - Mention parser supporting `@username` and `@everyone`, with strict tenant isolation, document read permission, and row-level scope enforcement.
+  - Real-time in-app notifications delivered via SignalR hub (`/hubs/notifications`) and outbox wake-up signal.
+  - Dedicated `/mentions` inbox page with live unread badge on sidebar navigation.
+  - Configurable pagination via `appsettings.json` (`Ui:MentionsPageSize` = 20, `Ui:HistoryCommentsPageSize` = 10) with Load More support.
+  - Real-time search filters in both `/mentions` and the Form **History & Comments** tab.
+  - Interactive comment counter (`0 / 5000`) with auto-disable and red limit highlight.
+  - Custom activity icons on `AuditTimeline` replacing empty circle markers (`message-square`, `pencil`, `plus`, `check`, `x`, etc.).
+  - Document Send Email drawer enhanced with `BbRichTextEditor`, automatic Document Print PDF attachment, multi-attachment upload, and filename editing.
+  - Live document presence indicator deduplication per user and exclusion of current user.
 - [ ] **P1-8 — Saved Filters / Custom Views** (Medium Urgency):
   - Persist and load user-defined named search filter combinations per DocType via `IUserPreferenceStore`.
 - [ ] **P1-7 — Assign To / ToDo & "My Tasks" Widget** (Medium Urgency):

@@ -6,7 +6,7 @@
 
 [![.NET 10](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL_3.0-blue.svg)](https://github.com/frogframework-admin/frogframe/blob/main/LICENSE)
-[![Build & Test](https://img.shields.io/badge/Tests-284%20Passing-brightgreen.svg)]()
+[![Build & Test](https://img.shields.io/badge/Tests-302%20Passing-brightgreen.svg)]()
 [![Documentation](https://img.shields.io/badge/Docs-DocFX-informational.svg)](docs/index.md)
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/frogframework-admin/frogframe)
 

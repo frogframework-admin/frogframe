@@ -33,7 +33,10 @@
                     <div class="docno">No. @Model.DocName</div>
                     <div class="docmeta">Created @Model.Created.ToLocalTime().ToString("d MMMM yyyy", CultureInfo.InvariantCulture) · version @Model.Version</div>
                 </div>
-                <span class="stamp tone-@Model.StateTone">@Model.StateLabel</span>
+                @if (!string.IsNullOrEmpty(Model.StateLabel))
+                {
+                    <span class="stamp tone-@Model.StateTone">@Model.StateLabel</span>
+                }
             </div>
 
             @foreach (var s in Model.Sections)
