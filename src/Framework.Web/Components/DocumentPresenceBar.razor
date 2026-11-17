@@ -52,9 +52,15 @@
 @code {
     [Parameter] public IReadOnlyList<DocumentPresenceUser> Users { get; set; } = [];
     [Parameter] public string CurrentSessionId { get; set; } = "";
+    [Parameter] public string? CurrentUserId { get; set; }
 
     private IReadOnlyList<DocumentPresenceUser> Others =>
-        Users.Where(u => u.SessionId != CurrentSessionId).ToList();
+        Users
+            .Where(u => u.SessionId != CurrentSessionId)
+            .Where(u => string.IsNullOrEmpty(CurrentUserId) || !string.Equals(u.UserId, CurrentUserId, StringComparison.OrdinalIgnoreCase))
+            .GroupBy(u => u.UserId, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.OrderByDescending(u => u.Status == PresenceStatus.Editing).ThenByDescending(u => u.LastHeartbeat).First())
+            .ToList();
 
     private IReadOnlyList<DocumentPresenceUser> OtherEditors =>
         Others.Where(u => u.Status == PresenceStatus.Editing).ToList();

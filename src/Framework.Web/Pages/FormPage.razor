@@ -7,6 +7,7 @@
 @using Framework.Presence
 @using Framework.Integrations
 @using Framework.Notifications
+@using Framework.Web.Printing
 @using Microsoft.Extensions.Configuration
 @inject DocumentService Docs
 @inject CurrentUser Current
@@ -23,6 +24,9 @@
 @inject AutoRepeatService AutoRepeatService
 @inject CommunicationService CommService
 @inject IEmailQueue EmailQueue
+@inject PrintService PrintSvc
+@inject PrintHtmlRenderer PrintHtml
+@inject IPdfRenderer PdfRenderer
 @inject IUserDirectory Users
 @inject INotificationLiveFeed LiveNotifications
 @inject UiText T
@@ -62,7 +66,7 @@ else if (meta is not null && doc is not null)
         <div class="row" style="gap:.75rem;align-items:center;flex-wrap:wrap">
             @if (!IsNew)
             {
-                <DocumentPresenceBar Users="@presenceUsers" CurrentSessionId="@sessionId" />
+                <DocumentPresenceBar Users="@presenceUsers" CurrentSessionId="@sessionId" CurrentUserId="@User.Id" />
             }
             @if (!IsNew || meta.Workflow is not null)
             {
@@ -486,7 +490,78 @@ else if (meta is not null && doc is not null)
                     </div>
                     <div>
                         <label class="form-label" style="display:block;margin-bottom:.35rem;font-weight:600">@T["Message"] *</label>
-                        <BbTextarea @bind-Value="emailBody" Rows="6" Placeholder="@(T["Write your message here..."])" />
+                        <BbRichTextEditor Value="@emailBody"
+                                          ValueChanged="v => emailBody = v ?? string.Empty"
+                                          Toolbar="ToolbarPreset.Standard"
+                                          MinHeight="280px"
+                                          Placeholder="@(T["Write your message here..."])" />
+                    </div>
+                    <div>
+                        <div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;margin-bottom:.5rem;flex-wrap:wrap">
+                            <label class="form-label" style="margin:0;font-weight:600">@T["Attachments"] (@emailAttachments.Count)</label>
+                            <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap">
+                                <label for="email-att-input"
+                                       class="inline-flex items-center justify-center gap-1.5 rounded-md border border-input bg-background px-2.5 py-1 text-xs font-medium shadow-xs hover:bg-accent hover:text-accent-foreground cursor-pointer">
+                                    <LucideIcon Name="paperclip" Size="13" /> @T["Add Attachment"]
+                                </label>
+                                <InputFile id="email-att-input" OnChange="OnEmailAttachmentSelected" multiple style="display:none" />
+                                @if (!emailAttachments.Any(a => a.IsDocumentPdf))
+                                {
+                                    <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick="AddDocumentPdfAttachment">
+                                        <LucideIcon Name="file-text" Size="13" /> @T["Attach Document PDF"]
+                                    </BbButton>
+                                }
+                            </div>
+                        </div>
+
+                        @if (attachments.Count > 0)
+                        {
+                            var unattached = attachments.Where(a => !emailAttachments.Any(ea => ea.ExistingAttachmentId == a.Id)).ToList();
+                            if (unattached.Count > 0)
+                            {
+                                <div style="display:flex;align-items:center;gap:.35rem;flex-wrap:wrap;margin-bottom:.5rem">
+                                    <span class="muted small">@T["From document:"]</span>
+                                    @foreach (var docAtt in unattached)
+                                    {
+                                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="() => AddExistingEmailAttachment(docAtt)">
+                                            <LucideIcon Name="plus" Size="12" /> @docAtt.FileName
+                                        </BbButton>
+                                    }
+                                </div>
+                            }
+                        }
+
+                        @if (emailAttachments.Count == 0)
+                        {
+                            <div class="muted small" style="padding:.5rem .75rem;border:1px dashed var(--bb-border);border-radius:var(--radius)">
+                                @T["No attachments added."]
+                            </div>
+                        }
+                        else
+                        {
+                            <div style="display:flex;flex-direction:column;gap:.4rem">
+                                @foreach (var att in emailAttachments)
+                                {
+                                    <div style="display:flex;align-items:center;gap:.5rem;padding:.35rem .5rem;border:1px solid var(--bb-border);border-radius:var(--radius);background:var(--bb-muted, rgba(0,0,0,.02))">
+                                        <LucideIcon Name="@(att.IsDocumentPdf ? "file-text" : "paperclip")" Size="14" />
+                                        <div style="flex:1;min-width:0">
+                                            <BbInput Value="@att.FileName"
+                                                     ValueChanged="v => att.FileName = v ?? string.Empty"
+                                                     AriaLabel="@(T["Attachment file name"])"
+                                                     Placeholder="@(T["File name"])" />
+                                        </div>
+                                        <span class="muted small nowrap">
+                                            @(att.IsDocumentPdf ? T["Auto PDF"] : FormatBytes(att.SizeBytes))
+                                        </span>
+                                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small"
+                                                  OnClick="() => RemoveEmailAttachment(att.Key)"
+                                                  AdditionalAttributes="@(new Dictionary<string, object> { ["title"] = T["Remove attachment"] })">
+                                            <LucideIcon Name="x" Size="14" />
+                                        </BbButton>
+                                    </div>
+                                }
+                            </div>
+                        }
                     </div>
                 </div>
             </ChildContent>
@@ -590,6 +665,18 @@ else if (meta is not null && doc is not null)
     private string emailSubject = "";
     private string emailBody = "";
     private string? emailInReplyTo;
+    private List<PendingEmailAttachment> emailAttachments = [];
+
+    private sealed class PendingEmailAttachment
+    {
+        public required string Key { get; init; }
+        public required string FileName { get; set; }
+        public required string ContentType { get; init; }
+        public byte[]? Bytes { get; init; }
+        public string? ExistingAttachmentId { get; init; }
+        public bool IsDocumentPdf { get; init; }
+        public long SizeBytes { get; init; }
+    }
     private string? uploadError;
     private bool uploadingAttachment;
     private string activeTab = "";
@@ -1388,6 +1475,7 @@ else if (meta is not null && doc is not null)
         emailSubject = $"[#{Name}] {meta?.Title ?? DocType}";
         emailBody = "";
         emailInReplyTo = null;
+        InitDefaultEmailAttachments();
         isSendEmailDrawerOpen = true;
     }
 
@@ -1400,9 +1488,93 @@ else if (meta is not null && doc is not null)
         emailSubject = comm.Subject.StartsWith("Re:", StringComparison.OrdinalIgnoreCase) ? comm.Subject : $"Re: {comm.Subject}";
         if (!emailSubject.Contains($"[#{Name}]"))
             emailSubject = $"[#{Name}] " + emailSubject;
-        emailBody = $"\n\n--- On {comm.OccurredAt:yyyy-MM-dd HH:mm}, {comm.Sender} wrote:\n> " + (comm.ContentText ?? "").Replace("\n", "\n> ");
+        var quoted = System.Net.WebUtility.HtmlEncode(comm.ContentText ?? "").Replace("\n", "<br/>");
+        emailBody = $"<p><br/></p><blockquote><p>On {comm.OccurredAt:yyyy-MM-dd HH:mm}, {System.Net.WebUtility.HtmlEncode(comm.Sender)} wrote:</p><p>{quoted}</p></blockquote>";
         emailInReplyTo = comm.MessageId;
+        InitDefaultEmailAttachments();
         isSendEmailDrawerOpen = true;
+    }
+
+    private void InitDefaultEmailAttachments()
+    {
+        emailAttachments =
+        [
+            new PendingEmailAttachment
+            {
+                Key = "doc-pdf",
+                FileName = $"{Name}.pdf",
+                ContentType = "application/pdf",
+                IsDocumentPdf = true
+            }
+        ];
+    }
+
+    private void AddDocumentPdfAttachment()
+    {
+        if (emailAttachments.Any(a => a.IsDocumentPdf)) return;
+        emailAttachments.Insert(0, new PendingEmailAttachment
+        {
+            Key = "doc-pdf",
+            FileName = $"{Name}.pdf",
+            ContentType = "application/pdf",
+            IsDocumentPdf = true
+        });
+    }
+
+    private void AddExistingEmailAttachment(AttachmentRecord rec)
+    {
+        if (emailAttachments.Any(a => a.ExistingAttachmentId == rec.Id)) return;
+        emailAttachments.Add(new PendingEmailAttachment
+        {
+            Key = $"att:{rec.Id}",
+            FileName = rec.FileName,
+            ContentType = rec.ContentType,
+            ExistingAttachmentId = rec.Id,
+            SizeBytes = rec.Size
+        });
+    }
+
+    private void RemoveEmailAttachment(string key)
+    {
+        emailAttachments.RemoveAll(a => a.Key == key);
+    }
+
+    private async Task OnEmailAttachmentSelected(InputFileChangeEventArgs e)
+    {
+        sendEmailError = null;
+        const long maxFileBytes = 10 * 1024 * 1024;
+        foreach (var file in e.GetMultipleFiles(10))
+        {
+            if (file.Size > maxFileBytes)
+            {
+                sendEmailError = T.Format("Attachment '{0}' exceeds 10 MB limit.", file.Name);
+                continue;
+            }
+            using var ms = new MemoryStream();
+            await file.OpenReadStream(maxFileBytes).CopyToAsync(ms);
+            emailAttachments.Add(new PendingEmailAttachment
+            {
+                Key = Guid.NewGuid().ToString("N"),
+                FileName = file.Name,
+                ContentType = string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType,
+                Bytes = ms.ToArray(),
+                SizeBytes = file.Size
+            });
+        }
+    }
+
+    private static string StripHtml(string? html)
+    {
+        if (string.IsNullOrWhiteSpace(html)) return "";
+        var noTags = System.Text.RegularExpressions.Regex.Replace(html, "<[^>]+>", " ");
+        var decoded = System.Net.WebUtility.HtmlDecode(noTags);
+        return System.Text.RegularExpressions.Regex.Replace(decoded, @"\s+", " ").Trim();
+    }
+
+    private static string SafeAttachmentName(string? name, string fallback)
+    {
+        var trimmed = (name ?? "").Trim();
+        return string.IsNullOrEmpty(trimmed) ? fallback : trimmed;
     }
 
     private async Task SendEmailAsync()
@@ -1418,7 +1590,8 @@ else if (meta is not null && doc is not null)
             sendEmailError = T["Subject is required."];
             return;
         }
-        if (string.IsNullOrWhiteSpace(emailBody))
+        var plainText = StripHtml(emailBody);
+        if (string.IsNullOrWhiteSpace(plainText))
         {
             sendEmailError = T["Message body cannot be empty."];
             return;
@@ -1427,14 +1600,51 @@ else if (meta is not null && doc is not null)
         isSendingEmail = true;
         try
         {
+            var resolvedAttachments = new List<EmailAttachment>();
+            foreach (var att in emailAttachments)
+            {
+                if (att.IsDocumentPdf)
+                {
+                    var printModel = await PrintSvc.BuildAsync(User, DocType, Name);
+                    var html = await PrintHtml.RenderAsync(printModel);
+                    var pdfBytes = await PdfRenderer.RenderAsync(html);
+                    resolvedAttachments.Add(new EmailAttachment
+                    {
+                        FileName = SafeAttachmentName(att.FileName, $"{Name}.pdf"),
+                        ContentType = "application/pdf",
+                        Content = pdfBytes
+                    });
+                }
+                else if (att.ExistingAttachmentId is { } attId)
+                {
+                    var (rec, content) = await Attachments.GetFileAsync(User, attId);
+                    resolvedAttachments.Add(new EmailAttachment
+                    {
+                        FileName = SafeAttachmentName(att.FileName, rec.FileName),
+                        ContentType = rec.ContentType,
+                        Content = content
+                    });
+                }
+                else if (att.Bytes is { } bytes)
+                {
+                    resolvedAttachments.Add(new EmailAttachment
+                    {
+                        FileName = SafeAttachmentName(att.FileName, "attachment"),
+                        ContentType = att.ContentType,
+                        Content = bytes
+                    });
+                }
+            }
+
             var msg = new EmailMessage
             {
                 To = emailTo.Split([';', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
                 Cc = emailCc.Split([';', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
                 Bcc = emailBcc.Split([';', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
                 Subject = emailSubject.Trim(),
-                BodyText = emailBody,
-                BodyHtml = $"<div style=\"font-family:sans-serif;\">{emailBody.Replace("\n", "<br/>")}</div>",
+                BodyText = plainText,
+                BodyHtml = emailBody,
+                Attachments = resolvedAttachments,
                 InReplyTo = emailInReplyTo,
                 ReferenceDocType = DocType,
                 ReferenceName = Name,
