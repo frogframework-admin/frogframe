@@ -26,6 +26,8 @@ public static class DocApi
 {
     public static IEndpointRouteBuilder MapFrogFrameworkApi(this IEndpointRouteBuilder app)
     {
+        app.MapHub<Framework.Web.Notifications.NotificationHub>(Framework.Web.Notifications.NotificationHub.Route);
+
         // ---------- File (gambar) ----------
         // Cookie browser diterima (dipakai <img>). Tertaut ke dokumen → hanya yang boleh membaca dokumen itu dan
         // dokumen masih memakai file tersebut; belum tertaut → hanya pengunggah. Selain itu 404 (tidak membocorkan keberadaan).
@@ -373,6 +375,13 @@ public static class DocApi
         {
             RequireApi(sp, doctype, "read");
             return Results.Ok(await Docs(sp).GetAuditAsync(user, doctype, name, http.RequestAborted));
+        }));
+
+        api.MapPost("/data/{doctype}/{name}/comments", (HttpContext http, string doctype, string name, ActionBody body) => Run(http, $"doc:{doctype}:comment", async (user, sp) =>
+        {
+            RequireApi(sp, doctype, "read");
+            var entry = await Docs(sp).AddCommentAsync(user, doctype, name, body.Comment ?? "", http.RequestAborted);
+            return Results.Created($"/api/data/{doctype}/{name}/audit", entry);
         }));
 
         // ?doctype=…&field=… (opsional): terapkan filter Link dari field asal, mis. hanya akun daun untuk baris jurnal.

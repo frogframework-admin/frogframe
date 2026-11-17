@@ -1,11 +1,13 @@
 @inherits LayoutComponentBase
 @implements IDisposable
 @using Framework.Navigation
+@using Framework.Notifications
 @using Framework.Web.AI
 @inject CurrentUser Current
 @inject IMetadataProvider Metadata
 @inject IPermissionService Perms
 @inject INotificationStore Notifications
+@inject INotificationLiveFeed LiveNotifications
 @inject ReportService Reports
 @inject NavigationManager Nav
 @inject IEnumerable<DeskMenuItem> MenuItems
@@ -48,6 +50,15 @@
                             @if (unread > 0)
                             {
                                 <BbSidebarMenuBadge>@unread</BbSidebarMenuBadge>
+                            }
+                        </BbSidebarMenuItem>
+                        <BbSidebarMenuItem>
+                            <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="/mentions" Match="NavLinkMatch.Prefix" Tooltip="@(T["Mentions"])">
+                                <LucideIcon Name="at-sign" Size="18" /><span>@T["Mentions"]</span>
+                            </BbSidebarMenuButton>
+                            @if (unreadMentions > 0)
+                            {
+                                <BbSidebarMenuBadge>@unreadMentions</BbSidebarMenuBadge>
                             }
                         </BbSidebarMenuItem>
                         <BbSidebarMenuItem>
@@ -431,7 +442,9 @@
 
 @code {
     private int unread;
+    private int unreadMentions;
     private PeriodicTimer? timer;
+    private IDisposable? liveNotifSub;
     private IReadOnlyList<NavigationModule> navModules = [];
     private IReadOnlyList<NavigationMenuGroup> navGroups = [];
     private IReadOnlyList<NavigationMenuItem> navMenus = [];
@@ -520,8 +533,9 @@
         _ = Connectivity.EnsureCheckedAsync();
         if (Current.User is null) { RedirectToLogin(); return; }
         RefreshUnread();
+        SubscribeLiveNotifications();
         _ = LoadMenusAsync();
-        timer = new PeriodicTimer(TimeSpan.FromSeconds(2));
+        timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
         _ = Poll();
     }
 
@@ -575,9 +589,11 @@
         var rel = Nav.ToBaseRelativePath(Nav.Uri).Trim('/');
         if (string.IsNullOrEmpty(rel)) return;
 
-        // Inbox, dashboard, reports, and account profile routes are global utilities, they should not switch the active module.
+        // Inbox, mentions, dashboard, reports, and account profile routes are global utilities, they should not switch the active module.
         if (rel.Equals("inbox", StringComparison.OrdinalIgnoreCase)
             || rel.StartsWith("inbox/", StringComparison.OrdinalIgnoreCase)
+            || rel.Equals("mentions", StringComparison.OrdinalIgnoreCase)
+            || rel.StartsWith("mentions/", StringComparison.OrdinalIgnoreCase)
             || rel.Equals("dashboard", StringComparison.OrdinalIgnoreCase)
             || rel.StartsWith("dashboard/", StringComparison.OrdinalIgnoreCase)
             || rel.Equals("reports", StringComparison.OrdinalIgnoreCase)
@@ -695,8 +711,32 @@
     /// <summary>Redirects to login when session is missing or invalidated during periodic security stamp revalidation.</summary>
     private void OnUserChanged()
     {
-        if (Current.User is null) InvokeAsync(RedirectToLogin);
-        else _ = LoadMenusAsync();
+        if (Current.User is null)
+        {
+            liveNotifSub?.Dispose();
+            liveNotifSub = null;
+            InvokeAsync(RedirectToLogin);
+        }
+        else
+        {
+            SubscribeLiveNotifications();
+            RefreshUnread();
+            _ = LoadMenusAsync();
+        }
+    }
+
+    private void SubscribeLiveNotifications()
+    {
+        liveNotifSub?.Dispose();
+        liveNotifSub = null;
+        if (Current.User is not { } u) return;
+
+        liveNotifSub = LiveNotifications.Subscribe(u.TenantId, u.Id, n => InvokeAsync(() =>
+        {
+            RefreshUnread();
+            Toasts.Info(n.Body, n.Subject);
+            StateHasChanged();
+        }));
     }
 
     private bool IsPublicErrorRoute()
@@ -725,12 +765,13 @@
             while (await timer!.WaitForNextTickAsync())
             {
                 var before = unread;
+                var beforeMentions = unreadMentions;
                 RefreshUnread();
                 if (!Connectivity.Current.IsAllHealthy)
                 {
                     await Connectivity.EnsureCheckedAsync(TimeSpan.FromSeconds(10));
                 }
-                if (before != unread) await InvokeAsync(StateHasChanged);
+                if (before != unread || beforeMentions != unreadMentions) await InvokeAsync(StateHasChanged);
             }
         }
         catch (ObjectDisposedException) { }
@@ -740,7 +781,17 @@
     {
         try
         {
-            unread = Current.User is { } u ? Notifications.ForUser(u.TenantId, u.Id).Count(n => !n.Read) : 0;
+            if (Current.User is { } u)
+            {
+                var list = Notifications.ForUser(u.TenantId, u.Id);
+                unread = list.Count(n => !n.Read && !Framework.Documents.DocumentComments.IsMentionNotification(n));
+                unreadMentions = list.Count(n => !n.Read && Framework.Documents.DocumentComments.IsMentionNotification(n));
+            }
+            else
+            {
+                unread = 0;
+                unreadMentions = 0;
+            }
         }
         catch (Exception ex)
         {
@@ -857,6 +908,12 @@
         if (first == "inbox")
         {
             crumbs.Add(new Crumb("Inbox", IsActive: true));
+            return crumbs;
+        }
+
+        if (first == "mentions")
+        {
+            crumbs.Add(new Crumb("Mentions", IsActive: true));
             return crumbs;
         }
 
@@ -1054,6 +1111,7 @@
         T.Changed -= OnLanguageChanged;
         Nav.LocationChanged -= OnLocationChanged;
         Connectivity.Changed -= OnConnectivityChanged;
+        liveNotifSub?.Dispose();
         timer?.Dispose();
         dotNetRef?.Dispose();
     }

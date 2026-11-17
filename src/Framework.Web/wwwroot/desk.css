@@ -2543,6 +2543,12 @@ table.desk-doc-table td.act-col {
   color: var(--muted-foreground);
 }
 
+.mention-item:hover,
+.mention-option-btn:hover {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
 .admin-grid {
   display: grid;
   grid-template-columns: 15rem minmax(0, 1fr);

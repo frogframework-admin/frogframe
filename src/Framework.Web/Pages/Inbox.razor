@@ -1,5 +1,8 @@
 @page "/inbox"
+@using Framework.Documents
+@using Framework.Notifications
 @inject INotificationStore Notifications
+@inject INotificationLiveFeed LiveNotifications
 @inject CurrentUser Current
 @inject IOutboxStore Outbox
 @inject NavigationManager Nav
@@ -70,11 +73,18 @@
 @code {
     private IReadOnlyList<Notification> items = [];
     private PeriodicTimer? timer;
+    private IDisposable? liveSub;
 
     protected override void OnInitialized()
     {
         Refresh();
-        timer = new PeriodicTimer(TimeSpan.FromSeconds(2));
+        var u = Current.Required;
+        liveSub = LiveNotifications.Subscribe(u.TenantId, u.Id, _ => InvokeAsync(() =>
+        {
+            Refresh();
+            StateHasChanged();
+        }));
+        timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
         _ = Loop();
     }
 
@@ -84,6 +94,13 @@
         catch (ObjectDisposedException) { }
     }
 
-    private void Refresh() => items = Notifications.ForUser(Current.Required.TenantId, Current.Required.Id);
-    public void Dispose() => timer?.Dispose();
+    private void Refresh() => items = Notifications.ForUser(Current.Required.TenantId, Current.Required.Id)
+        .Where(n => !DocumentComments.IsMentionNotification(n))
+        .ToList();
+
+    public void Dispose()
+    {
+        liveSub?.Dispose();
+        timer?.Dispose();
+    }
 }

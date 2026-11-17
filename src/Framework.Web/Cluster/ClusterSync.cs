@@ -1,5 +1,6 @@
 using Framework.Metadata;
 using Framework.Navigation;
+using Framework.Notifications;
 using Framework.Presence;
 using Framework.Security;
 using Microsoft.Extensions.Hosting;
@@ -24,7 +25,8 @@ public sealed class ClusterSync(
     IRoleStore roleStore,
     INavigationMenuStore navigation,
     DocumentPresenceService? presence,
-    ILogger<ClusterSync> log) : IHostedService, IDisposable
+    ILogger<ClusterSync> log,
+    NotificationLiveFeed? liveNotifications = null) : IHostedService, IDisposable
 {
     /// <summary>Several publishes in a row (e.g. a DocType and its workflow) cause one reload.</summary>
     public static readonly TimeSpan ReloadDelay = TimeSpan.FromMilliseconds(500);
@@ -48,6 +50,7 @@ public sealed class ClusterSync(
             else roles.InvalidateLocal(tenant);
         }));
         if (presence is not null) _subscriptions.Add(bus.Subscribe(ClusterTopics.Presence, presence.ApplyRemote));
+        if (liveNotifications is not null) _subscriptions.Add(bus.Subscribe(ClusterTopics.Notifications, liveNotifications.ApplyRemote));
         bus.Reconnected += OnReconnected;
         log.LogInformation("Multi-node synchronization active (node {Node})", bus.NodeId);
         return Task.CompletedTask;

@@ -45,6 +45,8 @@ public static class ClusterTopics
     public const string Scripts = "scripts";
     /// <summary>Tenant translations changed; payload = tenant id.</summary>
     public const string Translations = "translations";
+    /// <summary>Real-time user notification; payload = JSON <c>Notification</c>.</summary>
+    public const string Notifications = "notifications";
 }
 
 /// <summary>Subscriber list shared by the bus implementations.</summary>

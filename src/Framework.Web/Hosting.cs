@@ -134,6 +134,11 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IOutboxStore>(sp => sp.GetRequiredService<InMemoryDocumentStore>());
         services.TryAddSingleton<IDatabaseHealthCheck>(sp => sp.GetRequiredService<InMemoryDocumentStore>());
         services.TryAddSingleton<INotificationStore, InMemoryNotificationStore>();
+        services.TryAddSingleton<NotificationLiveFeed>();
+        services.TryAddSingleton<INotificationLiveFeed>(sp => sp.GetRequiredService<NotificationLiveFeed>());
+        services.TryAddSingleton<OutboxWakeSignal>();
+        services.AddSignalR();
+        services.AddHostedService<Framework.Web.Notifications.SignalRNotificationBridge>();
         services.TryAddSingleton<IFileStore, InMemoryFileStore>();
         services.TryAddSingleton<IAttachmentStore, InMemoryAttachmentStore>();
         services.AddSingleton<AttachmentService>();
@@ -141,6 +146,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<INotificationRuleStore, InMemoryNotificationRuleStore>();
         services.AddSingleton<NotificationRuleEngine>();
         services.AddSingleton<IEventHandler, NotificationRuleEventHandler>();
+        services.AddSingleton<IEventHandler, Framework.Documents.CommentMentionNotifier>();
         services.TryAddSingleton<IUserPreferenceStore, InMemoryUserPreferenceStore>();
         // Multi-bahasa (Indonesia/Inggris): kamus framework + aplikasi + terjemahan per tenant.
         Framework.Localization.LocalizationSetup.AddFrogFrameLocalization(services, options.Translations);
@@ -204,7 +210,8 @@ public static class ServiceCollectionExtensions
             sp.GetRequiredService<IRoleStore>(),
             sp.GetRequiredService<INavigationMenuStore>(),
             sp.GetService<IDocumentPresenceService>() as DocumentPresenceService,
-            sp.GetRequiredService<ILogger<Framework.Cluster.ClusterSync>>()));
+            sp.GetRequiredService<ILogger<Framework.Cluster.ClusterSync>>(),
+            sp.GetService<NotificationLiveFeed>()));
         services.AddSingleton(sp =>
         {
             var cfg = sp.GetService<IConfiguration>();
@@ -437,7 +444,11 @@ public static class ServiceCollectionExtensions
     public const string ApiRateLimit = "frogframe-api";
 }
 
-public sealed class OutboxWorker(OutboxProcessor processor, ILogger<OutboxWorker> log, IConfiguration? config = null) : BackgroundService
+public sealed class OutboxWorker(
+    OutboxProcessor processor,
+    ILogger<OutboxWorker> log,
+    IConfiguration? config = null,
+    OutboxWakeSignal? wakeSignal = null) : BackgroundService
 {
     /// <summary>Masa simpan pesan yang sudah diproses (Outbox:RetentionDays, default 7). Dead-letter tidak dihapus.</summary>
     private TimeSpan Retention => TimeSpan.FromDays(Math.Max(1, config?.GetValue("Outbox:RetentionDays", 7) ?? 7));
@@ -445,9 +456,15 @@ public sealed class OutboxWorker(OutboxProcessor processor, ILogger<OutboxWorker
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(750));
-        while (await timer.WaitForNextTickAsync(stoppingToken))
+        var pollInterval = TimeSpan.FromMilliseconds(750);
+        while (!stoppingToken.IsCancellationRequested)
         {
+            if (wakeSignal is not null)
+                await wakeSignal.WaitAsync(pollInterval, stoppingToken);
+            else
+                await Task.Delay(pollInterval, stoppingToken);
+
+            if (stoppingToken.IsCancellationRequested) break;
             if (DateTimeOffset.UtcNow >= _nextPrune)
             {
                 _nextPrune = DateTimeOffset.UtcNow.AddHours(1);

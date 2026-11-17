@@ -69,7 +69,8 @@ public sealed class DocumentService(
     IDocumentHandlerRegistry handlers,
     TimeProvider clock,
     IFileStore files,
-    HookRunner hooks)
+    HookRunner hooks,
+    OutboxWakeSignal? outboxWake = null)
 {
     private sealed class TenantLookup(IDocumentStore store, string tenantId) : IDocumentLookup
     {
@@ -588,6 +589,35 @@ public sealed class DocumentService(
         var uow = new UnitOfWork();
         uow.Audits.Add(Audit(doc, user, "Dicetak", []) with { Comment = $"Format {format}" });
         await store.CommitAsync(uow, ct);
+    }
+
+    /// <summary>
+    /// Adds an internal comment to a document's timeline and enqueues an outbox event for <c>@mention</c> notifications.
+    /// Any user who can read the document within their access scope may comment (including approvers without write access).
+    /// </summary>
+    public async Task<AuditEntry> AddCommentAsync(UserContext user, string docType, string name, string comment, CancellationToken ct = default)
+    {
+        var meta = TopLevel(docType);
+        permissions.Demand(user, meta, DocActions.Read);
+        var doc = await LoadInScopeAsync(user, meta, name, ct);
+
+        var trimmed = comment?.Trim() ?? "";
+        if (trimmed.Length == 0)
+            throw new ValidationFailedException([new FieldError("_comment", "Comment cannot be empty.")]);
+        if (trimmed.Length > DocumentComments.MaxLength)
+            throw new ValidationFailedException([new FieldError("_comment", $"Comment cannot exceed {DocumentComments.MaxLength} characters.")]);
+
+        var now = clock.GetUtcNow();
+        var entry = Audit(doc, user, AuditActions.Comment, []) with { At = now, Comment = trimmed };
+        var mentions = DocumentComments.ParseMentions(trimmed);
+        var commentId = Guid.NewGuid().ToString("N");
+
+        var uow = new UnitOfWork();
+        uow.Audits.Add(entry);
+        uow.Outbox.Add(CommentEvents.Create(doc, user, commentId, trimmed, mentions, now));
+        await store.CommitAsync(uow, ct);
+        outboxWake?.Wake();
+        return entry;
     }
 
     // ---------------- Write ----------------
@@ -1311,6 +1341,7 @@ public sealed class DocumentService(
         uow.Extensions.AddRange(ctx.Extensions.Select(e => new UnitOfWorkExtension(doc, e)));
         try { await store.CommitAsync(uow, ct); } // event eksternal baru diproses setelah commit melalui outbox
         catch (UnitOfWorkValidationException ex) { throw new ValidationFailedException(ex.Errors); }
+        if (uow.Outbox.Count > 0) outboxWake?.Wake();
         doc.TransientMessages.AddRange(ctx.Messages);
         FrogFrameTelemetry.DocumentOperations.Add(1, new KeyValuePair<string, object?>("doctype", doc.DocType), new KeyValuePair<string, object?>("operation", ctx.Operation.ToString()));
     }

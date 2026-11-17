@@ -11,28 +11,45 @@ else
         {
             var e = Entries[i];
             <BbTimelineItem Status="TimelineStatus.Completed" IconColor="@Color(e)" ShowConnector="@(i < Entries.Count - 1)">
-                <BbTimelineContent>
-                    <BbTimelineHeader>
-                        <BbTimelineTitle><strong>@e.Actor</strong> @Describe(e)</BbTimelineTitle>
-                        <BbTimelineTime>@Fmt.When(e.At)</BbTimelineTime>
-                    </BbTimelineHeader>
-                    @if (!string.IsNullOrWhiteSpace(e.Comment))
-                    {
-                        <p class="comment">@e.Comment</p>
-                    }
-                    @if (e.Changes.Count > 0)
-                    {
-                        <ul class="changes">
-                            @foreach (var c in e.Changes)
-                            {
-                                <li><span class="f">@T[c.Field]</span>
-                                    @if (c.Old is not null) { <del>@c.Old</del> <span aria-hidden="true"> › </span> }
-                                    <ins>@(c.New ?? T["empty"])</ins></li>
-                            }
-                        </ul>
-                    }
-                    <BbTimelineDescription>schema v@(e.SchemaVersion)@(e.WorkflowVersion is { } wv ? $" · workflow v{wv}" : "")</BbTimelineDescription>
-                </BbTimelineContent>
+                <IconContent>
+                    <LucideIcon Name="@IconName(e)" Size="14" />
+                </IconContent>
+                <ChildContent>
+                    <BbTimelineContent>
+                        <BbTimelineHeader>
+                            <BbTimelineTitle><strong>@e.Actor</strong> @Describe(e)</BbTimelineTitle>
+                            <BbTimelineTime>@Fmt.When(e.At)</BbTimelineTime>
+                        </BbTimelineHeader>
+                        @if (!string.IsNullOrWhiteSpace(e.Comment))
+                        {
+                            <p class="comment" style="white-space:pre-wrap">
+                                @foreach (var seg in DocumentComments.Segments(e.Comment))
+                                {
+                                    if (seg.IsMention)
+                                    {
+                                        <span style="@MentionStyle(seg.Text)">@seg.Text</span>
+                                    }
+                                    else
+                                    {
+                                        @seg.Text
+                                    }
+                                }
+                            </p>
+                        }
+                        @if (e.Changes.Count > 0)
+                        {
+                            <ul class="changes">
+                                @foreach (var c in e.Changes)
+                                {
+                                    <li><span class="f">@T[c.Field]</span>
+                                        @if (c.Old is not null) { <del>@c.Old</del> <span aria-hidden="true"> › </span> }
+                                        <ins>@(c.New ?? T["empty"])</ins></li>
+                                }
+                            </ul>
+                        }
+                        <BbTimelineDescription>schema v@(e.SchemaVersion)@(e.WorkflowVersion is { } wv ? $" · workflow v{wv}" : "")</BbTimelineDescription>
+                    </BbTimelineContent>
+                </ChildContent>
             </BbTimelineItem>
         }
     </BbTimeline>
@@ -40,18 +57,49 @@ else
 
 @code {
     [Parameter] public IReadOnlyList<AuditEntry> Entries { get; set; } = [];
+    [Parameter] public string? CurrentUserId { get; set; }
 
-    private static TimelineColor Color(AuditEntry e) => e.ToState switch
+    private string MentionStyle(string token)
     {
-        "Ditolak" or "Dibatalkan" or "Cancelled" or "Rejected" => TimelineColor.Destructive,
-        null => TimelineColor.Muted,
-        _ => TimelineColor.Primary
-    };
+        if (string.Equals(token, $"@{DocumentComments.EveryoneToken}", StringComparison.OrdinalIgnoreCase))
+            return "display:inline-block;padding:0 .3rem;border-radius:.25rem;background:rgba(220,38,38,.12);color:#dc2626;font-weight:600";
+        if (!string.IsNullOrWhiteSpace(CurrentUserId) && string.Equals(token, $"@{CurrentUserId}", StringComparison.OrdinalIgnoreCase))
+            return "display:inline-block;padding:0 .3rem;border-radius:.25rem;background:rgba(37,99,235,.12);color:#2563eb;font-weight:600";
+        return "display:inline-block;padding:0 .3rem;border-radius:.25rem;background:var(--bb-accent);color:var(--bb-accent-foreground);font-weight:600";
+    }
+
+    private static TimelineColor Color(AuditEntry e) => e.Action == AuditActions.Comment
+        ? TimelineColor.Secondary
+        : e.ToState switch
+        {
+            "Ditolak" or "Dibatalkan" or "Cancelled" or "Rejected" => TimelineColor.Destructive,
+            null => TimelineColor.Muted,
+            _ => TimelineColor.Primary
+        };
+
+    private static string IconName(AuditEntry e)
+    {
+        if (e.ToState is "Ditolak" or "Dibatalkan" or "Cancelled" or "Rejected")
+            return "x";
+        if (e.ToState is not null)
+            return "check";
+        return e.Action.ToLowerInvariant() switch
+        {
+            "comment" => "message-square",
+            "dibuat" or "created" => "plus",
+            "diubah" or "updated" or "modified" => "pencil",
+            "amend" or "amended" => "copy",
+            "dihapus" or "deleted" => "trash-2",
+            "dicetak" or "printed" => "printer",
+            _ => "activity"
+        };
+    }
 
     private string Describe(AuditEntry e) => e.ToState is not null
         ? T.Format("executed “{0}”: {1} → {2}", T[e.Action], T[e.FromState], T[e.ToState])
         : T[e.Action.ToLowerInvariant() switch
         {
+            "comment" => "commented",
             "dibuat" or "created" => "created document",
             "diubah" or "updated" or "modified" => "updated document",
             "amend" or "amended" => "created amendment",

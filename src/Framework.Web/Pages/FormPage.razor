@@ -6,6 +6,8 @@
 @using Framework.Files
 @using Framework.Presence
 @using Framework.Integrations
+@using Framework.Notifications
+@using Microsoft.Extensions.Configuration
 @inject DocumentService Docs
 @inject CurrentUser Current
 @inject IMetadataProvider Metadata
@@ -21,7 +23,10 @@
 @inject AutoRepeatService AutoRepeatService
 @inject CommunicationService CommService
 @inject IEmailQueue EmailQueue
+@inject IUserDirectory Users
+@inject INotificationLiveFeed LiveNotifications
 @inject UiText T
+@inject IConfiguration Config
 @inject SystemConnectivityService Connectivity
 
 <PageTitle>@(meta is null ? Name : meta.Def.IsSingle ? T.Title(meta) : IsNew ? T.Format("New {0}", T.Title(meta)) : Name) · FrogFrame</PageTitle>
@@ -169,7 +174,7 @@ else if (meta is not null && doc is not null)
             @if (!IsNew)
             {
                 <BbTabsTrigger Value="@AttachmentsTab">@T["Attachments"] (@attachments.Count)</BbTabsTrigger>
-                <BbTabsTrigger Value="@HistoryTab">@T["History & Emails"] (@(audit.Count + communications.Count))</BbTabsTrigger>
+                <BbTabsTrigger Value="@HistoryTab">@T["History & Comments"] (@audit.Count)</BbTabsTrigger>
             }
         </BbTabsList>
 
@@ -303,76 +308,97 @@ else if (meta is not null && doc is not null)
             <BbTabsContent Value="@HistoryTab">
                 <BbCard Class="crumbs" Style="margin-top:.75rem">
                     <BbCardContent>
-                        <div style="display:flex;justify-content:space-between;align-items:center;padding:1rem 0;border-bottom:1px solid var(--bb-border);margin-bottom:1rem">
-                            <div style="display:flex;gap:.5rem">
-                                <BbButton Size="ButtonSize.Small" Variant="@(historyFilter == "all" ? ButtonVariant.Default : ButtonVariant.Outline)" OnClick='() => historyFilter = "all"'>@T["All Activity"] (@(audit.Count + communications.Count))</BbButton>
-                                <BbButton Size="ButtonSize.Small" Variant="@(historyFilter == "audit" ? ButtonVariant.Default : ButtonVariant.Outline)" OnClick='() => historyFilter = "audit"'>@T["Audit Log"] (@audit.Count)</BbButton>
-                                <BbButton Size="ButtonSize.Small" Variant="@(historyFilter == "emails" ? ButtonVariant.Default : ButtonVariant.Outline)" OnClick='() => historyFilter = "emails"'>@T["Emails"] (@communications.Count)</BbButton>
-                            </div>
-                            <BbButton Size="ButtonSize.Small" Variant="ButtonVariant.Outline" OnClick="OpenSendEmailDrawer">
-                                <LucideIcon Name="send" Size="14" /> @T["Send Email"]
-                            </BbButton>
-                        </div>
-
-                        @if (historyFilter != "audit" && communications.Count > 0)
-                        {
-                            <div style="margin-bottom:1.5rem">
-                                <h4 style="margin-bottom:.75rem;font-size:.95rem;font-weight:600">@T["Email Communications"]</h4>
-                                <div style="display:flex;flex-direction:column;gap:.75rem">
-                                    @foreach (var comm in communications)
-                                    {
-                                        <div style="border:1px solid var(--bb-border);border-radius:.375rem;padding:.85rem;background:var(--bb-bg-card)">
-                                            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.5rem">
-                                                <div style="display:flex;align-items:center;gap:.5rem">
-                                                    @if (comm.Direction == CommunicationDirection.In)
-                                                    {
-                                                        <BbBadge Variant="BadgeVariant.Outline">@T["Incoming"]</BbBadge>
-                                                    }
-                                                    else
-                                                    {
-                                                        <BbBadge Variant="BadgeVariant.SoftSuccess">@T["Outgoing"]</BbBadge>
-                                                    }
-                                                    <span style="font-weight:600">@comm.Subject</span>
-                                                </div>
-                                                <div style="display:flex;align-items:center;gap:.75rem">
-                                                    <span style="font-size:.75rem;color:var(--bb-muted-foreground)">@Fmt.When(comm.OccurredAt)</span>
-                                                    <BbButton Size="ButtonSize.Small" Variant="ButtonVariant.Ghost" OnClick="() => ReplyToEmail(comm)" Title="@(T["Reply"])">
-                                                        <LucideIcon Name="reply" Size="14" /> @T["Reply"]
-                                                    </BbButton>
-                                                </div>
-                                            </div>
-                                            <div style="font-size:.8rem;color:var(--bb-muted-foreground);margin-bottom:.5rem">
-                                                <span>@T["From:"] <strong>@comm.Sender</strong></span>
-                                                @if (comm.Recipients.Count > 0)
-                                                {
-                                                    <span style="margin-left:1rem">@T["To:"] @string.Join(", ", comm.Recipients)</span>
-                                                }
-                                            </div>
-                                            @if (!string.IsNullOrWhiteSpace(comm.ContentHtml))
+                        <div style="padding:1rem 0;border-bottom:1px solid var(--bb-border);margin-bottom:1rem;position:relative">
+                            <div style="display:flex;flex-direction:column;gap:.5rem" @onkeydown="OnCommentKeyDown">
+                                <BbTextarea @ref="commentTextarea"
+                                            Value="@newComment"
+                                            ValueChanged="OnCommentChanged"
+                                            UpdateTiming="UpdateTiming.Immediate"
+                                            Rows="3"
+                                            MaxLength="@DocumentComments.MaxLength"
+                                            Placeholder="@(T["Add a comment… Type @ to mention a teammate or @everyone. (Ctrl+Enter to post)"])" />
+                                @if (showMentionPicker)
+                                {
+                                    var filteredUsers = FilteredMentionUsers;
+                                    var showEveryone = MatchesMentionQuery(DocumentComments.EveryoneToken, "Everyone with access");
+                                    <div style="border:1px solid var(--border);border-radius:var(--radius);background:var(--popover, var(--card));color:var(--popover-foreground, var(--foreground));box-shadow:0 6px 20px rgba(0,0,0,.12);max-height:14rem;overflow-y:auto;padding:.25rem;display:flex;flex-direction:column;gap:.15rem">
+                                        <div class="muted small" style="padding:.25rem .5rem;font-weight:600">
+                                            @T["Mention someone"]
+                                            @if (!string.IsNullOrEmpty(mentionQuery))
                                             {
-                                                <div style="font-size:.875rem;padding:.5rem;background:var(--bb-bg-muted);border-radius:.25rem;overflow-x:auto">
-                                                    @* Sanitized again at render time: rows stored before outbound sanitization existed may contain raw HTML. *@
-                                                    @((MarkupString)(HtmlContentSanitizer.Sanitize(comm.ContentHtml) ?? ""))
-                                                </div>
-                                            }
-                                            else if (!string.IsNullOrWhiteSpace(comm.ContentText))
-                                            {
-                                                <div style="font-size:.875rem;white-space:pre-wrap;padding:.5rem;background:var(--bb-bg-muted);border-radius:.25rem">
-                                                    @comm.ContentText
-                                                </div>
+                                                <span> · @@<span>@mentionQuery</span></span>
                                             }
                                         </div>
-                                    }
+                                        @if (showEveryone)
+                                        {
+                                            <button type="button"
+                                                    class="mention-option-btn"
+                                                    @onmousedown:preventDefault="true"
+                                                    @onclick="() => InsertMention(DocumentComments.EveryoneToken)"
+                                                    style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;width:100%;text-align:left;padding:.45rem .6rem;border:0;border-radius:calc(var(--radius) - 2px);background:transparent;color:inherit;cursor:pointer">
+                                                <span><strong style="color:#dc2626">@@@DocumentComments.EveryoneToken</strong> <span class="muted small">· @T["Notify everyone with access"]</span></span>
+                                                <BbBadge Variant="BadgeVariant.Secondary">@T["All"]</BbBadge>
+                                            </button>
+                                        }
+                                        @foreach (var mu in filteredUsers)
+                                        {
+                                            <button type="button"
+                                                    class="mention-option-btn"
+                                                    @onmousedown:preventDefault="true"
+                                                    @onclick="() => InsertMention(mu.Id)"
+                                                    style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;width:100%;text-align:left;padding:.45rem .6rem;border:0;border-radius:calc(var(--radius) - 2px);background:transparent;color:inherit;cursor:pointer">
+                                                <span><strong>@@@mu.Id</strong> <span class="muted small">· @mu.FullName</span></span>
+                                                <span class="muted small">@string.Join(", ", mu.Roles.Take(2))</span>
+                                            </button>
+                                        }
+                                        @if (!showEveryone && filteredUsers.Count == 0)
+                                        {
+                                            <div class="muted small" style="padding:.45rem .6rem">@T["No matching users"]</div>
+                                        }
+                                    </div>
+                                }
+                                <div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap">
+                                    <div style="display:flex;align-items:center;gap:.35rem;flex-wrap:wrap">
+                                        <BbButton Size="ButtonSize.Small" Variant="ButtonVariant.Ghost" OnClick="ToggleMentionPicker">
+                                            <LucideIcon Name="at-sign" Size="14" /> @T["Mention"]
+                                        </BbButton>
+                                        <span class="muted small">@T["Type @ to pick a teammate or @everyone"]</span>
+                                    </div>
+                                    <div style="display:flex;align-items:center;gap:.75rem">
+                                        <span class="muted small" style="@(newComment.Length >= DocumentComments.MaxLength ? "color:#dc2626;font-weight:600" : "")">
+                                            @newComment.Length / @DocumentComments.MaxLength
+                                        </span>
+                                        <BbButton Size="ButtonSize.Small"
+                                                  Disabled="@(postingComment || string.IsNullOrWhiteSpace(newComment) || newComment.Length > DocumentComments.MaxLength)"
+                                                  Loading="@postingComment"
+                                                  LoadingText="@(T["Posting…"])"
+                                                  OnClick="PostCommentAsync">
+                                            <LucideIcon Name="message-square" Size="14" /> @T["Post Comment"]
+                                        </BbButton>
+                                    </div>
                                 </div>
                             </div>
-                        }
+                        </div>
 
-                        @if (historyFilter != "emails")
-                        {
-                            <div style="padding-top:.5rem">
-                                <AuditTimeline Entries="audit" />
+                        <div style="display:flex;justify-content:space-between;align-items:center;padding:.5rem 0 1rem;border-bottom:1px solid var(--bb-border);margin-bottom:1rem;flex-wrap:wrap;gap:.5rem">
+                            <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+                                <BbButton Size="ButtonSize.Small" Variant="@(historyFilter == "all" ? ButtonVariant.Default : ButtonVariant.Outline)" OnClick='() => SetHistoryFilter("all")'>@T["All Activity"] (@audit.Count)</BbButton>
+                                <BbButton Size="ButtonSize.Small" Variant="@(historyFilter == "comments" ? ButtonVariant.Default : ButtonVariant.Outline)" OnClick='() => SetHistoryFilter("comments")'>@T["Comments"] (@CommentCount)</BbButton>
+                                <BbButton Size="ButtonSize.Small" Variant="@(historyFilter == "audit" ? ButtonVariant.Default : ButtonVariant.Outline)" OnClick='() => SetHistoryFilter("audit")'>@T["Audit Log"] (@AuditOnlyCount)</BbButton>
                             </div>
-                        }
+                        </div>
+
+                        <div style="padding-top:.5rem">
+                            <AuditTimeline Entries="PagedAudit" CurrentUserId="@User.Id" />
+                            @if (HasMoreHistory)
+                            {
+                                <div style="display:flex;justify-content:center;padding:.75rem 0 0">
+                                    <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick="LoadMoreHistory">
+                                        @T["Load more"] (@PagedAudit.Count / @FilteredAudit.Count)
+                                    </BbButton>
+                                </div>
+                            }
+                        </div>
                     </BbCardContent>
                 </BbCard>
             </BbTabsContent>
@@ -476,6 +502,12 @@ else if (meta is not null && doc is not null)
 @code {
     [Parameter] public string DocType { get; set; } = "";
     [Parameter] public string Name { get; set; } = "";
+    [SupplyParameterFromQuery(Name = "tab")] public string? TabQuery { get; set; }
+
+    private static readonly System.Text.RegularExpressions.Regex TrailingMentionRegex =
+        new(@"(?:^|[\s(\n])(@([A-Za-z0-9._\-]*))$", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    private BbTextarea? commentTextarea;
 
     private const string HistoryTab = "__history";
     private const string AttachmentsTab = "__attachments";
@@ -489,7 +521,43 @@ else if (meta is not null && doc is not null)
     private IReadOnlyList<AuditEntry> audit = [];
     private IReadOnlyList<AttachmentRecord> attachments = [];
     private IReadOnlyList<CommunicationEntry> communications = [];
+    private IReadOnlyList<UserContext> mentionUsers = [];
     private string historyFilter = "all";
+    private int historyPageSize = 10;
+    private int historyDisplayLimit = 10;
+    private string newComment = "";
+    private string mentionQuery = "";
+    private bool postingComment;
+    private bool showMentionPicker;
+
+    private int CommentCount => audit.Count(a => a.Action == AuditActions.Comment);
+    private int AuditOnlyCount => audit.Count(a => a.Action != AuditActions.Comment);
+    private IReadOnlyList<AuditEntry> FilteredAudit => historyFilter switch
+    {
+        "comments" => audit.Where(a => a.Action == AuditActions.Comment).ToList(),
+        "audit" => audit.Where(a => a.Action != AuditActions.Comment).ToList(),
+        _ => audit
+    };
+    private IReadOnlyList<AuditEntry> PagedAudit => FilteredAudit.Take(historyDisplayLimit).ToList();
+    private bool HasMoreHistory => FilteredAudit.Count > historyDisplayLimit;
+    private void SetHistoryFilter(string filter)
+    {
+        historyFilter = filter;
+        historyDisplayLimit = historyPageSize;
+    }
+    private void LoadMoreHistory() => historyDisplayLimit += historyPageSize;
+    private IDisposable? liveNotifSub;
+    private IReadOnlyList<UserContext> MentionableUsers => mentionUsers
+        .Where(u => !string.Equals(u.Id, User.Id, StringComparison.OrdinalIgnoreCase))
+        .OrderBy(u => u.FullName, StringComparer.OrdinalIgnoreCase)
+        .ToList();
+    private IReadOnlyList<UserContext> FilteredMentionUsers => MentionableUsers
+        .Where(u => MatchesMentionQuery(u.Id, u.FullName))
+        .ToList();
+    private bool MatchesMentionQuery(string id, string? fullName = null) =>
+        string.IsNullOrEmpty(mentionQuery) ||
+        id.Contains(mentionQuery, StringComparison.OrdinalIgnoreCase) ||
+        (!string.IsNullOrWhiteSpace(fullName) && fullName.Contains(mentionQuery, StringComparison.OrdinalIgnoreCase));
     private bool isSendEmailDrawerOpen;
     private bool isSendingEmail;
     private string? sendEmailError;
@@ -680,6 +748,11 @@ else if (meta is not null && doc is not null)
     private string? loadedKey;
     protected override async Task OnParametersSetAsync()
     {
+        if (string.Equals(TabQuery, "comments", StringComparison.OrdinalIgnoreCase))
+        {
+            activeTab = HistoryTab;
+            historyFilter = "all";
+        }
         var key = $"{DocType}/{Name}";
         if (key == loadedKey) return;
         loadedKey = key;
@@ -716,14 +789,31 @@ else if (meta is not null && doc is not null)
             await RunClientScripts(Framework.Scripting.Abstractions.FormScriptEvent.Load, null);
             actions = IsNew ? [] : await Docs.AvailableActionsAsync(User, doc);
             audit = IsNew ? [] : await Docs.GetAuditAsync(User, DocType, Name);
+            historyPageSize = UiOptions.From(Config).HistoryCommentsPageSize;
+            historyDisplayLimit = historyPageSize;
             attachments = IsNew ? [] : await Attachments.ListAsync(User, DocType, Name);
             communications = IsNew ? [] : await CommService.ListForDocumentAsync(User, DocType, Name);
+            mentionUsers = IsNew ? [] : await Users.ListAsync(User.TenantId);
+            newComment = ""; mentionQuery = ""; showMentionPicker = false;
 
             if (!IsNew)
             {
                 presenceSub = Presence.Subscribe(User.TenantId, DocType, Name, OnPresenceChanged);
                 presenceUsers = await Presence.HeartbeatAsync(User.TenantId, DocType, Name, sessionId, User, PresenceStatus.Viewing);
                 StartHeartbeatLoop();
+                liveNotifSub?.Dispose();
+                liveNotifSub = LiveNotifications.Subscribe(User.TenantId, User.Id, async n =>
+                {
+                    if (string.Equals(n.DocType, DocType, StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(n.DocName, Name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        await InvokeAsync(async () =>
+                        {
+                            audit = await Docs.GetAuditAsync(User, DocType, Name);
+                            StateHasChanged();
+                        });
+                    }
+                });
             }
         }
         catch (PermissionDeniedException ex)
@@ -1342,8 +1432,89 @@ else if (meta is not null && doc is not null)
         }
     }
 
+    private void ToggleMentionPicker()
+    {
+        showMentionPicker = !showMentionPicker;
+        if (showMentionPicker) mentionQuery = "";
+    }
+
+    private void OnCommentChanged(string? value)
+    {
+        newComment = value ?? "";
+        var match = TrailingMentionRegex.Match(newComment);
+        if (match.Success)
+        {
+            mentionQuery = match.Groups[2].Value;
+            showMentionPicker = true;
+        }
+        else
+        {
+            mentionQuery = "";
+            showMentionPicker = false;
+        }
+    }
+
+    private async Task OnCommentKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape" && showMentionPicker)
+        {
+            showMentionPicker = false;
+            return;
+        }
+        if (e.CtrlKey && e.Key == "Enter" && !postingComment && !string.IsNullOrWhiteSpace(newComment))
+        {
+            await PostCommentAsync();
+        }
+    }
+
+    private async Task InsertMention(string userId)
+    {
+        var match = TrailingMentionRegex.Match(newComment);
+        if (match.Success)
+        {
+            var prefix = newComment[..match.Groups[1].Index];
+            newComment = $"{prefix}@{userId} ";
+        }
+        else
+        {
+            var tag = $"@{userId} ";
+            newComment = string.IsNullOrEmpty(newComment) || char.IsWhiteSpace(newComment[^1])
+                ? newComment + tag
+                : $"{newComment} {tag}";
+        }
+        mentionQuery = "";
+        showMentionPicker = false;
+        if (commentTextarea is not null)
+            await commentTextarea.FocusAsync();
+    }
+
+    private async Task PostCommentAsync()
+    {
+        if (IsNew || postingComment || string.IsNullOrWhiteSpace(newComment)) return;
+        postingComment = true;
+        try
+        {
+            await Docs.AddCommentAsync(User, DocType, Name, newComment);
+            newComment = "";
+            mentionQuery = "";
+            showMentionPicker = false;
+            audit = await Docs.GetAuditAsync(User, DocType, Name);
+            Toasts.Success(T["Comment posted."], T["Comment"]);
+        }
+        catch (Exception ex) when (ex is ValidationFailedException or PermissionDeniedException or DocumentNotFoundException)
+        {
+            Toasts.Error(T.Message(ex.Message), T["Comment Failed"]);
+        }
+        finally
+        {
+            postingComment = false;
+        }
+    }
+
     public async ValueTask DisposeAsync()
     {
+        liveNotifSub?.Dispose();
+        liveNotifSub = null;
         await CleanupPresenceAsync();
     }
 }

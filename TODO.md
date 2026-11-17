@@ -86,10 +86,10 @@ For full architectural context and runbooks, refer to [Production Readiness Guid
 
 ### Priority 1: Pilot Daily Operations & Essential Workflows (P1)
 
-- [ ] **P1-5 — Export List & Bulk Actions** (High Urgency):
+- [x] **P1-5 — Export List & Bulk Actions** (High Urgency):
   - Add Export to Excel (`.xlsx`) and CSV on the `ListPage.razor` toolbar respecting permissions and active filters.
   - Implement bulk operations: Bulk Submit, Bulk Cancel, and Bulk Edit Field (extending existing Bulk Delete).
-- [ ] **P1-4 — Comments & @mention Timeline** (High Urgency):
+- [x] **P1-4 — Comments & @mention Timeline** (High Urgency):
   - Embed internal collaboration thread below `FormPage.razor` interleaved with audit trail history.
   - Deliver automated in-app notifications when a user is tagged with `@username`.
 - [ ] **P1-8 — Saved Filters / Custom Views** (Medium Urgency):

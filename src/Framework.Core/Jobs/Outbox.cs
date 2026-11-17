@@ -15,6 +15,27 @@ public interface IEventHandler
 
 public sealed record OutboxRunResult(int Processed, int Failed, int DeadLettered);
 
+/// <summary>Wakes the background outbox worker immediately when new outbox events are committed.</summary>
+public sealed class OutboxWakeSignal
+{
+    private readonly SemaphoreSlim _signal = new(0, 1);
+
+    public void Wake()
+    {
+        if (_signal.CurrentCount == 0)
+        {
+            try { _signal.Release(); }
+            catch (SemaphoreFullException) { }
+        }
+    }
+
+    public async Task WaitAsync(TimeSpan timeout, CancellationToken ct)
+    {
+        try { await _signal.WaitAsync(timeout, ct); }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+    }
+}
+
 /// <summary>
 /// Memproses outbox setelah commit: retry dengan backoff eksponensial, dead-letter setelah MaxAttempts.
 /// Dijalankan oleh hosted service pada aplikasi web; dapat diganti worker terpisah/broker.

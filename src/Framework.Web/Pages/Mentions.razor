@@ -1,0 +1,175 @@
+@page "/mentions"
+@using Framework.Documents
+@using Framework.Notifications
+@using Microsoft.Extensions.Configuration
+@inject INotificationStore Notifications
+@inject INotificationLiveFeed LiveNotifications
+@inject CurrentUser Current
+@inject IMetadataProvider Metadata
+@inject NavigationManager Nav
+@inject IConfiguration Config
+@inject UiText T
+@implements IDisposable
+
+<PageTitle>@T["Mentions"] · FrogFrame</PageTitle>
+
+<header class="page-head">
+    <div>
+        <h1>@T["Mentions"]</h1>
+        <p>@T["Comments where teammates mentioned you or @everyone. Click an item to open the document and its comment thread."]</p>
+    </div>
+    @if (unreadCount > 0)
+    {
+        <div class="row">
+            <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick="MarkAllRead">
+                <LucideIcon Name="check-check" Size="15" /> @T["Mark all as read"]
+            </BbButton>
+        </div>
+    }
+</header>
+
+<div class="stack">
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+        <BbButton Size="ButtonSize.Small" Variant="@(!onlyUnread ? ButtonVariant.Default : ButtonVariant.Outline)" OnClick="() => SetFilter(false)">
+            @T["All"] (@allMentions.Count)
+        </BbButton>
+        <BbButton Size="ButtonSize.Small" Variant="@(onlyUnread ? ButtonVariant.Default : ButtonVariant.Outline)" OnClick="() => SetFilter(true)">
+            @T["Unread"] (@unreadCount)
+        </BbButton>
+    </div>
+
+    @if (VisibleMentions.Count == 0)
+    {
+        <BbEmpty Title="@(onlyUnread ? T["No unread mentions"] : T["No mentions yet"])"
+                 Description="@(onlyUnread ? T["You have read all your mentions."] : T["When someone tags @you or @everyone in a document comment, it will appear here."])">
+            <Icon><LucideIcon Name="at-sign" Size="28" /></Icon>
+        </BbEmpty>
+    }
+    else
+    {
+        <BbCard>
+            <BbCardContent Style="padding:0">
+                @foreach (var n in PagedMentions)
+                {
+                    var docTitle = n.DocType is not null && Metadata.Current.TryGet(n.DocType, out var dt) ? T.Title(dt) : n.DocType;
+                    <div class="inbox-item mention-item @(n.Read ? "" : "unread")"
+                         role="button"
+                         tabindex="0"
+                         style="cursor:pointer"
+                         @onclick="() => OpenMention(n)">
+                        <BbAvatar><BbAvatarFallback><LucideIcon Name="at-sign" Size="16" /></BbAvatarFallback></BbAvatar>
+                        <div class="body">
+                            <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+                                <span style="@(n.Read ? "" : "font-weight:600")">@n.Subject</span>
+                                @if (!string.IsNullOrEmpty(n.DocType) && !string.IsNullOrEmpty(n.DocName))
+                                {
+                                    <BbBadge Variant="BadgeVariant.Outline">@docTitle · @n.DocName</BbBadge>
+                                }
+                                @if (!n.Read)
+                                {
+                                    <BbBadge Variant="BadgeVariant.Secondary">@T["New"]</BbBadge>
+                                }
+                            </div>
+                            <p style="white-space:pre-wrap">
+                                @foreach (var seg in DocumentComments.Segments(n.Body))
+                                {
+                                    if (seg.IsMention)
+                                    {
+                                        <span style="@MentionStyle(seg.Text)">@seg.Text</span>
+                                    }
+                                    else
+                                    {
+                                        @seg.Text
+                                    }
+                                }
+                            </p>
+                        </div>
+                        <span class="muted small nowrap">@Fmt.When(n.At)</span>
+                    </div>
+                }
+            </BbCardContent>
+        </BbCard>
+
+        @if (HasMoreMentions)
+        {
+            <div style="display:flex;justify-content:center;padding:.5rem 0">
+                <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick="LoadMore">
+                    @T["Load more"] (@PagedMentions.Count / @VisibleMentions.Count)
+                </BbButton>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private IReadOnlyList<Notification> allMentions = [];
+    private int unreadCount;
+    private bool onlyUnread;
+    private int pageSize = 20;
+    private int displayLimit = 20;
+    private IDisposable? liveSub;
+
+    private IReadOnlyList<Notification> VisibleMentions =>
+        onlyUnread ? allMentions.Where(n => !n.Read).ToList() : allMentions;
+
+    private IReadOnlyList<Notification> PagedMentions =>
+        VisibleMentions.Take(displayLimit).ToList();
+
+    private bool HasMoreMentions => VisibleMentions.Count > displayLimit;
+
+    protected override void OnInitialized()
+    {
+        pageSize = UiOptions.From(Config).MentionsPageSize;
+        displayLimit = pageSize;
+        Refresh();
+        var u = Current.Required;
+        liveSub = LiveNotifications.Subscribe(u.TenantId, u.Id, _ => InvokeAsync(() =>
+        {
+            Refresh();
+            StateHasChanged();
+        }));
+    }
+
+    private void SetFilter(bool unread)
+    {
+        onlyUnread = unread;
+        displayLimit = pageSize;
+    }
+
+    private void LoadMore() => displayLimit += pageSize;
+
+    private string MentionStyle(string token)
+    {
+        if (string.Equals(token, $"@{DocumentComments.EveryoneToken}", StringComparison.OrdinalIgnoreCase))
+            return "display:inline-block;padding:0 .25rem;border-radius:.2rem;background:rgba(220,38,38,.12);color:#dc2626;font-weight:600";
+        if (string.Equals(token, $"@{Current.Required.Id}", StringComparison.OrdinalIgnoreCase))
+            return "display:inline-block;padding:0 .25rem;border-radius:.2rem;background:rgba(37,99,235,.12);color:#2563eb;font-weight:600";
+        return "display:inline-block;padding:0 .25rem;border-radius:.2rem;background:var(--bb-accent);color:var(--bb-accent-foreground);font-weight:600";
+    }
+
+    private void Refresh()
+    {
+        var u = Current.Required;
+        allMentions = Notifications.ForUser(u.TenantId, u.Id)
+            .Where(DocumentComments.IsMentionNotification)
+            .ToList();
+        unreadCount = allMentions.Count(n => !n.Read);
+    }
+
+    private void OpenMention(Notification n)
+    {
+        Notifications.MarkRead(n.TenantId, n.UserId, n.Id);
+        Refresh();
+        if (!string.IsNullOrEmpty(n.DocType) && !string.IsNullOrEmpty(n.DocName))
+            Nav.NavigateTo($"/app/{n.DocType}/{n.DocName}?tab=comments");
+    }
+
+    private void MarkAllRead()
+    {
+        foreach (var n in allMentions.Where(n => !n.Read))
+            Notifications.MarkRead(n.TenantId, n.UserId, n.Id);
+        Refresh();
+    }
+
+    public void Dispose() => liveSub?.Dispose();
+}

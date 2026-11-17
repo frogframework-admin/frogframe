@@ -16,7 +16,8 @@ public sealed class NotificationRuleEngine(
     IEmailQueue emailQueue,
     DocumentEvaluator evaluator,
     FunctionRegistry functions,
-    TimeProvider clock)
+    TimeProvider clock,
+    INotificationLiveFeed? liveFeed = null)
 {
     public async Task<int> EvaluateAndDispatchRulesAsync(
         string tenantId,
@@ -98,7 +99,7 @@ public sealed class NotificationRuleEngine(
                 if (rule.Channel is NotificationChannel.InApp or NotificationChannel.Both)
                 {
                     var notifId = new Guid(MD5.HashData(Encoding.UTF8.GetBytes(idempotencyBase)));
-                    inbox.Add(new Notification(
+                    var notif = new Notification(
                         notifId,
                         tenantId,
                         recipient.UserId,
@@ -107,7 +108,10 @@ public sealed class NotificationRuleEngine(
                         current.DocType,
                         current.Name,
                         clock.GetUtcNow()
-                    ));
+                    );
+                    inbox.Add(notif);
+                    if (liveFeed is not null)
+                        await liveFeed.PublishAsync(notif, ct);
                     dispatchedCount++;
                 }
 

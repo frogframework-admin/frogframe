@@ -36,14 +36,14 @@
             <div class="presence-pill pill-editing">
                 <span class="presence-pulse-badge"></span>
                 <LucideIcon Name="pencil" Size="13" />
-                <span>@(OtherEditors.Count == 1 ? $"{OtherEditors[0].FullName} sedang mengedit" : $"{OtherEditors.Count} pengguna sedang mengedit")</span>
+                <span>@(OtherEditors.Count == 1 ? $"{OtherEditors[0].FullName} is editing" : $"{OtherEditors.Count} users are editing")</span>
             </div>
         }
         else
         {
             <div class="presence-pill pill-viewing">
                 <LucideIcon Name="eye" Size="13" />
-                <span>@(Others.Count == 1 ? $"{Others[0].FullName} sedang melihat" : $"{Others.Count} pengguna sedang melihat")</span>
+                <span>@(Others.Count == 1 ? $"{Others[0].FullName} is viewing" : $"{Others.Count} users are viewing")</span>
             </div>
         }
     </div>
@@ -60,11 +60,11 @@
         Others.Where(u => u.Status == PresenceStatus.Editing).ToList();
 
     private static string StatusText(PresenceStatus status) =>
-        status == PresenceStatus.Editing ? "Sedang Mengedit" : "Sedang Melihat";
+        status == PresenceStatus.Editing ? "Editing" : "Viewing";
 
     private string GetHoverTitle()
     {
-        if (Others.Count == 0) return "Tidak ada pengguna lain";
+        if (Others.Count == 0) return "No other users";
         var lines = Others.Select(u => $"{u.FullName}: {StatusText(u.Status)}");
         return string.Join("\n", lines);
     }
