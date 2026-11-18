@@ -18,6 +18,14 @@ Content-Type: application/json
 
 { "userName": "ahmad.fadilah@acme.co.id", "password": "SecretPassword2026" }
 ```
+
+cURL Example:
+```bash
+curl -X POST http://localhost:5080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"userName": "ahmad.fadilah@acme.co.id", "password": "SecretPassword2026"}'
+```
+
 Response 200:
 ```json
 { "tokenType": "Bearer", "accessToken": "CfDJ8...", "expiresIn": 3600, "refreshToken": "CfDJ8..." }
@@ -32,6 +40,13 @@ POST /api/auth/refresh
 Content-Type: application/json
 
 { "refreshToken": "CfDJ8..." }
+```
+
+cURL Example:
+```bash
+curl -X POST http://localhost:5080/api/auth/refresh \
+  -H "Content-Type: application/json" \
+  -d '{"refreshToken": "CfDJ8..."}'
 ```
 Response 200 is identical to login (returns a new access token **and** a new refresh token — persist both, do not reuse the old refresh token).
 401 = refresh token expired, password changed, or account disabled/locked → present the login screen.
@@ -168,6 +183,27 @@ Content-Type: application/json
 }
 ```
 
+cURL Example (Clock-In):
+```bash
+curl -X POST http://localhost:5080/api/ess/v1/attendance/punches \
+  -H "Authorization: Bearer <accessToken>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "6f1c2a52-6a0e-4a8b-9a0e-8f2d1b7c3e11",
+    "type": "in",
+    "latitude": -6.225180,
+    "longitude": 106.809120,
+    "accuracy": 12.5,
+    "isMockLocation": false,
+    "isOffline": false,
+    "deviceTime": "2026-11-18T08:01:12+07:00",
+    "deviceId": "a3f9c1e2b7d84e60",
+    "deviceInfo": "Samsung SM-A155F / Android 14",
+    "appVersion": "1.0.3+15",
+    "note": "Clocking in on time"
+  }'
+```
+
 | Field | Required | Notes |
 |---|---|---|
 | `id` | Yes | UUID v4 from client (idempotency key) |
@@ -232,11 +268,26 @@ Content-Type: multipart/form-data; boundary=...
 
 (form field "photo" = image binary)
 ```
-or raw image body with `Content-Type: image/jpeg`. Response 200: `{ "id": "6f1c2a52-...", "photoFileId": "f_8a1d..." }`.
+or raw image body with `Content-Type: image/jpeg`.
+
+cURL Example (Multipart):
+```bash
+curl -X POST http://localhost:5080/api/ess/v1/attendance/punches/6f1c2a52-6a0e-4a8b-9a0e-8f2d1b7c3e11/photo \
+  -H "Authorization: Bearer <accessToken>" \
+  -F "photo=@selfie.jpg;type=image/jpeg"
+```
+
+Response 200: `{ "id": "6f1c2a52-...", "photoFileId": "f_8a1d..." }`.
 Re-uploading for an existing punch returns the same `photoFileId`. The photo attaches to the corresponding DocFrame `Attendance` record (in *Check-in/Check-out photo*) on the next aggregation cycle.
 
 ### 4.4 `GET /api/ess/v1/attendance?from=2026-11-01&to=2026-11-18`
 Attendance history (defaults to start of current month through today; max 62-day span), ordered descending by date.
+
+cURL Example:
+```bash
+curl -X GET "http://localhost:5080/api/ess/v1/attendance?from=2026-11-01&to=2026-11-18" \
+  -H "Authorization: Bearer <accessToken>"
+```
 ```json
 {
   "from": "2026-11-01",
