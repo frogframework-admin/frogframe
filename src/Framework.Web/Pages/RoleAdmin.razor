@@ -1,15 +1,21 @@
 @page "/admin/roles"
+@page "/admin/roles/{RoleName}"
 @using Framework.Security
+@using Framework.Metadata
+@using Framework.Navigation
 @inject IRoleStore RoleStore
 @inject IMetadataProvider Metadata
+@inject MetadataRegistry Registry
+@inject INavigationMenuStore MenuStore
 @inject RoleCatalog RoleCatalogSvc
 @inject CurrentUser Current
 @inject ToastService Toasts
 @inject DialogService Dialogs
+@inject NavigationManager Nav
 @inject Framework.Preferences.IUserPreferenceStore UserPrefs
 @implements IDisposable
 
-<PageTitle>Master Roles · FrogFrame</PageTitle>
+<PageTitle>@(permRole is not null ? $"Role: {permRole.Name} · FrogFrame" : "Master Roles · FrogFrame")</PageTitle>
 
 @if (!Current.Required.IsAdmin)
 {
@@ -17,6 +23,8 @@
 }
 else
 {
+    @if (permRole is null)
+    {
     <header class="page-head">
         <div>
             <h1>Master Roles</h1>
@@ -55,10 +63,13 @@ else
             <BbDataGridPropertyColumn TData="RoleDef" TProp="string" Property="r => r.Name" Id="name" Title="Role" Sortable="true" Filterable="true"
                                       Width="@gridMgr.GetWidth("name", "16rem")" Visible="@gridMgr.IsVisible("name")" Resizable="true">
                 <CellTemplate Context="item">
-                    <div class="row" style="gap:.5rem;align-items:center;flex-wrap:nowrap">
+                    <button type="button"
+                            @onclick="() => OpenPermissions(item)"
+                            title="Click to view DocType, Workflow, and Menu permissions for this role"
+                            style="display:inline-flex;gap:.5rem;align-items:center;background:none;border:none;padding:0;cursor:pointer;color:var(--primary);font-weight:600;text-align:left">
                         <LucideIcon Name="@(item.IsSystem ? "shield" : "shield-alert")" Size="16" />
-                        <strong>@item.Name</strong>
-                    </div>
+                        <span style="text-decoration:underline;text-underline-offset:3px">@item.Name</span>
+                    </button>
                 </CellTemplate>
             </BbDataGridPropertyColumn>
 
@@ -68,6 +79,33 @@ else
                     @(string.IsNullOrWhiteSpace(item.Description) ? "—" : item.Description)
                 </CellTemplate>
             </BbDataGridPropertyColumn>
+
+            <BbDataGridTemplateColumn TData="RoleDef" Id="access" Title="Access Scope" Width="@gridMgr.GetWidth("access", "14rem")" Visible="@gridMgr.IsVisible("access")" Resizable="true">
+                <ChildContent Context="item">
+                    @if (IsSuperAdminRole(item.Name))
+                    {
+                        <button type="button"
+                                @onclick="() => OpenPermissions(item)"
+                                style="display:inline-flex;gap:.35rem;align-items:center;background:none;border:none;padding:0;cursor:pointer">
+                            <BbBadge Variant="BadgeVariant.SoftSuccess">Full System Access</BbBadge>
+                        </button>
+                    }
+                    else
+                    {
+                        var dtCount = CountDocTypes(item.Name);
+                        var wfCount = CountWorkflows(item.Name);
+                        <button type="button"
+                                @onclick="() => OpenPermissions(item)"
+                                style="display:inline-flex;gap:.35rem;align-items:center;background:none;border:none;padding:0;cursor:pointer">
+                            <BbBadge Variant="BadgeVariant.Soft">@dtCount DocTypes</BbBadge>
+                            @if (wfCount > 0)
+                            {
+                                <BbBadge Variant="BadgeVariant.Outline">@wfCount Workflows</BbBadge>
+                            }
+                        </button>
+                    }
+                </ChildContent>
+            </BbDataGridTemplateColumn>
 
             <BbDataGridTemplateColumn TData="RoleDef" Id="type" Title="Type" Width="@gridMgr.GetWidth("type", "7rem")" Visible="@gridMgr.IsVisible("type")" Resizable="true" Sortable="true" SortBy="r => r.IsSystem">
                 <ChildContent Context="item">
@@ -82,15 +120,18 @@ else
                 </ChildContent>
             </BbDataGridTemplateColumn>
 
-            <BbDataGridTemplateColumn TData="RoleDef" Id="actions" Title="Actions" Width="@gridMgr.GetWidth("actions", "7.5rem")" Hideable="false" Resizable="false">
+            <BbDataGridTemplateColumn TData="RoleDef" Id="actions" Title="Actions" Width="@gridMgr.GetWidth("actions", "9rem")" Hideable="false" Resizable="false">
                 <ChildContent Context="item">
                     <div style="display:inline-flex;align-items:center;gap:.25rem;flex-wrap:nowrap" @onclick:stopPropagation="true">
-                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Edit role" OnClick="() => StartEdit(item)">
+                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="View permissions" Title="View Permissions" OnClick="() => OpenPermissions(item)">
+                            <LucideIcon Name="shield-check" Size="15" />
+                        </BbButton>
+                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Edit role" Title="Edit Role" OnClick="() => StartEdit(item)">
                             <LucideIcon Name="pencil" Size="15" />
                         </BbButton>
                         @if (!item.IsSystem && !string.Equals(item.Name, "Administrator", StringComparison.OrdinalIgnoreCase))
                         {
-                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Delete role" OnClick="() => ConfirmDelete(item)">
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Delete role" Title="Delete Role" OnClick="() => ConfirmDelete(item)">
                                 <LucideIcon Name="trash-2" Size="15" />
                             </BbButton>
                         }
@@ -104,6 +145,287 @@ else
             </div>
         </EmptyTemplate>
     </BbDataGrid>
+    }
+    else
+    {
+        var isAdminRole = IsSuperAdminRole(permRole.Name);
+        <header class="page-head">
+            <div>
+                <div style="margin-bottom:.4rem">
+                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ClosePermissionsPage" Style="padding-left:.25rem;padding-right:.5rem">
+                        <LucideIcon Name="arrow-left" Size="15" /> Back to Master Roles
+                    </BbButton>
+                </div>
+                <div class="row" style="gap:.6rem;align-items:center;flex-wrap:wrap">
+                    <h1 style="margin:0">@permRole.Name</h1>
+                    @if (permRole.IsSystem)
+                    {
+                        <BbBadge Variant="BadgeVariant.Soft">System</BbBadge>
+                    }
+                    else
+                    {
+                        <BbBadge Variant="BadgeVariant.Outline">Custom</BbBadge>
+                    }
+                </div>
+                <p>@(string.IsNullOrWhiteSpace(permRole.Description) ? "DocType, Workflow, and Sidebar Menu access matrix for this role." : permRole.Description)</p>
+            </div>
+            <div class="row" style="gap:.5rem;flex-wrap:wrap;align-items:center">
+                @if (!isAdminRole)
+                {
+                    @if (dirtyDocTypes.Count > 0)
+                    {
+                        <BbButton Variant="ButtonVariant.Outline" Disabled="busy" OnClick="() => OpenPermissions(permRole)">
+                            <LucideIcon Name="rotate-ccw" Size="15" /> Discard Changes
+                        </BbButton>
+                    }
+                    <BbButton Disabled="@(dirtyDocTypes.Count == 0 || busy)" Loading="@busy" LoadingText="Saving…" OnClick="SavePermissionsAsync">
+                        <LucideIcon Name="check" Size="16" /> Save Permissions @(dirtyDocTypes.Count > 0 ? $"({dirtyDocTypes.Count} DocTypes)" : "")
+                    </BbButton>
+                }
+                <BbButton Variant="ButtonVariant.Outline" OnClick="() => StartEdit(permRole)">
+                    <LucideIcon Name="pencil" Size="15" /> Edit Role Details
+                </BbButton>
+            </div>
+        </header>
+
+        <BbCard>
+            <BbCardContent>
+                <div class="stack" style="gap:1rem">
+                    @if (isAdminRole)
+                    {
+                        <BbAlert Variant="AlertVariant.Info">
+                            <BbAlertDescription>
+                                <strong>@permRole.Name</strong> has implicit full access to all DocTypes, actions, workflows, and administration pages regardless of explicit permission rules.
+                            </BbAlertDescription>
+                        </BbAlert>
+                    }
+                    else if (!string.IsNullOrWhiteSpace(permError))
+                    {
+                        <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@permError</BbAlertDescription></BbAlert>
+                    }
+
+                    <div class="row" style="gap:.5rem;align-items:center">
+                        <FormTextInput Id="perm-search" Immediate="true" @bind-Value="permSearch" Placeholder="Filter by DocType, module, workflow, or menu..." Style="flex:1" />
+                        @if (!string.IsNullOrWhiteSpace(permSearch))
+                        {
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick='() => permSearch = ""'>Clear</BbButton>
+                        }
+                    </div>
+
+                    <BbTabs Value="@permTab" ValueChanged="v => permTab = v">
+                        <BbTabsList>
+                            <BbTabsTrigger Value="doctypes" Style="gap:.4rem">
+                                <LucideIcon Name="file-text" Size="14" /> DocTypes (@FilteredDocTypePerms.Count)
+                            </BbTabsTrigger>
+                            <BbTabsTrigger Value="workflows" Style="gap:.4rem">
+                                <LucideIcon Name="git-branch" Size="14" /> Workflows (@FilteredWorkflowPerms.Count)
+                            </BbTabsTrigger>
+                            <BbTabsTrigger Value="menus" Style="gap:.4rem">
+                                <LucideIcon Name="panel-left" Size="14" /> Sidebar Menus (@FilteredMenuPerms.Count)
+                            </BbTabsTrigger>
+                        </BbTabsList>
+
+                        <BbTabsContent Value="doctypes">
+                            @if (!isAdminRole)
+                            {
+                                <div class="row" style="gap:.5rem;align-items:center;margin-top:.5rem;margin-bottom:.75rem;flex-wrap:wrap;padding:.65rem;background:var(--muted);border-radius:var(--radius)">
+                                    <select @bind="addDocType" class="input" style="min-width:14rem;flex:1">
+                                        <option value="">-- Select DocType to grant access --</option>
+                                        @foreach (var dt in AvailableDocTypesToAdd)
+                                        {
+                                            <option value="@dt.Name">@dt.Name (@(string.IsNullOrWhiteSpace(dt.Def.Module) ? "CORE" : dt.Def.Module))</option>
+                                        }
+                                    </select>
+                                    <input type="text" class="input" @bind="addScope" placeholder="Scope (e.g. all, owner, match:employee=employee)" style="min-width:14rem" />
+                                    <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Disabled="@string.IsNullOrWhiteSpace(addDocType)" OnClick="AddDocTypePermission">
+                                        <LucideIcon Name="plus" Size="14" /> Add Permission
+                                    </BbButton>
+                                </div>
+                            }
+
+                            @if (FilteredDocTypePerms.Count == 0)
+                            {
+                                <div style="padding:2rem;text-align:center;color:var(--muted-foreground)">
+                                    No DocType permission rules match this role@(string.IsNullOrWhiteSpace(permSearch) ? "" : " and filter").
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="table-wrap" style="margin-top:.25rem">
+                                    <table class="data">
+                                        <thead>
+                                            <tr>
+                                                <th>DocType</th>
+                                                <th>Module</th>
+                                                <th style="text-align:center">Read</th>
+                                                <th style="text-align:center">Create</th>
+                                                <th style="text-align:center">Write</th>
+                                                <th style="text-align:center">Delete</th>
+                                                <th style="text-align:center">Submit</th>
+                                                <th style="text-align:center">Cancel</th>
+                                                <th style="text-align:center">Amend</th>
+                                                <th>Scope</th>
+                                                @if (!isAdminRole)
+                                                {
+                                                    <th style="width:2.5rem"></th>
+                                                }
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var p in FilteredDocTypePerms)
+                                            {
+                                                <tr @key="p">
+                                                    <td>
+                                                        <div style="display:flex;align-items:center;gap:.35rem;flex-wrap:wrap">
+                                                            <a href="/admin/doctypes/@p.DocType" style="font-weight:600;color:var(--primary);text-decoration:none">@p.DocType</a>
+                                                            @if (p.PermLevel > 0)
+                                                            {
+                                                                <BbBadge Variant="BadgeVariant.Outline" Title="Field-level permission">Level @p.PermLevel</BbBadge>
+                                                            }
+                                                        </div>
+                                                        <div class="small muted" style="display:flex;gap:.35rem;align-items:center;flex-wrap:wrap;margin-top:.15rem">
+                                                            @if (!string.IsNullOrWhiteSpace(p.Title) && p.Title != p.DocType)
+                                                            {
+                                                                <span>@p.Title ·</span>
+                                                            }
+                                                            <code style="font-size:.72rem">@p.Scope</code>
+                                                        </div>
+                                                    </td>
+                                                    <td><BbBadge Variant="BadgeVariant.Outline">@p.Module</BbBadge></td>
+                                                    @foreach (var act in AllPermActions)
+                                                    {
+                                                        var disabled = isAdminRole || (!p.IsSubmittable && act is "submit" or "cancel" or "amend");
+                                                        var checkedVal = p.Actions.Contains(act);
+                                                        <td style="text-align:center">
+                                                            <input type="checkbox"
+                                                                   checked="@checkedVal"
+                                                                   disabled="@disabled"
+                                                                   title="@(disabled && !isAdminRole ? "Only available for submittable DocTypes" : act)"
+                                                                   @onchange="e => TogglePermAction(p, act, (bool)(e.Value ?? false))" />
+                                                        </td>
+                                                    }
+                                                    <td>
+                                                        @if (isAdminRole)
+                                                        {
+                                                            <code class="small">@p.Scope</code>
+                                                        }
+                                                        else
+                                                        {
+                                                            <input type="text"
+                                                                   class="input"
+                                                                   style="font-size:.8rem;padding:.2rem .4rem;min-width:9rem;font-family:monospace"
+                                                                   value="@p.Scope"
+                                                                   @onchange="e => UpdatePermScope(p, e.Value?.ToString())" />
+                                                        }
+                                                    </td>
+                                                    @if (!isAdminRole)
+                                                    {
+                                                        <td>
+                                                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" Title="Remove permission rule" OnClick="() => RemoveDocTypePermission(p)">
+                                                                <LucideIcon Name="trash-2" Size="14" />
+                                                            </BbButton>
+                                                        </td>
+                                                    }
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                        </BbTabsContent>
+
+                        <BbTabsContent Value="workflows">
+                            @if (FilteredWorkflowPerms.Count == 0)
+                            {
+                                <div style="padding:2rem;text-align:center;color:var(--muted-foreground)">
+                                    No workflow transitions are assigned to this role@(string.IsNullOrWhiteSpace(permSearch) ? "" : " matching the filter").
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="table-wrap" style="margin-top:.5rem">
+                                    <table class="data">
+                                        <thead>
+                                            <tr>
+                                                <th>Workflow</th>
+                                                <th>DocType</th>
+                                                <th>Action</th>
+                                                <th>Transition</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var w in FilteredWorkflowPerms)
+                                            {
+                                                <tr>
+                                                    <td><strong>@w.Workflow</strong></td>
+                                                    <td>
+                                                        @if (!string.IsNullOrWhiteSpace(w.DocType))
+                                                        {
+                                                            <a href="/admin/doctypes/@w.DocType" style="color:var(--primary);text-decoration:none">@w.DocType</a>
+                                                        }
+                                                        else
+                                                        {
+                                                            <span class="muted">—</span>
+                                                        }
+                                                    </td>
+                                                    <td><BbBadge Variant="BadgeVariant.Soft">@w.Action</BbBadge></td>
+                                                    <td><span class="small">@w.From &rarr; @w.To</span></td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                        </BbTabsContent>
+
+                        <BbTabsContent Value="menus">
+                            @if (FilteredMenuPerms.Count == 0)
+                            {
+                                <div style="padding:2rem;text-align:center;color:var(--muted-foreground)">
+                                    No sidebar menu items are explicitly restricted to this role@(string.IsNullOrWhiteSpace(permSearch) ? "" : " matching the filter").
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="table-wrap" style="margin-top:.5rem">
+                                    <table class="data">
+                                        <thead>
+                                            <tr>
+                                                <th>Menu Title</th>
+                                                <th>Group</th>
+                                                <th>Route</th>
+                                                <th>Visibility</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var m in FilteredMenuPerms)
+                                            {
+                                                <tr>
+                                                    <td><strong>@m.Title</strong></td>
+                                                    <td><span class="small">@m.Group</span></td>
+                                                    <td><code class="small">@m.Href</code></td>
+                                                    <td>
+                                                        @if (m.IsUniversal)
+                                                        {
+                                                            <BbBadge Variant="BadgeVariant.Outline">Universal (All Roles)</BbBadge>
+                                                        }
+                                                        else
+                                                        {
+                                                            <BbBadge Variant="BadgeVariant.SoftSuccess">Explicitly Assigned</BbBadge>
+                                                        }
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                        </BbTabsContent>
+                    </BbTabs>
+                </div>
+            </BbCardContent>
+        </BbCard>
+    }
 
     <AdminDrawer Open="@isDrawerOpen"
                  OpenChanged="@OnDrawerOpenChanged"
@@ -173,13 +495,46 @@ else
     /// <summary>Configurable drawer width multiplier (default 1.0 = normal width).</summary>
     [Parameter] public double DrawerWidthScale { get; set; } = 1.0;
 
+    [Parameter] public string? RoleName { get; set; }
+
+    private static readonly string[] AllPermActions = ["read", "create", "write", "delete", "submit", "cancel", "amend"];
+
+    private sealed class RoleDocTypePerm
+    {
+        public string DocType { get; init; } = "";
+        public string Title { get; init; } = "";
+        public string Module { get; init; } = "";
+        public bool IsSubmittable { get; init; }
+        public HashSet<string> Actions { get; init; } = new(StringComparer.OrdinalIgnoreCase);
+        public string Scope { get; set; } = "all";
+        public int PermLevel { get; init; }
+    }
+
+    private sealed record RoleWorkflowPerm(string Workflow, string? DocType, string Action, string From, string To);
+    private sealed record RoleMenuPerm(string Title, string Group, string Href, bool IsUniversal);
+
     private IReadOnlyList<RoleDef> roles = [];
+    private IReadOnlyList<NavigationMenuItem> menuItems = [];
+    private Dictionary<string, string> menuGroups = new(StringComparer.OrdinalIgnoreCase);
+
     private RoleDef? edit;
     private bool isDrawerOpen;
     private bool bulkEditOpen;
     private bool isNew;
     private bool busy;
     private string? error;
+
+    private RoleDef? permRole;
+    private string permTab = "doctypes";
+    private string permSearch = "";
+    private string? permError;
+    private string addDocType = "";
+    private string addScope = "all";
+    private HashSet<string> dirtyDocTypes = new(StringComparer.OrdinalIgnoreCase);
+    private List<RoleDocTypePerm> roleDocPerms = [];
+    private List<RoleWorkflowPerm> roleWorkflowPerms = [];
+    private List<RoleMenuPerm> roleMenuPerms = [];
+
     private Framework.Web.Services.DataGridPreferenceManager<RoleDef> gridMgr = default!;
 
     private static readonly IReadOnlyList<GridExportColumn<RoleDef>> ExportColumns =
@@ -203,6 +558,26 @@ else
         await Reload();
     }
 
+    protected override void OnParametersSet()
+    {
+        SyncRoleFromRoute();
+    }
+
+    private void SyncRoleFromRoute()
+    {
+        if (string.IsNullOrWhiteSpace(RoleName))
+        {
+            permRole = null;
+            dirtyDocTypes.Clear();
+            permError = null;
+            return;
+        }
+        var decoded = Uri.UnescapeDataString(RoleName);
+        var match = roles.FirstOrDefault(r => string.Equals(r.Name, decoded, StringComparison.OrdinalIgnoreCase));
+        if (match is not null && !string.Equals(permRole?.Name, match.Name, StringComparison.OrdinalIgnoreCase))
+            LoadPermissions(match);
+    }
+
     private async Task ResetColumnsLayout()
     {
         await gridMgr.ResetAsync();
@@ -216,9 +591,228 @@ else
 
     private async Task Reload()
     {
-        roles = await RoleStore.ListAsync(Current.Required.TenantId);
+        var tenantId = Current.Required.TenantId;
+        roles = await RoleStore.ListAsync(tenantId);
+        menuItems = await MenuStore.ListAsync(tenantId, onlyActive: true);
+        menuGroups = (await MenuStore.ListGroupsAsync(tenantId, onlyActive: true))
+            .ToDictionary(g => g.Id, g => g.Name, StringComparer.OrdinalIgnoreCase);
         gridMgr.RetainSelection(roles);
+        SyncRoleFromRoute();
     }
+
+    private int CountDocTypes(string roleName) =>
+        Metadata.Current.DocTypes.Values.Count(dt =>
+            dt.Def.Permissions.Any(p => string.Equals(p.Role, roleName, StringComparison.OrdinalIgnoreCase)));
+
+    private int CountWorkflows(string roleName) =>
+        Metadata.Current.Workflows.Values.SelectMany(w => w.Transitions)
+            .Count(t => t.Def.AllowedRoles.Any(r => string.Equals(r, roleName, StringComparison.OrdinalIgnoreCase)));
+
+    private void OpenPermissions(RoleDef role)
+    {
+        LoadPermissions(role);
+        Nav.NavigateTo($"/admin/roles/{Uri.EscapeDataString(role.Name)}");
+    }
+
+    private static bool IsSuperAdminRole(string? roleName) =>
+        string.Equals(roleName, UserContext.Administrator, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(roleName, UserContext.SystemManager, StringComparison.OrdinalIgnoreCase);
+
+    private void ClosePermissionsPage()
+    {
+        permRole = null;
+        dirtyDocTypes.Clear();
+        permError = null;
+        Nav.NavigateTo("/admin/roles");
+    }
+
+    private void LoadPermissions(RoleDef role)
+    {
+        permRole = role;
+        permSearch = "";
+        permError = null;
+        addDocType = "";
+        addScope = "all";
+        dirtyDocTypes.Clear();
+        permTab = "doctypes";
+
+        roleDocPerms = Metadata.Current.DocTypes.Values
+            .SelectMany(dt => dt.Def.Permissions
+                .Where(p => string.Equals(p.Role, role.Name, StringComparison.OrdinalIgnoreCase))
+                .Select(p => new RoleDocTypePerm
+                {
+                    DocType = dt.Name,
+                    Title = dt.Title,
+                    Module = string.IsNullOrWhiteSpace(dt.Def.Module) ? "CORE" : dt.Def.Module,
+                    IsSubmittable = dt.Def.Document.AllowSubmit || dt.Def.Document.AllowCancel || dt.Def.Document.AllowAmend,
+                    Actions = new HashSet<string>(p.Actions, StringComparer.OrdinalIgnoreCase),
+                    Scope = string.IsNullOrWhiteSpace(p.Scope) ? "all" : p.Scope,
+                    PermLevel = p.PermLevel
+                }))
+            .OrderBy(p => p.Module, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(p => p.DocType, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        roleWorkflowPerms = Metadata.Current.Workflows.Values
+            .SelectMany(wf => wf.Transitions
+                .Where(t => t.Def.AllowedRoles.Any(r => string.Equals(r, role.Name, StringComparison.OrdinalIgnoreCase)))
+                .Select(t => new RoleWorkflowPerm(wf.Def.Name, wf.Def.DocType, t.Def.Action, t.Def.From, t.Def.To)))
+            .OrderBy(w => w.Workflow, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        roleMenuPerms = menuItems
+            .Where(m => m.AllowedRoles.Count == 0 || m.AllowedRoles.Any(r => string.Equals(r, role.Name, StringComparison.OrdinalIgnoreCase)))
+            .Select(m => new RoleMenuPerm(
+                m.Title,
+                m.GroupId is not null && menuGroups.TryGetValue(m.GroupId, out var gName) ? gName : m.GroupName,
+                string.IsNullOrWhiteSpace(m.Href) ? "/" : "/" + m.Href.TrimStart('/'),
+                m.AllowedRoles.Count == 0))
+            .OrderBy(m => m.IsUniversal)
+            .ThenBy(m => m.Group, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(m => m.Title, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private IEnumerable<CompiledDocType> AvailableDocTypesToAdd =>
+        Metadata.Current.DocTypes.Values
+            .Where(dt => !dt.Def.IsChild)
+            .OrderBy(dt => dt.Name, StringComparer.OrdinalIgnoreCase);
+
+    private void TogglePermAction(RoleDocTypePerm p, string action, bool isChecked)
+    {
+        if (isChecked) p.Actions.Add(action);
+        else p.Actions.Remove(action);
+        dirtyDocTypes.Add(p.DocType);
+    }
+
+    private void UpdatePermScope(RoleDocTypePerm p, string? scope)
+    {
+        p.Scope = string.IsNullOrWhiteSpace(scope) ? "all" : scope.Trim();
+        dirtyDocTypes.Add(p.DocType);
+    }
+
+    private void AddDocTypePermission()
+    {
+        if (string.IsNullOrWhiteSpace(addDocType)) return;
+        if (!Metadata.Current.TryGet(addDocType, out var dt)) return;
+
+        var scope = string.IsNullOrWhiteSpace(addScope) ? "all" : addScope.Trim();
+        if (roleDocPerms.Any(x => string.Equals(x.DocType, dt.Name, StringComparison.OrdinalIgnoreCase)
+                               && string.Equals(x.Scope, scope, StringComparison.OrdinalIgnoreCase)))
+        {
+            permError = $"A permission rule for '{dt.Name}' with scope '{scope}' already exists for this role.";
+            return;
+        }
+
+        permError = null;
+        roleDocPerms.Insert(0, new RoleDocTypePerm
+        {
+            DocType = dt.Name,
+            Title = dt.Title,
+            Module = string.IsNullOrWhiteSpace(dt.Def.Module) ? "CORE" : dt.Def.Module,
+            IsSubmittable = dt.Def.Document.AllowSubmit || dt.Def.Document.AllowCancel || dt.Def.Document.AllowAmend,
+            Actions = new HashSet<string>(["read"], StringComparer.OrdinalIgnoreCase),
+            Scope = scope,
+            PermLevel = 0
+        });
+        dirtyDocTypes.Add(dt.Name);
+        addDocType = "";
+        addScope = "all";
+    }
+
+    private void RemoveDocTypePermission(RoleDocTypePerm p)
+    {
+        roleDocPerms.Remove(p);
+        dirtyDocTypes.Add(p.DocType);
+    }
+
+    private async Task SavePermissionsAsync()
+    {
+        if (permRole is null || dirtyDocTypes.Count == 0 || busy) return;
+        busy = true;
+        permError = null;
+        StateHasChanged();
+
+        var scope = RoleCatalogSvc.Scope(Current.Required.TenantId);
+        var updatedCount = 0;
+
+        try
+        {
+            foreach (var docTypeName in dirtyDocTypes.ToList())
+            {
+                if (!Metadata.Current.TryGet(docTypeName, out var compiled)) continue;
+
+                var clone = MetadataJson.ParseDocType(MetadataJson.Serialize(compiled.Def));
+                clone.Permissions.RemoveAll(p => string.Equals(p.Role, permRole.Name, StringComparison.OrdinalIgnoreCase));
+
+                foreach (var edited in roleDocPerms.Where(r => string.Equals(r.DocType, docTypeName, StringComparison.OrdinalIgnoreCase)))
+                {
+                    if (edited.Actions.Count == 0) continue;
+                    clone.Permissions.Add(new PermissionDef
+                    {
+                        Role = permRole.Name,
+                        Actions = AllPermActions.Where(a => edited.Actions.Contains(a)).ToList(),
+                        Scope = string.IsNullOrWhiteSpace(edited.Scope) ? "all" : edited.Scope.Trim(),
+                        PermLevel = edited.PermLevel
+                    });
+                }
+
+                Registry.Publish(clone, Current.Required.Id, acknowledgeRisk: true, scope: scope);
+                updatedCount++;
+            }
+
+            Toasts.Success($"Updated permissions on {updatedCount} DocType(s) for role \"{permRole.Name}\".", "Permissions Saved");
+            LoadPermissions(permRole);
+            await Reload();
+        }
+        catch (MetadataCompilationException ex)
+        {
+            permError = string.Join("; ", ex.Errors.Select(e => e.ToString()));
+        }
+        catch (Exception ex)
+        {
+            permError = ex.Message;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private IReadOnlyList<RoleDocTypePerm> FilteredDocTypePerms =>
+        string.IsNullOrWhiteSpace(permSearch)
+            ? roleDocPerms
+            : roleDocPerms.Where(p =>
+                p.DocType.Contains(permSearch, StringComparison.OrdinalIgnoreCase) ||
+                p.Title.Contains(permSearch, StringComparison.OrdinalIgnoreCase) ||
+                p.Module.Contains(permSearch, StringComparison.OrdinalIgnoreCase) ||
+                p.Scope.Contains(permSearch, StringComparison.OrdinalIgnoreCase) ||
+                p.Actions.Any(a => a.Contains(permSearch, StringComparison.OrdinalIgnoreCase))).ToList();
+
+    private IReadOnlyList<RoleWorkflowPerm> FilteredWorkflowPerms =>
+        string.IsNullOrWhiteSpace(permSearch)
+            ? roleWorkflowPerms
+            : roleWorkflowPerms.Where(w =>
+                w.Workflow.Contains(permSearch, StringComparison.OrdinalIgnoreCase) ||
+                (w.DocType?.Contains(permSearch, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                w.Action.Contains(permSearch, StringComparison.OrdinalIgnoreCase)).ToList();
+
+    private IReadOnlyList<RoleMenuPerm> FilteredMenuPerms =>
+        string.IsNullOrWhiteSpace(permSearch)
+            ? roleMenuPerms
+            : roleMenuPerms.Where(m =>
+                m.Title.Contains(permSearch, StringComparison.OrdinalIgnoreCase) ||
+                m.Group.Contains(permSearch, StringComparison.OrdinalIgnoreCase) ||
+                m.Href.Contains(permSearch, StringComparison.OrdinalIgnoreCase)).ToList();
+
+    private static BadgeVariant ActionBadgeVariant(string action) => action.ToLowerInvariant() switch
+    {
+        "read" => BadgeVariant.Soft,
+        "create" or "write" => BadgeVariant.Outline,
+        "submit" => BadgeVariant.SoftSuccess,
+        "delete" or "cancel" => BadgeVariant.SoftDestructive,
+        _ => BadgeVariant.Outline
+    };
 
     private async Task ExecuteBulkEditAsync(string field, string value)
     {
