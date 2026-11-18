@@ -95,7 +95,14 @@
       "scope": "all"
     },
     {
-      "role": "Employee",
+      "role": "Sales",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Purchasing",
       "actions": [
         "read"
       ],

@@ -9,14 +9,14 @@ DocTypes define schema structures, permissions, child tables, and behaviors. Wor
 | Metric | Count | Details |
 |---|---|---|
 | **Total Modules** | `7` | Core, HR, Procurement, Accounting, Finance, CRM, Stock |
-| **Total DocTypes** | `146` | Document schemas and child tables |
+| **Total DocTypes** | `147` | Document schemas and child tables |
 | **Active Workflows** | `8` | State machine lifecycles with role-based transitions |
 
 ---
 
 ## 1. DocType Catalog by Module
 
-### Core & Master Data (23 DocTypes)
+### Core & Master Data (24 DocTypes)
 
 Foundational master data, organization settings, locations, currencies, customers, suppliers, and shared pricing tables used across all business apps.
 
@@ -36,6 +36,7 @@ Foundational master data, organization settings, locations, currencies, customer
 | `Item` | Item | Document | No | - | Goods or services sold/bought (Salesforce Product2 / NetSuite Item). |
 | `ItemGroup` | Item Group | Document | No | - | Item Group entity. |
 | `ItemPrice` | Item Price | Document | No | - | Item price per price list (Salesforce PricebookEntry). |
+| `KpiDefinition` | KPI Definition | Document | No | - | Standard enterprise business KPI metric definition, target threshold, category, and calculation formula. |
 | `Location` | Location | Document | No | - | Physical location: office, branch, warehouse (Workday Location / NetSuite Location). Also an accounting dimension. |
 | `PartyBankAccount` | Party Bank Account | Document | No | - | Party Bank Account entity. |
 | `PartyLink` | Party Link | Document | No | - | Party Link entity. |

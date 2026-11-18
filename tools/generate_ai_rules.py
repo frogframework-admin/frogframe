@@ -22,7 +22,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "src", "Apps.Erp")
 META = os.path.join(SRC, "Metadata")
 OUT = os.path.join(ROOT, "docs", "rules")
-SCAN = ["Hooks", "Accounting"]
+SCAN = ["Hooks", "Accounting", "Ess"]
 
 titles = {}
 for p in glob.glob(os.path.join(META, "*.doctype.json")):

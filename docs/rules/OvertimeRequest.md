@@ -10,10 +10,10 @@ Aturan yang dijalankan kode saat dokumen Overtime Request (OvertimeRequest) disi
 
 ## Validasi (dokumen ditolak): Saat simpan/submit (validasi)
 
-- `overtime_date`: "The date is required" — terjadi bila `d.Date("overtime_date") tidak ditemukan/kosong` (OvertimeRequestHook, TimeHooks.cs:117)
-- `day_type`: "'Public holiday on the shortest working day' only applies to a 6-day work week" — terjadi bila `dayType == Overtime.ShortestDay && week != 6` (OvertimeRequestHook, TimeHooks.cs:126)
-- `hours`: "At most {max} overtime hours on a {dayType.ToLowerInvariant()} ({week}-day work week)" — terjadi bila `!(dayType == Overtime.ShortestDay && week != 6) && hours > max` (OvertimeRequestHook, TimeHooks.cs:129)
-- `hours`: "Overtime would total {others + hours} hours in the week of {D.Iso(monday)}; the limit is {Overtime.MaxPerWeek} hours" — terjadi bila `!(dayType == Overtime.ShortestDay && week != 6) && others + hours > Overtime.MaxPerWeek` (OvertimeRequestHook, TimeHooks.cs:139)
+- `overtime_date`: "The date is required" — terjadi bila `d.Date("overtime_date") tidak ditemukan/kosong` (OvertimeRequestHook, TimeHooks.cs:123)
+- `day_type`: "'Public holiday on the shortest working day' only applies to a 6-day work week" — terjadi bila `dayType == Overtime.ShortestDay && week != 6` (OvertimeRequestHook, TimeHooks.cs:132)
+- `hours`: "At most {max} overtime hours on a {dayType.ToLowerInvariant()} ({week}-day work week)" — terjadi bila `!(dayType == Overtime.ShortestDay && week != 6) && hours > max` (OvertimeRequestHook, TimeHooks.cs:135)
+- `hours`: "Overtime would total {others + hours} hours in the week of {D.Iso(monday)}; the limit is {Overtime.MaxPerWeek} hours" — terjadi bila `!(dayType == Overtime.ShortestDay && week != 6) && others + hours > Overtime.MaxPerWeek` (OvertimeRequestHook, TimeHooks.cs:145)
 
 ## Aturan bersama yang juga berlaku
 

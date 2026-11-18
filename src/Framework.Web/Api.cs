@@ -51,7 +51,7 @@ public static class DocApi
             bool allowed;
             if (f.Record.DocName is null || f.Record.DocType == "UserAccount")
             {
-                allowed = f.Record.DocType == "UserAccount" || f.Record.UploadedBy == user.Id;
+                allowed = f.Record.DocType == "UserAccount" || f.Record.UploadedBy == user.Id || user.IsAdmin;
             }
             else
             {
@@ -217,6 +217,22 @@ public static class DocApi
             if (result.Succeeded) return Results.Empty;
             return result.IsLockedOut ? Problem(423, "Account locked", "Too many failed attempts. Try again later.")
                 : Problem(401, "Login failed", "Invalid username or password, or account is disabled.");
+        }).AllowAnonymous();
+
+        // Access tokens expire after 1 hour. Clients (e.g., ESS mobile app) exchange refresh_token for a new token pair without a password.
+        // Refresh tokens are automatically invalidated when the password changes (security stamp) or the account is disabled/locked.
+        api.MapPost("/auth/refresh", async (RefreshBody body, SignInManager<UserAccount> signIn,
+            Microsoft.Extensions.Options.IOptionsMonitor<Microsoft.AspNetCore.Authentication.BearerToken.BearerTokenOptions> bearer, TimeProvider clock) =>
+        {
+            var protector = bearer.Get(IdentityConstants.BearerScheme).RefreshTokenProtector;
+            var ticket = string.IsNullOrWhiteSpace(body.RefreshToken) ? null : protector.Unprotect(body.RefreshToken);
+            if (ticket?.Properties?.ExpiresUtc is not { } expires || clock.GetUtcNow() >= expires
+                || await signIn.ValidateSecurityStampAsync(ticket.Principal) is not { } account
+                || !await signIn.CanSignInAsync(account)
+                || await signIn.UserManager.IsLockedOutAsync(account))
+                return Problem(401, "Refresh failed", "The refresh token is invalid or expired. Log in again.");
+            var principal = await signIn.CreateUserPrincipalAsync(account);
+            return Results.SignIn(principal, authenticationScheme: IdentityConstants.BearerScheme);
         }).AllowAnonymous();
 
         api.MapPost("/auth/forgot-password", async (ForgotPasswordBody body, IServiceProvider sp, HttpContext http) =>
@@ -540,6 +556,7 @@ public static class DocApi
     public sealed record AssignmentCloseBody(string? Note);
     public sealed record AssignmentPatchBody(string? DueDate, bool UpdateDueDate, string? Priority, string? AssignedTo, string? Description, bool UpdateDescription);
     public sealed record LoginBody(string? UserName, string? Password);
+    public sealed record RefreshBody(string? RefreshToken);
     public sealed record ForgotPasswordBody(string? Identifier, string? Email);
     public sealed record ResetPasswordBody(string? UserId, string? Token, string? NewPassword);
     public sealed record GenerateReportBody(Dictionary<string, string?>? Parameters);
@@ -614,6 +631,16 @@ public static class DocApi
         foreach (var (k, v) in d.Data) dto[k] = v;
         return dto;
     }
+
+    /// <summary>
+    /// For application endpoints (e.g., ESS mobile API in Apps.Erp): enforces bearer/cookie authentication, rejects API keys,
+    /// and applies standard problem+json exception mapping (422 validation, 403 forbidden, 404 not found, 409 conflict, 500 sanitized).
+    /// </summary>
+    public static Task<IResult> RunAuthenticated(HttpContext http, Func<UserContext, IServiceProvider, Task<IResult>> action) => Run(http, null, action);
+
+    /// <summary>Returns a standard RFC 7807 (application/problem+json) error response for application endpoints.</summary>
+    public static IResult ProblemResult(int status, string title, string detail, IReadOnlyList<FieldError>? errors = null) =>
+        Problem(status, title, detail, errors);
 
     /// <summary>Pemetaan exception → response yang konsisten (application/problem+json).</summary>
     /// <summary>Endpoint tanpa deklarasi cakupan: kunci API ditolak (gagal tertutup).</summary>

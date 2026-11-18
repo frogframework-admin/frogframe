@@ -77,8 +77,11 @@ Add("CommissionPlan", "Komisi Sales 2026", new
 // ----------------------------------------------------------------------------
 // 3. Lokasi, grade & rentang gaji, siklus penilaian kinerja
 // ----------------------------------------------------------------------------
-Add("Location", "JKT-HQ", new { location_code = "JKT-HQ", location_name = "Kantor Pusat Jakarta", is_group = false, company = "ACME", address = "Jl. Jenderal Sudirman Kav. 52-53", city = "Jakarta Selatan", province = "DKI Jakarta" });
-Add("Location", "CKR-WH", new { location_code = "CKR-WH", location_name = "Gudang Cikarang", is_group = false, company = "ACME", address = "Kawasan Industri GIIC Blok AA No. 5", city = "Bekasi", province = "Jawa Barat" });
+Add("Location", "JKT-HQ", new { location_code = "JKT-HQ", location_name = "Kantor Pusat Jakarta", is_group = false, company = "ACME", address = "Jl. Jenderal Sudirman Kav. 52-53", city = "Jakarta Selatan", province = "DKI Jakarta",
+    // Titik contoh untuk uji absen mobile ESS: ganti dengan koordinat sebenarnya.
+    geolocation = "-6.225100,106.809000", allow_mobile_attendance = true, attendance_radius_m = 150 });
+Add("Location", "CKR-WH", new { location_code = "CKR-WH", location_name = "Gudang Cikarang", is_group = false, company = "ACME", address = "Kawasan Industri GIIC Blok AA No. 5", city = "Bekasi", province = "Jawa Barat",
+    geolocation = "-6.348000,107.165000", allow_mobile_attendance = true, attendance_radius_m = 300 });
 
 foreach (var (code, name, level, min, mid, max) in new[]
 {

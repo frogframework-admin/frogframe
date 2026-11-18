@@ -243,6 +243,14 @@ public static class ServiceCollectionExtensions
                         : "ip:" + http.Connection.RemoteIpAddress;
                 var cfg = http.RequestServices.GetService<IConfiguration>();
                 var limit = cfg?.GetValue("Api:RateLimitPerMinute", 300) ?? 300;
+                // Login/refresh requests are unauthenticated and keyed by IP. Because many employees behind a shared office Wi-Fi
+                // or carrier NAT log in concurrently at shift start, auth endpoints use a dedicated higher rate limit; brute-force
+                // password guessing remains mitigated by per-account lockout (5 failed attempts / 15 minutes).
+                if (who.StartsWith("ip:", StringComparison.Ordinal) && http.Request.Path.StartsWithSegments("/api/auth"))
+                {
+                    who = "auth-" + who;
+                    limit = cfg?.GetValue("Api:AuthRateLimitPerMinute", 1200) ?? 1200;
+                }
                 // The counter lives in each node's memory. With N nodes behind a load balancer that spreads API calls
                 // evenly, Cluster:Nodes = N keeps the total close to Api:RateLimitPerMinute.
                 var nodes = Math.Max(1, cfg?.GetValue("Cluster:Nodes", 1) ?? 1);

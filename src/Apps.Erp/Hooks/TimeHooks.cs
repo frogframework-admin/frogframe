@@ -81,9 +81,10 @@ public sealed class AttendanceHook(IDocumentStore store) : IBeforeValidate<Atten
 
         d.SetIfEmpty("shift_type", emp.Data.Str("shift_type") ?? (await m.SingleAsync("HRSettings", ct)).Str("default_shift_type"));
         var shift = await m.GetAsync("ShiftType", d.Str("shift_type"), ct);
-        if (d.TryGetValue("check_in", out var ci) && ci is not null && DateTime.TryParse(Convert.ToString(ci, System.Globalization.CultureInfo.InvariantCulture), out var inAt))
+        // Jam disimpan UTC ("...Z"); keterlambatan dihitung pada jam dinding zona aplikasi, bukan zona server (container biasanya UTC).
+        if (LocalTime(d.GetValueOrDefault("check_in")) is { } inAt)
         {
-            if (d.TryGetValue("check_out", out var co) && co is not null && DateTime.TryParse(Convert.ToString(co, System.Globalization.CultureInfo.InvariantCulture), out var outAt) && outAt > inAt)
+            if (LocalTime(d.GetValueOrDefault("check_out")) is { } outAt && outAt > inAt)
                 d["working_hours"] = Math.Round((decimal)(outAt - inAt).TotalHours - (shift?.Data.Dec("break_minutes") ?? 0) / 60m, 2);
             if (shift?.Data.Str("start_time") is { } st && TimeOnly.TryParse(st, out var start))
             {
@@ -98,6 +99,11 @@ public sealed class AttendanceHook(IDocumentStore store) : IBeforeValidate<Atten
         if (leave is not null && d.Str("status") is "Present" or "Absent")
             c.Messages.Add($"Approved leave {leave.Name} covers this date; consider status 'On leave'");
     }
+
+    private static DateTime? LocalTime(object? stored) =>
+        Framework.Metadata.DatetimeFieldType.ToZone(stored)?.DateTime
+        ?? (stored is not null && DateTime.TryParse(Convert.ToString(stored, System.Globalization.CultureInfo.InvariantCulture),
+                System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var parsed) ? parsed : null);
 
     public async Task BeforeDeleteAsync(HookContext c, CancellationToken ct)
     {

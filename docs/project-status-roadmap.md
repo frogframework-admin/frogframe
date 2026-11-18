@@ -9,8 +9,8 @@ This document summarizes the current development status of FrogFramework, includ
 ## 1. Current Project Health
 
 - **Compilation Status (`dotnet build`):** `0 Errors`, `0 Critical Warnings` across all projects (`Framework.Core`, `Framework.Scripting`, `Framework.Persistence.PostgreSql`, `Framework.Web`, `Apps.Erp`, `Framework.Tests`).
-- **Unit & Integration Test Status:** **253 Passed, 0 Failed** (plus **34 PostgreSQL & Reporting tests** verified in CI).
-- **Database & Migration Status:** 35 PostgreSQL migrations registered and verified (`001_initial.sql` through `035_translations.sql`, including `025_gl_entries.sql` in `Apps.Erp`).
+- **Unit & Integration Test Status:** **282 Passed, 0 Failed** (plus **34 PostgreSQL & Reporting tests** verified in CI).
+- **Database & Migration Status:** 36 PostgreSQL migrations registered and verified (`001_initial.sql` through `035_translations.sql`, including `025_gl_entries.sql` and `1001_ess_attendance_punches.sql` in `Apps.Erp`).
 - **Git Repository Status:** Clean working tree.
 
 ---
@@ -69,6 +69,18 @@ This document summarizes the current development status of FrogFramework, includ
    - Recurring document automation with `AllowAutoRepeat` and `NoCopy` metadata, hourly scheduled job with catch-up logic, and zero duplicates under concurrency (`028_auto_repeat.sql`).
 6. **Inbound Email & Communication Timeline ([`communications.md`](communications.md)):**
    - MailKit/MimeKit integration for SMTP and IMAP polling, 4-stage thread matching (`In-Reply-To`, `References`, `[#DOC-NAME]`, `AppendToDocType`), server-side HTML sanitization, document email composer, and unified communication history timeline (`030_communications.sql`).
+
+### E. Enterprise ERP, Mobile ESS & Analytics Suite
+1. **ESS Mobile Server & API v1 (`Apps.Erp/Ess`, [`guides/ess-mobile-api.md`](guides/ess-mobile-api.md)):**
+   - High-concurrency GPS mobile attendance punch ingestion (`/api/ess/v1/attendance/punches`) storing lean records in `ess_attendance_punches` (`1001_ess_attendance_punches.sql`).
+   - Geofencing evaluation, mock GPS rejection, device binding, selfie photo attachments, and night shift window management (`EssAttendanceRules.cs`).
+   - 5-minute background aggregation job (`EssAttendanceAggregationJob.cs`) compiling raw punches into verified `Attendance` records.
+   - Mobile endpoints for profile (`/me`), home dashboard (`/home`), leave balances/applications (`/leave/*`), payslips with PDF streaming (`/payslips/*`), and manager approvals (`/approvals/*`).
+   - Refresh token rotation (`POST /api/auth/refresh`) with 30-day lifespan (`Ess:RefreshTokenDays`) and dedicated per-IP authentication rate limiting (`Api:AuthRateLimitPerMinute`).
+2. **Enterprise KPI Catalog & Analytics Dashboards ([`guides/kpi-catalog-and-dashboards.md`](guides/kpi-catalog-and-dashboards.md)):**
+   - 363 standard business KPI metric definitions across 7 functional categories managed in the `KpiDefinition` DocType.
+   - 295 pre-built SQL dashboard widgets and 37 comprehensive operational and executive dashboards.
+   - Pre-configured Excel data import template (`KpiDefinition_import.xlsx`) and database seeding script (`kpi_widgets_dashboards.sql`).
 
 ---
 

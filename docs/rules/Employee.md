@@ -7,6 +7,7 @@ Aturan yang dijalankan kode saat dokumen Employee (Employee) disimpan, di-submit
 ## Ringkasan perilaku
 
 - **EmployeeHook**: Karyawan. Model Posisi: unit, profil jabatan, grade, lokasi, cost center diturunkan dari posisi; satu pemangku aktif per posisi. Atasan dari hierarki posisi/unit; approver cuti & klaim default = atasan. Keluar: tanggal keluar dari Employee Separation, posisi dikosongkan. Perubahan posisi/status disinkronkan ke Position lewat event (Position menghitung pemangkunya sendiri).
+- **EssCacheInvalidationHook**: Invalidates cached ESS profile, site, and policy data immediately when HR updates master documents.
 
 ## Validasi (dokumen ditolak): Saat simpan/submit (validasi)
 

@@ -15,7 +15,7 @@ Aturan yang dijalankan kode saat dokumen Attendance (Attendance) disimpan, di-su
 
 ## Peringatan (dokumen tetap tersimpan): Saat simpan/submit (validasi)
 
-- "Approved leave {leave.Name} covers this date; consider status 'On leave'" — terjadi bila `leave is not null && d.Str("status") is "Present" or "Absent"` (AttendanceHook, TimeHooks.cs:99)
+- "Approved leave {leave.Name} covers this date; consider status 'On leave'" — terjadi bila `leave is not null && d.Str("status") is "Present" or "Absent"` (AttendanceHook, TimeHooks.cs:100)
 
 ## Aturan bersama yang juga berlaku
 

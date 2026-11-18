@@ -155,17 +155,17 @@
       "scope": "all"
     },
     {
-      "role": "System Manager",
+      "role": "Purchasing",
       "actions": [
-        "read",
-        "write"
+        "read"
       ],
       "scope": "all"
     },
     {
-      "role": "Employee",
+      "role": "System Manager",
       "actions": [
-        "read"
+        "read",
+        "write"
       ],
       "scope": "all"
     }

@@ -102,7 +102,7 @@
       "scope": "all"
     },
     {
-      "role": "Employee",
+      "role": "Sales",
       "actions": [
         "read"
       ],

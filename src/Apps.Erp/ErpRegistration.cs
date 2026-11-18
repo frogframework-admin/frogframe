@@ -13,6 +13,25 @@ namespace Apps.Erp;
 
 public static class ErpRegistration
 {
+    /// <summary>
+    /// ESS: mobile attendance punches are persisted to the lean <c>ess_attendance_punches</c> table (PostgreSQL) or memory,
+    /// and a 5-minute background job materializes daily Attendance documents. Endpoints are mapped via <see cref="Ess.EssEndpoints.MapEssApi"/>.
+    /// </summary>
+    public static IServiceCollection AddErpEss(this IServiceCollection services)
+    {
+        services.AddMemoryCache();
+        services.TryAddSingleton<Ess.IEssPunchStore>(sp => sp.GetService<NpgsqlDataSource>() is { } db
+            ? new Ess.PostgresEssPunchStore(db)
+            : new Ess.InMemoryEssPunchStore());
+        services.TryAddSingleton<Ess.EssAttendanceService>();
+        services.AddDocHook<Employee, Ess.EssCacheInvalidationHook>();
+        services.AddDocHook<Ess.Location, Ess.EssCacheInvalidationHook>();
+        services.AddDocHook<Ess.ShiftType, Ess.EssCacheInvalidationHook>();
+        services.AddDocHook<Ess.HRSettings, Ess.EssCacheInvalidationHook>();
+        services.AddScheduledJob<Ess.EssAttendanceAggregationJob>();
+        return services;
+    }
+
     public static IServiceCollection AddErpAccounting(this IServiceCollection services)
     {
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IInMemoryUnitOfWorkExtensionHandler, InMemoryLedgerExtensionHandler>());
@@ -135,6 +154,9 @@ public static class ErpRegistration
         services.AddScheduledJob<LeaveAllocationJob>();
         services.AddScheduledJob<ContractExpiryReminderJob>();
         services.AddScheduledJob<CrmDailyJob>();
+
+        // ESS mobile (absen GPS, cuti, slip gaji, persetujuan): docs/guides/ess-mobile-api.md
+        services.AddErpEss();
 
         // Laporan (menu Reports; izin 'report' mengikuti DocType sumber tiap laporan)
         services.AddReport<TrialBalanceReport>();

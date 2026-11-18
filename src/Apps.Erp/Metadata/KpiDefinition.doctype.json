@@ -1,0 +1,272 @@
+{
+  "name": "KpiDefinition",
+  "version": 1,
+  "title": "KPI Definition",
+  "module": "CORE",
+  "description": "KPI catalog: definitions, formulas, targets, source DocTypes, and dashboard widgets calculating them.",
+  "naming": {
+    "pattern": "field:kpi_code"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "kpi_code",
+      "type": "Data",
+      "label": "KPI code",
+      "requiredWhen": "true",
+      "maxLength": 20,
+      "inListView": true,
+      "section": "KPI",
+      "description": "Example: HR-001, FIN-012"
+    },
+    {
+      "name": "kpi_name",
+      "type": "Data",
+      "label": "KPI name",
+      "requiredWhen": "true",
+      "maxLength": 140,
+      "inListView": true,
+      "section": "KPI"
+    },
+    {
+      "name": "kpi_module",
+      "type": "Select",
+      "label": "Module",
+      "requiredWhen": "true",
+      "options": [
+        "HR",
+        "FINANCE",
+        "ACCOUNTING",
+        "PROCUREMENT",
+        "STOCK",
+        "CRM",
+        "CORE"
+      ],
+      "inListView": true,
+      "section": "KPI",
+      "column": 2
+    },
+    {
+      "name": "sub_area",
+      "type": "Data",
+      "label": "Sub-area",
+      "maxLength": 60,
+      "inListView": true,
+      "section": "KPI",
+      "column": 2
+    },
+    {
+      "name": "is_active",
+      "type": "Check",
+      "label": "Active",
+      "default": true,
+      "section": "KPI",
+      "column": 2
+    },
+    {
+      "name": "definition",
+      "type": "Text",
+      "label": "Definition",
+      "section": "Definition"
+    },
+    {
+      "name": "formula",
+      "type": "Text",
+      "label": "Formula",
+      "section": "Definition"
+    },
+    {
+      "name": "unit",
+      "type": "Data",
+      "label": "Unit",
+      "maxLength": 30,
+      "section": "Definition",
+      "column": 2
+    },
+    {
+      "name": "direction",
+      "type": "Select",
+      "label": "Direction",
+      "options": [
+        "Up",
+        "Down",
+        "Range"
+      ],
+      "section": "Definition",
+      "column": 2,
+      "description": "Up = higher is better; Down = lower is better; Range = target range"
+    },
+    {
+      "name": "target",
+      "type": "Data",
+      "label": "Target",
+      "maxLength": 140,
+      "section": "Definition",
+      "column": 2
+    },
+    {
+      "name": "frequency",
+      "type": "Select",
+      "label": "Frequency",
+      "options": [
+        "Daily",
+        "Weekly",
+        "Monthly",
+        "Quarterly",
+        "Annual",
+        "Per cycle",
+        "Per campaign",
+        "Per event"
+      ],
+      "inListView": true,
+      "section": "Definition",
+      "column": 2
+    },
+    {
+      "name": "owner_role",
+      "type": "Data",
+      "label": "Owner",
+      "maxLength": 60,
+      "section": "Definition",
+      "column": 2
+    },
+    {
+      "name": "source_doctypes",
+      "type": "Data",
+      "label": "Source DocTypes",
+      "maxLength": 140,
+      "section": "Data source"
+    },
+    {
+      "name": "key_fields",
+      "type": "Data",
+      "label": "Key fields",
+      "maxLength": 140,
+      "section": "Data source"
+    },
+    {
+      "name": "platform_equivalent",
+      "type": "Data",
+      "label": "Platform equivalent",
+      "maxLength": 140,
+      "section": "Data source",
+      "description": "Equivalents in NetSuite, SAP, Workday, Microsoft 365"
+    },
+    {
+      "name": "implementation",
+      "type": "Select",
+      "label": "Implementation",
+      "options": [
+        "Dashboard widget",
+        "Built-in report",
+        "Not available"
+      ],
+      "inListView": true,
+      "section": "Implementation"
+    },
+    {
+      "name": "widget_id",
+      "type": "Data",
+      "label": "Widget ID",
+      "maxLength": 40,
+      "section": "Implementation",
+      "column": 2
+    },
+    {
+      "name": "builtin_report",
+      "type": "Data",
+      "label": "Built-in report",
+      "maxLength": 60,
+      "section": "Implementation",
+      "column": 2
+    },
+    {
+      "name": "implementation_note",
+      "type": "Text",
+      "label": "Implementation note",
+      "section": "Implementation"
+    },
+    {
+      "name": "widget_sql",
+      "type": "Text",
+      "label": "Widget SQL",
+      "maxLength": 5000,
+      "section": "Implementation",
+      "description": "Query against reporting.* schema; identical to dashboard widget query"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Finance",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "kpi_name",
+    "searchFields": [
+      "kpi_code",
+      "kpi_name",
+      "sub_area"
+    ],
+    "filters": [
+      "kpi_module",
+      "implementation",
+      "frequency"
+    ],
+    "defaultSort": [
+      {
+        "field": "kpi_code",
+        "direction": "asc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read"
+    ]
+  },
+  "import": {
+    "enabled": true
+  }
+}

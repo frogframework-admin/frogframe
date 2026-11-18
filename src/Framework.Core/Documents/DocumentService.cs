@@ -1301,7 +1301,7 @@ public sealed class DocumentService(
             if (ctx.Doc.Data.GetValueOrDefault(f.Name) is not string id || Equals(ctx.Previous?.Data.GetValueOrDefault(f.Name), id)) continue;
             var info = await files.GetInfoAsync(ctx.User.TenantId, id, ct);
             var ok = info is not null && (
-                (info.DocName is null && info.UploadedBy == ctx.User.Id) ||
+                (info.DocName is null && (info.UploadedBy == ctx.User.Id || ctx.User.Id == "system")) ||
                 (info.DocType == ctx.Meta.Name && (info.DocName == ctx.Doc.Name || info.DocName == ctx.Doc.AmendedFrom)));
             if (!ok) ctx.AddError(f.Name, $"{f.Label}: {(f.Def.Type == "Image" ? "gambar" : "file")} tidak ditemukan atau bukan milik Anda. Unggah ulang.");
         }

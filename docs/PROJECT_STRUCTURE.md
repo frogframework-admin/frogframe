@@ -139,7 +139,7 @@ The solution (`FrogFrame.sln`) is organized into **5 source projects** under `sr
 
 ```mermaid
 graph TD
-    Erp["Apps.Erp (Executable Host, Seed Data, 146 DocTypes & 8 Workflows ERP Suite)"]
+    Erp["Apps.Erp (Executable Host, Seed Data, 147 DocTypes & 8 Workflows ERP Suite)"]
     Web["Framework.Web (Blazor Blueprint UI, REST APIs, Identity, Dashboards, OpenXML)"]
     Script["Framework.Scripting (Sandboxed C# Roslyn Engine & Facade)"]
     Pg["Framework.Persistence.PostgreSql (Npgsql Stores, Migrations, Auto-Indexes, Read-Only SQL Executor)"]
@@ -343,7 +343,7 @@ src/Framework.Web/
 ```
 
 ### 5.4 `Apps.Erp` — Host Application & Enterprise ERP Suite
-Located at [src/Apps.Erp](file:///d:/Side%20Projects/DocFrame/src/Apps.Erp), this is the executable entry point that wires the framework together and implements the complete **Enterprise ERP Suite** across 7 modules (`CORE`, `HR`, `PROCUREMENT`, `ACCOUNTING`, `FINANCE`, `CRM`, `STOCK`) with 146 DocTypes and 8 Workflows (see [DocType & Workflow Catalog](guides/doctype-and-workflow-catalog.md)).
+Located at [src/Apps.Erp](file:///d:/Side%20Projects/DocFrame/src/Apps.Erp), this is the executable entry point that wires the framework together and implements the complete **Enterprise ERP Suite** across 7 modules (`CORE`, `HR`, `PROCUREMENT`, `ACCOUNTING`, `FINANCE`, `CRM`, `STOCK`) with 147 DocTypes and 8 Workflows (see [DocType & Workflow Catalog](guides/doctype-and-workflow-catalog.md)).
 
 ```text
 src/Apps.Erp/
@@ -354,6 +354,11 @@ src/Apps.Erp/
 ├── Components/
 │   ├── Pages/OrgChart.razor     # Interactive Organization Unit & Position hierarchy tree
 │   └── App.razor                # Root HTML document shell loading theme.css, blazorblueprint.css, desk.css
+├── Ess/
+│   ├── EssEndpoints.cs          # Minimal API endpoints for /api/ess/v1 (profile, home, punches, leave, payslips, approvals)
+│   ├── EssPunches.cs            # Lean punch store, PostgreSQL insert, duplicate check, and query logic
+│   ├── EssAttendanceRules.cs    # Geofencing, mock GPS detection, device binding, and shift rules
+│   └── EssAttendanceAggregationJob.cs # Background 5-min job aggregating raw punches into Attendance documents
 ├── Hooks/
 │   ├── Common.cs                # Shared ERP validation, exchange rate, open-item, and posting helpers
 │   ├── AccountingHooks.cs       # Chart of Accounts, FiscalYear, AccountingPeriod, JournalEntry, Budget
@@ -365,10 +370,11 @@ src/Apps.Erp/
 │   ├── PayrollHooks.cs          # SalaryAssignment, Payslip, PayrollRun (BPJS & PPh 21 TER)
 │   └── CrmHooks.cs              # Lead conversion, Opportunity pipeline, Quotation, SalesOrder, Commission
 ├── Metadata/
-│   ├── *.doctype.json           # 146 DocType schemas across CORE, HR, PROCUREMENT, ACCOUNTING, FINANCE, CRM, STOCK
+│   ├── *.doctype.json           # 147 DocType schemas across CORE, HR, PROCUREMENT, ACCOUNTING, FINANCE, CRM, STOCK (includes KpiDefinition)
 │   └── *.workflow.json          # 8 multi-stage approval and lifecycle workflows
 ├── Migrations/
-│   └── 025_gl_entries.sql       # Immutable general ledger table (frogframe_gl_entries) & hash chain triggers
+│   ├── 025_gl_entries.sql       # Immutable general ledger table (frogframe_gl_entries) & hash chain triggers
+│   └── 1001_ess_attendance_punches.sql # Lean table (ess_attendance_punches) for high-concurrency mobile attendance
 ├── Reports/
 │   ├── AgingReport.cs           # Abstract base aging provider for receivables/payables
 │   ├── TrialBalanceReport.cs    # Trial Balance financial statement report
@@ -378,7 +384,7 @@ src/Apps.Erp/
 │   └── ...                      # 17 individual report providers & helper classes
 ├── ErpRegistration.cs           # AddErpAccounting() and AddErpHooks() DI registration
 ├── Program.cs                   # Application bootstrapper (switches In-Memory vs. PostgreSQL via config)
-├── appsettings.json             # Default configuration (Persistence, ConnectionStrings, Print, Reports, Import, Api)
+├── appsettings.json             # Default configuration (Persistence, ConnectionStrings, Print, Reports, Import, Api, Ess)
 └── appsettings.Development.json # Development overrides (Demo:SeedData = true)
 ```
 
@@ -389,11 +395,12 @@ Located at [tests/Framework.Tests](file:///d:/Side%20Projects/DocFrame/tests/Fra
 tests/Framework.Tests/
 ├── ApiKeyTests.cs               # API key auth, scopes, IP allowlist, custom IApiMethod, rate limiting
 ├── DashboardTests.cs            # SQL parameter extraction, AST validation, reporting views, read-only user security
+├── EssAttendanceTests.cs        # ESS mobile API punch ingestion, geofence rules, rate limits, and aggregation job tests
 ├── IdentityTests.cs             # Login, lockout, password policy, security stamp, cross-tenant isolation
 ├── ImportTests.cs               # Excel/CSV template generation, column mapping, dry-run simulation, child table import
 ├── NavigationMenuTests.cs       # Master Navigation Menu CRUD, hierarchy validation, cycle prevention
 ├── OrgAndImageTests.cs          # Self-link cycle detection (A -> B -> A), magic-byte image validation, file ACLs
-├──PerfBench.cs                  # 1,000,000-row PostgreSQL benchmark (--bench 1000000) & index planner verification
+├── PerfBench.cs                 # 1,000,000-row PostgreSQL benchmark (--bench 1000000) & index planner verification
 ├── PostgresTests.cs             # Multi-instance concurrency, parallel naming series, outbox SKIP LOCKED, SQLi checks
 ├── Program.cs                   # 22 core RFC scenarios (compiler, AST, permissions, workflow, amend, print/PDF)
 ├── QueryApiTests.cs             # Saved SQL Query APIs, claim-bound parameter enforcement, caching, CSV export
@@ -515,6 +522,11 @@ All three analytical features share `DashboardSqlExecutor` ([DashboardSqlExecuto
 - **Saved SQL Query APIs (`/api/query/{slug}`)**:
   - Can be created standalone (`/admin/query-apis`) or by checking **"Terbitkan juga sebagai API"** directly inside the Dashboard Widget Wizard or Report Template Wizard.
   - Supports JSON rows, single KPI object, or CSV output, optional response caching (`0–3600s`), and **claim-bound parameters** (`user:department`, `user:id`) that cannot be overridden by caller query strings.
+- **Enterprise KPI Catalog & Analytics Dashboards Suite**:
+  - **`KpiDefinition` DocType**: Standalone metadata definition in the `CORE` module managing 363 standard business KPIs across Financial, Sales/CRM, Procurement, Inventory, HR/Payroll, Fixed Assets, and Quality categories.
+  - **295 Widgets & 37 Dashboards**: Pre-configured analytical cards, trend charts, donut charts, and data tables querying `reporting.*` views.
+  - **Excel Import Template**: `KpiDefinition_import.xlsx` supporting bulk configuration via the standard import engine.
+  - See detailed architecture in [KPI Catalog & Dashboards Guide](guides/kpi-catalog-and-dashboards.md).
 
 ### 6.11 Integration API Keys & Custom `IApiMethod`
 - **Integration API Keys (`/admin/api-keys`)**:
@@ -591,6 +603,7 @@ All migrations live in `src/Framework.Persistence.PostgreSql/Migrations/` and ar
 | `033_customizations.sql` | `frogframe_customizations` | Custom field and property overrides layered on top of core DocType metadata without breaking migrations. |
 | `034_client_scripts.sql` | `frogframe_server_scripts.form_event` | Form client-side event hooks and script triggers. |
 | `035_translations.sql` | `frogframe_translations` | Dynamic user-defined translation overrides per language (Indonesian, English) stored in database. |
+| `1001_ess_attendance_punches.sql` *(in `Apps.Erp`)* | `ess_attendance_punches` | High-throughput lean punch capture table for mobile ESS attendance with geofence, device binding, and idempotency indexing. |
 
 **Auxiliary DBA SQL Scripts (`deploy/sql/`)**:
 - [reporting-readonly-user.sql](file:///d:/Side%20Projects/DocFrame/deploy/sql/reporting-readonly-user.sql): Creates the `frogframe_ro` PostgreSQL role with `SELECT` access restricted exclusively to the `reporting` schema and `reporting_current_tenant()` function.
@@ -638,8 +651,22 @@ All migrations live in `src/Framework.Persistence.PostgreSql/Migrations/` and ar
 | Method & Path | Scope Annotation | Description |
 | :--- | :--- | :--- |
 | `GET /health` | Public | Health check & PostgreSQL connectivity status |
-| `POST /api/auth/login` | Public | Exchanges `{ userName, password }` for a 1-hour Bearer token |
+| `POST /api/auth/login` | Public | Exchanges `{ userName, password }` for a 1-hour Bearer token and 30-day refresh token |
+| `POST /api/auth/refresh` | Public | Exchanges a valid `{ refreshToken }` for a new Bearer token and refresh token |
 | `GET /api/auth/me` | Authenticated | Returns current mapped `UserContext` |
+| `GET /api/ess/v1/me` | `Employee` | Returns employee profile, job title, supervisor, shift, and mobile attendance site parameters |
+| `GET /api/ess/v1/home` | `Employee` | Returns mobile dashboard payload: today's punches, leave balances, latest payslip, and pending approvals |
+| `POST /api/ess/v1/attendance/punches` | `Employee` | Idempotent mobile clock in/out with GPS accuracy, mock location, and geofence evaluation |
+| `POST /api/ess/v1/attendance/punches/{id}/photo` | `Employee` | Uploads verification selfie photo (JPEG/PNG/WebP, max 1MB) for attendance punch |
+| `GET /api/ess/v1/attendance` | `Employee` | Returns punch history and aggregated Attendance records within a date range |
+| `GET /api/ess/v1/leave/types` | `Employee` | Returns leave types with allocated balance, used, and pending days |
+| `GET /api/ess/v1/leave/applications` | `Employee` | Returns employee leave application history and workflow states |
+| `POST /api/ess/v1/leave/applications` | `Employee` | Submits a new leave application to supervisor |
+| `POST /api/ess/v1/leave/applications/{name}/withdraw` | `Employee` | Withdraws a pending leave application |
+| `GET /api/ess/v1/payslips` | `Employee` | Lists finalized payslips with gross, net pay, and PDF links |
+| `GET /api/ess/v1/payslips/{name}` | `Employee` | Returns itemized payslip breakdown, BPJS deductions, and PPh 21 details |
+| `GET /api/ess/v1/approvals` | `Manager` / `Employee` | Lists subordinate leave requests pending manager approval |
+| `POST /api/ess/v1/approvals/{doctype}/{name}/{decision}` | `Manager` / `Employee` | Submits approval decision (`approve` or `reject` with mandatory comment) |
 | `GET /api/meta/{doctype}` | `doc:{DocType}:read` | Returns active DocType & Workflow definition |
 | `GET /api/meta/{doctype}/versions[/{v}]` | Admin only | Lists immutable published versions of a DocType |
 | `POST /api/admin/metadata/{preview\|publish}` | Admin only | Computes risk diff or publishes a new DocType version |
@@ -688,6 +715,10 @@ All migrations live in `src/Framework.Persistence.PostgreSql/Migrations/` and ar
 | `Import:MaxRows` | `10000` | Maximum rows allowed per Excel/CSV import |
 | `Import:MaxFileMb` | `10` | Maximum file upload size (MB) for Excel/CSV import |
 | `Api:RateLimitPerMinute` | `300` | Per-minute request limit per API key / user / IP across `/api/*` |
+| `Api:AuthRateLimitPerMinute` | `1200` | Per-minute request limit for `/api/auth/login` and `/api/auth/refresh` per IP address |
+| `Ess:RefreshTokenDays` | `30` | Lifespan in days for ESS mobile refresh tokens |
+| `Ess:TimeZone` | `"Asia/Jakarta"` | Application time zone for mobile work calendar and punch date evaluation |
+| `Ess:AggregationBatchSize` | `1000` | Maximum employee-days processed per 5-minute attendance aggregation run |
 | `Outbox:RetentionDays` | `7` | Days to retain processed outbox messages before hourly batch cleanup |
 
 ### 9.2 Local Development & Docker Redeployment Workflow

@@ -113,13 +113,6 @@
         "write"
       ],
       "scope": "all"
-    },
-    {
-      "role": "Employee",
-      "actions": [
-        "read"
-      ],
-      "scope": "all"
     }
   ],
   "api": {

@@ -97,6 +97,47 @@
       "column": 2
     },
     {
+      "name": "check_out_location",
+      "type": "Geolocation",
+      "label": "Check-out location",
+      "section": "Time",
+      "column": 2
+    },
+    {
+      "name": "check_in_photo",
+      "type": "Image",
+      "label": "Check-in photo",
+      "section": "Mobile app"
+    },
+    {
+      "name": "check_out_photo",
+      "type": "Image",
+      "label": "Check-out photo",
+      "section": "Mobile app",
+      "column": 2
+    },
+    {
+      "name": "source",
+      "type": "Select",
+      "label": "Source",
+      "options": [
+        "Manual",
+        "Mobile app",
+        "Machine"
+      ],
+      "default": "Manual",
+      "inListView": true,
+      "section": "Mobile app"
+    },
+    {
+      "name": "ess_flags",
+      "type": "Text",
+      "label": "Punch review notes",
+      "section": "Mobile app",
+      "column": 2,
+      "description": "Flagged mobile punches (offline, low GPS accuracy, ...) for HR review; set by the ESS job"
+    },
+    {
       "name": "working_hours",
       "type": "Float",
       "label": "Working hours",
@@ -144,9 +185,7 @@
     {
       "role": "Employee",
       "actions": [
-        "read",
-        "create",
-        "write"
+        "read"
       ],
       "scope": "match:employee=employee"
     },

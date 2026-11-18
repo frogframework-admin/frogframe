@@ -113,13 +113,6 @@
       "scope": "all"
     },
     {
-      "role": "Employee",
-      "actions": [
-        "read"
-      ],
-      "scope": "all"
-    },
-    {
       "role": "System Manager",
       "actions": [
         "read",

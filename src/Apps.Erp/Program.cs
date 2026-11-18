@@ -62,6 +62,10 @@ builder.Services.AddScheduledJob<Framework.Scripting.ServerScriptScheduledJob>()
 builder.Services.AddScheduledJob<Framework.Communication.EmailAccountPollJob>();
 builder.Services.AddScheduledJob<Framework.Assignments.AssignmentReminderJob>();
 
+// ESS mobile: refresh token bearer berlaku lebih lama (default 30 hari) supaya karyawan tidak login ulang setiap hari.
+builder.Services.Configure<Microsoft.AspNetCore.Authentication.BearerToken.BearerTokenOptions>(Microsoft.AspNetCore.Identity.IdentityConstants.BearerScheme,
+    o => o.RefreshTokenExpiration = TimeSpan.FromDays(Math.Clamp(builder.Configuration.GetValue("Ess:RefreshTokenDays", 30), 1, 180)));
+
 // Hardening HTTP production: ForwardedHeaders & HSTS
 builder.Services.AddFrogFrameHttpHardening(builder.Configuration);
 
@@ -101,6 +105,7 @@ app.MapStaticAssets();
 // Health checks liveness & readiness
 app.MapFrogFrameHealthChecks();
 app.MapFrogFrameworkApi();
+Apps.Erp.Ess.EssEndpoints.MapEssApi(app); // /api/ess/v1 (aplikasi mobile ESS)
 app.MapRazorComponents<App>()
    .AddInteractiveServerRenderMode()
    .AddAdditionalAssemblies(typeof(DeskLayout).Assembly);

@@ -83,6 +83,89 @@
       "label": "Create a user account when an employee is created",
       "default": false,
       "section": "Terms"
+    },
+    {
+      "name": "ess_reject_outside_geofence",
+      "type": "Check",
+      "label": "Reject punches outside the location radius",
+      "default": true,
+      "section": "Mobile attendance (ESS)",
+      "description": "Off = accept but flag for HR review"
+    },
+    {
+      "name": "ess_default_radius_m",
+      "type": "Int",
+      "label": "Default location radius (m)",
+      "default": 100,
+      "min": 10,
+      "max": 5000,
+      "section": "Mobile attendance (ESS)",
+      "column": 2,
+      "description": "Used when a Location has no attendance radius"
+    },
+    {
+      "name": "ess_max_gps_accuracy_m",
+      "type": "Int",
+      "label": "Max GPS accuracy (m)",
+      "default": 100,
+      "min": 5,
+      "max": 2000,
+      "section": "Mobile attendance (ESS)",
+      "column": 2,
+      "description": "Worse accuracy is accepted but flagged"
+    },
+    {
+      "name": "ess_reject_mock_location",
+      "type": "Check",
+      "label": "Reject mock (fake) GPS locations",
+      "default": true,
+      "section": "Mobile attendance (ESS)"
+    },
+    {
+      "name": "ess_bind_device",
+      "type": "Check",
+      "label": "One registered phone per employee",
+      "default": true,
+      "section": "Mobile attendance (ESS)",
+      "description": "The first phone that punches is registered on the employee (ESS device id). HR clears it to allow a new phone."
+    },
+    {
+      "name": "ess_require_photo",
+      "type": "Check",
+      "label": "Ask for a selfie on every punch",
+      "default": false,
+      "section": "Mobile attendance (ESS)"
+    },
+    {
+      "name": "ess_max_offline_hours",
+      "type": "Int",
+      "label": "Accept offline punches up to (hours)",
+      "default": 24,
+      "min": 1,
+      "max": 168,
+      "section": "Mobile attendance (ESS)",
+      "column": 2
+    },
+    {
+      "name": "ess_min_punch_interval_minutes",
+      "type": "Int",
+      "label": "Minimum minutes between punches of the same type",
+      "default": 1,
+      "min": 0,
+      "max": 120,
+      "section": "Mobile attendance (ESS)",
+      "column": 2
+    },
+    {
+      "name": "ess_overnight_window_hours",
+      "type": "Int",
+      "label": "Night shift: check-out within (hours) of check-in",
+      "default": 16,
+      "min": 8,
+      "max": 24,
+      "section": "Mobile attendance (ESS)",
+      "column": 2,
+      "description": "A check-out after midnight within this window belongs to the check-in date"
     }
   ],
   "permissions": [

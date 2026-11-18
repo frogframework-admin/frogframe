@@ -24,12 +24,16 @@
       href: guides/doctype-data-entry-sequence.md
     - name: SQL Dashboards & Widgets
       href: guides/sql-dashboards.md
+    - name: KPI Catalog & Analytics Dashboards
+      href: guides/kpi-catalog-and-dashboards.md
     - name: Saved Query REST APIs
       href: guides/saved-query-apis.md
     - name: AI Designer
       href: guides/ai-designer.md
     - name: API Keys & Custom Methods
       href: guides/api-integrations.md
+    - name: ESS Mobile API (v1)
+      href: guides/ess-mobile-api.md
     - name: Outbound Webhooks
       href: webhooks.md
     - name: Auto Repeat (Recurring Documents)

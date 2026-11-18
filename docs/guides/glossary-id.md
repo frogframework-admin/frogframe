@@ -118,6 +118,11 @@ Tambahkan baris baru bila AI gagal menemukan jawaban karena perbedaan istilah.
 | jatah cuti, saldo cuti, alokasi cuti | LeaveAllocation Leave Balance | |
 | jenis cuti | LeaveType LeavePolicy | |
 | absensi, kehadiran | Attendance | |
+| absen mobile, absen hp, absen gps, absen masuk, absen pulang, clock in, clock out, ess | Attendance ess_attendance_punches EssAttendance ess-mobile-api | Absen lewat aplikasi ESS; dokumen Attendance dibentuk job setiap 5 menit |
+| radius absen, geofence, titik absen | Location attendance_radius_m geolocation ess_reject_outside_geofence | |
+| ganti hp, hp terdaftar, reset perangkat | Employee ess_device_id ess_bind_device device_not_registered | HR mengosongkan ESS registered phone |
+| lokasi palsu, fake gps, mock location | mock_location ess_reject_mock_location | |
+| selfie, foto absen | check_in_photo check_out_photo ess_require_photo | |
 | lembur | OvertimeRequest Overtime Request | |
 | shift, jam kerja | ShiftType | |
 | hari libur, kalender libur | HolidayList Holiday | |

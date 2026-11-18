@@ -121,12 +121,12 @@ ON CONFLICT (tenant_id, doctype, name) DO UPDATE
 SET data = EXCLUDED.data, docstatus = EXCLUDED.docstatus, modified = NOW(), modified_by = EXCLUDED.modified_by;
 
 INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
-VALUES ('acme', 'Location', 'JKT-HQ', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"location_code":"JKT-HQ","location_name":"Kantor Pusat Jakarta","is_group":false,"company":"ACME","address":"Jl. Jenderal Sudirman Kav. 52-53","city":"Jakarta Selatan","province":"DKI Jakarta","is_active":true}'::jsonb)
+VALUES ('acme', 'Location', 'JKT-HQ', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"location_code":"JKT-HQ","location_name":"Kantor Pusat Jakarta","is_group":false,"company":"ACME","address":"Jl. Jenderal Sudirman Kav. 52-53","city":"Jakarta Selatan","province":"DKI Jakarta","geolocation":"-6.225100,106.809000","allow_mobile_attendance":true,"attendance_radius_m":150,"is_active":true}'::jsonb)
 ON CONFLICT (tenant_id, doctype, name) DO UPDATE
 SET data = EXCLUDED.data, docstatus = EXCLUDED.docstatus, modified = NOW(), modified_by = EXCLUDED.modified_by;
 
 INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
-VALUES ('acme', 'Location', 'CKR-WH', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"location_code":"CKR-WH","location_name":"Gudang Cikarang","is_group":false,"company":"ACME","address":"Kawasan Industri GIIC Blok AA No. 5","city":"Bekasi","province":"Jawa Barat","is_active":true}'::jsonb)
+VALUES ('acme', 'Location', 'CKR-WH', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"location_code":"CKR-WH","location_name":"Gudang Cikarang","is_group":false,"company":"ACME","address":"Kawasan Industri GIIC Blok AA No. 5","city":"Bekasi","province":"Jawa Barat","geolocation":"-6.348000,107.165000","allow_mobile_attendance":true,"attendance_radius_m":300,"is_active":true}'::jsonb)
 ON CONFLICT (tenant_id, doctype, name) DO UPDATE
 SET data = EXCLUDED.data, docstatus = EXCLUDED.docstatus, modified = NOW(), modified_by = EXCLUDED.modified_by;
 

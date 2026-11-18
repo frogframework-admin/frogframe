@@ -64,22 +64,22 @@ ON CONFLICT (tenant_id, doctype, name) DO UPDATE
 SET data = EXCLUDED.data, docstatus = EXCLUDED.docstatus, modified = NOW(), modified_by = EXCLUDED.modified_by;
 
 INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
-VALUES ('acme', 'Attendance', 'ATT-2026-0000001', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"employee":"EMP-0001","employee_name":"Ahmad Fadilah","organization_unit":"DEPT-IT","attendance_date":"2026-01-05","status":"Present","shift_type":"Office 08-17","check_in":"2026-01-05T07:55:00","check_out":"2026-01-05T17:05:00","working_hours":8,"late_minutes":0,"remarks":"Hadir tepat waktu dan absen tercatat otomatis"}'::jsonb)
+VALUES ('acme', 'Attendance', 'ATT-2026-0000001', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"employee":"EMP-0001","employee_name":"Ahmad Fadilah","organization_unit":"DEPT-IT","attendance_date":"2026-01-05","status":"Present","shift_type":"Office 08-17","check_in":"2026-01-05T07:55:00","check_out":"2026-01-05T17:05:00","working_hours":8,"late_minutes":0,"remarks":"Hadir tepat waktu dan absen tercatat otomatis","source":"Manual"}'::jsonb)
 ON CONFLICT (tenant_id, doctype, name) DO UPDATE 
 SET data = EXCLUDED.data, docstatus = EXCLUDED.docstatus, modified = NOW(), modified_by = EXCLUDED.modified_by;
 
 INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
-VALUES ('acme', 'Attendance', 'ATT-2026-0000002', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"employee":"EMP-0002","employee_name":"Citra Dewi","organization_unit":"DEPT-SALES","attendance_date":"2026-01-05","status":"Present","shift_type":"Office 08-17","check_in":"2026-01-05T07:58:00","check_out":"2026-01-05T17:02:00","working_hours":8,"late_minutes":0,"remarks":"Hadir tepat waktu dan absen tercatat otomatis"}'::jsonb)
+VALUES ('acme', 'Attendance', 'ATT-2026-0000002', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"employee":"EMP-0002","employee_name":"Citra Dewi","organization_unit":"DEPT-SALES","attendance_date":"2026-01-05","status":"Present","shift_type":"Office 08-17","check_in":"2026-01-05T07:58:00","check_out":"2026-01-05T17:02:00","working_hours":8,"late_minutes":0,"remarks":"Hadir tepat waktu dan absen tercatat otomatis","source":"Manual"}'::jsonb)
 ON CONFLICT (tenant_id, doctype, name) DO UPDATE 
 SET data = EXCLUDED.data, docstatus = EXCLUDED.docstatus, modified = NOW(), modified_by = EXCLUDED.modified_by;
 
 INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
-VALUES ('acme', 'Attendance', 'ATT-2026-0000003', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"employee":"EMP-0005","employee_name":"Eko Prasetyo","organization_unit":"DEPT-FIN","attendance_date":"2026-01-05","status":"Present","shift_type":"Office 08-17","check_in":"2026-01-05T08:02:00","check_out":"2026-01-05T17:15:00","working_hours":8,"late_minutes":2,"remarks":"Hadir tepat waktu dan absen tercatat otomatis"}'::jsonb)
+VALUES ('acme', 'Attendance', 'ATT-2026-0000003', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"employee":"EMP-0005","employee_name":"Eko Prasetyo","organization_unit":"DEPT-FIN","attendance_date":"2026-01-05","status":"Present","shift_type":"Office 08-17","check_in":"2026-01-05T08:02:00","check_out":"2026-01-05T17:15:00","working_hours":8,"late_minutes":2,"remarks":"Hadir tepat waktu dan absen tercatat otomatis","source":"Manual"}'::jsonb)
 ON CONFLICT (tenant_id, doctype, name) DO UPDATE 
 SET data = EXCLUDED.data, docstatus = EXCLUDED.docstatus, modified = NOW(), modified_by = EXCLUDED.modified_by;
 
 INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
-VALUES ('acme', 'Attendance', 'ATT-2026-0000004', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"employee":"EMP-0006","employee_name":"Fajar Hidayat","organization_unit":"DEPT-PURCH","attendance_date":"2026-01-05","status":"Present","shift_type":"Office 08-17","check_in":"2026-01-05T07:50:00","check_out":"2026-01-05T17:00:00","working_hours":8,"late_minutes":0,"remarks":"Hadir tepat waktu dan absen tercatat otomatis"}'::jsonb)
+VALUES ('acme', 'Attendance', 'ATT-2026-0000004', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"employee":"EMP-0006","employee_name":"Fajar Hidayat","organization_unit":"DEPT-PURCH","attendance_date":"2026-01-05","status":"Present","shift_type":"Office 08-17","check_in":"2026-01-05T07:50:00","check_out":"2026-01-05T17:00:00","working_hours":8,"late_minutes":0,"remarks":"Hadir tepat waktu dan absen tercatat otomatis","source":"Manual"}'::jsonb)
 ON CONFLICT (tenant_id, doctype, name) DO UPDATE 
 SET data = EXCLUDED.data, docstatus = EXCLUDED.docstatus, modified = NOW(), modified_by = EXCLUDED.modified_by;
 

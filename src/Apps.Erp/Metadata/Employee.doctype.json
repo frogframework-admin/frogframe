@@ -407,6 +407,30 @@
       "column": 2
     },
     {
+      "name": "attendance_mode",
+      "type": "Select",
+      "label": "Mobile attendance",
+      "options": [
+        "Assigned location",
+        "Any office",
+        "Anywhere",
+        "Not allowed"
+      ],
+      "default": "Assigned location",
+      "tab": "Job",
+      "section": "Schedule",
+      "description": "Assigned location = work location radius; Any office = any location that allows mobile attendance; Anywhere = field staff (location recorded, no radius); Not allowed = attendance machine only"
+    },
+    {
+      "name": "ess_device_id",
+      "type": "Data",
+      "label": "ESS registered phone",
+      "tab": "Job",
+      "section": "Schedule",
+      "column": 2,
+      "description": "Set automatically on the first mobile punch. Clear it to let the employee register a new phone."
+    },
+    {
       "name": "leave_policy",
       "type": "Link",
       "label": "Leave policy",

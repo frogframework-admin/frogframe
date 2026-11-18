@@ -255,7 +255,7 @@ ON CONFLICT (tenant_id, doctype, name) DO UPDATE
 SET data = EXCLUDED.data, modified = NOW(), modified_by = EXCLUDED.modified_by;
 
 INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
-VALUES ('acme', 'HRSettings', 'HRSettings', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"default_holiday_list":"Libur Nasional 2026","default_shift_type":"Office 08-17","default_leave_policy":"Standard Leave Policy PKWTT","default_probation_months":3,"retirement_age":58,"contract_expiry_reminder_days":30,"leave_year_start":"January 1","auto_create_user":false}'::jsonb)
+VALUES ('acme', 'HRSettings', 'HRSettings', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"default_holiday_list":"Libur Nasional 2026","default_shift_type":"Office 08-17","default_leave_policy":"Standard Leave Policy PKWTT","default_probation_months":3,"retirement_age":58,"contract_expiry_reminder_days":30,"leave_year_start":"January 1","auto_create_user":false,"ess_reject_outside_geofence":true,"ess_default_radius_m":100,"ess_max_gps_accuracy_m":100,"ess_reject_mock_location":true,"ess_bind_device":true,"ess_require_photo":false,"ess_max_offline_hours":24,"ess_min_punch_interval_minutes":1,"ess_overnight_window_hours":16}'::jsonb)
 ON CONFLICT (tenant_id, doctype, name) DO UPDATE 
 SET data = EXCLUDED.data, modified = NOW(), modified_by = EXCLUDED.modified_by;
 

@@ -93,6 +93,24 @@
       "label": "Geolocation",
       "section": "Address",
       "column": 2
+    },
+    {
+      "name": "allow_mobile_attendance",
+      "type": "Check",
+      "label": "Allow mobile attendance here",
+      "default": true,
+      "section": "Attendance",
+      "description": "Mobile punches are matched against this location's geolocation"
+    },
+    {
+      "name": "attendance_radius_m",
+      "type": "Int",
+      "label": "Attendance radius (m)",
+      "min": 10,
+      "max": 5000,
+      "section": "Attendance",
+      "column": 2,
+      "description": "Empty = HR Settings default radius. Geolocation is set in the Address section."
     }
   ],
   "permissions": [

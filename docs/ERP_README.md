@@ -1,6 +1,6 @@
 # frogframe ERP — Metadata + Hook (CORE, ACCOUNTING, FINANCE, PROCUREMENT, STOCK, HR, CRM)
 
-146 DocType, 8 workflow, dan proyek C# `src/Apps.Erp` berisi hook, form action, handler event, dan job harian untuk semua modul. Buku besar (dulu patch 0001/0002 di framework) sekarang bagian dari `src/Apps.Erp/Accounting`.
+147 DocType, 8 workflow, dan proyek C# `src/Apps.Erp` berisi hook, form action, handler event, dan job harian untuk semua modul. Buku besar (dulu patch 0001/0002 di framework) sekarang bagian dari `src/Apps.Erp/Accounting`.
 Polanya mengikuti SAP S/4HANA (company code, chart of accounts bersama, universal journal, asset class),
 NetSuite (segment, termin, period close per subledger, vendor bill/credit), Salesforce (Account, Contact, Pricebook, Lead, Opportunity, Quote, Task/Event), dan Workday (Supervisory Organization, Job Profile, Position, Worker, business process Change Job/Terminate, Time Off, Expense Report).
 
@@ -10,7 +10,7 @@ Metadata ada di `src/Apps.Erp/Metadata` (satu folder, tidak rekursif). Sumbernya
 
 | Modul | DocType utama | Child | Single |
 |---|---|---|---|
-| CORE | Company, Currency, CurrencyExchangeRate, Location, Address, Contact, Customer, CustomerGroup, Vendor, VendorGroup, Item, ItemGroup, UOM, PriceList, ItemPrice, PaymentTerm, Bank, HolidayList | PartyLink, PaymentTermDetail, PartyBankAccount, Holiday | GlobalDefaults |
+| CORE | Company, Currency, CurrencyExchangeRate, Location, Address, Contact, Customer, CustomerGroup, Vendor, VendorGroup, Item, ItemGroup, UOM, PriceList, ItemPrice, PaymentTerm, Bank, HolidayList, KpiDefinition | PartyLink, PaymentTermDetail, PartyBankAccount, Holiday | GlobalDefaults |
 | ACCOUNTING | Account, CostCenter, Project, AccountingDimension, FiscalYear, AccountingPeriod, JournalEntry, PeriodClosingVoucher, Budget | JournalEntryLine, BudgetAccount | AccountingSettings |
 | FINANCE | TaxCode, BankAccount, SalesInvoice, SalesCreditNote, PurchaseInvoice, PurchaseDebitNote, PaymentEntry, BankStatement, BankReconciliation, PaymentReconciliation, PaymentRun, PurchaseRequest, PurchaseOrder, GoodsReceipt, TaxInvoice, WithholdingCertificate, AssetCategory, Asset, DepreciationRun, AssetDisposal, ExpenseClaimType, ExpenseClaim, EmployeeAdvance | SalesInvoiceItem, PurchaseInvoiceItem, InvoicePaymentSchedule, PaymentEntryReference, PaymentEntryDeduction, BankStatementLine, BankReconciliationItem, PaymentReconciliationAllocation, PaymentRunItem, PurchaseRequestItem, PurchaseOrderItem, GoodsReceiptItem, AssetDepreciationSchedule, DepreciationRunItem, ExpenseClaimItem | FinanceSettings |
 | HR | OrganizationUnit, JobFamilyGroup, JobFamily, JobProfile, Grade, Position, Employee, EmploymentContract, JobChange, EmployeeSeparation, ShiftType, LeaveType, LeavePolicy, LeaveAllocation, LeaveApplication | GradePayRange, PositionDottedLine, EmployeeIdentityDocument, EmployeeDependent, EmployeeEmergencyContact, EmployeeEducation, EmployeeWorkHistory, SeparationChecklistItem, LeavePolicyDetail | HRSettings |
@@ -203,7 +203,7 @@ Kenapa C#, bukan SQL template World 2: buku besar tidak diekspos di skema `repor
 
 ## Validasi & verifikasi
 
-`tools/validate_metadata.py` adalah port aturan `MetadataCompiler.CompileDocType`: nama, tipe field, Link/Table/DynamicLink, linkFilters (termasuk nilai Select di DocType tujuan), fetchFrom, addFromLookup, default, akar ekspresi & path child/parent, list view, permission, naming, modul, dan role. Ditambah satu aturan runtime: `fetchFrom` di child ditolak. Validator ini diuji pada metadata sample repo (lolos) dan pada error yang disuntikkan sengaja (tertangkap). Workflow juga diperiksa (port `CompileWorkflow`: state, docStatus tidak turun, aksi unik per state, role, akar kondisi, DocType menunjuk workflow yang sama) plus satu cek tambahan: state draft harus punya transisi keluar. Hasil untuk folder ini: **146 DocType, 8 workflow, 0 masalah**.
+`tools/validate_metadata.py` adalah port aturan `MetadataCompiler.CompileDocType`: nama, tipe field, Link/Table/DynamicLink, linkFilters (termasuk nilai Select di DocType tujuan), fetchFrom, addFromLookup, default, akar ekspresi & path child/parent, list view, permission, naming, modul, dan role. Ditambah satu aturan runtime: `fetchFrom` di child ditolak. Validator ini diuji pada metadata sample repo (lolos) dan pada error yang disuntikkan sengaja (tertangkap). Workflow juga diperiksa (port `CompileWorkflow`: state, docStatus tidak turun, aksi unik per state, role, akar kondisi, DocType menunjuk workflow yang sama) plus satu cek tambahan: state draft harus punya transisi keluar. Hasil untuk folder ini: **147 DocType, 8 workflow, 0 masalah**.
 
 Jalankan dari root repo:
 
@@ -244,6 +244,27 @@ Sudah di-compile di repo. Pemeriksaan statis tambahan:
   15. Persediaan: dua penerimaan → rata-rata 115.000, HPP penjualan, transfer, opname, tolak posting mundur & stok kurang; nilai stok = saldo akun persediaan, GRNI = penerimaan yang belum ditagih.
 
 Disarankan menambah test di `tests/Framework.Tests` dengan skenario yang sama, memakai store in-memory.
+
+## ESS mobile (Employee Self Service)
+
+API untuk aplikasi mobile karyawan (Flutter) di `/api/ess/v1`: profil, beranda, absen GPS (masuk/pulang, selfie, offline), riwayat absen,
+cuti (saldo, pengajuan, tarik), slip gaji (daftar, rincian, PDF), dan persetujuan atasan. Kontrak lengkap: [guides/ess-mobile-api.md](guides/ess-mobile-api.md).
+
+- Absen ditulis ke tabel ringan `ess_attendance_punches` (migrasi `src/Apps.Erp/Migrations/1001_ess_attendance_punches.sql`, satu INSERT idempoten
+  per absen) agar kuat menahan lonjakan jam masuk/pulang; job `Erp.EssAttendanceAggregation` (5 menit) membentuk dokumen Attendance.
+- Aturan absen (`src/Apps.Erp/Ess/EssAttendanceRules.cs`): radius lokasi, satu HP per karyawan, lokasi palsu, akurasi GPS, absen offline,
+  ketukan ganda, shift malam. Kebijakan diatur di HR Settings › Mobile attendance (ESS), titik & radius di Location, mode per karyawan di Employee.
+- Login memakai token bearer bawaan; `POST /api/auth/refresh` (baru) memperbarui token tanpa password; refresh token 30 hari (`Ess:RefreshTokenDays`).
+- Peran Employee tidak lagi membuat/mengubah Attendance sendiri dan tidak lagi membaca master komersial/keuangan.
+
+## KPI Catalog & Analytics Dashboards
+
+Katalog KPI Enterprise lengkap dengan visualisasi dashboard operasional & eksekutif:
+- **363 Definisi KPI Standar**: Tersimpan dalam DocType `KpiDefinition` (CORE modul), mencakup kategori Financial, Sales & CRM, Procurement & Supply Chain, Inventory & Warehouse, HR & Payroll, Fixed Assets, Operations & Quality.
+- **295 SQL Dashboard Widgets & 37 Dashboards**: Visualisasi metrik waktu-nyata (KPI cards, bar charts, trend area charts, donut distributions, data tables).
+- **Template Impor Excel**: `KpiDefinition_import.xlsx` disiapkan untuk impor data massal definisi KPI melalui wizard Impor Excel DocFrame (`/api/import`).
+- **Skrip Seeding SQL**: `kpi_widgets_dashboards.sql` menyediakan pemuatan otomatis widget dan dashboard ke database.
+- Panduan lengkap dan arsitektur analitik: [guides/kpi-catalog-and-dashboards.md](guides/kpi-catalog-and-dashboards.md).
 
 ## Berikutnya
 
