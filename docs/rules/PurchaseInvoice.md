@@ -15,13 +15,13 @@ Aturan yang dijalankan kode saat dokumen Purchase Invoice (PurchaseInvoice) disi
 
 ## Validasi (dokumen ditolak): Saat simpan/submit (validasi)
 
-- `purchase_order`: "{po.Name} belongs to another supplier" — terjadi bila `!(await m.GetAsync("PurchaseOrder", d.Str("purchase_order"), ct) is not { } po) && po.Data.Str("vendor") != d.Str("vendor")` (PurchaseInvoicePoHook, ProcurementHooks.cs:150)
+- `purchase_order`: "{po.Name} belongs to another supplier" — terjadi bila `!(await m.GetAsync("PurchaseOrder", d.Str("purchase_order"), ct) is not { } po) && po.Data.Str("vendor") != d.Str("vendor")` (PurchaseInvoicePoHook, ProcurementHooks.cs:158)
 - `warehouse`: "Choose the warehouse for 'Update stock'" — terjadi bila `d.Str("warehouse") is null` (PurchaseStockHook, StockHooks.cs:484)
 - `update_stock`: "{po} is already received with goods receipts; untick 'Update stock' so the invoice clears 'stock received not billed'" — terjadi bila `!(d.Str("warehouse") is null) && d.Str("purchase_order") is { } po && (await m.QueryAsync("GoodsReceipt", [new FilterClause("purchase_order", "=", po)], ct, take: 50)) .Any(g => g.DocStatus == DocStatus.Submitted && g.Data.Rows("items").Any(r => r.Bool("is_stock_item")))` (PurchaseStockHook, StockHooks.cs:487)
 
 ## Validasi (dokumen ditolak): Setelah simpan/submit (posting, efek ke dokumen lain)
 
-- `purchase_order`: "3-way match: {po.Name} billed {billed} exceeds the received value {received}; record the goods receipt first" — terjadi bila `!(c.Doc.DocStatus != DocStatus.Submitted || c.Previous?.DocStatus != DocStatus.Draft) && !(await m.GetAsync("PurchaseOrder", c.Doc.Data.Str("purchase_order"), ct) is not { } po) && !(mode == "Off") && !(billed <= received + 1m) && mode == "Stop"` (PurchaseInvoicePoHook, ProcurementHooks.cs:173)
+- `purchase_order`: "3-way match: {po.Name} billed {billed} exceeds the received value {received}; record the goods receipt first" — terjadi bila `!(c.Doc.DocStatus != DocStatus.Submitted || c.Previous?.DocStatus != DocStatus.Draft) && !(await m.GetAsync("PurchaseOrder", c.Doc.Data.Str("purchase_order"), ct) is not { } po) && !(mode == "Off") && !(billed <= received + 1m) && mode == "Stop"` (PurchaseInvoicePoHook, ProcurementHooks.cs:181)
 - `update_stock`: "Debit notes do not move stock; issue the returned goods with a Material Issue stock entry" — terjadi bila `!(d.Str("warehouse") is null) && !(c.Doc.DocStatus != DocStatus.Submitted || c.Previous?.DocStatus != DocStatus.Draft || !c.Doc.Data.Bool("update_stock")) && !((await m.GetAsync("Item", r.Str("item"), ct))?.Data.Bool("is_stock_item") != true)` (PurchaseStockHook, StockHooks.cs:526)
 
 ## Peringatan (dokumen tetap tersimpan): Saat simpan/submit (validasi)
@@ -30,7 +30,7 @@ Aturan yang dijalankan kode saat dokumen Purchase Invoice (PurchaseInvoice) disi
 
 ## Peringatan (dokumen tetap tersimpan): Setelah simpan/submit (posting, efek ke dokumen lain)
 
-- "3-way match: {po.Name} billed {billed} exceeds the received value {received}" — terjadi bila `!(c.Doc.DocStatus != DocStatus.Submitted || c.Previous?.DocStatus != DocStatus.Draft) && !(await m.GetAsync("PurchaseOrder", c.Doc.Data.Str("purchase_order"), ct) is not { } po) && !(mode == "Off") && !(billed <= received + 1m) && !(mode == "Stop")` (PurchaseInvoicePoHook, ProcurementHooks.cs:174)
+- "3-way match: {po.Name} billed {billed} exceeds the received value {received}" — terjadi bila `!(c.Doc.DocStatus != DocStatus.Submitted || c.Previous?.DocStatus != DocStatus.Draft) && !(await m.GetAsync("PurchaseOrder", c.Doc.Data.Str("purchase_order"), ct) is not { } po) && !(mode == "Off") && !(billed <= received + 1m) && !(mode == "Stop")` (PurchaseInvoicePoHook, ProcurementHooks.cs:182)
 
 ## Aturan bersama yang juga berlaku
 

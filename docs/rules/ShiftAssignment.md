@@ -10,8 +10,9 @@ Aturan yang dijalankan kode saat dokumen Shift Assignment (ShiftAssignment) disi
 
 ## Validasi (dokumen ditolak): Saat simpan/submit (validasi)
 
-- `start_date`: "Overlaps with active shift assignment {other.Name} for {targetVal}" — terjadi bila `Hr.Overlaps(start, end, other.Data.Date("start_date"), other.Data.Date("end_date"))` (ShiftAssignmentHook, WsmHooks.cs:200)
+- `start_date`: "Overlaps with active shift assignment {other.Name} for {targetVal}" — terjadi bila `Hr.Overlaps(start, end, other.Data.Date("start_date"), other.Data.Date("end_date"))` (ShiftAssignmentHook, WsmHooks.cs:203)
 
 ## Aturan bersama yang juga berlaku
 
+- Approval: lihat `_shared-Approval.md`
 - Masters: lihat `_shared-Masters.md`

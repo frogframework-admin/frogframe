@@ -11,10 +11,10 @@ Aturan yang dijalankan kode saat dokumen Goods Receipt (GoodsReceipt) disimpan, 
 
 ## Validasi (dokumen ditolak): Saat simpan/submit (validasi)
 
-- `purchase_order`: "{po.Name} is not submitted or has been cancelled" — terjadi bila `po.DocStatus != DocStatus.Submitted` (GoodsReceiptHook, ProcurementHooks.cs:119)
-- `items`: "Everything on {po.Name} has been received" — terjadi bila `rows.Count == 0` (GoodsReceiptHook, ProcurementHooks.cs:128)
-- `items[{k}].po_line`: "{po.Name} has no line {line}" — terjadi bila `line < 1 || line > lines.Count` (GoodsReceiptHook, ProcurementHooks.cs:132)
-- `items[{k}].received_qty`: "Line {line}: only {Pending(line)} not yet received" — terjadi bila `r.Dec("received_qty") > Pending(line)` (GoodsReceiptHook, ProcurementHooks.cs:136)
+- `purchase_order`: "{po.Name} is not submitted or has been cancelled" — terjadi bila `po.DocStatus != DocStatus.Submitted` (GoodsReceiptHook, ProcurementHooks.cs:127)
+- `items`: "Everything on {po.Name} has been received" — terjadi bila `rows.Count == 0` (GoodsReceiptHook, ProcurementHooks.cs:136)
+- `items[{k}].po_line`: "{po.Name} has no line {line}" — terjadi bila `line < 1 || line > lines.Count` (GoodsReceiptHook, ProcurementHooks.cs:140)
+- `items[{k}].received_qty`: "Line {line}: only {Pending(line)} not yet received" — terjadi bila `r.Dec("received_qty") > Pending(line)` (GoodsReceiptHook, ProcurementHooks.cs:144)
 - `warehouse`: "Choose the warehouse that receives the stock items" — terjadi bila `!(await m.GetAsync("PurchaseOrder", d.Str("purchase_order"), ct) is not { } po) && !(line < 1 || line > lines.Count) && anyStock && d.Str("warehouse") is null` (GoodsReceiptStockHook, StockHooks.cs:361)
 
 ## Aturan bersama yang juga berlaku

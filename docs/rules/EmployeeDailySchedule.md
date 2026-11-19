@@ -10,8 +10,8 @@ Aturan yang dijalankan kode saat dokumen Employee Daily Schedule (EmployeeDailyS
 
 ## Validasi (dokumen ditolak): Saat simpan/submit (validasi)
 
-- `work_date`: "The work date is required" — terjadi bila `d.Date("work_date") tidak ditemukan/kosong` (EmployeeDailyScheduleHook, WsmHooks.cs:220)
-- `work_date`: "{emp.Name} already has daily schedule {dup.Name} on {D.Iso(date)}" — terjadi bila `dup is not null` (EmployeeDailyScheduleHook, WsmHooks.cs:227)
+- `work_date`: "The work date is required" — terjadi bila `d.Date("work_date") tidak ditemukan/kosong` (EmployeeDailyScheduleHook, WsmHooks.cs:223)
+- `work_date`: "{emp.Name} already has daily schedule {dup.Name} on {D.Iso(date)}" — terjadi bila `dup is not null` (EmployeeDailyScheduleHook, WsmHooks.cs:230)
 
 ## Aturan bersama yang juga berlaku
 

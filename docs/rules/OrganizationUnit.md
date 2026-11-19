@@ -11,14 +11,14 @@ Aturan yang dijalankan kode saat dokumen Organization Unit (OrganizationUnit) di
 
 ## Validasi (dokumen ditolak): Saat simpan/submit (validasi)
 
-- `effective_to`: "The effective end date must be on or after the effective start date" — terjadi bila `from is not null && to is not null && to < from` (OrganizationUnitHook, HrHooks.cs:375)
-- `parent_org_unit`: "Circular organization hierarchy detected involving unit '{code}'" — terjadi bila `curCode == code || sameBase` (OrganizationUnitHook, HrHooks.cs:400)
-- `effective_from`: "Active validity period overlaps with version {other.Name} for unit {baseCode}" — terjadi bila `Hr.Overlaps(from, to, other.Data.Date("effective_from"), other.Data.Date("effective_to"))` (OrganizationUnitHook, HrHooks.cs:424)
-- `{status == "Closed" ? "status" : "effective_to"}`: "Cannot close unit {code} while active position {activePositions[0].Name} is still assigned to it" — terjadi bila `!hasSuccessor` (OrganizationUnitHook, HrHooks.cs:444)
+- `effective_to`: "The effective end date must be on or after the effective start date" — terjadi bila `from is not null && to is not null && to < from` (OrganizationUnitHook, HrHooks.cs:491)
+- `parent_org_unit`: "Circular organization hierarchy detected involving unit '{code}'" — terjadi bila `curCode == code || sameBase` (OrganizationUnitHook, HrHooks.cs:516)
+- `effective_from`: "Active validity period overlaps with version {other.Name} for unit {baseCode}" — terjadi bila `Hr.Overlaps(from, to, other.Data.Date("effective_from"), other.Data.Date("effective_to"))` (OrganizationUnitHook, HrHooks.cs:540)
+- `{status == "Closed" ? "status" : "effective_to"}`: "Cannot close unit {code} while active position {activePositions[0].Name} is still assigned to it" — terjadi bila `!hasSuccessor` (OrganizationUnitHook, HrHooks.cs:560)
 
 ## Peringatan (dokumen tetap tersimpan): Saat simpan/submit (validasi)
 
-- "Advisory: unit type '{unitTypeDoc.Name}' recommends parent type '{expectedParent}', but parent '{parentDoc.Name}' has type '{actualParentType}'" — terjadi bila `actualParentType is not null && actualParentType != expectedParent` (OrganizationUnitHook, HrHooks.cs:385)
+- "Advisory: unit type '{unitTypeDoc.Name}' recommends parent type '{expectedParent}', but parent '{parentDoc.Name}' has type '{actualParentType}'" — terjadi bila `actualParentType is not null && actualParentType != expectedParent` (OrganizationUnitHook, HrHooks.cs:501)
 
 ## Tombol aksi: Activate planned structure
 
@@ -26,4 +26,5 @@ Tombol **Activate planned structure** di form Organization Unit hanya tampil bil
 
 ## Aturan bersama yang juga berlaku
 
+- Approval: lihat `_shared-Approval.md`
 - Masters: lihat `_shared-Masters.md`

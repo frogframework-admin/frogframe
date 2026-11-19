@@ -8,6 +8,6 @@ Penyusun baris buku besar dalam mata uang fungsional. Menggabungkan baris berkun
 
 ## Validasi (dokumen ditolak)
 
-- `name`: "Entry is out of balance by {diff} (exceeds the {what} tolerance of {tolerance})" — terjadi bila `!(diff == 0) && Math.Abs(diff) > tolerance` (Posting, Common.cs:263)
-- `company`: "There is a {what} difference of {diff}; set the {what} account on the Company" — terjadi bila `!(diff == 0) && account is null` (Posting, Common.cs:265)
-- `name`: "A posting needs at least 2 lines" — terjadi bila `_lines.Count < 2` (Posting, Common.cs:273)
+- `name`: "Entry is out of balance by {diff} (exceeds the {what} tolerance of {tolerance})" — terjadi bila `!(diff == 0) && Math.Abs(diff) > tolerance` (Posting, Common.cs:266)
+- `company`: "There is a {what} difference of {diff}; set the {what} account on the Company" — terjadi bila `!(diff == 0) && account is null` (Posting, Common.cs:268)
+- `name`: "A posting needs at least 2 lines" — terjadi bila `_lines.Count < 2` (Posting, Common.cs:276)

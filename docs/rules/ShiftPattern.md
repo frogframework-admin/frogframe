@@ -10,12 +10,13 @@ Aturan yang dijalankan kode saat dokumen Shift Pattern (ShiftPattern) disimpan, 
 
 ## Validasi (dokumen ditolak): Saat simpan/submit (validasi)
 
-- `items`: "The cycle sequence has {items.Count} row(s), which must equal the cycle length of {cycleDays} day(s)" — terjadi bila `items.Count != cycleDays` (ShiftPatternHook, WsmHooks.cs:102)
-- `items[{i}].day_number`: "Day in cycle must be between 1 and {cycleDays}" — terjadi bila `dayNum < 1 || dayNum > cycleDays` (ShiftPatternHook, WsmHooks.cs:115)
-- `items[{i}].day_number`: "Day {dayNum} is defined more than once in the cycle" — terjadi bila `!seenDays.Add(dayNum)` (ShiftPatternHook, WsmHooks.cs:117)
-- `items[{i}].shift_type`: "Shift type is required for a WORK day" — terjadi bila `r.Str("shift_type") is null` (ShiftPatternHook, WsmHooks.cs:126)
-- `effective_from`: "Active pattern version overlaps with {other.Name} for canonical pattern {baseCode}" — terjadi bila `Hr.Overlaps(from, to, other.Data.Date("effective_from"), other.Data.Date("effective_to"))` (ShiftPatternHook, WsmHooks.cs:139)
+- `items`: "The cycle sequence has {items.Count} row(s), which must equal the cycle length of {cycleDays} day(s)" — terjadi bila `items.Count != cycleDays` (ShiftPatternHook, WsmHooks.cs:105)
+- `items[{i}].day_number`: "Day in cycle must be between 1 and {cycleDays}" — terjadi bila `dayNum < 1 || dayNum > cycleDays` (ShiftPatternHook, WsmHooks.cs:118)
+- `items[{i}].day_number`: "Day {dayNum} is defined more than once in the cycle" — terjadi bila `!seenDays.Add(dayNum)` (ShiftPatternHook, WsmHooks.cs:120)
+- `items[{i}].shift_type`: "Shift type is required for a WORK day" — terjadi bila `r.Str("shift_type") is null` (ShiftPatternHook, WsmHooks.cs:129)
+- `effective_from`: "Active pattern version overlaps with {other.Name} for canonical pattern {baseCode}" — terjadi bila `Hr.Overlaps(from, to, other.Data.Date("effective_from"), other.Data.Date("effective_to"))` (ShiftPatternHook, WsmHooks.cs:142)
 
 ## Aturan bersama yang juga berlaku
 
+- Approval: lihat `_shared-Approval.md`
 - Masters: lihat `_shared-Masters.md`

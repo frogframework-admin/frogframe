@@ -10,8 +10,8 @@ Aturan yang dijalankan kode saat dokumen Employment Contract (EmploymentContract
 
 ## Validasi (dokumen ditolak): Saat simpan/submit (validasi)
 
-- `start_date`: "Overlaps with contract {o.Name}" — terjadi bila `Hr.Overlaps(start, end, o.Data.Date("start_date"), o.Data.Date("end_date"))` (EmploymentContractHook, HrHooks.cs:702)
-- `end_date`: "Total fixed-term (PKWT) duration including renewals is {months} months, exceeding {MaxPkwtMonths} months" — terjadi bila `months > MaxPkwtMonths` (EmploymentContractHook, HrHooks.cs:710)
+- `start_date`: "Overlaps with contract {o.Name}" — terjadi bila `Hr.Overlaps(start, end, o.Data.Date("start_date"), o.Data.Date("end_date"))` (EmploymentContractHook, HrHooks.cs:835)
+- `end_date`: "Total fixed-term (PKWT) duration including renewals is {months} months, exceeding {MaxPkwtMonths} months" — terjadi bila `months > MaxPkwtMonths` (EmploymentContractHook, HrHooks.cs:843)
 
 ## Aturan bersama yang juga berlaku
 

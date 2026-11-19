@@ -257,22 +257,7 @@
    "shared": true
   },
   {
-   "id": "EssEndpoints.cs:110",
-   "kind": "Error",
-   "message": "Upload a photo in the 'photo' form field",
-   "pattern": "Upload\\s+a\\s+photo\\s+in\\s+the\\s+'photo'\\s+form\\s+field",
-   "field": "photo",
-   "condition": "form.Files.GetFile(\"photo\") ?? form.Files.FirstOrDefault() tidak ditemukan/kosong",
-   "docTypes": [],
-   "event": "Pemeriksaan MapEssApi",
-   "className": "EssEndpoints",
-   "method": "MapEssApi",
-   "file": "src/Apps.Erp/Ess/EssEndpoints.cs",
-   "line": 110,
-   "shared": true
-  },
-  {
-   "id": "EssEndpoints.cs:128",
+   "id": "EssEndpoints.cs:111",
    "kind": "Error",
    "message": "Date range cannot exceed 62 days and 'to' cannot be earlier than 'from'",
    "pattern": "Date\\s+range\\s+cannot\\s+exceed\\s+62\\s+days\\s+and\\s+'to'\\s+cannot\\s+be\\s+earlier\\s+than\\s+'from'",
@@ -283,11 +268,41 @@
    "className": "EssEndpoints",
    "method": "MapEssApi",
    "file": "src/Apps.Erp/Ess/EssEndpoints.cs",
-   "line": 128,
+   "line": 111,
    "shared": true
   },
   {
-   "id": "EssEndpoints.cs:237",
+   "id": "EssEndpoints.cs:191",
+   "kind": "Error",
+   "message": "Upload a photo in the 'photo' form field",
+   "pattern": "Upload\\s+a\\s+photo\\s+in\\s+the\\s+'photo'\\s+form\\s+field",
+   "field": "photo",
+   "condition": "form.Files.GetFile(\"photo\") ?? form.Files.FirstOrDefault() tidak ditemukan/kosong",
+   "docTypes": [],
+   "event": "Pemeriksaan MapEssApi",
+   "className": "EssEndpoints",
+   "method": "MapEssApi",
+   "file": "src/Apps.Erp/Ess/EssEndpoints.cs",
+   "line": 191,
+   "shared": true
+  },
+  {
+   "id": "EssEndpoints.cs:209",
+   "kind": "Error",
+   "message": "Date range cannot exceed 62 days and 'to' cannot be earlier than 'from'",
+   "pattern": "Date\\s+range\\s+cannot\\s+exceed\\s+62\\s+days\\s+and\\s+'to'\\s+cannot\\s+be\\s+earlier\\s+than\\s+'from'",
+   "field": "to",
+   "condition": "end < start || end.DayNumber - start.DayNumber > 62",
+   "docTypes": [],
+   "event": "Pemeriksaan MapEssApi",
+   "className": "EssEndpoints",
+   "method": "MapEssApi",
+   "file": "src/Apps.Erp/Ess/EssEndpoints.cs",
+   "line": 209,
+   "shared": true
+  },
+  {
+   "id": "EssEndpoints.cs:318",
    "kind": "Error",
    "message": "decision must be 'approve' or 'reject'",
    "pattern": "decision\\s+must\\s+be\\s+'approve'\\s+or\\s+'reject'",
@@ -298,11 +313,11 @@
    "className": "EssEndpoints",
    "method": "Lines",
    "file": "src/Apps.Erp/Ess/EssEndpoints.cs",
-   "line": 237,
+   "line": 318,
    "shared": true
   },
   {
-   "id": "EssEndpoints.cs:240",
+   "id": "EssEndpoints.cs:321",
    "kind": "Error",
    "message": "Rejection reason is required",
    "pattern": "Rejection\\s+reason\\s+is\\s+required",
@@ -313,11 +328,11 @@
    "className": "EssEndpoints",
    "method": "Lines",
    "file": "src/Apps.Erp/Ess/EssEndpoints.cs",
-   "line": 240,
+   "line": 321,
    "shared": true
   },
   {
-   "id": "EssEndpoints.cs:265",
+   "id": "EssEndpoints.cs:346",
    "kind": "Error",
    "message": "Date format must be yyyy-MM-dd",
    "pattern": "Date\\s+format\\s+must\\s+be\\s+yyyy\\-MM\\-dd",
@@ -328,7 +343,7 @@
    "className": "EssEndpoints",
    "method": "ParseDate",
    "file": "src/Apps.Erp/Ess/EssEndpoints.cs",
-   "line": 265,
+   "line": 346,
    "shared": true
   },
   {
@@ -1098,12 +1113,12 @@
    "shared": false
   },
   {
-   "id": "Common.cs:136",
+   "id": "Common.cs:139",
    "kind": "Error",
    "message": "{label} '{name}' not found",
    "pattern": ".+?\\s+'.+?'\\s+not\\s+found",
    "field": "{path}",
-   "condition": "nama DocType (DocHookRegistration memakai typeof(TDoc).Name). // --------------------------------------------------------------------------------------------- public sealed class Account { } public sealed class AccountingPeriod { } public sealed class FiscalYear { } public sealed class JournalEntry { } public sealed class SalesInvoice { } public sealed class SalesCreditNote { } public sealed class PurchaseInvoice { } public sealed class PurchaseDebitNote { } public sealed class PaymentEntry { } public sealed class CurrencyExchangeRate { } public sealed class Address { } public sealed class Contact { } public sealed class PeriodClosingVoucher { } public sealed class TaxInvoice { } public sealed class WithholdingCertificate { } public sealed class Asset { } public sealed class DepreciationRun { } public sealed class AssetDisposal { } public sealed class ExpenseClaim { } public sealed class EmployeeAdvance { } public sealed class BankStatement { } public sealed class BankReconciliation { } public sealed class PaymentReconciliation { } public sealed class Employee { } public sealed class Position { } public sealed class OrganizationUnit { } public sealed class OrganizationUnitType { } public sealed class EmployeeAssignment { } public sealed class JobChange { } public sealed class EmployeeSeparation { } public sealed class EmploymentContract { } public sealed class LeaveAllocation { } public sealed class LeaveApplication { } public sealed class ShiftGroup { } public sealed class ShiftPattern { } public sealed class ShiftAssignment { } public sealed class EmployeeDailySchedule { } public sealed class ScheduleGeneration { } public sealed class WorkScheduleRule { } public sealed class ShiftOverride { } public sealed class ShiftSwapRequest { } public sealed class ShiftRequirement { } public sealed class Lead { } public sealed class Opportunity { } public sealed class Quotation { } /// <summary>Akses aman ke Document.Data (nilai sudah dinormalisasi framework: decimal, bool, \"yyyy-MM-dd\", List&lt;Dictionary&gt;).</summary> internal static class D { public static string? Str(this IDictionary<string, object?> d, string key) => d.TryGetValue(key, out var v) && v is string { Length: > 0 } s ? s : null; public static decimal Dec(this IDictionary<string, object?> d, string key) => d.TryGetValue(key, out var v) ? ToDec(v) : 0m; public static bool Bool(this IDictionary<string, object?> d, string key) => d.TryGetValue(key, out var v) && v is true; public static DateOnly? Date(this IDictionary<string, object?> d, string key) => d.TryGetValue(key, out var v) ? ToDate(v) : null; public static List<Dictionary<string, object?>> Rows(this IDictionary<string, object?> d, string key) => d.TryGetValue(key, out var v) && v is IEnumerable<Dictionary<string, object?>> rows ? rows.ToList() : []; public static decimal ToDec(object? v) => v switch { null => 0m, decimal x => x, long x => x, int x => x, double x => (decimal)x, string s when decimal.TryParse(s, NumberStyles.Number, CultureInfo.InvariantCulture, out var r) => r, _ => 0m, }; public static DateOnly? ToDate(object? v) => v switch { DateOnly x => x, string s when DateOnly.TryParseExact(s, \"yyyy-MM-dd\", CultureInfo.InvariantCulture, DateTimeStyles.None, out var r) => r, _ => null, }; /// <summary>Isi nilai bila field belum ada/kosong. (Jangan memakai d[key] ??= v: getter Dictionary melempar bila key belum ada.)</summary> public static void SetIfEmpty(this IDictionary<string, object?> d, string key, object? value) { if (value is null) return; if (!d.TryGetValue(key, out var current) || current is null || current is string { Length: 0 }) d[key] = value; } public static string Iso(DateOnly d) => d.ToString(\"yyyy-MM-dd\", CultureInfo.InvariantCulture); /// <summary>Sama dengan fungsi round() di ekspresi metadata (AwayFromZero).</summary> public static decimal R2(decimal v) => Math.Round(v, 2, MidpointRounding.AwayFromZero); } /// <summary>Pengumpul error per field; dilempar sekaligus agar pengguna melihat semua masalah.</summary> internal sealed class Errors { private readonly List<FieldError> _list = []; public void Add(string path, string message) => _list.Add(new FieldError(path, message)); public bool Any => _list.Count > 0; public void ThrowIfAny() { if (_list.Count > 0) throw new ValidationFailedException(_list); } public static Exception One(string path, string message) => new ValidationFailedException([new FieldError(path, message)]); } /// <summary> /// Pembaca master langsung dari store (dibatasi tenant, tidak dibatasi role user). Hook harus bisa membaca Account/Company/TaxCode /// walaupun user yang menyimpan dokumen (mis. Sales, Employee) tidak punya izin baca master tersebut. Di-cache per operasi. /// </summary> internal sealed class Masters(IDocumentStore store, string tenant) { private readonly Dictionary<(string, string), Document?> _cache = new(); public string Tenant => tenant; public async Task<Document?> GetAsync(string docType, string? name, CancellationToken ct) { if (string.IsNullOrEmpty(name)) return null; if (_cache.TryGetValue((docType, name), out var hit)) return hit; var doc = await store.GetAsync(tenant, docType, name, ct); _cache[(docType, name)] = doc; return doc; } public async Task<Document> RequireAsync(string docType, string? name, string path, string label, CancellationToken ct) => await GetAsync(docType, name, ct) tidak ditemukan/kosong",
+   "condition": "nama DocType (DocHookRegistration memakai typeof(TDoc).Name). // --------------------------------------------------------------------------------------------- public sealed class Account { } public sealed class AccountingPeriod { } public sealed class FiscalYear { } public sealed class JournalEntry { } public sealed class SalesInvoice { } public sealed class SalesCreditNote { } public sealed class PurchaseInvoice { } public sealed class PurchaseDebitNote { } public sealed class PaymentEntry { } public sealed class CurrencyExchangeRate { } public sealed class Address { } public sealed class Contact { } public sealed class PeriodClosingVoucher { } public sealed class TaxInvoice { } public sealed class WithholdingCertificate { } public sealed class Asset { } public sealed class DepreciationRun { } public sealed class AssetDisposal { } public sealed class ExpenseClaim { } public sealed class EmployeeAdvance { } public sealed class BankStatement { } public sealed class BankReconciliation { } public sealed class PaymentReconciliation { } public sealed class Employee { } public sealed class Position { } public sealed class OrganizationUnit { } public sealed class OrganizationUnitType { } public sealed class EmployeeAssignment { } public sealed class JobChange { } public sealed class EmployeeSeparation { } public sealed class EmploymentContract { } public sealed class LeaveAllocation { } public sealed class LeaveApplication { } public sealed class ShiftGroup { } public sealed class ShiftPattern { } public sealed class ShiftAssignment { } public sealed class EmployeeDailySchedule { } public sealed class ScheduleGeneration { } public sealed class WorkScheduleRule { } public sealed class ShiftOverride { } public sealed class ShiftSwapRequest { } public sealed class ShiftRequirement { } public sealed class ShiftPreference { } public sealed class ScheduleOptimization { } public sealed class Project { } public sealed class Lead { } public sealed class Opportunity { } public sealed class Quotation { } /// <summary>Akses aman ke Document.Data (nilai sudah dinormalisasi framework: decimal, bool, \"yyyy-MM-dd\", List&lt;Dictionary&gt;).</summary> internal static class D { public static string? Str(this IDictionary<string, object?> d, string key) => d.TryGetValue(key, out var v) && v is string { Length: > 0 } s ? s : null; public static decimal Dec(this IDictionary<string, object?> d, string key) => d.TryGetValue(key, out var v) ? ToDec(v) : 0m; public static bool Bool(this IDictionary<string, object?> d, string key) => d.TryGetValue(key, out var v) && v is true; public static DateOnly? Date(this IDictionary<string, object?> d, string key) => d.TryGetValue(key, out var v) ? ToDate(v) : null; public static List<Dictionary<string, object?>> Rows(this IDictionary<string, object?> d, string key) => d.TryGetValue(key, out var v) && v is IEnumerable<Dictionary<string, object?>> rows ? rows.ToList() : []; public static decimal ToDec(object? v) => v switch { null => 0m, decimal x => x, long x => x, int x => x, double x => (decimal)x, string s when decimal.TryParse(s, NumberStyles.Number, CultureInfo.InvariantCulture, out var r) => r, _ => 0m, }; public static DateOnly? ToDate(object? v) => v switch { DateOnly x => x, string s when DateOnly.TryParseExact(s, \"yyyy-MM-dd\", CultureInfo.InvariantCulture, DateTimeStyles.None, out var r) => r, _ => null, }; /// <summary>Isi nilai bila field belum ada/kosong. (Jangan memakai d[key] ??= v: getter Dictionary melempar bila key belum ada.)</summary> public static void SetIfEmpty(this IDictionary<string, object?> d, string key, object? value) { if (value is null) return; if (!d.TryGetValue(key, out var current) || current is null || current is string { Length: 0 }) d[key] = value; } public static string Iso(DateOnly d) => d.ToString(\"yyyy-MM-dd\", CultureInfo.InvariantCulture); /// <summary>Sama dengan fungsi round() di ekspresi metadata (AwayFromZero).</summary> public static decimal R2(decimal v) => Math.Round(v, 2, MidpointRounding.AwayFromZero); } /// <summary>Pengumpul error per field; dilempar sekaligus agar pengguna melihat semua masalah.</summary> internal sealed class Errors { private readonly List<FieldError> _list = []; public void Add(string path, string message) => _list.Add(new FieldError(path, message)); public bool Any => _list.Count > 0; public void ThrowIfAny() { if (_list.Count > 0) throw new ValidationFailedException(_list); } public static Exception One(string path, string message) => new ValidationFailedException([new FieldError(path, message)]); } /// <summary> /// Pembaca master langsung dari store (dibatasi tenant, tidak dibatasi role user). Hook harus bisa membaca Account/Company/TaxCode /// walaupun user yang menyimpan dokumen (mis. Sales, Employee) tidak punya izin baca master tersebut. Di-cache per operasi. /// </summary> internal sealed class Masters(IDocumentStore store, string tenant) { private readonly Dictionary<(string, string), Document?> _cache = new(); public string Tenant => tenant; public async Task<Document?> GetAsync(string docType, string? name, CancellationToken ct) { if (string.IsNullOrEmpty(name)) return null; if (_cache.TryGetValue((docType, name), out var hit)) return hit; var doc = await store.GetAsync(tenant, docType, name, ct); _cache[(docType, name)] = doc; return doc; } public async Task<Document> RequireAsync(string docType, string? name, string path, string label, CancellationToken ct) => await GetAsync(docType, name, ct) tidak ditemukan/kosong",
    "docTypes": [
     "Account",
     "AccountingPeriod",
@@ -1161,10 +1176,12 @@
     "SalesInvoice",
     "SalesOrder",
     "ScheduleGeneration",
+    "ScheduleOptimization",
     "ShiftAssignment",
     "ShiftGroup",
     "ShiftOverride",
     "ShiftPattern",
+    "ShiftPreference",
     "ShiftSwapRequest",
     "ShiftType",
     "StockEntry",
@@ -1177,11 +1194,11 @@
    "className": "Masters",
    "method": "RequireAsync",
    "file": "src/Apps.Erp/Hooks/Common.cs",
-   "line": 136,
+   "line": 139,
    "shared": true
   },
   {
-   "id": "Common.cs:183",
+   "id": "Common.cs:186",
    "kind": "Error",
    "message": "No {rateType} exchange rate {from}→{to} for {day}. Add a Currency Exchange Rate or type the rate manually.",
    "pattern": "No\\s+.+?\\s+exchange\\s+rate\\s+.+?→.+?\\s+for\\s+.+?\\.\\s+Add\\s+a\\s+Currency\\s+Exchange\\s+Rate\\s+or\\s+type\\s+the\\s+rate\\s+manually\\.",
@@ -1200,11 +1217,11 @@
    "className": "Rates",
    "method": "Find",
    "file": "src/Apps.Erp/Hooks/Common.cs",
-   "line": 183,
+   "line": 186,
    "shared": true
   },
   {
-   "id": "Common.cs:211",
+   "id": "Common.cs:214",
    "kind": "Error",
    "message": "No accounting period exists for {D.Iso(date)}",
    "pattern": "No\\s+accounting\\s+period\\s+exists\\s+for\\s+.+?",
@@ -1233,11 +1250,11 @@
    "className": "Periods",
    "method": "CheckAsync",
    "file": "src/Apps.Erp/Hooks/Common.cs",
-   "line": 211,
+   "line": 214,
    "shared": true
   },
   {
-   "id": "Common.cs:212",
+   "id": "Common.cs:215",
    "kind": "Error",
    "message": "Period {period.Name} is closed",
    "pattern": "Period\\s+.+?\\s+is\\s+closed",
@@ -1266,11 +1283,11 @@
    "className": "Periods",
    "method": "CheckAsync",
    "file": "src/Apps.Erp/Hooks/Common.cs",
-   "line": 212,
+   "line": 215,
    "shared": true
   },
   {
-   "id": "Common.cs:214",
+   "id": "Common.cs:217",
    "kind": "Error",
    "message": "Period {period.Name} is locked for this transaction (subledger close)",
    "pattern": "Period\\s+.+?\\s+is\\s+locked\\s+for\\s+this\\s+transaction\\s+\\(subledger\\s+close\\)",
@@ -1299,11 +1316,11 @@
    "className": "Periods",
    "method": "CheckAsync",
    "file": "src/Apps.Erp/Hooks/Common.cs",
-   "line": 214,
+   "line": 217,
    "shared": true
   },
   {
-   "id": "Common.cs:218",
+   "id": "Common.cs:221",
    "kind": "Error",
    "message": "Books are frozen until {D.Iso(frozen)}",
    "pattern": "Books\\s+are\\s+frozen\\s+until\\s+.+?",
@@ -1332,11 +1349,11 @@
    "className": "Periods",
    "method": "CheckAsync",
    "file": "src/Apps.Erp/Hooks/Common.cs",
-   "line": 218,
+   "line": 221,
    "shared": true
   },
   {
-   "id": "Common.cs:224",
+   "id": "Common.cs:227",
    "kind": "Error",
    "message": "The posting date cannot be in the future (see Accounting Settings)",
    "pattern": "The\\s+posting\\s+date\\s+cannot\\s+be\\s+in\\s+the\\s+future\\s+\\(see\\s+Accounting\\s+Settings\\)",
@@ -1365,11 +1382,11 @@
    "className": "Periods",
    "method": "CheckFutureAsync",
    "file": "src/Apps.Erp/Hooks/Common.cs",
-   "line": 224,
+   "line": 227,
    "shared": true
   },
   {
-   "id": "Common.cs:263",
+   "id": "Common.cs:266",
    "kind": "Error",
    "message": "Entry is out of balance by {diff} (exceeds the {what} tolerance of {tolerance})",
    "pattern": "Entry\\s+is\\s+out\\s+of\\s+balance\\s+by\\s+.+?\\s+\\(exceeds\\s+the\\s+.+?\\s+tolerance\\s+of\\s+.+?\\)",
@@ -1398,11 +1415,11 @@
    "className": "Posting",
    "method": "Balance",
    "file": "src/Apps.Erp/Hooks/Common.cs",
-   "line": 263,
+   "line": 266,
    "shared": true
   },
   {
-   "id": "Common.cs:265",
+   "id": "Common.cs:268",
    "kind": "Error",
    "message": "There is a {what} difference of {diff}; set the {what} account on the Company",
    "pattern": "There\\s+is\\s+a\\s+.+?\\s+difference\\s+of\\s+.+?;\\s+set\\s+the\\s+.+?\\s+account\\s+on\\s+the\\s+Company",
@@ -1431,11 +1448,11 @@
    "className": "Posting",
    "method": "Balance",
    "file": "src/Apps.Erp/Hooks/Common.cs",
-   "line": 265,
+   "line": 268,
    "shared": true
   },
   {
-   "id": "Common.cs:273",
+   "id": "Common.cs:276",
    "kind": "Error",
    "message": "A posting needs at least 2 lines",
    "pattern": "A\\s+posting\\s+needs\\s+at\\s+least\\s+2\\s+lines",
@@ -1464,11 +1481,11 @@
    "className": "Posting",
    "method": "Build",
    "file": "src/Apps.Erp/Hooks/Common.cs",
-   "line": 273,
+   "line": 276,
    "shared": true
   },
   {
-   "id": "Common.cs:434",
+   "id": "Common.cs:437",
    "kind": "Error",
    "message": "Account {acc.Name} is a group account",
    "pattern": "Account\\s+.+?\\s+is\\s+a\\s+group\\s+account",
@@ -1488,11 +1505,11 @@
    "className": "Accounts",
    "method": "RequirePostableAsync",
    "file": "src/Apps.Erp/Hooks/Common.cs",
-   "line": 434,
+   "line": 437,
    "shared": true
   },
   {
-   "id": "Common.cs:435",
+   "id": "Common.cs:438",
    "kind": "Error",
    "message": "Account {acc.Name} is inactive",
    "pattern": "Account\\s+.+?\\s+is\\s+inactive",
@@ -1512,11 +1529,11 @@
    "className": "Accounts",
    "method": "RequirePostableAsync",
    "file": "src/Apps.Erp/Hooks/Common.cs",
-   "line": 435,
+   "line": 438,
    "shared": true
   },
   {
-   "id": "Common.cs:436",
+   "id": "Common.cs:439",
    "kind": "Error",
    "message": "Account {acc.Name} is frozen",
    "pattern": "Account\\s+.+?\\s+is\\s+frozen",
@@ -1536,7 +1553,7 @@
    "className": "Accounts",
    "method": "RequirePostableAsync",
    "file": "src/Apps.Erp/Hooks/Common.cs",
-   "line": 436,
+   "line": 439,
    "shared": true
   },
   {
@@ -1871,6 +1888,7 @@
    "condition": "emp.Data.Str(\"status\") == \"Left\"",
    "docTypes": [
     "Attendance",
+    "Employee",
     "EmployeeAdvance",
     "EmployeeAssignment",
     "EmployeeDailySchedule",
@@ -1880,14 +1898,22 @@
     "JobChange",
     "LeaveAllocation",
     "LeaveApplication",
+    "OrganizationUnit",
     "OvertimeRequest",
     "PaymentEntry",
     "PaymentRun",
+    "PayrollRun",
     "Payslip",
+    "Position",
     "PurchaseOrder",
     "PurchaseRequest",
     "ScheduleGeneration",
+    "ScheduleOptimization",
+    "ShiftAssignment",
+    "ShiftGroup",
     "ShiftOverride",
+    "ShiftPattern",
+    "ShiftPreference",
     "ShiftSwapRequest"
    ],
    "event": "Pemeriksaan ActiveEmployeeAsync",
@@ -1898,7 +1924,7 @@
    "shared": true
   },
   {
-   "id": "EmployeeFinanceHooks.cs:53",
+   "id": "EmployeeFinanceHooks.cs:60",
    "kind": "Error",
    "message": "The advance account is not set",
    "pattern": "The\\s+advance\\s+account\\s+is\\s+not\\s+set",
@@ -1911,11 +1937,11 @@
    "className": "EmployeeAdvanceHook",
    "method": "AfterSaveAsync",
    "file": "src/Apps.Erp/Hooks/EmployeeFinanceHooks.cs",
-   "line": 53,
+   "line": 60,
    "shared": false
   },
   {
-   "id": "EmployeeFinanceHooks.cs:54",
+   "id": "EmployeeFinanceHooks.cs:61",
    "kind": "Error",
    "message": "The company's default payable account is not set",
    "pattern": "The\\s+company's\\s+default\\s+payable\\s+account\\s+is\\s+not\\s+set",
@@ -1928,11 +1954,11 @@
    "className": "EmployeeAdvanceHook",
    "method": "AfterSaveAsync",
    "file": "src/Apps.Erp/Hooks/EmployeeFinanceHooks.cs",
-   "line": 54,
+   "line": 61,
    "shared": false
   },
   {
-   "id": "EmployeeFinanceHooks.cs:66",
+   "id": "EmployeeFinanceHooks.cs:73",
    "kind": "Error",
    "message": "{c.Doc.Name} has been paid or settled; cancel those documents first",
    "pattern": ".+?\\s+has\\s+been\\s+paid\\s+or\\s+settled;\\s+cancel\\s+those\\s+documents\\s+first",
@@ -1945,11 +1971,11 @@
    "className": "EmployeeAdvanceHook",
    "method": "OnCancelAsync",
    "file": "src/Apps.Erp/Hooks/EmployeeFinanceHooks.cs",
-   "line": 66,
+   "line": 73,
    "shared": false
   },
   {
-   "id": "EmployeeFinanceHooks.cs:100",
+   "id": "EmployeeFinanceHooks.cs:107",
    "kind": "Error",
    "message": "Choose the advance being settled",
    "pattern": "Choose\\s+the\\s+advance\\s+being\\s+settled",
@@ -1962,11 +1988,11 @@
    "className": "ExpenseClaimHook",
    "method": "AdvanceAsync",
    "file": "src/Apps.Erp/Hooks/EmployeeFinanceHooks.cs",
-   "line": 100,
+   "line": 107,
    "shared": false
   },
   {
-   "id": "EmployeeFinanceHooks.cs:101",
+   "id": "EmployeeFinanceHooks.cs:108",
    "kind": "Error",
    "message": "{adv.Name} belongs to another employee",
    "pattern": ".+?\\s+belongs\\s+to\\s+another\\s+employee",
@@ -1979,11 +2005,11 @@
    "className": "ExpenseClaimHook",
    "method": "AdvanceAsync",
    "file": "src/Apps.Erp/Hooks/EmployeeFinanceHooks.cs",
-   "line": 101,
+   "line": 108,
    "shared": false
   },
   {
-   "id": "EmployeeFinanceHooks.cs:102",
+   "id": "EmployeeFinanceHooks.cs:109",
    "kind": "Error",
    "message": "{adv.Name} is not approved",
    "pattern": ".+?\\s+is\\s+not\\s+approved",
@@ -1996,11 +2022,11 @@
    "className": "ExpenseClaimHook",
    "method": "AdvanceAsync",
    "file": "src/Apps.Erp/Hooks/EmployeeFinanceHooks.cs",
-   "line": 102,
+   "line": 109,
    "shared": false
   },
   {
-   "id": "EmployeeFinanceHooks.cs:103",
+   "id": "EmployeeFinanceHooks.cs:110",
    "kind": "Error",
    "message": "The advance deduction cannot exceed the total claimed; return the unused advance through a Payment Entry",
    "pattern": "The\\s+advance\\s+deduction\\s+cannot\\s+exceed\\s+the\\s+total\\s+claimed;\\s+return\\s+the\\s+unused\\s+advance\\s+through\\s+a\\s+Payment\\s+Entry",
@@ -2013,11 +2039,11 @@
    "className": "ExpenseClaimHook",
    "method": "AdvanceAsync",
    "file": "src/Apps.Erp/Hooks/EmployeeFinanceHooks.cs",
-   "line": 103,
+   "line": 110,
    "shared": false
   },
   {
-   "id": "EmployeeFinanceHooks.cs:105",
+   "id": "EmployeeFinanceHooks.cs:112",
    "kind": "Error",
    "message": "Exceeds the open balance of advance {adv.Name} ({(open is null ? 0m : open.NetBase):N2})",
    "pattern": "Exceeds\\s+the\\s+open\\s+balance\\s+of\\s+advance\\s+.+?\\s+\\(.+?\\)",
@@ -2030,11 +2056,11 @@
    "className": "ExpenseClaimHook",
    "method": "AdvanceAsync",
    "file": "src/Apps.Erp/Hooks/EmployeeFinanceHooks.cs",
-   "line": 105,
+   "line": 112,
    "shared": false
   },
   {
-   "id": "EmployeeFinanceHooks.cs:126",
+   "id": "EmployeeFinanceHooks.cs:141",
    "kind": "Error",
    "message": "{type.Name} requires a receipt",
    "pattern": ".+?\\s+requires\\s+a\\s+receipt",
@@ -2047,11 +2073,11 @@
    "className": "ExpenseClaimHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/EmployeeFinanceHooks.cs",
-   "line": 126,
+   "line": 141,
    "shared": false
   },
   {
-   "id": "EmployeeFinanceHooks.cs:128",
+   "id": "EmployeeFinanceHooks.cs:143",
    "kind": "Error",
    "message": "Exceeds the {type.Name} limit ({max})",
    "pattern": "Exceeds\\s+the\\s+.+?\\s+limit\\s+\\(.+?\\)",
@@ -2064,11 +2090,11 @@
    "className": "ExpenseClaimHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/EmployeeFinanceHooks.cs",
-   "line": 128,
+   "line": 143,
    "shared": false
   },
   {
-   "id": "EmployeeFinanceHooks.cs:129",
+   "id": "EmployeeFinanceHooks.cs:144",
    "kind": "Error",
    "message": "Amount must be greater than 0",
    "pattern": "Amount\\s+must\\s+be\\s+greater\\s+than\\s+0",
@@ -2081,11 +2107,11 @@
    "className": "ExpenseClaimHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/EmployeeFinanceHooks.cs",
-   "line": 129,
+   "line": 144,
    "shared": false
   },
   {
-   "id": "EmployeeFinanceHooks.cs:150",
+   "id": "EmployeeFinanceHooks.cs:165",
    "kind": "Error",
    "message": "The employee payable account is not set",
    "pattern": "The\\s+employee\\s+payable\\s+account\\s+is\\s+not\\s+set",
@@ -2098,11 +2124,11 @@
    "className": "ExpenseClaimHook",
    "method": "AfterSaveAsync",
    "file": "src/Apps.Erp/Hooks/EmployeeFinanceHooks.cs",
-   "line": 150,
+   "line": 165,
    "shared": false
   },
   {
-   "id": "EmployeeFinanceHooks.cs:155",
+   "id": "EmployeeFinanceHooks.cs:170",
    "kind": "Error",
    "message": "The line expense account is not set",
    "pattern": "The\\s+line\\s+expense\\s+account\\s+is\\s+not\\s+set",
@@ -2115,11 +2141,11 @@
    "className": "ExpenseClaimHook",
    "method": "AfterSaveAsync",
    "file": "src/Apps.Erp/Hooks/EmployeeFinanceHooks.cs",
-   "line": 155,
+   "line": 170,
    "shared": false
   },
   {
-   "id": "EmployeeFinanceHooks.cs:161",
+   "id": "EmployeeFinanceHooks.cs:176",
    "kind": "Error",
    "message": "The advance account is not set",
    "pattern": "The\\s+advance\\s+account\\s+is\\s+not\\s+set",
@@ -2132,11 +2158,11 @@
    "className": "ExpenseClaimHook",
    "method": "AfterSaveAsync",
    "file": "src/Apps.Erp/Hooks/EmployeeFinanceHooks.cs",
-   "line": 161,
+   "line": 176,
    "shared": false
   },
   {
-   "id": "EmployeeFinanceHooks.cs:171",
+   "id": "EmployeeFinanceHooks.cs:186",
    "kind": "Error",
    "message": "{c.Doc.Name} has been paid; cancel the payment first",
    "pattern": ".+?\\s+has\\s+been\\s+paid;\\s+cancel\\s+the\\s+payment\\s+first",
@@ -2149,11 +2175,11 @@
    "className": "ExpenseClaimHook",
    "method": "OnCancelAsync",
    "file": "src/Apps.Erp/Hooks/EmployeeFinanceHooks.cs",
-   "line": 171,
+   "line": 186,
    "shared": false
   },
   {
-   "id": "HrHooks.cs:231",
+   "id": "HrHooks.cs:347",
    "kind": "Error",
    "message": "An organization unit type cannot be its own parent type",
    "pattern": "An\\s+organization\\s+unit\\s+type\\s+cannot\\s+be\\s+its\\s+own\\s+parent\\s+type",
@@ -2166,11 +2192,11 @@
    "className": "OrganizationUnitTypeHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/HrHooks.cs",
-   "line": 231,
+   "line": 347,
    "shared": false
   },
   {
-   "id": "HrHooks.cs:235",
+   "id": "HrHooks.cs:351",
    "kind": "Error",
    "message": "Type code {code} is already used by {dup.Name}",
    "pattern": "Type\\s+code\\s+.+?\\s+is\\s+already\\s+used\\s+by\\s+.+?",
@@ -2183,11 +2209,11 @@
    "className": "OrganizationUnitTypeHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/HrHooks.cs",
-   "line": 235,
+   "line": 351,
    "shared": false
   },
   {
-   "id": "HrHooks.cs:243",
+   "id": "HrHooks.cs:359",
    "kind": "Error",
    "message": "System organization unit types cannot be deleted",
    "pattern": "System\\s+organization\\s+unit\\s+types\\s+cannot\\s+be\\s+deleted",
@@ -2200,11 +2226,11 @@
    "className": "OrganizationUnitTypeHook",
    "method": "BeforeDeleteAsync",
    "file": "src/Apps.Erp/Hooks/HrHooks.cs",
-   "line": 243,
+   "line": 359,
    "shared": false
   },
   {
-   "id": "HrHooks.cs:269",
+   "id": "HrHooks.cs:385",
    "kind": "Error",
    "message": "The Left status is applied through Employee Separation",
    "pattern": "The\\s+Left\\s+status\\s+is\\s+applied\\s+through\\s+Employee\\s+Separation",
@@ -2217,11 +2243,11 @@
    "className": "EmployeeHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/HrHooks.cs",
-   "line": 269,
+   "line": 385,
    "shared": false
   },
   {
-   "id": "HrHooks.cs:280",
+   "id": "HrHooks.cs:396",
    "kind": "Error",
    "message": "Position {pos.Name} is {pos.Data.Str(\"status\")}",
    "pattern": "Position\\s+.+?\\s+is\\s+.+?",
@@ -2234,11 +2260,11 @@
    "className": "EmployeeHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/HrHooks.cs",
-   "line": 280,
+   "line": 396,
    "shared": false
   },
   {
-   "id": "HrHooks.cs:282",
+   "id": "HrHooks.cs:398",
    "kind": "Error",
    "message": "Position {pos.Name} is already filled by {holder.Name}",
    "pattern": "Position\\s+.+?\\s+is\\s+already\\s+filled\\s+by\\s+.+?",
@@ -2251,11 +2277,11 @@
    "className": "EmployeeHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/HrHooks.cs",
-   "line": 282,
+   "line": 398,
    "shared": false
   },
   {
-   "id": "HrHooks.cs:305",
+   "id": "HrHooks.cs:421",
    "kind": "Error",
    "message": "The probation end date is before the date of joining",
    "pattern": "The\\s+probation\\s+end\\s+date\\s+is\\s+before\\s+the\\s+date\\s+of\\s+joining",
@@ -2268,11 +2294,11 @@
    "className": "EmployeeHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/HrHooks.cs",
-   "line": 305,
+   "line": 421,
    "shared": false
   },
   {
-   "id": "HrHooks.cs:306",
+   "id": "HrHooks.cs:422",
    "kind": "Error",
    "message": "An employee cannot report to themselves",
    "pattern": "An\\s+employee\\s+cannot\\s+report\\s+to\\s+themselves",
@@ -2285,11 +2311,11 @@
    "className": "EmployeeHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/HrHooks.cs",
-   "line": 306,
+   "line": 422,
    "shared": false
   },
   {
-   "id": "HrHooks.cs:337",
+   "id": "HrHooks.cs:453",
    "kind": "Error",
    "message": "The position is still filled by {holder.Name}; move the employee first",
    "pattern": "The\\s+position\\s+is\\s+still\\s+filled\\s+by\\s+.+?;\\s+move\\s+the\\s+employee\\s+first",
@@ -2302,11 +2328,11 @@
    "className": "PositionHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/HrHooks.cs",
-   "line": 337,
+   "line": 453,
    "shared": false
   },
   {
-   "id": "HrHooks.cs:375",
+   "id": "HrHooks.cs:491",
    "kind": "Error",
    "message": "The effective end date must be on or after the effective start date",
    "pattern": "The\\s+effective\\s+end\\s+date\\s+must\\s+be\\s+on\\s+or\\s+after\\s+the\\s+effective\\s+start\\s+date",
@@ -2319,11 +2345,11 @@
    "className": "OrganizationUnitHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/HrHooks.cs",
-   "line": 375,
+   "line": 491,
    "shared": false
   },
   {
-   "id": "HrHooks.cs:385",
+   "id": "HrHooks.cs:501",
    "kind": "Warning",
    "message": "Advisory: unit type '{unitTypeDoc.Name}' recommends parent type '{expectedParent}', but parent '{parentDoc.Name}' has type '{actualParentType}'",
    "pattern": "Advisory:\\s+unit\\s+type\\s+'.+?'\\s+recommends\\s+parent\\s+type\\s+'.+?',\\s+but\\s+parent\\s+'.+?'\\s+has\\s+type\\s+'.+?'",
@@ -2336,11 +2362,11 @@
    "className": "OrganizationUnitHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/HrHooks.cs",
-   "line": 385,
+   "line": 501,
    "shared": false
   },
   {
-   "id": "HrHooks.cs:400",
+   "id": "HrHooks.cs:516",
    "kind": "Error",
    "message": "Circular organization hierarchy detected involving unit '{code}'",
    "pattern": "Circular\\s+organization\\s+hierarchy\\s+detected\\s+involving\\s+unit\\s+'.+?'",
@@ -2353,11 +2379,11 @@
    "className": "OrganizationUnitHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/HrHooks.cs",
-   "line": 400,
+   "line": 516,
    "shared": false
   },
   {
-   "id": "HrHooks.cs:424",
+   "id": "HrHooks.cs:540",
    "kind": "Error",
    "message": "Active validity period overlaps with version {other.Name} for unit {baseCode}",
    "pattern": "Active\\s+validity\\s+period\\s+overlaps\\s+with\\s+version\\s+.+?\\s+for\\s+unit\\s+.+?",
@@ -2370,11 +2396,11 @@
    "className": "OrganizationUnitHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/HrHooks.cs",
-   "line": 424,
+   "line": 540,
    "shared": false
   },
   {
-   "id": "HrHooks.cs:444",
+   "id": "HrHooks.cs:560",
    "kind": "Error",
    "message": "Cannot close unit {code} while active position {activePositions[0].Name} is still assigned to it",
    "pattern": "Cannot\\s+close\\s+unit\\s+.+?\\s+while\\s+active\\s+position\\s+.+?\\s+is\\s+still\\s+assigned\\s+to\\s+it",
@@ -2387,11 +2413,11 @@
    "className": "OrganizationUnitHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/HrHooks.cs",
-   "line": 444,
+   "line": 560,
    "shared": false
   },
   {
-   "id": "HrHooks.cs:567",
+   "id": "HrHooks.cs:683",
    "kind": "Error",
    "message": "Position {pos.Name} is {pos.Data.Str(\"status\")}",
    "pattern": "Position\\s+.+?\\s+is\\s+.+?",
@@ -2404,11 +2430,11 @@
    "className": "EmployeeAssignmentHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/HrHooks.cs",
-   "line": 567,
+   "line": 683,
    "shared": false
   },
   {
-   "id": "HrHooks.cs:575",
+   "id": "HrHooks.cs:691",
    "kind": "Error",
    "message": "The end date must be on or after the start date",
    "pattern": "The\\s+end\\s+date\\s+must\\s+be\\s+on\\s+or\\s+after\\s+the\\s+start\\s+date",
@@ -2421,11 +2447,79 @@
    "className": "EmployeeAssignmentHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/HrHooks.cs",
-   "line": 575,
+   "line": 691,
    "shared": false
   },
   {
-   "id": "HrHooks.cs:587",
+   "id": "HrHooks.cs:696",
+   "kind": "Error",
+   "message": "An Acting (Plt.) assignment must specify either 'Acting for' or a 'Position'",
+   "pattern": "An\\s+Acting\\s+\\(Plt\\.\\)\\s+assignment\\s+must\\s+specify\\s+either\\s+'Acting\\s+for'\\s+or\\s+a\\s+'Position'",
+   "field": "acting_for",
+   "condition": "asgType == \"Acting\" && d.Str(\"acting_for\") is null && d.Str(\"position\") is null",
+   "docTypes": [
+    "EmployeeAssignment"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "EmployeeAssignmentHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/HrHooks.cs",
+   "line": 696,
+   "shared": false
+  },
+  {
+   "id": "HrHooks.cs:698",
+   "kind": "Error",
+   "message": "An employee cannot be Acting for themselves",
+   "pattern": "An\\s+employee\\s+cannot\\s+be\\s+Acting\\s+for\\s+themselves",
+   "field": "acting_for",
+   "condition": "d.Str(\"acting_for\") == emp.Name",
+   "docTypes": [
+    "EmployeeAssignment"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "EmployeeAssignmentHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/HrHooks.cs",
+   "line": 698,
+   "shared": false
+  },
+  {
+   "id": "HrHooks.cs:700",
+   "kind": "Error",
+   "message": "A Dotted-line assignment must specify either a 'Dotted-line manager' or a 'Project'",
+   "pattern": "A\\s+Dotted\\-line\\s+assignment\\s+must\\s+specify\\s+either\\s+a\\s+'Dotted\\-line\\s+manager'\\s+or\\s+a\\s+'Project'",
+   "field": "dotted_line_manager",
+   "condition": "repLine == \"Dotted\" && d.Str(\"dotted_line_manager\") is null && d.Str(\"project\") is null",
+   "docTypes": [
+    "EmployeeAssignment"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "EmployeeAssignmentHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/HrHooks.cs",
+   "line": 700,
+   "shared": false
+  },
+  {
+   "id": "HrHooks.cs:702",
+   "kind": "Error",
+   "message": "An employee cannot be their own dotted-line manager",
+   "pattern": "An\\s+employee\\s+cannot\\s+be\\s+their\\s+own\\s+dotted\\-line\\s+manager",
+   "field": "dotted_line_manager",
+   "condition": "d.Str(\"dotted_line_manager\") == emp.Name",
+   "docTypes": [
+    "EmployeeAssignment"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "EmployeeAssignmentHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/HrHooks.cs",
+   "line": 702,
+   "shared": false
+  },
+  {
+   "id": "HrHooks.cs:720",
    "kind": "Error",
    "message": "Overlaps with active assignment {other.Name}",
    "pattern": "Overlaps\\s+with\\s+active\\s+assignment\\s+.+?",
@@ -2438,11 +2532,11 @@
    "className": "EmployeeAssignmentHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/HrHooks.cs",
-   "line": 587,
+   "line": 720,
    "shared": false
   },
   {
-   "id": "HrHooks.cs:616",
+   "id": "HrHooks.cs:749",
    "kind": "Error",
    "message": "The effective date is before the employee's date of joining",
    "pattern": "The\\s+effective\\s+date\\s+is\\s+before\\s+the\\s+employee's\\s+date\\s+of\\s+joining",
@@ -2455,11 +2549,11 @@
    "className": "JobChangeHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/HrHooks.cs",
-   "line": 616,
+   "line": 749,
    "shared": false
   },
   {
-   "id": "HrHooks.cs:620",
+   "id": "HrHooks.cs:753",
    "kind": "Error",
    "message": "Position {np} is {pos.Data.Str(\"status\")}",
    "pattern": "Position\\s+.+?\\s+is\\s+.+?",
@@ -2472,11 +2566,11 @@
    "className": "JobChangeHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/HrHooks.cs",
-   "line": 620,
+   "line": 753,
    "shared": false
   },
   {
-   "id": "HrHooks.cs:622",
+   "id": "HrHooks.cs:755",
    "kind": "Error",
    "message": "Position {np} is still filled by {holder.Name}",
    "pattern": "Position\\s+.+?\\s+is\\s+still\\s+filled\\s+by\\s+.+?",
@@ -2489,11 +2583,11 @@
    "className": "JobChangeHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/HrHooks.cs",
-   "line": 622,
+   "line": 755,
    "shared": false
   },
   {
-   "id": "HrHooks.cs:642",
+   "id": "HrHooks.cs:775",
    "kind": "Error",
    "message": "This change has already been applied to the employee; create a new Job Change to reverse it",
    "pattern": "This\\s+change\\s+has\\s+already\\s+been\\s+applied\\s+to\\s+the\\s+employee;\\s+create\\s+a\\s+new\\s+Job\\s+Change\\s+to\\s+reverse\\s+it",
@@ -2506,11 +2600,11 @@
    "className": "JobChangeHook",
    "method": "OnCancelAsync",
    "file": "src/Apps.Erp/Hooks/HrHooks.cs",
-   "line": 642,
+   "line": 775,
    "shared": false
   },
   {
-   "id": "HrHooks.cs:663",
+   "id": "HrHooks.cs:796",
    "kind": "Error",
    "message": "The last working date is before the date of joining",
    "pattern": "The\\s+last\\s+working\\s+date\\s+is\\s+before\\s+the\\s+date\\s+of\\s+joining",
@@ -2523,11 +2617,11 @@
    "className": "EmployeeSeparationHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/HrHooks.cs",
-   "line": 663,
+   "line": 796,
    "shared": false
   },
   {
-   "id": "HrHooks.cs:666",
+   "id": "HrHooks.cs:799",
    "kind": "Error",
    "message": "Separation {other.Name} already exists",
    "pattern": "Separation\\s+.+?\\s+already\\s+exists",
@@ -2540,11 +2634,11 @@
    "className": "EmployeeSeparationHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/HrHooks.cs",
-   "line": 666,
+   "line": 799,
    "shared": false
   },
   {
-   "id": "HrHooks.cs:683",
+   "id": "HrHooks.cs:816",
    "kind": "Error",
    "message": "The separation has already been applied; reactivate the employee through HR (status) before cancelling",
    "pattern": "The\\s+separation\\s+has\\s+already\\s+been\\s+applied;\\s+reactivate\\s+the\\s+employee\\s+through\\s+HR\\s+\\(status\\)\\s+before\\s+cancelling",
@@ -2557,11 +2651,11 @@
    "className": "EmployeeSeparationHook",
    "method": "OnCancelAsync",
    "file": "src/Apps.Erp/Hooks/HrHooks.cs",
-   "line": 683,
+   "line": 816,
    "shared": false
   },
   {
-   "id": "HrHooks.cs:702",
+   "id": "HrHooks.cs:835",
    "kind": "Error",
    "message": "Overlaps with contract {o.Name}",
    "pattern": "Overlaps\\s+with\\s+contract\\s+.+?",
@@ -2574,11 +2668,11 @@
    "className": "EmploymentContractHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/HrHooks.cs",
-   "line": 702,
+   "line": 835,
    "shared": false
   },
   {
-   "id": "HrHooks.cs:710",
+   "id": "HrHooks.cs:843",
    "kind": "Error",
    "message": "Total fixed-term (PKWT) duration including renewals is {months} months, exceeding {MaxPkwtMonths} months",
    "pattern": "Total\\s+fixed\\-term\\s+\\(PKWT\\)\\s+duration\\s+including\\s+renewals\\s+is\\s+.+?\\s+months,\\s+exceeding\\s+.+?\\s+months",
@@ -2591,11 +2685,11 @@
    "className": "EmploymentContractHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/HrHooks.cs",
-   "line": 710,
+   "line": 843,
    "shared": false
   },
   {
-   "id": "HrHooks.cs:733",
+   "id": "HrHooks.cs:866",
    "kind": "Error",
    "message": "Overlaps with allocation {other.Name}",
    "pattern": "Overlaps\\s+with\\s+allocation\\s+.+?",
@@ -2608,11 +2702,11 @@
    "className": "LeaveAllocationHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/HrHooks.cs",
-   "line": 733,
+   "line": 866,
    "shared": false
   },
   {
-   "id": "HrHooks.cs:807",
+   "id": "HrHooks.cs:946",
    "kind": "Error",
    "message": "{type.Name} is only for {gender.ToLowerInvariant()} employees",
    "pattern": ".+?\\s+is\\s+only\\s+for\\s+.+?\\s+employees",
@@ -2625,11 +2719,11 @@
    "className": "LeaveApplicationHook",
    "method": "CheckAsync",
    "file": "src/Apps.Erp/Hooks/HrHooks.cs",
-   "line": 807,
+   "line": 946,
    "shared": false
   },
   {
-   "id": "HrHooks.cs:810",
+   "id": "HrHooks.cs:949",
    "kind": "Error",
    "message": "There are no working days in this date range",
    "pattern": "There\\s+are\\s+no\\s+working\\s+days\\s+in\\s+this\\s+date\\s+range",
@@ -2642,11 +2736,11 @@
    "className": "LeaveApplicationHook",
    "method": "CheckAsync",
    "file": "src/Apps.Erp/Hooks/HrHooks.cs",
-   "line": 810,
+   "line": 949,
    "shared": false
   },
   {
-   "id": "HrHooks.cs:812",
+   "id": "HrHooks.cs:951",
    "kind": "Error",
    "message": "At most {max} consecutive days for {type.Name}",
    "pattern": "At\\s+most\\s+.+?\\s+consecutive\\s+days\\s+for\\s+.+?",
@@ -2659,11 +2753,11 @@
    "className": "LeaveApplicationHook",
    "method": "CheckAsync",
    "file": "src/Apps.Erp/Hooks/HrHooks.cs",
-   "line": 812,
+   "line": 951,
    "shared": false
   },
   {
-   "id": "HrHooks.cs:818",
+   "id": "HrHooks.cs:957",
    "kind": "Error",
    "message": "Overlaps with application {clash.Name}",
    "pattern": "Overlaps\\s+with\\s+application\\s+.+?",
@@ -2676,11 +2770,11 @@
    "className": "LeaveApplicationHook",
    "method": "CheckAsync",
    "file": "src/Apps.Erp/Hooks/HrHooks.cs",
-   "line": 818,
+   "line": 957,
    "shared": false
   },
   {
-   "id": "HrHooks.cs:824",
+   "id": "HrHooks.cs:963",
    "kind": "Error",
    "message": "There is no {type.Name} allocation for this period",
    "pattern": "There\\s+is\\s+no\\s+.+?\\s+allocation\\s+for\\s+this\\s+period",
@@ -2693,11 +2787,11 @@
    "className": "LeaveApplicationHook",
    "method": "CheckAsync",
    "file": "src/Apps.Erp/Hooks/HrHooks.cs",
-   "line": 824,
+   "line": 963,
    "shared": false
   },
   {
-   "id": "HrHooks.cs:833",
+   "id": "HrHooks.cs:972",
    "kind": "Error",
    "message": "Only {balance} days of {type.Name} remain",
    "pattern": "Only\\s+.+?\\s+days\\s+of\\s+.+?\\s+remain",
@@ -2710,11 +2804,11 @@
    "className": "LeaveApplicationHook",
    "method": "CheckAsync",
    "file": "src/Apps.Erp/Hooks/HrHooks.cs",
-   "line": 833,
+   "line": 972,
    "shared": false
   },
   {
-   "id": "HrHooks.cs:918",
+   "id": "HrHooks.cs:1057",
    "kind": "Error",
    "message": "Creating the user for {emp.Name} failed: {string.Join(\"; \", result.Errors.Select(e => e.Description))}",
    "pattern": "Creating\\s+the\\s+user\\s+for\\s+.+?\\s+failed:\\s+.+?",
@@ -2725,7 +2819,7 @@
    "className": "HrApply",
    "method": "EnsureUserAsync",
    "file": "src/Apps.Erp/Hooks/HrHooks.cs",
-   "line": 918,
+   "line": 1057,
    "shared": true
   },
   {
@@ -4522,7 +4616,7 @@
    "shared": false
   },
   {
-   "id": "ProcurementHooks.cs:78",
+   "id": "ProcurementHooks.cs:86",
    "kind": "Error",
    "message": "{pr.Name} is {pr.WorkflowState}, not Approved",
    "pattern": ".+?\\s+is\\s+.+?,\\s+not\\s+Approved",
@@ -4535,11 +4629,11 @@
    "className": "PurchaseOrderHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/ProcurementHooks.cs",
-   "line": 78,
+   "line": 86,
    "shared": false
   },
   {
-   "id": "ProcurementHooks.cs:93",
+   "id": "ProcurementHooks.cs:101",
    "kind": "Warning",
    "message": "Supplier {vendor.Name} is on hold: invoices can be recorded but payments are blocked",
    "pattern": "Supplier\\s+.+?\\s+is\\s+on\\s+hold:\\s+invoices\\s+can\\s+be\\s+recorded\\s+but\\s+payments\\s+are\\s+blocked",
@@ -4552,11 +4646,11 @@
    "className": "PurchaseOrderHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/ProcurementHooks.cs",
-   "line": 93,
+   "line": 101,
    "shared": false
   },
   {
-   "id": "ProcurementHooks.cs:119",
+   "id": "ProcurementHooks.cs:127",
    "kind": "Error",
    "message": "{po.Name} is not submitted or has been cancelled",
    "pattern": ".+?\\s+is\\s+not\\s+submitted\\s+or\\s+has\\s+been\\s+cancelled",
@@ -4569,11 +4663,11 @@
    "className": "GoodsReceiptHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/ProcurementHooks.cs",
-   "line": 119,
+   "line": 127,
    "shared": false
   },
   {
-   "id": "ProcurementHooks.cs:128",
+   "id": "ProcurementHooks.cs:136",
    "kind": "Error",
    "message": "Everything on {po.Name} has been received",
    "pattern": "Everything\\s+on\\s+.+?\\s+has\\s+been\\s+received",
@@ -4586,11 +4680,11 @@
    "className": "GoodsReceiptHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/ProcurementHooks.cs",
-   "line": 128,
+   "line": 136,
    "shared": false
   },
   {
-   "id": "ProcurementHooks.cs:132",
+   "id": "ProcurementHooks.cs:140",
    "kind": "Error",
    "message": "{po.Name} has no line {line}",
    "pattern": ".+?\\s+has\\s+no\\s+line\\s+.+?",
@@ -4603,11 +4697,11 @@
    "className": "GoodsReceiptHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/ProcurementHooks.cs",
-   "line": 132,
+   "line": 140,
    "shared": false
   },
   {
-   "id": "ProcurementHooks.cs:136",
+   "id": "ProcurementHooks.cs:144",
    "kind": "Error",
    "message": "Line {line}: only {Pending(line)} not yet received",
    "pattern": "Line\\s+.+?:\\s+only\\s+.+?\\s+not\\s+yet\\s+received",
@@ -4620,11 +4714,11 @@
    "className": "GoodsReceiptHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/ProcurementHooks.cs",
-   "line": 136,
+   "line": 144,
    "shared": false
   },
   {
-   "id": "ProcurementHooks.cs:150",
+   "id": "ProcurementHooks.cs:158",
    "kind": "Error",
    "message": "{po.Name} belongs to another supplier",
    "pattern": ".+?\\s+belongs\\s+to\\s+another\\s+supplier",
@@ -4637,11 +4731,11 @@
    "className": "PurchaseInvoicePoHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/ProcurementHooks.cs",
-   "line": 150,
+   "line": 158,
    "shared": false
   },
   {
-   "id": "ProcurementHooks.cs:173",
+   "id": "ProcurementHooks.cs:181",
    "kind": "Error",
    "message": "3-way match: {po.Name} billed {billed} exceeds the received value {received}; record the goods receipt first",
    "pattern": "3\\-way\\s+match:\\s+.+?\\s+billed\\s+.+?\\s+exceeds\\s+the\\s+received\\s+value\\s+.+?;\\s+record\\s+the\\s+goods\\s+receipt\\s+first",
@@ -4654,11 +4748,11 @@
    "className": "PurchaseInvoicePoHook",
    "method": "AfterSaveAsync",
    "file": "src/Apps.Erp/Hooks/ProcurementHooks.cs",
-   "line": 173,
+   "line": 181,
    "shared": false
   },
   {
-   "id": "ProcurementHooks.cs:174",
+   "id": "ProcurementHooks.cs:182",
    "kind": "Warning",
    "message": "3-way match: {po.Name} billed {billed} exceeds the received value {received}",
    "pattern": "3\\-way\\s+match:\\s+.+?\\s+billed\\s+.+?\\s+exceeds\\s+the\\s+received\\s+value\\s+.+?",
@@ -4671,11 +4765,11 @@
    "className": "PurchaseInvoicePoHook",
    "method": "AfterSaveAsync",
    "file": "src/Apps.Erp/Hooks/ProcurementHooks.cs",
-   "line": 174,
+   "line": 182,
    "shared": false
   },
   {
-   "id": "ProcurementHooks.cs:189",
+   "id": "ProcurementHooks.cs:197",
    "kind": "ActionFailure",
    "message": "Choose the suggested supplier on the request first, or create the order manually",
    "pattern": "Choose\\s+the\\s+suggested\\s+supplier\\s+on\\s+the\\s+request\\s+first,\\s+or\\s+create\\s+the\\s+order\\s+manually",
@@ -4688,11 +4782,11 @@
    "className": "PurchaseRequestMakeOrderAction",
    "method": "ExecuteAsync",
    "file": "src/Apps.Erp/Hooks/ProcurementHooks.cs",
-   "line": 189,
+   "line": 197,
    "shared": false
   },
   {
-   "id": "ProcurementHooks.cs:201",
+   "id": "ProcurementHooks.cs:209",
    "kind": "ActionFailure",
    "message": "Purchase order creation failed: {ex.Message}",
    "pattern": "Purchase\\s+order\\s+creation\\s+failed:\\s+.+?",
@@ -4705,11 +4799,11 @@
    "className": "PurchaseRequestMakeOrderAction",
    "method": "ExecuteAsync",
    "file": "src/Apps.Erp/Hooks/ProcurementHooks.cs",
-   "line": 201,
+   "line": 209,
    "shared": false
   },
   {
-   "id": "ProcurementHooks.cs:226",
+   "id": "ProcurementHooks.cs:234",
    "kind": "ActionFailure",
    "message": "Goods receipt creation failed: {ex.Message}",
    "pattern": "Goods\\s+receipt\\s+creation\\s+failed:\\s+.+?",
@@ -4722,7 +4816,7 @@
    "className": "PurchaseOrderReceiveAction",
    "method": "ExecuteAsync",
    "file": "src/Apps.Erp/Hooks/ProcurementHooks.cs",
-   "line": 226,
+   "line": 234,
    "shared": false
   },
   {
@@ -5626,7 +5720,7 @@
    "shared": false
   },
   {
-   "id": "TimeHooks.cs:176",
+   "id": "TimeHooks.cs:183",
    "kind": "Error",
    "message": "'Public holiday on the shortest working day' only applies to a 6-day work week",
    "pattern": "'Public\\s+holiday\\s+on\\s+the\\s+shortest\\s+working\\s+day'\\s+only\\s+applies\\s+to\\s+a\\s+6\\-day\\s+work\\s+week",
@@ -5639,11 +5733,11 @@
    "className": "OvertimeRequestHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/TimeHooks.cs",
-   "line": 176,
+   "line": 183,
    "shared": false
   },
   {
-   "id": "TimeHooks.cs:179",
+   "id": "TimeHooks.cs:186",
    "kind": "Error",
    "message": "At most {max} overtime hours on a {dayType.ToLowerInvariant()} ({week}-day work week)",
    "pattern": "At\\s+most\\s+.+?\\s+overtime\\s+hours\\s+on\\s+a\\s+.+?\\s+\\(.+?\\-day\\s+work\\s+week\\)",
@@ -5656,11 +5750,11 @@
    "className": "OvertimeRequestHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/TimeHooks.cs",
-   "line": 179,
+   "line": 186,
    "shared": false
   },
   {
-   "id": "TimeHooks.cs:188",
+   "id": "TimeHooks.cs:195",
    "kind": "Error",
    "message": "Overtime would total {others + hours} hours in the week of {D.Iso(monday)}; the limit is {Overtime.MaxPerWeek} hours",
    "pattern": "Overtime\\s+would\\s+total\\s+.+?\\s+hours\\s+in\\s+the\\s+week\\s+of\\s+.+?;\\s+the\\s+limit\\s+is\\s+.+?\\s+hours",
@@ -5673,11 +5767,11 @@
    "className": "OvertimeRequestHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/TimeHooks.cs",
-   "line": 188,
+   "line": 195,
    "shared": false
   },
   {
-   "id": "WsmHooks.cs:66",
+   "id": "WsmHooks.cs:69",
    "kind": "Error",
    "message": "The effective end date must be on or after the effective start date",
    "pattern": "The\\s+effective\\s+end\\s+date\\s+must\\s+be\\s+on\\s+or\\s+after\\s+the\\s+effective\\s+start\\s+date",
@@ -5690,11 +5784,11 @@
    "className": "ShiftGroupHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/WsmHooks.cs",
-   "line": 66,
+   "line": 69,
    "shared": false
   },
   {
-   "id": "WsmHooks.cs:75",
+   "id": "WsmHooks.cs:78",
    "kind": "Error",
    "message": "Employee {emp} has overlapping active membership in this group",
    "pattern": "Employee\\s+.+?\\s+has\\s+overlapping\\s+active\\s+membership\\s+in\\s+this\\s+group",
@@ -5707,11 +5801,11 @@
    "className": "ShiftGroupHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/WsmHooks.cs",
-   "line": 75,
+   "line": 78,
    "shared": false
   },
   {
-   "id": "WsmHooks.cs:102",
+   "id": "WsmHooks.cs:105",
    "kind": "Error",
    "message": "The cycle sequence has {items.Count} row(s), which must equal the cycle length of {cycleDays} day(s)",
    "pattern": "The\\s+cycle\\s+sequence\\s+has\\s+.+?\\s+row\\(s\\),\\s+which\\s+must\\s+equal\\s+the\\s+cycle\\s+length\\s+of\\s+.+?\\s+day\\(s\\)",
@@ -5724,11 +5818,11 @@
    "className": "ShiftPatternHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/WsmHooks.cs",
-   "line": 102,
+   "line": 105,
    "shared": false
   },
   {
-   "id": "WsmHooks.cs:115",
+   "id": "WsmHooks.cs:118",
    "kind": "Error",
    "message": "Day in cycle must be between 1 and {cycleDays}",
    "pattern": "Day\\s+in\\s+cycle\\s+must\\s+be\\s+between\\s+1\\s+and\\s+.+?",
@@ -5741,11 +5835,11 @@
    "className": "ShiftPatternHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/WsmHooks.cs",
-   "line": 115,
+   "line": 118,
    "shared": false
   },
   {
-   "id": "WsmHooks.cs:117",
+   "id": "WsmHooks.cs:120",
    "kind": "Error",
    "message": "Day {dayNum} is defined more than once in the cycle",
    "pattern": "Day\\s+.+?\\s+is\\s+defined\\s+more\\s+than\\s+once\\s+in\\s+the\\s+cycle",
@@ -5758,11 +5852,11 @@
    "className": "ShiftPatternHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/WsmHooks.cs",
-   "line": 117,
+   "line": 120,
    "shared": false
   },
   {
-   "id": "WsmHooks.cs:126",
+   "id": "WsmHooks.cs:129",
    "kind": "Error",
    "message": "Shift type is required for a WORK day",
    "pattern": "Shift\\s+type\\s+is\\s+required\\s+for\\s+a\\s+WORK\\s+day",
@@ -5775,11 +5869,11 @@
    "className": "ShiftPatternHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/WsmHooks.cs",
-   "line": 126,
+   "line": 129,
    "shared": false
   },
   {
-   "id": "WsmHooks.cs:139",
+   "id": "WsmHooks.cs:142",
    "kind": "Error",
    "message": "Active pattern version overlaps with {other.Name} for canonical pattern {baseCode}",
    "pattern": "Active\\s+pattern\\s+version\\s+overlaps\\s+with\\s+.+?\\s+for\\s+canonical\\s+pattern\\s+.+?",
@@ -5792,11 +5886,11 @@
    "className": "ShiftPatternHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/WsmHooks.cs",
-   "line": 139,
+   "line": 142,
    "shared": false
   },
   {
-   "id": "WsmHooks.cs:200",
+   "id": "WsmHooks.cs:203",
    "kind": "Error",
    "message": "Overlaps with active shift assignment {other.Name} for {targetVal}",
    "pattern": "Overlaps\\s+with\\s+active\\s+shift\\s+assignment\\s+.+?\\s+for\\s+.+?",
@@ -5809,11 +5903,11 @@
    "className": "ShiftAssignmentHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/WsmHooks.cs",
-   "line": 200,
+   "line": 203,
    "shared": false
   },
   {
-   "id": "WsmHooks.cs:220",
+   "id": "WsmHooks.cs:223",
    "kind": "Error",
    "message": "The work date is required",
    "pattern": "The\\s+work\\s+date\\s+is\\s+required",
@@ -5826,11 +5920,11 @@
    "className": "EmployeeDailyScheduleHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/WsmHooks.cs",
-   "line": 220,
+   "line": 223,
    "shared": false
   },
   {
-   "id": "WsmHooks.cs:227",
+   "id": "WsmHooks.cs:230",
    "kind": "Error",
    "message": "{emp.Name} already has daily schedule {dup.Name} on {D.Iso(date)}",
    "pattern": ".+?\\s+already\\s+has\\s+daily\\s+schedule\\s+.+?\\s+on\\s+.+?",
@@ -5843,11 +5937,11 @@
    "className": "EmployeeDailyScheduleHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/WsmHooks.cs",
-   "line": 227,
+   "line": 230,
    "shared": false
   },
   {
-   "id": "WsmHooks.cs:711",
+   "id": "WsmHooks.cs:714",
    "kind": "Error",
    "message": "The end date must be on or after the start date",
    "pattern": "The\\s+end\\s+date\\s+must\\s+be\\s+on\\s+or\\s+after\\s+the\\s+start\\s+date",
@@ -5860,11 +5954,11 @@
    "className": "ScheduleGenerationHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/WsmHooks.cs",
-   "line": 711,
+   "line": 714,
    "shared": false
   },
   {
-   "id": "WsmHooks.cs:714",
+   "id": "WsmHooks.cs:717",
    "kind": "Error",
    "message": "A single schedule generation batch cannot exceed {MaxBatchDays} days (requested {span} days)",
    "pattern": "A\\s+single\\s+schedule\\s+generation\\s+batch\\s+cannot\\s+exceed\\s+.+?\\s+days\\s+\\(requested\\s+.+?\\s+days\\)",
@@ -5877,11 +5971,11 @@
    "className": "ScheduleGenerationHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/WsmHooks.cs",
-   "line": 714,
+   "line": 717,
    "shared": false
   },
   {
-   "id": "WsmHooks.cs:769",
+   "id": "WsmHooks.cs:772",
    "kind": "Error",
    "message": "The override date is required",
    "pattern": "The\\s+override\\s+date\\s+is\\s+required",
@@ -5894,11 +5988,11 @@
    "className": "ShiftOverrideHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/WsmHooks.cs",
-   "line": 769,
+   "line": 772,
    "shared": false
   },
   {
-   "id": "WsmHooks.cs:776",
+   "id": "WsmHooks.cs:779",
    "kind": "Error",
    "message": "New shift type is required when schedule type is WORK",
    "pattern": "New\\s+shift\\s+type\\s+is\\s+required\\s+when\\s+schedule\\s+type\\s+is\\s+WORK",
@@ -5911,11 +6005,11 @@
    "className": "ShiftOverrideHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/WsmHooks.cs",
-   "line": 776,
+   "line": 779,
    "shared": false
   },
   {
-   "id": "WsmHooks.cs:826",
+   "id": "WsmHooks.cs:829",
    "kind": "Error",
    "message": "An employee cannot swap shifts with themselves",
    "pattern": "An\\s+employee\\s+cannot\\s+swap\\s+shifts\\s+with\\s+themselves",
@@ -5928,11 +6022,11 @@
    "className": "ShiftSwapRequestHook",
    "method": "ValidateSwapAsync",
    "file": "src/Apps.Erp/Hooks/WsmHooks.cs",
-   "line": 826,
+   "line": 829,
    "shared": false
   },
   {
-   "id": "WsmHooks.cs:845",
+   "id": "WsmHooks.cs:848",
    "kind": "Error",
    "message": "No materialized daily schedule exists for {reqEmp.Name} on {D.Iso(swapDate.Value)}",
    "pattern": "No\\s+materialized\\s+daily\\s+schedule\\s+exists\\s+for\\s+.+?\\s+on\\s+.+?",
@@ -5945,11 +6039,11 @@
    "className": "ShiftSwapRequestHook",
    "method": "ValidateSwapAsync",
    "file": "src/Apps.Erp/Hooks/WsmHooks.cs",
-   "line": 845,
+   "line": 848,
    "shared": false
   },
   {
-   "id": "WsmHooks.cs:847",
+   "id": "WsmHooks.cs:850",
    "kind": "Error",
    "message": "No materialized daily schedule exists for {tgtEmp.Name} on {D.Iso(targetDate)}",
    "pattern": "No\\s+materialized\\s+daily\\s+schedule\\s+exists\\s+for\\s+.+?\\s+on\\s+.+?",
@@ -5962,11 +6056,11 @@
    "className": "ShiftSwapRequestHook",
    "method": "ValidateSwapAsync",
    "file": "src/Apps.Erp/Hooks/WsmHooks.cs",
-   "line": 847,
+   "line": 850,
    "shared": false
   },
   {
-   "id": "WsmHooks.cs:864",
+   "id": "WsmHooks.cs:867",
    "kind": "Error",
    "message": "Cannot swap a day that is marked as approved leave",
    "pattern": "Cannot\\s+swap\\s+a\\s+day\\s+that\\s+is\\s+marked\\s+as\\s+approved\\s+leave",
@@ -5979,11 +6073,11 @@
    "className": "ShiftSwapRequestHook",
    "method": "ValidateSwapAsync",
    "file": "src/Apps.Erp/Hooks/WsmHooks.cs",
-   "line": 864,
+   "line": 867,
    "shared": false
   },
   {
-   "id": "WsmHooks.cs:1087",
+   "id": "WsmHooks.cs:1123",
    "kind": "Warning",
    "message": "Manpower shortage alert on {D.Iso(gap.WorkDate)}: {gap.OrganizationUnit} / {gap.ShiftType} has {gap.ActualHeadcount} scheduled vs {gap.MinHeadcount} required.",
    "pattern": "Manpower\\s+shortage\\s+alert\\s+on\\s+.+?:\\s+.+?\\s+/\\s+.+?\\s+has\\s+.+?\\s+scheduled\\s+vs\\s+.+?\\s+required\\.",
@@ -5998,8 +6092,127 @@
    "className": "WsmLeaveSync",
    "method": "ApplyApprovedLeaveAsync",
    "file": "src/Apps.Erp/Hooks/WsmHooks.cs",
-   "line": 1087,
+   "line": 1123,
    "shared": true
+  },
+  {
+   "id": "WsmOptimizer.cs:574",
+   "kind": "Error",
+   "message": "Company is required",
+   "pattern": "Company\\s+is\\s+required",
+   "field": "company",
+   "condition": "d.Str(\"company\") tidak ditemukan/kosong",
+   "docTypes": [
+    "ScheduleOptimization"
+   ],
+   "event": "Pemeriksaan RunAsync",
+   "className": "WsmOptimizationService",
+   "method": "RunAsync",
+   "file": "src/Apps.Erp/Hooks/WsmOptimizer.cs",
+   "line": 574,
+   "shared": true
+  },
+  {
+   "id": "WsmOptimizer.cs:575",
+   "kind": "Error",
+   "message": "From date is required",
+   "pattern": "From\\s+date\\s+is\\s+required",
+   "field": "from_date",
+   "condition": "d.Date(\"from_date\") tidak ditemukan/kosong",
+   "docTypes": [
+    "ScheduleOptimization"
+   ],
+   "event": "Pemeriksaan RunAsync",
+   "className": "WsmOptimizationService",
+   "method": "RunAsync",
+   "file": "src/Apps.Erp/Hooks/WsmOptimizer.cs",
+   "line": 575,
+   "shared": true
+  },
+  {
+   "id": "WsmOptimizer.cs:576",
+   "kind": "Error",
+   "message": "To date is required",
+   "pattern": "To\\s+date\\s+is\\s+required",
+   "field": "to_date",
+   "condition": "d.Date(\"to_date\") tidak ditemukan/kosong",
+   "docTypes": [
+    "ScheduleOptimization"
+   ],
+   "event": "Pemeriksaan RunAsync",
+   "className": "WsmOptimizationService",
+   "method": "RunAsync",
+   "file": "src/Apps.Erp/Hooks/WsmOptimizer.cs",
+   "line": 576,
+   "shared": true
+  },
+  {
+   "id": "WsmOptimizer.cs:770",
+   "kind": "Error",
+   "message": "Only a Proposed optimization can be applied",
+   "pattern": "Only\\s+a\\s+Proposed\\s+optimization\\s+can\\s+be\\s+applied",
+   "field": "status",
+   "condition": "optDoc.Data.Str(\"status\") != \"Proposed\"",
+   "docTypes": [
+    "ScheduleOptimization"
+   ],
+   "event": "Pemeriksaan ApplyAsync",
+   "className": "WsmOptimizationService",
+   "method": "ApplyAsync",
+   "file": "src/Apps.Erp/Hooks/WsmOptimizer.cs",
+   "line": 770,
+   "shared": true
+  },
+  {
+   "id": "WsmOptimizer.cs:913",
+   "kind": "Error",
+   "message": "The end date must be on or after the start date",
+   "pattern": "The\\s+end\\s+date\\s+must\\s+be\\s+on\\s+or\\s+after\\s+the\\s+start\\s+date",
+   "field": "to_date",
+   "condition": "from is not null && to is not null && to < from",
+   "docTypes": [
+    "ShiftPreference"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "ShiftPreferenceHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/WsmOptimizer.cs",
+   "line": 913,
+   "shared": false
+  },
+  {
+   "id": "WsmOptimizer.cs:931",
+   "kind": "Error",
+   "message": "The end date must be on or after the start date",
+   "pattern": "The\\s+end\\s+date\\s+must\\s+be\\s+on\\s+or\\s+after\\s+the\\s+start\\s+date",
+   "field": "to_date",
+   "condition": "!(from is null || to is null) && to < from",
+   "docTypes": [
+    "ScheduleOptimization"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "ScheduleOptimizationHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/WsmOptimizer.cs",
+   "line": 931,
+   "shared": false
+  },
+  {
+   "id": "WsmOptimizer.cs:934",
+   "kind": "Error",
+   "message": "A single optimization run cannot exceed {MaxOptimizationDays} days (requested {span} days)",
+   "pattern": "A\\s+single\\s+optimization\\s+run\\s+cannot\\s+exceed\\s+.+?\\s+days\\s+\\(requested\\s+.+?\\s+days\\)",
+   "field": "to_date",
+   "condition": "!(from is null || to is null) && !(to < from) && span > MaxOptimizationDays",
+   "docTypes": [
+    "ScheduleOptimization"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "ScheduleOptimizationHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/WsmOptimizer.cs",
+   "line": 934,
+   "shared": false
   }
  ]
 }

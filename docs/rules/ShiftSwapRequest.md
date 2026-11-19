@@ -10,10 +10,10 @@ Aturan yang dijalankan kode saat dokumen Shift Swap Request (ShiftSwapRequest) d
 
 ## Validasi (dokumen ditolak): Pemeriksaan ValidateSwapAsync
 
-- `target_employee`: "An employee cannot swap shifts with themselves" — terjadi bila `reqEmp.Name == tgtEmp.Name` (ShiftSwapRequestHook, WsmHooks.cs:826)
-- `swap_date`: "No materialized daily schedule exists for {reqEmp.Name} on {D.Iso(swapDate.Value)}" — terjadi bila `reqSched is null` (ShiftSwapRequestHook, WsmHooks.cs:845)
-- `target_swap_date`: "No materialized daily schedule exists for {tgtEmp.Name} on {D.Iso(targetDate)}" — terjadi bila `tgtSched is null` (ShiftSwapRequestHook, WsmHooks.cs:847)
-- `swap_date`: "Cannot swap a day that is marked as approved leave" — terjadi bila `reqType == "LEAVE" || tgtType == "LEAVE"` (ShiftSwapRequestHook, WsmHooks.cs:864)
+- `target_employee`: "An employee cannot swap shifts with themselves" — terjadi bila `reqEmp.Name == tgtEmp.Name` (ShiftSwapRequestHook, WsmHooks.cs:829)
+- `swap_date`: "No materialized daily schedule exists for {reqEmp.Name} on {D.Iso(swapDate.Value)}" — terjadi bila `reqSched is null` (ShiftSwapRequestHook, WsmHooks.cs:848)
+- `target_swap_date`: "No materialized daily schedule exists for {tgtEmp.Name} on {D.Iso(targetDate)}" — terjadi bila `tgtSched is null` (ShiftSwapRequestHook, WsmHooks.cs:850)
+- `swap_date`: "Cannot swap a day that is marked as approved leave" — terjadi bila `reqType == "LEAVE" || tgtType == "LEAVE"` (ShiftSwapRequestHook, WsmHooks.cs:867)
 
 ## Aturan bersama yang juga berlaku
 

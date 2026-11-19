@@ -11,8 +11,8 @@ Aturan yang dijalankan kode saat dokumen Purchase Request (PurchaseRequest) disi
 
 ## Tombol aksi gagal: Saat tombol aksi diklik
 
-- "Choose the suggested supplier on the request first, or create the order manually" — terjadi bila `ctx.Doc.Data.Str("suggested_vendor") is not { } vendor` (PurchaseRequestMakeOrderAction, ProcurementHooks.cs:189)
-- "Purchase order creation failed: {ex.Message}" (PurchaseRequestMakeOrderAction, ProcurementHooks.cs:201)
+- "Choose the suggested supplier on the request first, or create the order manually" — terjadi bila `ctx.Doc.Data.Str("suggested_vendor") is not { } vendor` (PurchaseRequestMakeOrderAction, ProcurementHooks.cs:197)
+- "Purchase order creation failed: {ex.Message}" (PurchaseRequestMakeOrderAction, ProcurementHooks.cs:209)
 
 ## Tombol aksi: Create purchase order
 

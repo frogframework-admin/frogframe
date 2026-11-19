@@ -8,4 +8,4 @@ Synchronizes LeaveApplication and ShiftOverride/Swap updates with EmployeeDailyS
 
 ## Peringatan
 
-- "Manpower shortage alert on {D.Iso(gap.WorkDate)}: {gap.OrganizationUnit} / {gap.ShiftType} has {gap.ActualHeadcount} scheduled vs {gap.MinHeadcount} required." (WsmLeaveSync, WsmHooks.cs:1087)
+- "Manpower shortage alert on {D.Iso(gap.WorkDate)}: {gap.OrganizationUnit} / {gap.ShiftType} has {gap.ActualHeadcount} scheduled vs {gap.MinHeadcount} required." (WsmLeaveSync, WsmHooks.cs:1123)

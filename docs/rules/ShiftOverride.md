@@ -10,8 +10,8 @@ Aturan yang dijalankan kode saat dokumen Shift Override (ShiftOverride) disimpan
 
 ## Validasi (dokumen ditolak): Saat simpan/submit (validasi)
 
-- `override_date`: "The override date is required" — terjadi bila `d.Date("override_date") tidak ditemukan/kosong` (ShiftOverrideHook, WsmHooks.cs:769)
-- `new_shift_type`: "New shift type is required when schedule type is WORK" — terjadi bila `newType == "WORK" && newShift is null` (ShiftOverrideHook, WsmHooks.cs:776)
+- `override_date`: "The override date is required" — terjadi bila `d.Date("override_date") tidak ditemukan/kosong` (ShiftOverrideHook, WsmHooks.cs:772)
+- `new_shift_type`: "New shift type is required when schedule type is WORK" — terjadi bila `newType == "WORK" && newShift is null` (ShiftOverrideHook, WsmHooks.cs:779)
 
 ## Aturan bersama yang juga berlaku
 

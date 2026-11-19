@@ -11,8 +11,8 @@ Aturan yang dijalankan kode saat dokumen Schedule Generation (ScheduleGeneration
 
 ## Validasi (dokumen ditolak): Saat simpan/submit (validasi)
 
-- `to_date`: "The end date must be on or after the start date" — terjadi bila `!(from is null || to is null) && to < from` (ScheduleGenerationHook, WsmHooks.cs:711)
-- `to_date`: "A single schedule generation batch cannot exceed {MaxBatchDays} days (requested {span} days)" — terjadi bila `!(from is null || to is null) && !(to < from) && span > MaxBatchDays` (ScheduleGenerationHook, WsmHooks.cs:714)
+- `to_date`: "The end date must be on or after the start date" — terjadi bila `!(from is null || to is null) && to < from` (ScheduleGenerationHook, WsmHooks.cs:714)
+- `to_date`: "A single schedule generation batch cannot exceed {MaxBatchDays} days (requested {span} days)" — terjadi bila `!(from is null || to is null) && !(to < from) && span > MaxBatchDays` (ScheduleGenerationHook, WsmHooks.cs:717)
 
 ## Tombol aksi: Generate daily schedules
 

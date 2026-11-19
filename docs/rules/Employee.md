@@ -11,13 +11,14 @@ Aturan yang dijalankan kode saat dokumen Employee (Employee) disimpan, di-submit
 
 ## Validasi (dokumen ditolak): Saat simpan/submit (validasi)
 
-- `status`: "The Left status is applied through Employee Separation" — terjadi bila `sep is null && !c.User.IsAdmin` (EmployeeHook, HrHooks.cs:269)
-- `position`: "Position {pos.Name} is {pos.Data.Str("status")}" — terjadi bila `pos.Data.Str("status") is "Closed" or "Frozen"` (EmployeeHook, HrHooks.cs:280)
-- `position`: "Position {pos.Name} is already filled by {holder.Name}" — terjadi bila `await Hr.HolderAsync(m, pos.Name, me, ct) is { } holder && holder.Data.Str("position") == pos.Name` (EmployeeHook, HrHooks.cs:282)
-- `probation_end_date`: "The probation end date is before the date of joining" — terjadi bila `d.Date("probation_end_date") is { } pe && d.Date("hire_date") is { } hd && pe < hd` (EmployeeHook, HrHooks.cs:305)
-- `reports_to`: "An employee cannot report to themselves" — terjadi bila `d.Str("reports_to") == me` (EmployeeHook, HrHooks.cs:306)
+- `status`: "The Left status is applied through Employee Separation" — terjadi bila `sep is null && !c.User.IsAdmin` (EmployeeHook, HrHooks.cs:385)
+- `position`: "Position {pos.Name} is {pos.Data.Str("status")}" — terjadi bila `pos.Data.Str("status") is "Closed" or "Frozen"` (EmployeeHook, HrHooks.cs:396)
+- `position`: "Position {pos.Name} is already filled by {holder.Name}" — terjadi bila `await Hr.HolderAsync(m, pos.Name, me, ct) is { } holder && holder.Data.Str("position") == pos.Name` (EmployeeHook, HrHooks.cs:398)
+- `probation_end_date`: "The probation end date is before the date of joining" — terjadi bila `d.Date("probation_end_date") is { } pe && d.Date("hire_date") is { } hd && pe < hd` (EmployeeHook, HrHooks.cs:421)
+- `reports_to`: "An employee cannot report to themselves" — terjadi bila `d.Str("reports_to") == me` (EmployeeHook, HrHooks.cs:422)
 
 ## Aturan bersama yang juga berlaku
 
+- Approval: lihat `_shared-Approval.md`
 - EssAttendanceService: lihat `_shared-EssAttendanceService.md`
 - Masters: lihat `_shared-Masters.md`

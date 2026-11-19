@@ -10,12 +10,12 @@ Aturan yang dijalankan kode saat dokumen Employee Advance (EmployeeAdvance) disi
 
 ## Validasi (dokumen ditolak): Saat cancel
 
-- `name`: "{c.Doc.Name} has been paid or settled; cancel those documents first" — terjadi bila `await OpenItems.HasSettlementAsync(ledger, c.Doc.TenantId, c.Doc.DocType, c.Doc.Name, ct)` (EmployeeAdvanceHook, EmployeeFinanceHooks.cs:66)
+- `name`: "{c.Doc.Name} has been paid or settled; cancel those documents first" — terjadi bila `await OpenItems.HasSettlementAsync(ledger, c.Doc.TenantId, c.Doc.DocType, c.Doc.Name, ct)` (EmployeeAdvanceHook, EmployeeFinanceHooks.cs:73)
 
 ## Validasi (dokumen ditolak): Setelah simpan/submit (posting, efek ke dokumen lain)
 
-- `advance_account`: "The advance account is not set" — terjadi bila `!(!Approval.JustApproved(c))` (EmployeeAdvanceHook, EmployeeFinanceHooks.cs:53)
-- `company`: "The company's default payable account is not set" — terjadi bila `!(!Approval.JustApproved(c))` (EmployeeAdvanceHook, EmployeeFinanceHooks.cs:54)
+- `advance_account`: "The advance account is not set" — terjadi bila `!(!Approval.JustApproved(c))` (EmployeeAdvanceHook, EmployeeFinanceHooks.cs:60)
+- `company`: "The company's default payable account is not set" — terjadi bila `!(!Approval.JustApproved(c))` (EmployeeAdvanceHook, EmployeeFinanceHooks.cs:61)
 
 ## Aturan bersama yang juga berlaku
 

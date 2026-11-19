@@ -8,4 +8,4 @@ Application of HR events to Employee, shared by the event handler (immediate) an
 
 ## Validasi (dokumen ditolak)
 
-- "Creating the user for {emp.Name} failed: {string.Join("; ", result.Errors.Select(e => e.Description))}" — terjadi bila `!result.Succeeded` (HrApply, HrHooks.cs:918)
+- "Creating the user for {emp.Name} failed: {string.Join("; ", result.Errors.Select(e => e.Description))}" — terjadi bila `!result.Succeeded` (HrApply, HrHooks.cs:1057)

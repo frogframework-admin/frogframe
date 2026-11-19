@@ -10,9 +10,10 @@ Aturan yang dijalankan kode saat dokumen Shift Group (ShiftGroup) disimpan, di-s
 
 ## Validasi (dokumen ditolak): Saat simpan/submit (validasi)
 
-- `members[{i}].effective_to`: "The effective end date must be on or after the effective start date" — terjadi bila `from is not null && to is not null && to < from` (ShiftGroupHook, WsmHooks.cs:66)
-- `members[{i}].employee`: "Employee {emp} has overlapping active membership in this group" — terjadi bila `Hr.Overlaps(from, to, prev.Date("effective_from"), prev.Date("effective_to"))` (ShiftGroupHook, WsmHooks.cs:75)
+- `members[{i}].effective_to`: "The effective end date must be on or after the effective start date" — terjadi bila `from is not null && to is not null && to < from` (ShiftGroupHook, WsmHooks.cs:69)
+- `members[{i}].employee`: "Employee {emp} has overlapping active membership in this group" — terjadi bila `Hr.Overlaps(from, to, prev.Date("effective_from"), prev.Date("effective_to"))` (ShiftGroupHook, WsmHooks.cs:78)
 
 ## Aturan bersama yang juga berlaku
 
+- Approval: lihat `_shared-Approval.md`
 - Masters: lihat `_shared-Masters.md`

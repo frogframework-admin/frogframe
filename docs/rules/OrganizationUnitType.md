@@ -10,12 +10,12 @@ Aturan yang dijalankan kode saat dokumen Organization Unit Type (OrganizationUni
 
 ## Validasi (dokumen ditolak): Saat hapus
 
-- `name`: "System organization unit types cannot be deleted" — terjadi bila `c.Doc.Data.Bool("is_system")` (OrganizationUnitTypeHook, HrHooks.cs:243)
+- `name`: "System organization unit types cannot be deleted" — terjadi bila `c.Doc.Data.Bool("is_system")` (OrganizationUnitTypeHook, HrHooks.cs:359)
 
 ## Validasi (dokumen ditolak): Saat simpan/submit (validasi)
 
-- `parent_type`: "An organization unit type cannot be its own parent type" — terjadi bila `d.Str("parent_type") == name` (OrganizationUnitTypeHook, HrHooks.cs:231)
-- `type_code`: "Type code {code} is already used by {dup.Name}" — terjadi bila `existing.FirstOrDefault(x => x.Name != name && x.Name != c.Doc.Name) is { } dup` (OrganizationUnitTypeHook, HrHooks.cs:235)
+- `parent_type`: "An organization unit type cannot be its own parent type" — terjadi bila `d.Str("parent_type") == name` (OrganizationUnitTypeHook, HrHooks.cs:347)
+- `type_code`: "Type code {code} is already used by {dup.Name}" — terjadi bila `existing.FirstOrDefault(x => x.Name != name && x.Name != c.Doc.Name) is { } dup` (OrganizationUnitTypeHook, HrHooks.cs:351)
 
 ## Aturan bersama yang juga berlaku
 

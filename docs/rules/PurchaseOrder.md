@@ -11,15 +11,15 @@ Aturan yang dijalankan kode saat dokumen Purchase Order (PurchaseOrder) disimpan
 
 ## Validasi (dokumen ditolak): Saat simpan/submit (validasi)
 
-- `purchase_request`: "{pr.Name} is {pr.WorkflowState}, not Approved" — terjadi bila `c.Doc.DocStatus == DocStatus.Draft && pr.WorkflowState != Approval.Approved` (PurchaseOrderHook, ProcurementHooks.cs:78)
+- `purchase_request`: "{pr.Name} is {pr.WorkflowState}, not Approved" — terjadi bila `c.Doc.DocStatus == DocStatus.Draft && pr.WorkflowState != Approval.Approved` (PurchaseOrderHook, ProcurementHooks.cs:86)
 
 ## Tombol aksi gagal: Saat tombol aksi diklik
 
-- "Goods receipt creation failed: {ex.Message}" (PurchaseOrderReceiveAction, ProcurementHooks.cs:226)
+- "Goods receipt creation failed: {ex.Message}" (PurchaseOrderReceiveAction, ProcurementHooks.cs:234)
 
 ## Peringatan (dokumen tetap tersimpan): Saat simpan/submit (validasi)
 
-- "Supplier {vendor.Name} is on hold: invoices can be recorded but payments are blocked" — terjadi bila `vendor.Data.Bool("on_hold")` (PurchaseOrderHook, ProcurementHooks.cs:93)
+- "Supplier {vendor.Name} is on hold: invoices can be recorded but payments are blocked" — terjadi bila `vendor.Data.Bool("on_hold")` (PurchaseOrderHook, ProcurementHooks.cs:101)
 
 ## Tombol aksi: Receive
 

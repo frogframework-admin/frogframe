@@ -38,6 +38,7 @@ Tombol **Submit payslips** di form Payroll Run hanya tampil bila `doc.DocStatus 
 
 ## Aturan bersama yang juga berlaku
 
+- Approval: lihat `_shared-Approval.md`
 - BudgetControl: lihat `_shared-BudgetControl.md`
 - Masters: lihat `_shared-Masters.md`
 - Payroll: lihat `_shared-Payroll.md`
