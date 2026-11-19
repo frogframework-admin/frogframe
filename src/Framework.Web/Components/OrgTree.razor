@@ -8,9 +8,7 @@
 }
 else
 {
-    <div class="org-toolbar">
-        <span class="muted small">@Nodes.Count @(Nodes.Count == 1 ? "node" : "nodes") · @roots.Count @(roots.Count == 1 ? "root" : "roots")</span>
-        <span class="spacer"></span>
+    <div class="org-toolbar" style="justify-content:flex-end">
         <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ExpandAll"><LucideIcon Name="chevron-down" Size="15" /> Expand all</BbButton>
         <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="CollapseAll"><LucideIcon Name="chevron-right" Size="15" /> Collapse all</BbButton>
     </div>
@@ -62,7 +60,7 @@ else
         var open = !collapsed.Contains(n.Id);
         var nextPath = new HashSet<string>(path) { n.Id };
         <li role="treeitem" aria-expanded="@(kids.Count > 0 ? open.ToString().ToLowerInvariant() : null)">
-            <div class="org-card @(n.Highlight ? "highlight" : "")">
+            <div class="org-card @(n.Highlight ? "highlight" : "") @(n.CssClass ?? "")">
                 <a class="org-card-link" href="@n.Href">
                     <span class="org-avatar">
                         @if (n.ImageFileId is not null) { <img src="@($"/files/{n.ImageFileId}")" alt="" loading="lazy" /> }

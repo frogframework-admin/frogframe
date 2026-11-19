@@ -577,5 +577,22 @@ sealed partial class Tests
         Assert.Equal("Annual Leave", opADec2After.Data.Str("day_category"), "Day category updated to Annual Leave");
         Assert.True(leaveApp.TransientMessages.Any(msg => msg.Contains("Manpower shortage alert") && msg.Contains("2026-12-02")),
             "Manpower shortage alert triggered when leave causes headcount on Morning shift to drop below minimum requirement");
+
+        // 10. Rolling Horizon Job generates 30 days ahead without overwriting protected LEAVE rows
+        var rollingJob = new RosterRollingHorizonJob();
+        var jobCtx = new Framework.Jobs.ScheduledJobContext
+        {
+            TenantId = "acme",
+            SystemUser = sys,
+            Docs = docs,
+            Services = provider,
+            ScheduledTime = new DateTimeOffset(2026, 12, 1, 2, 0, 0, TimeSpan.Zero),
+        };
+        await rollingJob.ExecuteAsync(jobCtx, CancellationToken.None);
+
+        var dec31Sched = (await mAfterLeave.QueryAsync("EmployeeDailySchedule", [new FilterClause("employee", "=", opA.Name), new FilterClause("work_date", "=", "2026-12-31")], CancellationToken.None)).SingleOrDefault();
+        Assert.True(dec31Sched is not null, "Rolling horizon job populates schedule 30 days ahead (2026-12-31)");
+        var dec02StillLeave = (await mAfterLeave.QueryAsync("EmployeeDailySchedule", [new FilterClause("employee", "=", opA.Name), new FilterClause("work_date", "=", "2026-12-02")], CancellationToken.None)).Single();
+        Assert.Equal("LEAVE", dec02StillLeave.Data.Str("schedule_type"), "Rolling horizon job preserves existing LEAVE slot");
     }
 }

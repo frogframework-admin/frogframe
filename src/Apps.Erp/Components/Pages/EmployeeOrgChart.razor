@@ -1,0 +1,257 @@
+@page "/hr/organizational-chart/{EmployeeId}"
+@page "/hr/org-chart/{EmployeeId}"
+@inject DocumentService Docs
+@inject CurrentUser Current
+@inject IPermissionService Perms
+@inject IMetadataProvider Metadata
+
+<PageTitle>@(targetEmployee is not null ? $"{EmpName(targetEmployee)} · Organizational Chart" : "Employee Organizational Chart") · FrogFrame</PageTitle>
+
+<header class="page-head" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem">
+    <div>
+        <h1>@(targetEmployee is not null ? EmpName(targetEmployee) : "Employee Organizational Chart")</h1>
+        <p>Focused Manager–Subordinate hierarchy showing direct supervisor, peers, and direct subordinates.</p>
+    </div>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+        <a class="bb-btn bb-btn-outline" href="/hr/organizational-chart" style="text-decoration:none;padding:.45rem .85rem;border:1px solid var(--border,#cbd5e1);border-radius:.375rem;font-size:.875rem">
+            Full Org Chart
+        </a>
+        @if (CanViewFullProfile && targetEmployee is not null)
+        {
+            <a class="bb-btn bb-btn-primary" href="/app/Employee/@targetEmployee.Name" style="text-decoration:none;padding:.45rem .85rem;background:#2563eb;color:#fff;border-radius:.375rem;font-size:.875rem">
+                View Full Profile
+            </a>
+        }
+    </div>
+</header>
+
+@if (error is not null)
+{
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@error</BbAlertDescription></BbAlert>
+}
+else if (employees is null || orgUnits is null)
+{
+    <div class="stack"><BbSkeleton Height="6rem" /><BbSkeleton Height="16rem" /></div>
+}
+else if (targetEmployee is null)
+{
+    <BbAlert Variant="AlertVariant.Warning">
+        <BbAlertDescription>Employee <strong>@EmployeeId</strong> was not found.</BbAlertDescription>
+    </BbAlert>
+}
+else
+{
+    var targetCode = Str(targetEmployee, "employee_number") ?? targetEmployee.Name;
+    var targetTitle = EmpTitle(targetEmployee) ?? "-";
+    var targetOrg = EmpOrg(targetEmployee) ?? "-";
+    var targetEmail = EmpEmail(targetEmployee);
+    var targetStatus = Str(targetEmployee, "status") ?? "Active";
+    var targetPhoto = EmpPhoto(targetEmployee);
+
+    <BbCard Style="margin-bottom:1rem;border-left:4px solid #10b981">
+        <BbCardContent>
+            <div class="emp-org-profile">
+                <div class="emp-org-avatar">
+                    @if (targetPhoto is not null)
+                    {
+                        <img src="@($"/files/{targetPhoto}")" alt="@EmpName(targetEmployee)" />
+                    }
+                    else
+                    {
+                        @Initials(EmpName(targetEmployee))
+                    }
+                </div>
+                <div class="emp-org-details-grid">
+                    <div class="emp-org-detail-item">
+                        <span class="emp-org-detail-label"><LucideIcon Name="user" Size="12" /> Name &amp; Code</span>
+                        <div>
+                            <strong>@EmpName(targetEmployee)</strong>
+                            <span class="muted" style="margin-left:.35rem;font-family:monospace;font-size:.8rem">(@targetCode)</span>
+                            <span style="margin-left:.4rem;padding:.1rem .45rem;border-radius:999px;font-size:.7rem;font-weight:600;background:#dcfce7;color:#166534">@targetStatus</span>
+                        </div>
+                    </div>
+                    <div class="emp-org-detail-item">
+                        <span class="emp-org-detail-label"><LucideIcon Name="briefcase" Size="12" /> Position / Title</span>
+                        <strong>@targetTitle</strong>
+                    </div>
+                    <div class="emp-org-detail-item">
+                        <span class="emp-org-detail-label"><LucideIcon Name="building-2" Size="12" /> Organization</span>
+                        <span>@targetOrg</span>
+                    </div>
+                    <div class="emp-org-detail-item">
+                        <span class="emp-org-detail-label"><LucideIcon Name="mail" Size="12" /> Email</span>
+                        @if (!string.IsNullOrWhiteSpace(targetEmail))
+                        {
+                            <a href="mailto:@targetEmail" style="color:var(--primary,#2563eb);text-decoration:none">@targetEmail</a>
+                        }
+                        else
+                        {
+                            <span class="muted">-</span>
+                        }
+                    </div>
+                </div>
+            </div>
+        </BbCardContent>
+    </BbCard>
+
+    <BbCard>
+        <BbCardContent>
+            <div style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;padding-top:.75rem;margin-bottom:.5rem;font-size:.75rem">
+                <span style="padding:.2rem .55rem;border-radius:.25rem;background:#eff6ff;color:#1d4ed8;border:1px solid #3b82f6;font-weight:600">Direct Manager</span>
+                <span style="padding:.2rem .55rem;border-radius:.25rem;background:#ecfdf5;color:#047857;border:1px solid #10b981;font-weight:600">Selected Employee</span>
+                <span style="padding:.2rem .55rem;border-radius:.25rem;background:#f8fafc;color:#475569;border:1px solid #cbd5e1;font-weight:600">Peers</span>
+                <span style="padding:.2rem .55rem;border-radius:.25rem;background:#fffbeb;color:#b45309;border:1px solid #f59e0b;font-weight:600">Direct Subordinates</span>
+                <span class="muted" style="margin-left:auto">Click any person card to inspect their position &amp; team</span>
+            </div>
+            <div style="padding-top:.5rem">
+                <OrgTree Nodes="FocusedNodes"
+                         AriaLabel="Employee manager and subordinate chart"
+                         EmptyTitle="No reporting hierarchy found"
+                         EmptyText="Assign a manager or subordinates on the Employee record." />
+            </div>
+        </BbCardContent>
+    </BbCard>
+}
+
+@code {
+    [Parameter] public string EmployeeId { get; set; } = string.Empty;
+
+    private IReadOnlyList<Document>? orgUnits, employees;
+    private Document? targetEmployee;
+    private string? error;
+    private IReadOnlyList<OrgNode> FocusedNodes = [];
+    private Dictionary<string, string> unitNames = new(StringComparer.OrdinalIgnoreCase);
+
+    private static string? Str(Document d, string f) => d.Data.GetValueOrDefault(f) as string;
+    private static string EmpName(Document e) => Str(e, "full_name") ?? Str(e, "employee_name") ?? e.Name;
+    private static string? EmpTitle(Document e) => Str(e, "position") ?? Str(e, "job_profile") ?? Str(e, "designation");
+    private static string? EmpEmail(Document e) => Str(e, "work_email") ?? Str(e, "personal_email");
+    private static string? EmpPhoto(Document e) => Str(e, "photo") ?? Str(e, "foto");
+    private static string Initials(string name) => string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(p => char.ToUpperInvariant(p[0])));
+
+    private string? EmpOrg(Document e)
+    {
+        var crumb = Str(e, "organization_breadcrumb");
+        if (!string.IsNullOrWhiteSpace(crumb)) return crumb;
+        var unit = Str(e, "organization_unit");
+        return unit is not null ? unitNames.GetValueOrDefault(unit, unit) : null;
+    }
+
+    private bool CanViewFullProfile => targetEmployee is not null
+        && Metadata.Current.TryGet("Employee", out var empMeta)
+        && Perms.Can(Current.Required, empMeta, DocActions.Read)
+        && Perms.InScope(Current.Required, empMeta, DocActions.Read, targetEmployee.Owner, targetEmployee.Data);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        error = null;
+        if (employees is null || orgUnits is null)
+        {
+            try
+            {
+                var sys = UserContext.System(Current.Required.TenantId);
+                orgUnits = await Docs.QueryForReportAsync(sys, "OrganizationUnit", [], DocActions.Read);
+                employees = await Docs.QueryForReportAsync(sys, "Employee", [], DocActions.Read);
+            }
+            catch (PermissionDeniedException ex) { error = ex.Message; return; }
+
+            unitNames = orgUnits.ToDictionary(
+                d => d.Name,
+                d => Str(d, "breadcrumb") ?? Str(d, "org_unit_name") ?? d.Name,
+                StringComparer.OrdinalIgnoreCase);
+        }
+
+        BuildFocusedTree();
+    }
+
+    private void BuildFocusedTree()
+    {
+        var active = employees!
+            .Where(e => string.Equals(Str(e, "status"), "Active", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        var byId = employees!.ToDictionary(e => e.Name, StringComparer.OrdinalIgnoreCase);
+        targetEmployee = byId.GetValueOrDefault(EmployeeId);
+
+        if (targetEmployee is null)
+        {
+            FocusedNodes = [];
+            return;
+        }
+
+        var nodes = new List<OrgNode>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        var managerId = Str(targetEmployee, "reports_to");
+        var manager = !string.IsNullOrWhiteSpace(managerId) ? byId.GetValueOrDefault(managerId) : null;
+
+        if (manager is not null && !string.Equals(manager.Name, targetEmployee.Name, StringComparison.OrdinalIgnoreCase))
+        {
+            seen.Add(manager.Name);
+            nodes.Add(ToNode(manager, parentId: null, cssClass: "org-role-manager", highlight: false));
+        }
+
+        // Target employee (highlighted)
+        var targetParentId = manager is not null && seen.Contains(manager.Name) ? manager.Name : null;
+        if (seen.Add(targetEmployee.Name))
+        {
+            nodes.Add(ToNode(targetEmployee, parentId: targetParentId, cssClass: "org-role-target", highlight: true));
+        }
+
+        // Peers: other active employees sharing the same direct manager (or top-level if no manager)
+        var peers = active
+            .Where(e => !string.Equals(e.Name, targetEmployee.Name, StringComparison.OrdinalIgnoreCase))
+            .Where(e => manager is not null
+                ? string.Equals(Str(e, "reports_to"), manager.Name, StringComparison.OrdinalIgnoreCase)
+                : string.IsNullOrWhiteSpace(Str(e, "reports_to")))
+            .OrderBy(EmpName);
+
+        foreach (var peer in peers)
+        {
+            if (seen.Add(peer.Name))
+            {
+                nodes.Add(ToNode(peer, parentId: targetParentId, cssClass: "org-role-peer", highlight: false));
+            }
+        }
+
+        // Direct subordinates of the target employee ONLY
+        var subordinates = active
+            .Where(e => string.Equals(Str(e, "reports_to"), targetEmployee.Name, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(EmpName);
+
+        foreach (var sub in subordinates)
+        {
+            if (seen.Add(sub.Name))
+            {
+                nodes.Add(ToNode(sub, parentId: targetEmployee.Name, cssClass: "org-role-subordinate", highlight: false));
+            }
+        }
+
+        FocusedNodes = nodes;
+    }
+
+    private OrgNode ToNode(Document e, string? parentId, string cssClass, bool highlight)
+    {
+        var code = Str(e, "employee_number") ?? e.Name;
+        var title = EmpTitle(e);
+        var org = EmpOrg(e);
+        var email = EmpEmail(e);
+
+        var subtitleParts = new[] { title, org }.Where(s => !string.IsNullOrWhiteSpace(s));
+        var subtitle = string.Join(" · ", subtitleParts);
+
+        var metaParts = new[] { code, email }.Where(s => !string.IsNullOrWhiteSpace(s));
+        var meta = string.Join(" · ", metaParts);
+
+        return new OrgNode(
+            Id: e.Name,
+            ParentId: parentId,
+            Title: EmpName(e),
+            Subtitle: string.IsNullOrWhiteSpace(subtitle) ? null : subtitle,
+            Meta: string.IsNullOrWhiteSpace(meta) ? null : meta,
+            ImageFileId: EmpPhoto(e),
+            Href: $"/hr/organizational-chart/{Uri.EscapeDataString(e.Name)}",
+            Highlight: highlight,
+            CssClass: cssClass);
+    }
+}

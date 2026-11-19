@@ -2,9 +2,12 @@ using System.Globalization;
 using Framework.Actions;
 using Framework.Documents;
 using Framework.Hooks;
+using Framework.Jobs;
 using Framework.Metadata;
+using Framework.Notifications;
 using Framework.Persistence;
 using Framework.Security;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Apps.Erp.Hooks;
 
@@ -812,7 +815,7 @@ public sealed class ShiftOverrideHook(IDocumentStore store)
 /// Shift Swap Request: two-party shift exchange with peer acceptance, manager approval, and Workforce Constraint Engine validation
 /// for both parties. Updates both employees' EmployeeDailySchedule records when approved.
 /// </summary>
-public sealed class ShiftSwapRequestHook(IDocumentStore store)
+public sealed class ShiftSwapRequestHook(IDocumentStore store, IUserDirectory? users = null, INotificationStore? inbox = null)
     : IBeforeValidate<ShiftSwapRequest>, IBeforeTransition<ShiftSwapRequest>, IAfterSave<ShiftSwapRequest>, IOnCancel<ShiftSwapRequest>
 {
     private async Task ValidateSwapAsync(HookContext c, CancellationToken ct)
@@ -931,6 +934,39 @@ public sealed class ShiftSwapRequestHook(IDocumentStore store)
         else if (c.Doc.WorkflowState == "Cancelled" && c.Previous?.WorkflowState == Approval.Approved)
         {
             await RevertSwapAsync(c, ct);
+        }
+
+        if (users is not null && inbox is not null && c.Doc.WorkflowState != c.Previous?.WorkflowState)
+        {
+            var reqName = d.Str("requester_name") ?? reqEmp;
+            var tgtName = d.Str("target_employee_name") ?? tgtEmp;
+            switch (c.Doc.WorkflowState)
+            {
+                case "Pending Peer Approval":
+                    await Notify.ToEmployeesAsync(users, inbox, c.Doc.TenantId, [tgtEmp],
+                        $"Shift swap request from {reqName}",
+                        $"{reqName} requested to swap shift on {D.Iso(swapDate.Value)} with your shift on {D.Iso(targetDate.Value)}.",
+                        "ShiftSwapRequest", c.Doc.Name, $"swap-peer|{c.Doc.Name}|{c.Doc.Version}", ct);
+                    break;
+                case "Pending Manager Approval":
+                    await Notify.ToEmployeesAsync(users, inbox, c.Doc.TenantId, [d.Str("approver")],
+                        $"Shift swap awaiting approval: {reqName} ↔ {tgtName}",
+                        $"Both {reqName} and {tgtName} agreed to swap shifts ({D.Iso(swapDate.Value)} ↔ {D.Iso(targetDate.Value)}).",
+                        "ShiftSwapRequest", c.Doc.Name, $"swap-mgr|{c.Doc.Name}|{c.Doc.Version}", ct);
+                    break;
+                case Approval.Approved:
+                    await Notify.ToEmployeesAsync(users, inbox, c.Doc.TenantId, [reqEmp, tgtEmp],
+                        $"Shift swap {c.Doc.Name} approved",
+                        $"Your shift swap ({D.Iso(swapDate.Value)} ↔ {D.Iso(targetDate.Value)}) has been approved and applied to your schedule.",
+                        "ShiftSwapRequest", c.Doc.Name, $"swap-ok|{c.Doc.Name}|{c.Doc.Version}", ct);
+                    break;
+                case "Rejected":
+                    await Notify.ToEmployeesAsync(users, inbox, c.Doc.TenantId, [reqEmp, tgtEmp],
+                        $"Shift swap {c.Doc.Name} rejected",
+                        $"Shift swap request {c.Doc.Name} ({D.Iso(swapDate.Value)}) was rejected.",
+                        "ShiftSwapRequest", c.Doc.Name, $"swap-rej|{c.Doc.Name}|{c.Doc.Version}", ct);
+                    break;
+            }
         }
     }
 
@@ -1214,5 +1250,42 @@ public static class WsmCoverage
             }
         }
         return results;
+    }
+}
+
+/// <summary>
+/// Daily scheduled job: maintains a 30-day rolling horizon of materialized EmployeeDailySchedule rows
+/// for all companies with active ShiftAssignments, without overwriting locked, manual, swap, or leave slots.
+/// </summary>
+public sealed class RosterRollingHorizonJob : IScheduledJob
+{
+    public string Name => "Erp.RosterRollingHorizon";
+    public string Schedule => "@daily";
+
+    public async Task ExecuteAsync(ScheduledJobContext context, CancellationToken ct)
+    {
+        var store = context.Services.GetRequiredService<IDocumentStore>();
+        var m = new Masters(store, context.TenantId);
+        var today = DateOnly.FromDateTime(context.ScheduledTime.Date);
+        var horizonEnd = today.AddDays(30);
+
+        var activeAssignments = await m.QueryAsync("ShiftAssignment", [new FilterClause("is_active", "=", true)], ct, take: 1000);
+        var companies = activeAssignments.Select(a => a.Data.Str("company")).OfType<string>().Distinct(StringComparer.Ordinal).ToList();
+        foreach (var company in companies)
+        {
+            await HrEffectiveDateJob.Safe(context, $"RosterRollingHorizon:{company}", () =>
+                WsmScheduleGenerator.GenerateAsync(
+                    store,
+                    context.TenantId,
+                    company,
+                    organizationUnit: null,
+                    shiftGroup: null,
+                    employee: null,
+                    fromDate: today,
+                    toDate: horizonEnd,
+                    overwriteUnlocked: false,
+                    sourceReference: $"AUTO-{D.Iso(today)}",
+                    ct: ct));
+        }
     }
 }

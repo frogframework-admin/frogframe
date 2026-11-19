@@ -948,6 +948,57 @@
             return crumbs;
         }
 
+        if (first == "hr")
+        {
+            var hrMod = navModules.FirstOrDefault(m =>
+                string.Equals(m.Code, "HR", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(m.Name, "HR", StringComparison.OrdinalIgnoreCase)
+                || m.Name.Contains("Human Resources", StringComparison.OrdinalIgnoreCase));
+            var hrName = hrMod?.Name ?? "Human Resources";
+
+            if (parts.Length == 1)
+            {
+                crumbs.Add(new Crumb(hrName, IsActive: true));
+                return crumbs;
+            }
+
+            crumbs.Add(new Crumb(hrName, Href: "/app/Employee", OnClick: () =>
+            {
+                if (hrMod is not null)
+                {
+                    Current.SetActiveModule(hrMod.Id);
+                }
+                Nav.NavigateTo("/app/Employee");
+            }));
+
+            var subPage = parts[1].ToLowerInvariant();
+            var pageTitle = subPage switch
+            {
+                "organizational-chart" or "struktur-organisasi" or "org-chart" or "organizational-structure" => "Organizational Chart",
+                "roster-calendar" => "Roster Calendar",
+                _ => ToTitleCase(parts[1])
+            };
+
+            if (parts.Length == 2)
+            {
+                crumbs.Add(new Crumb(pageTitle, IsActive: true));
+            }
+            else
+            {
+                var subHref = $"/hr/{parts[1]}";
+                crumbs.Add(new Crumb(pageTitle, Href: subHref));
+                for (var i = 2; i < parts.Length; i++)
+                {
+                    var isLast = i == parts.Length - 1;
+                    var path = string.Join('/', parts.Take(i + 1));
+                    var label = i == 2 ? Uri.UnescapeDataString(parts[i]) : ToTitleCase(parts[i]);
+                    crumbs.Add(new Crumb(label, isLast ? null : $"/{path}", IsActive: isLast));
+                }
+            }
+
+            return crumbs;
+        }
+
         if (first == "inbox")
         {
             crumbs.Add(new Crumb("Inbox", IsActive: true));

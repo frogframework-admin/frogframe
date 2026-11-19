@@ -66,6 +66,7 @@ public static class EssEndpoints
             var punches = await sp.GetRequiredService<IEssPunchStore>().ListAsync(user.TenantId, emp, today.AddDays(-1), today, ct);
             var todayPunches = punches.Where(p => p.WorkDate == today || (p.WorkDate == today.AddDays(-1) && p.PunchTime > now.AddHours(-16))).ToList();
             var attendance = (await m.QueryAsync("Attendance", [new("employee", "=", emp), new("attendance_date", "=", D.Iso(today))], ct, take: 1)).FirstOrDefault();
+            var todaySched = (await m.QueryAsync("EmployeeDailySchedule", [new("employee", "=", emp), new("work_date", "=", D.Iso(today))], ct, take: 1)).FirstOrDefault();
             var payslip = (await m.QueryAsync("Payslip", [new("employee", "=", emp)], ct, take: 200))
                 .Where(p => p.DocStatus == DocStatus.Submitted).OrderByDescending(p => p.Data.Str("period")).FirstOrDefault();
             var myPending = 0;
@@ -81,6 +82,7 @@ public static class EssEndpoints
                     lastPunchType = todayPunches.LastOrDefault(p => p.Counts)?.PunchType,
                     punches = todayPunches.Select(p => PunchDto(p, svc.TimeZone)),
                     attendance = attendance is null ? null : AttendanceDto(attendance),
+                    schedule = todaySched is null ? null : ScheduleDto(todaySched),
                 },
                 leave = await LeaveTypesAsync(m, emp, today, ct),
                 latestPayslip = payslip is null ? null : PayslipSummary(payslip),
@@ -88,6 +90,60 @@ public static class EssEndpoints
                 myPendingRequests = myPending,
             });
         })));
+
+        // ---------------- Roster & Shift Swaps ----------------
+        g.MapGet("/schedules", (HttpContext http, string? from, string? to, string? month) => Ess(http, async (user, emp, sp, ct) =>
+        {
+            var svc = sp.GetRequiredService<EssAttendanceService>();
+            var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(Now(sp), svc.TimeZone).DateTime);
+            DateOnly start, end;
+            if (!string.IsNullOrWhiteSpace(month) && DateOnly.TryParseExact(month.Trim() + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var mStart))
+            {
+                start = mStart;
+                end = mStart.AddMonths(1).AddDays(-1);
+            }
+            else
+            {
+                start = ParseDate(from, "from") ?? new DateOnly(today.Year, today.Month, 1);
+                end = ParseDate(to, "to") ?? start.AddMonths(1).AddDays(-1);
+            }
+            if (end < start || end.DayNumber - start.DayNumber > 62)
+                throw new ValidationFailedException([new FieldError("to", "Date range cannot exceed 62 days and 'to' cannot be earlier than 'from'")]);
+
+            var m = new Masters(sp.GetRequiredService<IDocumentStore>(), user.TenantId);
+            var rows = await m.QueryAsync("EmployeeDailySchedule",
+                [new("employee", "=", emp), new("work_date", ">=", D.Iso(start)), new("work_date", "<=", D.Iso(end))],
+                ct, "work_date", "asc", 100);
+            return Results.Ok(new { from = D.Iso(start), to = D.Iso(end), schedules = rows.Select(ScheduleDto) });
+        }));
+
+        g.MapGet("/shift-swaps", (Func<HttpContext, Task<IResult>>)(http => Ess(http, async (user, emp, sp, ct) =>
+        {
+            var m = new Masters(sp.GetRequiredService<IDocumentStore>(), user.TenantId);
+            var outgoing = await m.QueryAsync("ShiftSwapRequest", [new("requester", "=", emp)], ct, "swap_date", "desc", 50);
+            var incoming = await m.QueryAsync("ShiftSwapRequest", [new("target_employee", "=", emp)], ct, "swap_date", "desc", 50);
+            return Results.Ok(new
+            {
+                outgoing = outgoing.Select(SwapDto),
+                incoming = incoming.Select(SwapDto),
+            });
+        })));
+
+        g.MapPost("/shift-swaps", (HttpContext http, EssShiftSwapRequest body) => Ess(http, async (user, emp, sp, ct) =>
+        {
+            var docs = sp.GetRequiredService<DocumentService>();
+            var doc = await docs.InsertAsync(user, "ShiftSwapRequest", new Dictionary<string, object?>
+            {
+                ["requester"] = emp,
+                ["target_employee"] = body.TargetEmployee,
+                ["swap_date"] = body.SwapDate,
+                ["target_swap_date"] = string.IsNullOrWhiteSpace(body.TargetSwapDate) ? body.SwapDate : body.TargetSwapDate,
+                ["reason"] = body.Reason,
+            }, "Created via ESS Mobile", ct);
+            if (body.Submit == true)
+                doc = await docs.RunActionAsync(user, "ShiftSwapRequest", doc.Name, "Request Swap", doc.Version, null, ct);
+            return Results.Created($"{Prefix}/shift-swaps/{doc.Name}", SwapDto(doc));
+        }));
 
         // ---------------- Attendance ----------------
         g.MapPost("/attendance/punches", (HttpContext http, EssPunchRequest body) => Ess(http, async (user, emp, sp, ct) =>
@@ -376,7 +432,39 @@ public static class EssEndpoints
             reason = x.Str("reason") ?? x.Str("purpose"), state = d.WorkflowState, submittedAt = d.Modified, actions = new[] { "approve", "reject" },
         };
     }
+
+    private static object ScheduleDto(Document d) => new
+    {
+        name = d.Name,
+        workDate = d.Data.Str("work_date"),
+        scheduleType = d.Data.Str("schedule_type"),
+        dayCategory = d.Data.Str("day_category"),
+        shiftType = d.Data.Str("shift_type"),
+        scheduledStart = d.Data.Str("scheduled_start_datetime"),
+        scheduledEnd = d.Data.Str("scheduled_end_datetime"),
+        isPublicHoliday = d.Data.Bool("is_public_holiday"),
+        isRestDay = d.Data.Bool("is_rest_day"),
+        isLocked = d.Data.Bool("is_locked"),
+        sourceType = d.Data.Str("source_type"),
+    };
+
+    private static object SwapDto(Document d) => new
+    {
+        name = d.Name,
+        requester = d.Data.Str("requester"),
+        requesterName = d.Data.Str("requester_name"),
+        targetEmployee = d.Data.Str("target_employee"),
+        targetEmployeeName = d.Data.Str("target_employee_name"),
+        swapDate = d.Data.Str("swap_date"),
+        targetSwapDate = d.Data.Str("target_swap_date"),
+        requesterShift = d.Data.Str("requester_shift_type"),
+        targetShift = d.Data.Str("target_shift_type"),
+        reason = d.Data.Str("reason"),
+        state = d.WorkflowState,
+        modified = d.Modified,
+    };
 }
 
 public sealed record EssLeaveRequest(string? LeaveType, string? FromDate, string? ToDate, bool HalfDay, string? Reason, bool? Submit);
+public sealed record EssShiftSwapRequest(string TargetEmployee, string SwapDate, string? TargetSwapDate, string? Reason, bool? Submit);
 public sealed record EssDecisionBody(string? Comment);

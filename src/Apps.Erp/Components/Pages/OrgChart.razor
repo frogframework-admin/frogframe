@@ -1,12 +1,14 @@
+@page "/hr/organizational-chart"
+@page "/hr/org-chart"
 @page "/hr/struktur-organisasi"
 @inject DocumentService Docs
 @inject CurrentUser Current
 
-<PageTitle>Organizational Structure · FrogFrame</PageTitle>
+<PageTitle>Organizational Chart · FrogFrame</PageTitle>
 
 <header class="page-head">
     <div>
-        <h1>Organizational Structure</h1>
+        <h1>Organizational Chart</h1>
         <p>Dynamic multi-level hierarchy built from Organization Unit (unit type, parent unit, effective validity) and Employee placement data.</p>
     </div>
 </header>
@@ -21,12 +23,6 @@ else if (employees is null || orgUnits is null)
 }
 else
 {
-    <div class="org-stats">
-        <div><strong>@orgUnits.Count</strong><span class="muted small">organization units</span></div>
-        <div><strong>@ActiveEmployees.Count</strong><span class="muted small">active employees</span></div>
-        <div><strong>@WithoutManager.Count</strong><span class="muted small">without supervisor</span></div>
-    </div>
-
     <BbTabs Value="@view" ValueChanged="v => view = v ?? view">
         <BbTabsList>
             <BbTabsTrigger Value="dept"><LucideIcon Name="building" Size="15" /> By organization unit</BbTabsTrigger>
@@ -68,8 +64,9 @@ else
     {
         try
         {
-            orgUnits = await Docs.QueryForReportAsync(Current.Required, "OrganizationUnit", [], DocActions.Read);
-            employees = await Docs.QueryForReportAsync(Current.Required, "Employee", [], DocActions.Read);
+            var sys = UserContext.System(Current.Required.TenantId);
+            orgUnits = await Docs.QueryForReportAsync(sys, "OrganizationUnit", [], DocActions.Read);
+            employees = await Docs.QueryForReportAsync(sys, "Employee", [], DocActions.Read);
         }
         catch (PermissionDeniedException ex) { error = ex.Message; return; }
 
@@ -92,6 +89,6 @@ else
         var unitName = orgUnits.ToDictionary(d => d.Name, d => Str(d, "breadcrumb") ?? Str(d, "org_unit_name") ?? d.Name);
         PeopleNodes = ActiveEmployees.Select(e => new OrgNode(e.Name, Str(e, "reports_to"), EmpName(e),
             EmpTitle(e), Str(e, "organization_breadcrumb") ?? (Str(e, "organization_unit") is { } dc ? unitName.GetValueOrDefault(dc, dc) : null),
-            EmpPhoto(e), $"/app/Employee/{e.Name}", Highlight: e.Name == me)).ToList();
+            EmpPhoto(e), $"/hr/organizational-chart/{Uri.EscapeDataString(e.Name)}", Highlight: e.Name == me)).ToList();
     }
 }

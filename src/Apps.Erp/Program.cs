@@ -178,6 +178,17 @@ async Task InitializeDatabaseAndSeedAsync(CancellationToken ct)
         {
             app.Logger.LogWarning(ex, "Gagal seed sample demo users");
         }
+        foreach (var t in allTenants)
+        {
+            try
+            {
+                await Apps.Erp.Hooks.WsmDemoSeeder.EnsureSampleDataAsync(app.Services, t, ct);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                app.Logger.LogWarning(ex, "Failed to seed WSM/OM sample data for tenant {Tenant}", t);
+            }
+        }
     }
 }
 

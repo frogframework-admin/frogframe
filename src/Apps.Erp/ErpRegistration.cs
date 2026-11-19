@@ -167,6 +167,7 @@ public static class ErpRegistration
         services.AddEventHandler<ErpEventHandler>();
         services.AddScheduledJob<JournalAutoReverseJob>();
         services.AddScheduledJob<HrEffectiveDateJob>();
+        services.AddScheduledJob<RosterRollingHorizonJob>();
         services.AddScheduledJob<LeaveAllocationJob>();
         services.AddScheduledJob<ContractExpiryReminderJob>();
         services.AddScheduledJob<CrmDailyJob>();

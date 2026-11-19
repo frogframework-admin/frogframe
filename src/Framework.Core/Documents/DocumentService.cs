@@ -259,7 +259,20 @@ public sealed class DocumentService(
             string.IsNullOrWhiteSpace(req.Search) ? null : req.Search.Trim(),
             lv.SearchFields.Where(Readable).ToList(), sort, (page - 1) * pageSize, pageSize), ct);
 
-        var columns = meta.ListColumns.Where(Readable).ToList();
+        var defaultColumns = meta.ListColumns.Where(Readable).ToList();
+        var allReadableFields = meta.Fields
+            .Where(f => f.Def.Type != "Table" && f.Def.Type != "Password" && !FieldKinds.IsLayout(f.Def.Type) && Readable(f.Name))
+            .Select(f => f.Name)
+            .ToList();
+
+        var fetchFields = allowAllReadableFields
+            ? defaultColumns.Union(allReadableFields, StringComparer.OrdinalIgnoreCase).ToList()
+            : defaultColumns;
+
+        var columns = allowAllReadableFields
+            ? fetchFields
+            : defaultColumns;
+
         var items = result.Items.Select(d =>
         {
             var row = new Dictionary<string, object?>
@@ -268,7 +281,7 @@ public sealed class DocumentService(
                 [StandardFields.WorkflowState] = d.WorkflowState, [StandardFields.Modified] = d.Modified,
                 [StandardFields.Owner] = d.Owner, ["version"] = d.Version,
             };
-            foreach (var c in columns) row[c] = d.Get(c);
+            foreach (var c in fetchFields) row[c] = d.Get(c);
             foreach (var gf in meta.Fields.Where(f => f.Def.RowGrouping && Readable(f.Name))) row[gf.Name] = d.Get(gf.Name);
             if (lv.TitleField is { } tf && Readable(tf)) row["_title"] = d.Get(tf);
             return row;

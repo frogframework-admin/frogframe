@@ -278,6 +278,12 @@ else if (meta is not null)
 
                 @foreach (var c in result.Columns)
                 {
+                    if (string.Equals(c, "name", StringComparison.OrdinalIgnoreCase) ||
+                        (HasStatus && string.Equals(c, "status", StringComparison.OrdinalIgnoreCase)) ||
+                        string.Equals(c, "modified", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
                     var colKey = c;
                     var cf = meta.ByName.GetValueOrDefault(colKey);
                     var colFilterable = cf?.Def.Filterable ?? true;
@@ -1391,8 +1397,16 @@ else if (meta is not null)
         _ => BlazorBlueprint.Primitives.DataGrid.ColumnPinning.None
     };
 
-    private bool GetDefaultColVisible(string colId) =>
-        meta?.ByName.TryGetValue(colId, out var cf) == true ? cf.Def.Visible : true;
+    private bool GetDefaultColVisible(string colId)
+    {
+        if (string.Equals(colId, "modified", StringComparison.OrdinalIgnoreCase)) return false;
+        if (string.Equals(colId, "status", StringComparison.OrdinalIgnoreCase) && HasStatus) return true;
+        if (meta is not null && meta.ByName.TryGetValue(colId, out var cf))
+        {
+            return meta.ListColumns.Contains(colId, StringComparer.OrdinalIgnoreCase) && cf.Def.Visible;
+        }
+        return true;
+    }
 
     private string? GetColWidth(string colId, string? defaultWidth = null) =>
         gridPref.Columns.TryGetValue(colId, out var pref) && !string.IsNullOrWhiteSpace(pref.Width)
