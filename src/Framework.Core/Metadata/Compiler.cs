@@ -909,7 +909,11 @@ public sealed class MetadataRegistry : IMetadataProvider
         {
             var stored = _wfHistory.TryGetValue(name, out var h) ? h.LastOrDefault(v => v.Status == MetadataStatus.Published) : null;
             wfFiles.TryGetValue(name, out var file);
-            if (file is not null && (stored is null || file.Version > stored.Version))
+            var sameVersionUpdated = file is not null && stored is not null
+                && file.Version == stored.Version
+                && stored.PublishedBy is "system" or "deploy"
+                && MetadataJson.Serialize(stored.Def) != MetadataJson.Serialize(file);
+            if (file is not null && (stored is null || file.Version > stored.Version || sameVersionUpdated))
             {
                 activeWf[name] = file;
                 autoWf.Add(new WorkflowVersion(name, file.DocType, file.Version, file, MetadataStatus.Published,
@@ -923,14 +927,18 @@ public sealed class MetadataRegistry : IMetadataProvider
         foreach (var g in (store?.LoadAll() ?? []).GroupBy(v => v.DocType))
             _history[g.Key] = g.OrderBy(v => v.Version).ToList();
 
-        // Versi aktif: published di store, kecuali file membawa versi yang lebih baru (deploy) → dipublikasikan otomatis.
+        // Versi aktif: published di store, kecuali file membawa versi yang lebih baru atau isi file berubah pada versi yang sama (deploy) → dipublikasikan otomatis.
         var active = new Dictionary<string, DocTypeDef>();
         var autoPublish = new List<MetadataVersion>();
         foreach (var name in fromFiles.Keys.Union(_history.Keys))
         {
             var stored = _history.TryGetValue(name, out var h) ? h.LastOrDefault(v => v.Status == MetadataStatus.Published) : null;
             fromFiles.TryGetValue(name, out var file);
-            if (file is not null && (stored is null || file.Version > stored.Version))
+            var sameVersionUpdated = file is not null && stored is not null
+                && file.Version == stored.Version
+                && stored.PublishedBy is "system" or "deploy"
+                && MetadataJson.Serialize(stored.Def) != MetadataJson.Serialize(file);
+            if (file is not null && (stored is null || file.Version > stored.Version || sameVersionUpdated))
             {
                 active[name] = file;
                 autoPublish.Add(new MetadataVersion(name, file.Version, file, MetadataStatus.Published,
@@ -952,7 +960,9 @@ public sealed class MetadataRegistry : IMetadataProvider
         {
             store?.SaveWorkflow(v);
             DeprecateWorkflow(v.Name);
-            (_wfHistory.TryGetValue(v.Name, out var wh) ? wh : _wfHistory[v.Name] = []).Add(v);
+            var wh = _wfHistory.TryGetValue(v.Name, out var existingWh) ? existingWh : _wfHistory[v.Name] = [];
+            wh.RemoveAll(x => x.Version == v.Version);
+            wh.Add(v);
         }
 
         foreach (var v in autoPublish)
@@ -961,7 +971,9 @@ public sealed class MetadataRegistry : IMetadataProvider
             if (_history.TryGetValue(v.DocType, out var hist))
                 for (var i = 0; i < hist.Count; i++)
                     if (hist[i].Status == MetadataStatus.Published) hist[i] = hist[i] with { Status = MetadataStatus.Deprecated };
-            (_history.TryGetValue(v.DocType, out var hh) ? hh : _history[v.DocType] = []).Add(v);
+            var hh = _history.TryGetValue(v.DocType, out var existingHh) ? existingHh : _history[v.DocType] = [];
+            hh.RemoveAll(x => x.Version == v.Version);
+            hh.Add(v);
         }
     }
 

@@ -1,0 +1,152 @@
+{
+  "name": "OrganizationUnitType",
+  "version": 1,
+  "title": "Organization Unit Type",
+  "module": "HR",
+  "description": "Dynamic organizational hierarchy unit type definition (e.g. Holding, Company, Directorate, Division, Department, Section, Ministry, Echelon I, Echelon II, Technical Office).",
+  "naming": {
+    "pattern": "field:type_name"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "type_code",
+      "type": "Data",
+      "label": "Type code",
+      "requiredWhen": "true",
+      "maxLength": 20,
+      "inListView": true,
+      "section": "Type"
+    },
+    {
+      "name": "type_name",
+      "type": "Data",
+      "label": "Type name",
+      "requiredWhen": "true",
+      "maxLength": 64,
+      "inListView": true,
+      "section": "Type"
+    },
+    {
+      "name": "hierarchy_order",
+      "type": "Int",
+      "label": "Default hierarchy order",
+      "requiredWhen": "true",
+      "default": 1,
+      "min": 1,
+      "max": 20,
+      "inListView": true,
+      "section": "Type",
+      "column": 2,
+      "description": "Indicative depth rank (1 = highest level). Does not restrict custom structures."
+    },
+    {
+      "name": "parent_type",
+      "type": "Link",
+      "label": "Recommended parent type",
+      "linkTo": "OrganizationUnitType",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Type",
+      "column": 2,
+      "description": "Advisory parent unit type. Leave empty to allow any parent type."
+    },
+    {
+      "name": "is_active",
+      "type": "Check",
+      "label": "Active",
+      "default": true,
+      "inListView": true,
+      "section": "Settings"
+    },
+    {
+      "name": "is_system",
+      "type": "Check",
+      "label": "System default",
+      "default": false,
+      "readOnlyWhen": "true",
+      "inListView": true,
+      "section": "Settings",
+      "column": 2,
+      "description": "Seeded system types cannot be deleted"
+    },
+    {
+      "name": "description",
+      "type": "Text",
+      "label": "Description",
+      "section": "Remarks"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "type_name",
+    "searchFields": [
+      "type_code",
+      "type_name"
+    ],
+    "filters": [
+      "is_active",
+      "is_system",
+      "parent_type"
+    ],
+    "defaultSort": [
+      {
+        "field": "hierarchy_order",
+        "direction": "asc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

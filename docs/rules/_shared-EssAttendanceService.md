@@ -2,7 +2,7 @@
 
 # Aturan bersama EssAttendanceService
 
-Dipakai oleh: beberapa proses (job/event).
+Dipakai oleh: Employee, HRSettings, Location, ShiftType.
 
 Mobile attendance service: evaluates punches against cached profile, location, and policy data, then executes a single INSERT into IEssPunchStore. Avoids heavy document creation during peak rush hours; EssAttendanceAggregationJob subsequently materializes daily Attendance documents through DocumentService.
 

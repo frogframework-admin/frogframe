@@ -3,7 +3,7 @@
   "version": 1,
   "title": "Organization Unit",
   "module": "HR",
-  "description": "Organization unit/management hierarchy (Workday Supervisory Organization / SAP OM Org Unit). Org chart via OrgTree.",
+  "description": "Organization unit and management hierarchy (Workday Supervisory Organization / SAP OM Org Unit). Supports arbitrary hierarchy depth, effective-dated reorganizations, and materialized paths.",
   "naming": {
     "pattern": "field:org_unit_code"
   },
@@ -34,21 +34,21 @@
     },
     {
       "name": "unit_type",
-      "type": "Select",
+      "type": "Link",
       "label": "Unit type",
+      "linkTo": "OrganizationUnitType",
       "requiredWhen": "true",
-      "options": [
-        "Board of Directors",
-        "Directorate",
-        "Division",
-        "Department",
-        "Sub-department",
-        "Section",
-        "Team",
-        "Branch"
-      ],
+      "lookupDialog": true,
       "inListView": true,
       "section": "Unit"
+    },
+    {
+      "name": "base_unit_code",
+      "type": "Data",
+      "label": "Canonical unit code",
+      "maxLength": 20,
+      "section": "Unit",
+      "description": "Stable logical identity across effective-dated structure versions; defaults to Unit code"
     },
     {
       "name": "parent_org_unit",
@@ -56,6 +56,7 @@
       "label": "Parent unit",
       "linkTo": "OrganizationUnit",
       "lookupDialog": true,
+      "inListView": true,
       "section": "Unit",
       "column": 2
     },
@@ -65,6 +66,21 @@
       "label": "Company",
       "linkTo": "Company",
       "requiredWhen": "true",
+      "inListView": true,
+      "section": "Unit",
+      "column": 2
+    },
+    {
+      "name": "status",
+      "type": "Select",
+      "label": "Structure status",
+      "options": [
+        "Draft",
+        "Planned",
+        "Active",
+        "Closed"
+      ],
+      "default": "Active",
       "inListView": true,
       "section": "Unit",
       "column": 2
@@ -150,14 +166,68 @@
       "label": "Effective from",
       "requiredWhen": "true",
       "default": "$today",
+      "inListView": true,
       "section": "Settings",
       "column": 2
+    },
+    {
+      "name": "effective_to",
+      "type": "Date",
+      "label": "Effective to",
+      "section": "Settings",
+      "column": 2,
+      "description": "Leave empty for open-ended validity"
+    },
+    {
+      "name": "previous_version",
+      "type": "Link",
+      "label": "Replaces unit version",
+      "linkTo": "OrganizationUnit",
+      "lookupDialog": true,
+      "section": "Hierarchy",
+      "description": "Optional previous effective-dated row that this planned unit replaces on its effective date"
+    },
+    {
+      "name": "depth",
+      "type": "Int",
+      "label": "Hierarchy depth",
+      "readOnlyWhen": "true",
+      "inListView": true,
+      "section": "Hierarchy",
+      "description": "1 = root unit"
+    },
+    {
+      "name": "materialized_path",
+      "type": "Data",
+      "label": "Materialized path",
+      "readOnlyWhen": "true",
+      "section": "Hierarchy",
+      "column": 2,
+      "description": "Computed ancestor path (e.g. /BOD/DIV-TECH/DEPT-IT/)"
+    },
+    {
+      "name": "breadcrumb",
+      "type": "Data",
+      "label": "Hierarchy breadcrumb",
+      "readOnlyWhen": "true",
+      "inListView": true,
+      "section": "Hierarchy",
+      "column": 2,
+      "description": "Full organizational lineage display"
     },
     {
       "name": "description",
       "type": "Text",
       "label": "Unit purpose",
       "section": "Remarks"
+    }
+  ],
+  "rules": [
+    {
+      "name": "valid_period",
+      "expr": "empty(effective_to) || effective_to >= effective_from",
+      "message": "The effective end date must be on or after the effective start date",
+      "field": "effective_to"
     }
   ],
   "permissions": [
@@ -180,6 +250,13 @@
       "scope": "all"
     },
     {
+      "role": "Manager",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
       "role": "System Manager",
       "actions": [
         "read",
@@ -196,13 +273,21 @@
     "titleField": "org_unit_name",
     "searchFields": [
       "org_unit_code",
-      "org_unit_name"
+      "org_unit_name",
+      "base_unit_code",
+      "breadcrumb",
+      "materialized_path"
     ],
     "filters": [
       "company",
       "unit_type",
       "parent_org_unit",
-      "is_active"
+      "status",
+      "is_active",
+      "base_unit_code",
+      "materialized_path",
+      "effective_from",
+      "effective_to"
     ],
     "defaultSort": [
       {

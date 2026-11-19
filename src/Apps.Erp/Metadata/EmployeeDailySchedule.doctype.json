@@ -1,0 +1,286 @@
+{
+  "name": "EmployeeDailySchedule",
+  "version": 1,
+  "title": "Employee Daily Schedule",
+  "module": "HR",
+  "description": "Materialized daily workforce schedule per employee and work date. Single source of truth for Attendance, Leave, Overtime, and Payroll.",
+  "naming": {
+    "pattern": "EDS-{YYYY}-{#######}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "employee",
+      "type": "Link",
+      "label": "Employee",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Schedule"
+    },
+    {
+      "name": "employee_name",
+      "type": "Data",
+      "label": "Employee name",
+      "fetchFrom": "employee.full_name",
+      "inListView": true,
+      "section": "Schedule"
+    },
+    {
+      "name": "company",
+      "type": "Link",
+      "label": "Company",
+      "linkTo": "Company",
+      "section": "Schedule"
+    },
+    {
+      "name": "organization_unit",
+      "type": "Link",
+      "label": "Organization unit",
+      "linkTo": "OrganizationUnit",
+      "inListView": true,
+      "section": "Schedule"
+    },
+    {
+      "name": "work_date",
+      "type": "Date",
+      "label": "Work date",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Schedule",
+      "column": 2,
+      "description": "Business anchor date for this shift (night shifts crossing midnight remain anchored to their start work date)"
+    },
+    {
+      "name": "shift_group",
+      "type": "Link",
+      "label": "Shift group",
+      "linkTo": "ShiftGroup",
+      "inListView": true,
+      "section": "Schedule",
+      "column": 2
+    },
+    {
+      "name": "schedule_type",
+      "type": "Select",
+      "label": "Schedule type",
+      "requiredWhen": "true",
+      "options": [
+        "WORK",
+        "REST",
+        "LEAVE",
+        "HOLIDAY"
+      ],
+      "default": "WORK",
+      "inListView": true,
+      "section": "Shift & Day Type"
+    },
+    {
+      "name": "day_category",
+      "type": "Select",
+      "label": "Day category",
+      "requiredWhen": "true",
+      "options": [
+        "Scheduled Workday",
+        "Scheduled Rest Day",
+        "Public Holiday",
+        "Company Holiday",
+        "Annual Leave",
+        "Special Leave"
+      ],
+      "default": "Scheduled Workday",
+      "inListView": true,
+      "section": "Shift & Day Type"
+    },
+    {
+      "name": "shift_type",
+      "type": "Link",
+      "label": "Shift type",
+      "linkTo": "ShiftType",
+      "requiredWhen": "schedule_type == 'WORK'",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Shift & Day Type",
+      "column": 2
+    },
+    {
+      "name": "is_public_holiday",
+      "type": "Check",
+      "label": "Falls on public holiday",
+      "default": false,
+      "inListView": true,
+      "section": "Shift & Day Type",
+      "column": 2,
+      "description": "True when work_date is also a public holiday on the employee's Holiday List (even if scheduled as WORK or REST)"
+    },
+    {
+      "name": "scheduled_start_datetime",
+      "type": "Datetime",
+      "label": "Scheduled start",
+      "readOnlyWhen": "true",
+      "section": "Time Window"
+    },
+    {
+      "name": "scheduled_end_datetime",
+      "type": "Datetime",
+      "label": "Scheduled end",
+      "readOnlyWhen": "true",
+      "section": "Time Window",
+      "column": 2
+    },
+    {
+      "name": "crosses_midnight",
+      "type": "Check",
+      "label": "Crosses midnight",
+      "default": false,
+      "readOnlyWhen": "true",
+      "section": "Time Window",
+      "column": 2
+    },
+    {
+      "name": "source_type",
+      "type": "Select",
+      "label": "Source",
+      "options": [
+        "Generator",
+        "Override",
+        "Shift Swap",
+        "Leave",
+        "Manual"
+      ],
+      "default": "Manual",
+      "inListView": true,
+      "section": "Audit & Lock"
+    },
+    {
+      "name": "source_reference",
+      "type": "Data",
+      "label": "Source reference",
+      "section": "Audit & Lock",
+      "description": "Document name of ScheduleGeneration, ShiftOverride, ShiftSwapRequest, or LeaveApplication"
+    },
+    {
+      "name": "shift_pattern",
+      "type": "Link",
+      "label": "Shift pattern",
+      "linkTo": "ShiftPattern",
+      "section": "Audit & Lock",
+      "column": 2
+    },
+    {
+      "name": "is_locked",
+      "type": "Check",
+      "label": "Locked",
+      "default": false,
+      "inListView": true,
+      "section": "Audit & Lock",
+      "column": 2,
+      "description": "Locked schedules are protected from being overwritten by the roster generator"
+    },
+    {
+      "name": "remarks",
+      "type": "Text",
+      "label": "Remarks",
+      "section": "Remarks"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Payroll",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "match:employee=employee"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "employee_name",
+    "searchFields": [
+      "name",
+      "employee",
+      "employee_name",
+      "organization_unit",
+      "shift_group",
+      "shift_type",
+      "source_reference"
+    ],
+    "filters": [
+      "company",
+      "organization_unit",
+      "shift_group",
+      "employee",
+      "work_date",
+      "schedule_type",
+      "day_category",
+      "shift_type",
+      "is_public_holiday",
+      "source_type",
+      "is_locked"
+    ],
+    "defaultSort": [
+      {
+        "field": "work_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "delete"
+    ]
+  }
+}

@@ -6,16 +6,17 @@ Aturan yang dijalankan kode saat dokumen Attendance (Attendance) disimpan, di-su
 
 ## Ringkasan perilaku
 
-- **AttendanceHook**: Absensi: satu per karyawan per tanggal; jam kerja & keterlambatan dari shift; tautan ke cuti yang disetujui; terkunci setelah payslip bulan itu submit.
+- **AttendanceHook**: Attendance: one per employee per work date; resolves shift &amp; cross-midnight window from materialized EmployeeDailySchedule (falling back to Employee shift / HRSettings); links to approved leave; locked once the month's payslip is submitted.
 
 ## Validasi (dokumen ditolak): Saat simpan/submit (validasi)
 
-- `attendance_date`: "The date is required" — terjadi bila `d.Date("attendance_date") tidak ditemukan/kosong` (AttendanceHook, TimeHooks.cs:76)
-- `attendance_date`: "{emp.Name} already has attendance {dup.Name} on {D.Iso(date)}" — terjadi bila `dup is not null` (AttendanceHook, TimeHooks.cs:80)
+- `attendance_date`: "The date is required" — terjadi bila `d.Date("attendance_date") tidak ditemukan/kosong` (AttendanceHook, TimeHooks.cs:85)
+- `attendance_date`: "{emp.Name} already has attendance {dup.Name} on {D.Iso(date)}" — terjadi bila `dup is not null` (AttendanceHook, TimeHooks.cs:89)
 
 ## Peringatan (dokumen tetap tersimpan): Saat simpan/submit (validasi)
 
-- "Approved leave {leave.Name} covers this date; consider status 'On leave'" — terjadi bila `leave is not null && d.Str("status") is "Present" or "Absent"` (AttendanceHook, TimeHooks.cs:100)
+- "Scheduled {schedule.Data.Str("day_category")?.ToLowerInvariant() ?? "rest/holiday day"} on {D.Iso(date)}; attendance qualifies for rest-day or holiday overtime." — terjadi bila `schedule.Data.Str("schedule_type") is "REST" or "HOLIDAY" && d.Str("status") == "Present"` (AttendanceHook, TimeHooks.cs:102)
+- "Approved leave {leave.Name} covers this date; consider status 'On leave'" — terjadi bila `leave is not null && d.Str("status") is "Present" or "Absent"` (AttendanceHook, TimeHooks.cs:133)
 
 ## Aturan bersama yang juga berlaku
 

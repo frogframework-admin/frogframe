@@ -6,8 +6,8 @@ Dipakai oleh: AssetDisposal, CommissionStatement, DepreciationRun, EmployeeAdvan
 
 ## Validasi (dokumen ditolak)
 
-- `{path}`: "No accounting period exists for {D.Iso(date)}" — terjadi bila `period is null` (Periods, Common.cs:200)
-- `{path}`: "Period {period.Name} is closed" — terjadi bila `period.Data.Str("status") != "Open"` (Periods, Common.cs:201)
-- `{path}`: "Period {period.Name} is locked for this transaction (subledger close)" — terjadi bila `lockField is not null && period.Data.Bool(lockField) && !user.IsAdmin` (Periods, Common.cs:203)
-- `{path}`: "Books are frozen until {D.Iso(frozen)}" — terjadi bila `settings.Date("books_frozen_until") is { } frozen && date <= frozen && !user.IsAdmin` (Periods, Common.cs:207)
-- `{path}`: "The posting date cannot be in the future (see Accounting Settings)" — terjadi bila `date > today && !(await m.SingleAsync("AccountingSettings", ct)).Bool("allow_future_posting")` (Periods, Common.cs:213)
+- `{path}`: "No accounting period exists for {D.Iso(date)}" — terjadi bila `period is null` (Periods, Common.cs:211)
+- `{path}`: "Period {period.Name} is closed" — terjadi bila `period.Data.Str("status") != "Open"` (Periods, Common.cs:212)
+- `{path}`: "Period {period.Name} is locked for this transaction (subledger close)" — terjadi bila `lockField is not null && period.Data.Bool(lockField) && !user.IsAdmin` (Periods, Common.cs:214)
+- `{path}`: "Books are frozen until {D.Iso(frozen)}" — terjadi bila `settings.Date("books_frozen_until") is { } frozen && date <= frozen && !user.IsAdmin` (Periods, Common.cs:218)
+- `{path}`: "The posting date cannot be in the future (see Accounting Settings)" — terjadi bila `date > today && !(await m.SingleAsync("AccountingSettings", ct)).Bool("allow_future_posting")` (Periods, Common.cs:224)

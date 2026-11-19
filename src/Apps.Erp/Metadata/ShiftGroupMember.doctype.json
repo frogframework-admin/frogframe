@@ -1,0 +1,40 @@
+{
+  "name": "ShiftGroupMember",
+  "version": 1,
+  "title": "Shift Group Member",
+  "module": "HR",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "employee",
+      "type": "Link",
+      "label": "Employee",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "lookupDialog": true
+    },
+    {
+      "name": "effective_from",
+      "type": "Date",
+      "label": "Effective from",
+      "requiredWhen": "true",
+      "default": "$today"
+    },
+    {
+      "name": "effective_to",
+      "type": "Date",
+      "label": "Effective to"
+    },
+    {
+      "name": "is_active",
+      "type": "Check",
+      "label": "Active",
+      "default": true
+    },
+    {
+      "name": "remarks",
+      "type": "Data",
+      "label": "Remarks"
+    }
+  ]
+}

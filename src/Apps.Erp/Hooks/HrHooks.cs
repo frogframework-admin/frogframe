@@ -1,3 +1,4 @@
+using Framework.Actions;
 using Framework.Documents;
 using Framework.Hooks;
 using Framework.Persistence;
@@ -11,34 +12,242 @@ internal static class Hr
 {
     public const string Left = "Left";
 
+    public static readonly (string Name, string Code, long Order, string? ParentType, string Description)[] DefaultUnitTypes =
+    [
+        ("Board of Directors", "BOD", 1, null, "Executive board level"),
+        ("Directorate", "DIR", 2, "Board of Directors", "Directorate level"),
+        ("Division", "DIV", 3, "Directorate", "Division level"),
+        ("Department", "DEPT", 4, null, "Department level"),
+        ("Sub-department", "SUBDEPT", 5, "Department", "Sub-department level"),
+        ("Section", "SEC", 6, "Department", "Section level"),
+        ("Team", "TEAM", 7, null, "Operational team or squad"),
+        ("Branch", "BRANCH", 3, null, "Regional branch or office"),
+    ];
+
     public static DateOnly Today(TimeProvider clock) => DateOnly.FromDateTime(clock.GetLocalNow().Date);
 
-    /// <summary>Pemangku aktif sebuah posisi (sumber kebenaran: Employee.position, bukan Position.current_employee).</summary>
-    public static async Task<Document?> HolderAsync(Masters m, string? position, string? except, CancellationToken ct)
+    /// <summary>Ensures the 8 default system OrganizationUnitType master documents exist in the tenant store.</summary>
+    public static async Task EnsureDefaultUnitTypesAsync(IDocumentStore store, string tenant, CancellationToken ct)
     {
-        if (position is null) return null;
-        return (await m.QueryAsync("Employee", [new FilterClause("position", "=", position)], ct, take: 20))
-            .FirstOrDefault(e => e.Name != except && e.Data.Str("status") != Left);
+        var uow = new UnitOfWork();
+        var now = DateTimeOffset.UtcNow;
+        foreach (var (name, code, order, parentType, desc) in DefaultUnitTypes)
+        {
+            if (await store.GetAsync(tenant, "OrganizationUnitType", name, ct) is not null) continue;
+            uow.Upserts.Add((new Document
+            {
+                TenantId = tenant,
+                DocType = "OrganizationUnitType",
+                Name = name,
+                Owner = "system",
+                ModifiedBy = "system",
+                Created = now,
+                Modified = now,
+                Version = 1,
+                SchemaVersion = 1,
+                DocStatus = DocStatus.Draft,
+                Data = new Dictionary<string, object?>
+                {
+                    ["type_code"] = code,
+                    ["type_name"] = name,
+                    ["hierarchy_order"] = order,
+                    ["parent_type"] = parentType,
+                    ["is_active"] = true,
+                    ["is_system"] = true,
+                    ["description"] = desc,
+                },
+            }, null));
+        }
+        if (uow.Upserts.Count > 0) await store.CommitAsync(uow, ct);
     }
 
-    /// <summary>Atasan: pemangku posisi "melapor ke"; bila kosong, pimpinan unit; bila dia sendiri pimpinan, pimpinan unit induk.</summary>
-    public static async Task<string?> ManagerForAsync(Masters m, string self, string? position, string? orgUnit, CancellationToken ct)
+    /// <summary>Checks whether an OrganizationUnit version row is effective on the given date.</summary>
+    public static bool IsUnitValidOn(Document unit, DateOnly date)
+    {
+        var status = unit.Data.Str("status") ?? (unit.Data.Bool("is_active") ? "Active" : "Closed");
+        if (status is "Draft" or "Planned") return false;
+        var from = unit.Data.Date("effective_from");
+        var to = unit.Data.Date("effective_to");
+        if (status == "Closed" && to is null) return false;
+        if (from is not null && date < from.Value) return false;
+        if (to is not null && date > to.Value) return false;
+        return true;
+    }
+
+    /// <summary>Resolves the OrganizationUnit version row valid on <paramref name="asOfDate"/> (by direct name or canonical base_unit_code).</summary>
+    public static async Task<Document?> GetOrgUnitAsOfAsync(Masters m, string? unitNameOrCode, DateOnly? asOfDate, CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(unitNameOrCode)) return null;
+        var direct = await m.GetAsync("OrganizationUnit", unitNameOrCode, ct);
+        if (asOfDate is not { } date)
+            return direct;
+
+        var baseCode = direct?.Data.Str("base_unit_code") ?? direct?.Data.Str("org_unit_code") ?? unitNameOrCode;
+        var versions = await m.QueryAsync("OrganizationUnit", [new FilterClause("base_unit_code", "=", baseCode)], ct, "effective_from", "desc", 50);
+        var match = versions.FirstOrDefault(u => IsUnitValidOn(u, date));
+        if (match is not null) return match;
+        if (direct is not null && IsUnitValidOn(direct, date)) return direct;
+        return versions.Count == 0 ? direct : null;
+    }
+
+    /// <summary>Returns all descendant OrganizationUnit rows (including the parent unit itself) valid on <paramref name="asOfDate"/>.</summary>
+    public static async Task<IReadOnlyList<Document>> DescendantUnitsAsOfAsync(Masters m, string? parentUnitNameOrCode, DateOnly asOfDate, CancellationToken ct)
+    {
+        var root = await GetOrgUnitAsOfAsync(m, parentUnitNameOrCode, asOfDate, ct);
+        if (root is null) return [];
+        var rootPath = root.Data.Str("materialized_path") ?? $"/{root.Data.Str("org_unit_code") ?? root.Name}/";
+        var candidates = await m.QueryAsync("OrganizationUnit", [new FilterClause("materialized_path", "like", rootPath)], ct, take: 5000);
+        return candidates
+            .Where(u => (u.Data.Str("materialized_path") ?? "").StartsWith(rootPath, StringComparison.Ordinal) && IsUnitValidOn(u, asOfDate))
+            .ToList();
+    }
+
+    /// <summary>Returns all active employees belonging to <paramref name="parentUnitNameOrCode"/> or any of its valid descendant units on <paramref name="asOfDate"/>.</summary>
+    public static async Task<IReadOnlyList<Document>> EmployeesInSubtreeAsOfAsync(Masters m, string? parentUnitNameOrCode, DateOnly asOfDate, CancellationToken ct)
+    {
+        var units = await DescendantUnitsAsOfAsync(m, parentUnitNameOrCode, asOfDate, ct);
+        if (units.Count == 0) return [];
+        var validNames = units.Select(u => u.Name)
+            .Concat(units.Select(u => u.Data.Str("base_unit_code")).OfType<string>())
+            .ToHashSet(StringComparer.Ordinal);
+        var allEmps = await m.QueryAsync("Employee", [], ct, take: 10_000);
+        var result = new List<Document>();
+        foreach (var emp in allEmps.Where(e => e.Data.Str("status") != Left))
+        {
+            if (emp.Data.Date("hire_date") is { } hire && hire > asOfDate) continue;
+            if (emp.Data.Date("separation_date") is { } sep && sep < asOfDate) continue;
+            var empUnit = emp.Data.Str("organization_unit");
+            var resolved = await GetOrgUnitAsOfAsync(m, empUnit, asOfDate, ct);
+            if ((resolved is not null && validNames.Contains(resolved.Name)) || (empUnit is not null && validNames.Contains(empUnit)))
+                result.Add(emp);
+        }
+        return result;
+    }
+
+    /// <summary>Active holder of a position (primary source: Employee.position; fallback: active Acting/Primary EmployeeAssignment).</summary>
+    public static async Task<Document?> HolderAsync(Masters m, string? position, string? except, CancellationToken ct, DateOnly? asOfDate = null)
+    {
+        if (position is null) return null;
+        var primary = (await m.QueryAsync("Employee", [new FilterClause("position", "=", position)], ct, take: 20))
+            .FirstOrDefault(e => e.Name != except && e.Data.Str("status") != Left);
+        if (primary is not null) return primary;
+
+        var assignments = (await m.QueryAsync("EmployeeAssignment", [new FilterClause("position", "=", position), new FilterClause("status", "=", "Active")], ct, take: 20))
+            .Where(a => a.Data.Str("employee") != except && a.Data.Str("assignment_type") is "Acting" or "Primary")
+            .Where(a => asOfDate is not { } d || ((a.Data.Date("start_date") is not { } s || s <= d) && (a.Data.Date("end_date") is not { } e || d <= e)))
+            .OrderByDescending(a => a.Data.Date("start_date"))
+            .ToList();
+        foreach (var a in assignments)
+        {
+            if (await m.GetAsync("Employee", a.Data.Str("employee"), ct) is { } emp && emp.Data.Str("status") != Left)
+                return emp;
+        }
+        return null;
+    }
+
+    /// <summary>Supervisor resolution: holder of "reports to" position; if empty, head of the organization unit valid on <paramref name="asOfDate"/>, walking up parent units.</summary>
+    public static async Task<string?> ManagerForAsync(Masters m, string self, string? position, string? orgUnit, CancellationToken ct, DateOnly? asOfDate = null)
     {
         var pos = await m.GetAsync("Position", position, ct);
-        if (await HolderAsync(m, pos?.Data.Str("reports_to_position"), self, ct) is { } boss) return boss.Name;
-        for (var unit = await m.GetAsync("OrganizationUnit", orgUnit, ct); unit is not null; unit = await m.GetAsync("OrganizationUnit", unit.Data.Str("parent_org_unit"), ct))
-            if (await HolderAsync(m, unit.Data.Str("manager_position"), self, ct) is { } head) return head.Name;
+        if (await HolderAsync(m, pos?.Data.Str("reports_to_position"), self, ct, asOfDate) is { } boss) return boss.Name;
+        var visited = new HashSet<string>(StringComparer.Ordinal);
+        for (var unit = await GetOrgUnitAsOfAsync(m, orgUnit, asOfDate, ct);
+             unit is not null && visited.Add(unit.Name);
+             unit = await GetOrgUnitAsOfAsync(m, unit.Data.Str("parent_org_unit"), asOfDate, ct))
+        {
+            if (await HolderAsync(m, unit.Data.Str("manager_position"), self, ct, asOfDate) is { } head) return head.Name;
+        }
         return null;
     }
 
     public static bool Overlaps(DateOnly? aFrom, DateOnly? aTo, DateOnly? bFrom, DateOnly? bTo) =>
         (aFrom ?? DateOnly.MinValue) <= (bTo ?? DateOnly.MaxValue) && (bFrom ?? DateOnly.MinValue) <= (aTo ?? DateOnly.MaxValue);
+
+    /// <summary>Activates a Planned OrganizationUnit on <paramref name="effectiveDate"/>, closing its predecessor version and re-pointing active Positions.</summary>
+    public static async Task<int> ActivatePlannedUnitAsync(SystemDocs sys, Masters m, Document planned, DateOnly effectiveDate, CancellationToken ct)
+    {
+        var baseCode = planned.Data.Str("base_unit_code") ?? planned.Data.Str("org_unit_code") ?? planned.Name;
+        var prevName = planned.Data.Str("previous_version");
+        var candidates = await m.QueryAsync("OrganizationUnit", [new FilterClause("base_unit_code", "=", baseCode)], ct, take: 100);
+        var closedUnits = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var old in candidates.Where(u => u.Name != planned.Name && u.Data.Str("status") == "Active"))
+        {
+            if (Overlaps(effectiveDate, planned.Data.Date("effective_to"), old.Data.Date("effective_from"), old.Data.Date("effective_to")))
+            {
+                var closeDate = effectiveDate.AddDays(-1);
+                var oldFrom = old.Data.Date("effective_from");
+                if (oldFrom is not null && closeDate < oldFrom.Value) closeDate = oldFrom.Value;
+                await sys.UpdateAsync("OrganizationUnit", old.Name, new Dictionary<string, object?>
+                {
+                    ["effective_to"] = D.Iso(closeDate),
+                }, ct);
+                closedUnits.Add(old.Name);
+            }
+        }
+        if (prevName is not null && prevName != planned.Name && !closedUnits.Contains(prevName))
+            closedUnits.Add(prevName);
+
+        await sys.UpdateAsync("OrganizationUnit", planned.Name, new Dictionary<string, object?>
+        {
+            ["status"] = "Active",
+            ["is_active"] = true,
+            ["effective_from"] = D.Iso(effectiveDate),
+        }, ct);
+
+        int movedPositions = 0;
+        foreach (var oldUnitName in closedUnits)
+        {
+            var positions = await m.QueryAsync("Position", [new FilterClause("organization_unit", "=", oldUnitName)], ct, take: 1000);
+            foreach (var pos in positions.Where(p => p.Data.Str("status") != "Closed"))
+            {
+                await sys.UpdateAsync("Position", pos.Name, new Dictionary<string, object?>
+                {
+                    ["organization_unit"] = planned.Name,
+                }, ct);
+                movedPositions++;
+                if (pos.Data.Str("current_employee") is { } holder)
+                    await sys.TouchAsync("Employee", holder, ct);
+            }
+        }
+        return movedPositions;
+    }
+}
+
+/// <summary>Organization unit type: dynamic hierarchy level definition; system-seeded types cannot be deleted.</summary>
+public sealed class OrganizationUnitTypeHook(IDocumentStore store)
+    : IBeforeValidate<OrganizationUnitType>, IBeforeDelete<OrganizationUnitType>
+{
+    public async Task BeforeValidateAsync(HookContext c, CancellationToken ct)
+    {
+        var m = new Masters(store, c.Doc.TenantId);
+        var d = c.Doc.Data;
+        var errors = new Errors();
+        var code = d.Str("type_code")?.Trim().ToUpperInvariant();
+        if (code is not null) d["type_code"] = code;
+        var name = d.Str("type_name") ?? c.Doc.Name;
+
+        if (d.Str("parent_type") == name)
+            errors.Add("parent_type", "An organization unit type cannot be its own parent type");
+
+        var existing = await m.QueryAsync("OrganizationUnitType", [new FilterClause("type_code", "=", code)], ct, take: 10);
+        if (existing.FirstOrDefault(x => x.Name != name && x.Name != c.Doc.Name) is { } dup)
+            errors.Add("type_code", $"Type code {code} is already used by {dup.Name}");
+
+        errors.ThrowIfAny();
+    }
+
+    public Task BeforeDeleteAsync(HookContext c, CancellationToken ct)
+    {
+        if (c.Doc.Data.Bool("is_system"))
+            throw Errors.One("name", "System organization unit types cannot be deleted");
+        return Task.CompletedTask;
+    }
 }
 
 /// <summary>
-/// Karyawan. Model Posisi: unit, profil jabatan, grade, lokasi, cost center diturunkan dari posisi; satu pemangku aktif per posisi.
-/// Atasan dari hierarki posisi/unit; approver cuti & klaim default = atasan. Keluar: tanggal keluar dari Employee Separation, posisi dikosongkan.
-/// Perubahan posisi/status disinkronkan ke Position lewat event (Position menghitung pemangkunya sendiri).
+/// Employee. Position model: unit, job profile, grade, location, and cost center are derived from the position; one active holder per position.
+/// Supervisor is derived from position/unit hierarchy; default leave &amp; expense approvers = supervisor.
 /// </summary>
 public sealed class EmployeeHook(IDocumentStore store) : IBeforeValidate<Employee>, IAfterSave<Employee>
 {
@@ -69,18 +278,21 @@ public sealed class EmployeeHook(IDocumentStore store) : IBeforeValidate<Employe
         {
             var pos = await m.RequireAsync("Position", positionName, "position", "Position", ct);
             if (pos.Data.Str("status") is "Closed" or "Frozen") errors.Add("position", $"Position {pos.Name} is {pos.Data.Str("status")}");
-            if (await Hr.HolderAsync(m, pos.Name, me, ct) is { } holder) errors.Add("position", $"Position {pos.Name} is already filled by {holder.Name}");
+            if (await Hr.HolderAsync(m, pos.Name, me, ct) is { } holder && holder.Data.Str("position") == pos.Name)
+                errors.Add("position", $"Position {pos.Name} is already filled by {holder.Name}");
             d["organization_unit"] = pos.Data.Str("organization_unit");
             d["job_profile"] = pos.Data.Str("job_profile");
             if (positionChanged) { d["grade"] = pos.Data.Str("grade"); d["cost_center"] = pos.Data.Str("cost_center"); d["location"] = pos.Data.Str("location"); }
         }
         d.SetIfEmpty("grade", await m.StrAsync("JobProfile", d.Str("job_profile"), "default_grade", ct));
-        d.SetIfEmpty("cost_center", await m.StrAsync("OrganizationUnit", d.Str("organization_unit"), "cost_center", ct) ?? company.Default("default_cost_center"));
-        d.SetIfEmpty("location", await m.StrAsync("OrganizationUnit", d.Str("organization_unit"), "location", ct));
+        var asOf = d.Date("last_job_change_date") ?? d.Date("hire_date");
+        var unitDoc = await Hr.GetOrgUnitAsOfAsync(m, d.Str("organization_unit"), asOf, ct);
+        d.SetIfEmpty("cost_center", unitDoc?.Data.Str("cost_center") ?? await m.StrAsync("OrganizationUnit", d.Str("organization_unit"), "cost_center", ct) ?? company.Default("default_cost_center"));
+        d.SetIfEmpty("location", unitDoc?.Data.Str("location") ?? await m.StrAsync("OrganizationUnit", d.Str("organization_unit"), "location", ct));
 
         var oldBoss = prev?.Str("reports_to");
         if (d.Str("reports_to") is null || (positionChanged && d.Str("reports_to") == oldBoss))
-            d["reports_to"] = await Hr.ManagerForAsync(m, me, d.Str("position"), d.Str("organization_unit"), ct);
+            d["reports_to"] = await Hr.ManagerForAsync(m, me, d.Str("position"), d.Str("organization_unit"), ct, asOf);
         foreach (var approver in new[] { "leave_approver", "expense_approver" })
             if (d.Str(approver) is null || (oldBoss is not null && d.Str(approver) == oldBoss && d.Str("reports_to") != oldBoss))
                 d[approver] = d.Str("reports_to");
@@ -100,14 +312,13 @@ public sealed class EmployeeHook(IDocumentStore store) : IBeforeValidate<Employe
         var oldPos = c.Previous?.Data.Str("position"); var newPos = c.Doc.Data.Str("position");
         if (oldPos != newPos || c.Previous?.Data.Str("status") != c.Doc.Data.Str("status"))
             ErpEvents.Emit(c, ErpEvents.PositionSync, new() { ["old_position"] = oldPos, ["new_position"] = newPos });
-        // Karyawan baru tanpa akun: handler membuat akun user bila HRSettings.auto_create_user dicentang.
         if (c.Previous is null && c.Doc.Data.Str("user_id") is null && c.Doc.Data.Str("work_email") is not null)
             ErpEvents.Emit(c, ErpEvents.EmployeeUser, new());
         return Task.CompletedTask;
     }
 }
 
-/// <summary>Posisi: pemangku & status dihitung dari Employee; grade/cost center default dari profil jabatan/unit.</summary>
+/// <summary>Position: holder &amp; status computed from Employee/EmployeeAssignment; default grade/cost center from job profile/unit.</summary>
 public sealed class PositionHook(IDocumentStore store) : IBeforeValidate<Position>
 {
     public async Task BeforeValidateAsync(HookContext c, CancellationToken ct)
@@ -129,19 +340,269 @@ public sealed class PositionHook(IDocumentStore store) : IBeforeValidate<Positio
     }
 }
 
-/// <summary>Unit organisasi: pergantian posisi pimpinan memicu pembaruan atasan karyawan unit (lewat event).</summary>
-public sealed class OrganizationUnitHook : IAfterSave<OrganizationUnit>
+/// <summary>
+/// Organization unit: dynamic unit types, cycle prevention, effective-dated overlap validation, closure checks,
+/// materialized path &amp; breadcrumb computation, and automatic path cascade to descendant units.
+/// </summary>
+public sealed class OrganizationUnitHook(IDocumentStore store)
+    : IBeforeValidate<OrganizationUnit>, IAfterSave<OrganizationUnit>
 {
-    public Task AfterSaveAsync(HookContext c, CancellationToken ct)
+    public async Task BeforeValidateAsync(HookContext c, CancellationToken ct)
+    {
+        var d = c.Doc.Data;
+        var errors = new Errors();
+        var code = d.Str("org_unit_code") ?? c.Doc.Name;
+
+        if (d.Str("unit_type") is { } ut && Hr.DefaultUnitTypes.Any(x => x.Name == ut))
+            await Hr.EnsureDefaultUnitTypesAsync(store, c.Doc.TenantId, ct);
+
+        var m = new Masters(store, c.Doc.TenantId);
+
+        if (d.Str("previous_version") is { } prevVer && await m.GetAsync("OrganizationUnit", prevVer, ct) is { } prevUnit)
+            d.SetIfEmpty("base_unit_code", prevUnit.Data.Str("base_unit_code") ?? prevUnit.Data.Str("org_unit_code") ?? prevUnit.Name);
+        d.SetIfEmpty("base_unit_code", code);
+        var baseCode = d.Str("base_unit_code") ?? code;
+
+        if (c.Previous is not null && c.Previous.Data.Bool("is_active") && !d.Bool("is_active") && d.Str("status") == "Active")
+            d["status"] = "Closed";
+        d.SetIfEmpty("status", d.Bool("is_active") ? "Active" : "Closed");
+        var status = d.Str("status") ?? "Active";
+        d["is_active"] = status == "Active";
+
+        var from = d.Date("effective_from");
+        var to = d.Date("effective_to");
+        if (from is not null && to is not null && to < from)
+            errors.Add("effective_to", "The effective end date must be on or after the effective start date");
+
+        // Advisory parent type check
+        var unitTypeDoc = await m.GetAsync("OrganizationUnitType", d.Str("unit_type"), ct);
+        var parentName = d.Str("parent_org_unit");
+        var parentDoc = await m.GetAsync("OrganizationUnit", parentName, ct);
+        if (unitTypeDoc?.Data.Str("parent_type") is { } expectedParent && parentDoc is not null)
+        {
+            var actualParentType = parentDoc.Data.Str("unit_type");
+            if (actualParentType is not null && actualParentType != expectedParent)
+                c.Messages.Add($"Advisory: unit type '{unitTypeDoc.Name}' recommends parent type '{expectedParent}', but parent '{parentDoc.Name}' has type '{actualParentType}'");
+        }
+
+        // Cycle prevention (including logical base_unit_code cycles across versions) & path calculation
+        var ancestorCodes = new List<string>();
+        var ancestorNames = new List<string>();
+        var visited = new HashSet<string>(StringComparer.Ordinal) { code };
+        var cur = parentDoc;
+        while (cur is not null)
+        {
+            var curCode = cur.Data.Str("org_unit_code") ?? cur.Name;
+            var curBase = cur.Data.Str("base_unit_code") ?? curCode;
+            var sameBase = curBase == baseCode && Hr.Overlaps(from, to, cur.Data.Date("effective_from"), cur.Data.Date("effective_to"));
+            if (curCode == code || sameBase)
+            {
+                errors.Add("parent_org_unit", $"Circular organization hierarchy detected involving unit '{code}'");
+                break;
+            }
+            if (!visited.Add(curCode)) break;
+            ancestorCodes.Add(curCode);
+            ancestorNames.Add(cur.Data.Str("org_unit_name") ?? curCode);
+            cur = await m.GetAsync("OrganizationUnit", cur.Data.Str("parent_org_unit"), ct);
+        }
+        ancestorCodes.Reverse();
+        ancestorNames.Reverse();
+        ancestorCodes.Add(code);
+        ancestorNames.Add(d.Str("org_unit_name") ?? code);
+        d["depth"] = (long)ancestorCodes.Count;
+        d["materialized_path"] = "/" + string.Join("/", ancestorCodes) + "/";
+        d["breadcrumb"] = string.Join(" > ", ancestorNames);
+
+        // Overlap check: only one Active row per base_unit_code on any date
+        if (status == "Active")
+        {
+            var sameUnits = await m.QueryAsync("OrganizationUnit", [new FilterClause("base_unit_code", "=", baseCode)], ct, take: 100);
+            foreach (var other in sameUnits.Where(u => u.Name != code && u.Name != c.Doc.Name && (u.Data.Str("status") ?? "Active") == "Active"))
+            {
+                if (Hr.Overlaps(from, to, other.Data.Date("effective_from"), other.Data.Date("effective_to")))
+                {
+                    errors.Add("effective_from", $"Active validity period overlaps with version {other.Name} for unit {baseCode}");
+                    break;
+                }
+            }
+        }
+
+        // Closure check: closing a unit or ending its validity requires no active Position to be stranded
+        if (status == "Closed" || to is not null)
+        {
+            var activePositions = (await m.QueryAsync("Position", [new FilterClause("organization_unit", "=", code)], ct, take: 100))
+                .Where(p => p.Data.Str("status") is not "Closed").ToList();
+            if (activePositions.Count > 0)
+            {
+                var sameUnits = await m.QueryAsync("OrganizationUnit", [new FilterClause("base_unit_code", "=", baseCode)], ct, take: 100);
+                var hasSuccessor = to is not null && sameUnits.Any(u =>
+                    u.Name != code && u.Name != c.Doc.Name
+                    && (u.Data.Str("status") ?? "Active") is "Active" or "Planned"
+                    && u.Data.Date("effective_from") is { } sf && sf <= to.Value.AddDays(1)
+                    && (u.Data.Date("effective_to") is null || u.Data.Date("effective_to") > to.Value));
+                if (!hasSuccessor)
+                    errors.Add(status == "Closed" ? "status" : "effective_to",
+                        $"Cannot close unit {code} while active position {activePositions[0].Name} is still assigned to it");
+            }
+        }
+
+        errors.ThrowIfAny();
+    }
+
+    public async Task AfterSaveAsync(HookContext c, CancellationToken ct)
     {
         var oldPos = c.Previous?.Data.Str("manager_position"); var newPos = c.Doc.Data.Str("manager_position");
         if (c.Previous is not null && oldPos != newPos)
             ErpEvents.Emit(c, ErpEvents.OrgManagerChanged, new() { ["old_position"] = oldPos, ["new_position"] = newPos });
+
+        if (c.Previous is null) return;
+        var oldPath = c.Previous.Data.Str("materialized_path");
+        var newPath = c.Doc.Data.Str("materialized_path");
+        var oldCrumb = c.Previous.Data.Str("breadcrumb");
+        var newCrumb = c.Doc.Data.Str("breadcrumb");
+        if (oldPath == newPath && oldCrumb == newCrumb) return;
+
+        // Cascade recalculated materialized_path, depth, and breadcrumb to all descendant units and linked Positions/Employees
+        var m = new Masters(store, c.Doc.TenantId);
+        var allUnits = await m.QueryAsync("OrganizationUnit", [], ct, take: 10_000);
+        var childrenByParent = allUnits
+            .Where(u => u.Name != c.Doc.Name && u.Data.Str("parent_org_unit") is not null)
+            .GroupBy(u => u.Data.Str("parent_org_unit")!, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.Ordinal);
+
+        var uow = new UnitOfWork();
+        var updatedUnits = new Dictionary<string, (string Path, string Crumb)>(StringComparer.Ordinal)
+        {
+            [c.Doc.Name] = (newPath ?? $"/{c.Doc.Name}/", newCrumb ?? c.Doc.Name)
+        };
+        var queue = new Queue<(string Name, string Path, long Depth, string Crumb)>();
+        queue.Enqueue((c.Doc.Name, newPath ?? $"/{c.Doc.Name}/", (long)c.Doc.Data.Dec("depth"), newCrumb ?? c.Doc.Name));
+        var seen = new HashSet<string>(StringComparer.Ordinal) { c.Doc.Name };
+
+        while (queue.Count > 0)
+        {
+            var (parentName, parentPath, parentDepth, parentCrumb) = queue.Dequeue();
+            if (!childrenByParent.TryGetValue(parentName, out var children)) continue;
+            foreach (var child in children)
+            {
+                if (!seen.Add(child.Name)) continue;
+                var childCode = child.Data.Str("org_unit_code") ?? child.Name;
+                var childTitle = child.Data.Str("org_unit_name") ?? childCode;
+                var cPath = $"{parentPath}{childCode}/";
+                var cDepth = parentDepth + 1;
+                var cCrumb = $"{parentCrumb} > {childTitle}";
+                var clone = child.Clone();
+                clone.Data["materialized_path"] = cPath;
+                clone.Data["depth"] = cDepth;
+                clone.Data["breadcrumb"] = cCrumb;
+                clone.Version = child.Version + 1;
+                clone.Modified = c.Doc.Modified;
+                uow.Upserts.Add((clone, child.Version));
+                updatedUnits[child.Name] = (cPath, cCrumb);
+                queue.Enqueue((child.Name, cPath, cDepth, cCrumb));
+            }
+        }
+
+        // Refresh cached breadcrumb and path on Positions and Employees in the updated subtree
+        foreach (var dt in new[] { "Position", "Employee" })
+        {
+            var docs = await m.QueryAsync(dt, [], ct, take: 10_000);
+            foreach (var doc in docs)
+            {
+                if (doc.Data.Str("organization_unit") is { } uName && updatedUnits.TryGetValue(uName, out var info))
+                {
+                    if (doc.Data.Str("organization_path") == info.Path && doc.Data.Str("organization_breadcrumb") == info.Crumb)
+                        continue;
+                    var clone = doc.Clone();
+                    clone.Data["organization_path"] = info.Path;
+                    clone.Data["organization_breadcrumb"] = info.Crumb;
+                    clone.Version = doc.Version + 1;
+                    clone.Modified = c.Doc.Modified;
+                    uow.Upserts.Add((clone, doc.Version));
+                }
+            }
+        }
+
+        if (uow.Upserts.Count > 0) await store.CommitAsync(uow, ct);
+    }
+}
+
+/// <summary>Form action on a Planned OrganizationUnit to activate it on its effective date, close its predecessor version, and migrate active Positions.</summary>
+public sealed class OrganizationUnitActivateAction(IDocumentStore store, TimeProvider clock) : IFormAction<OrganizationUnit>
+{
+    public string ActionId => "erp.org.activate_planned";
+    public string Label => "Activate planned structure";
+    public string Icon => "check-circle";
+    public string Tone => "positive";
+
+    public bool IsVisible(UserContext user, Document doc) =>
+        doc.Data.Str("status") == "Planned" && (user.HasRole("HR") || user.IsAdmin);
+
+    public async Task<FormActionResult> ExecuteAsync(FormActionContext ctx, CancellationToken ct)
+    {
+        var m = new Masters(store, ctx.Doc.TenantId);
+        var sys = new SystemDocs(ctx.Docs, ctx.Doc.TenantId);
+        var effDate = ctx.Doc.Data.Date("effective_from") ?? Hr.Today(clock);
+        var moved = await Hr.ActivatePlannedUnitAsync(sys, m, ctx.Doc, effDate, ct);
+        return FormActionResult.Ok($"Organization unit {ctx.Doc.Name} activated effective {D.Iso(effDate)} ({moved} position(s) migrated).");
+    }
+}
+
+/// <summary>Employee Assignment: secondary placements and acting appointments (Plt./Pj.) with effective dates.</summary>
+public sealed class EmployeeAssignmentHook(IDocumentStore store)
+    : IBeforeValidate<EmployeeAssignment>, IAfterSave<EmployeeAssignment>
+{
+    public async Task BeforeValidateAsync(HookContext c, CancellationToken ct)
+    {
+        var m = new Masters(store, c.Doc.TenantId);
+        var d = c.Doc.Data;
+        var errors = new Errors();
+        var emp = await Approval.ActiveEmployeeAsync(m, d.Str("employee"), ct);
+        d["is_primary"] = d.Str("assignment_type") == "Primary";
+
+        if (d.Str("position") is { } posName)
+        {
+            var pos = await m.RequireAsync("Position", posName, "position", "Position", ct);
+            if (pos.Data.Str("status") is "Closed" or "Frozen")
+                errors.Add("position", $"Position {pos.Name} is {pos.Data.Str("status")}");
+            d.SetIfEmpty("organization_unit", pos.Data.Str("organization_unit"));
+            d.SetIfEmpty("job_profile", pos.Data.Str("job_profile"));
+        }
+
+        var start = d.Date("start_date");
+        var end = d.Date("end_date");
+        if (start is not null && end is not null && end < start)
+            errors.Add("end_date", "The end date must be on or after the start date");
+
+        if (d.Str("status") == "Active")
+        {
+            var existing = await m.QueryAsync("EmployeeAssignment", [new FilterClause("employee", "=", emp.Name), new FilterClause("status", "=", "Active")], ct, take: 100);
+            foreach (var other in existing.Where(x => x.Name != c.Doc.Name))
+            {
+                var sameSlot = other.Data.Str("assignment_type") == d.Str("assignment_type")
+                    && other.Data.Str("organization_unit") == d.Str("organization_unit")
+                    && other.Data.Str("position") == d.Str("position");
+                if (sameSlot && Hr.Overlaps(start, end, other.Data.Date("start_date"), other.Data.Date("end_date")))
+                {
+                    errors.Add("start_date", $"Overlaps with active assignment {other.Name}");
+                    break;
+                }
+            }
+        }
+
+        errors.ThrowIfAny();
+    }
+
+    public Task AfterSaveAsync(HookContext c, CancellationToken ct)
+    {
+        var oldPos = c.Previous?.Data.Str("position"); var newPos = c.Doc.Data.Str("position");
+        if (oldPos is not null || newPos is not null)
+            ErpEvents.Emit(c, ErpEvents.PositionSync, new() { ["old_position"] = oldPos, ["new_position"] = newPos });
         return Task.CompletedTask;
     }
 }
 
-/// <summary>Perubahan jabatan (Workday Change Job): diterapkan ke Employee saat tanggal efektif (langsung bila sudah lewat, else job harian).</summary>
+/// <summary>Job Change (Workday Change Job): applied to Employee on the effective date (immediately if today or past, otherwise by the daily job).</summary>
 public sealed class JobChangeHook(IDocumentStore store, TimeProvider clock)
     : IBeforeValidate<JobChange>, IAfterSave<JobChange>, IOnCancel<JobChange>
 {
@@ -157,7 +618,8 @@ public sealed class JobChangeHook(IDocumentStore store, TimeProvider clock)
         {
             var pos = await m.RequireAsync("Position", np, "new_position", "Position", ct);
             if (pos.Data.Str("status") is "Closed" or "Frozen") errors.Add("new_position", $"Position {np} is {pos.Data.Str("status")}");
-            if (await Hr.HolderAsync(m, np, emp.Name, ct) is { } holder) errors.Add("new_position", $"Position {np} is still filled by {holder.Name}");
+            if (await Hr.HolderAsync(m, np, emp.Name, ct) is { } holder && holder.Data.Str("position") == np)
+                errors.Add("new_position", $"Position {np} is still filled by {holder.Name}");
             d.SetIfEmpty("new_organization_unit", pos.Data.Str("organization_unit"));
             d.SetIfEmpty("new_job_profile", pos.Data.Str("job_profile"));
             d.SetIfEmpty("new_grade", pos.Data.Str("grade"));
@@ -181,7 +643,7 @@ public sealed class JobChangeHook(IDocumentStore store, TimeProvider clock)
     }
 }
 
-/// <summary>Pemberhentian (Workday Terminate): checklist default; diterapkan pada hari kerja terakhir (Employee → Keluar, user dinonaktifkan).</summary>
+/// <summary>Employee Separation (Workday Terminate): default checklist; applied on the last working day (Employee → Left, user deactivated).</summary>
 public sealed class EmployeeSeparationHook(IDocumentStore store, TimeProvider clock)
     : IBeforeValidate<EmployeeSeparation>, IAfterSave<EmployeeSeparation>, IOnCancel<EmployeeSeparation>
 {
@@ -222,7 +684,7 @@ public sealed class EmployeeSeparationHook(IDocumentStore store, TimeProvider cl
     }
 }
 
-/// <summary>Kontrak: tidak tumpang tindih; total PKWT termasuk perpanjangan maksimal 60 bulan (PP 35/2021, verifikasi); status dihitung saat dibuka.</summary>
+/// <summary>Employment Contract: no overlap; total PKWT duration including renewals at most 60 months (PP 35/2021); status computed on load.</summary>
 public sealed class EmploymentContractHook(IDocumentStore store, TimeProvider clock)
     : IBeforeValidate<EmploymentContract>, IOnLoad<EmploymentContract>
 {
@@ -272,7 +734,7 @@ public sealed class LeaveAllocationHook(IDocumentStore store) : IBeforeValidate<
     }
 }
 
-/// <summary>Perhitungan cuti: hari kerja (libur mingguan & kalender libur), saldo alokasi, tumpang tindih.</summary>
+/// <summary>Leave math: working days (respecting materialized EmployeeDailySchedule when available, or weekly off &amp; holiday list), quota balance, overlap.</summary>
 internal static class LeaveMath
 {
     public static async Task<HashSet<DayOfWeek>> WeeklyOffAsync(Masters m, Document emp, Document? holidayList, CancellationToken ct)
@@ -294,21 +756,42 @@ internal static class LeaveMath
 
     public static async Task<decimal> WorkingDaysAsync(Masters m, Document emp, DateOnly from, DateOnly to, bool includeHolidays, CancellationToken ct)
     {
+        var schedules = await m.QueryAsync("EmployeeDailySchedule",
+            [new FilterClause("employee", "=", emp.Name), new FilterClause("work_date", ">=", D.Iso(from)), new FilterClause("work_date", "<=", D.Iso(to))], ct, take: 400);
+        var byDate = schedules
+            .Where(s => s.Data.Date("work_date") is not null)
+            .ToDictionary(s => s.Data.Date("work_date")!.Value, s => s);
+
         var hl = await m.GetAsync("HolidayList", emp.Data.Str("holiday_list"), ct);
         var off = await WeeklyOffAsync(m, emp, hl, ct);
         var holidays = hl?.Data.Rows("holidays").Select(h => h.Date("holiday_date")).OfType<DateOnly>().ToHashSet() ?? [];
         decimal days = 0;
         for (var day = from; day <= to; day = day.AddDays(1))
-            if (includeHolidays || (!off.Contains(day.DayOfWeek) && !holidays.Contains(day))) days++;
+        {
+            if (includeHolidays) { days++; continue; }
+            if (byDate.TryGetValue(day, out var sched))
+            {
+                var st = sched.Data.Str("schedule_type");
+                var src = sched.Data.Str("source_type");
+                if (st == "WORK" || (st == "LEAVE" && src == "Leave")) days++;
+            }
+            else if (!off.Contains(day.DayOfWeek) && !holidays.Contains(day))
+            {
+                days++;
+            }
+        }
         return days;
     }
 
     public static bool Active(Document a) => a.DocStatus != DocStatus.Cancelled && a.WorkflowState is not ("Rejected" or "Cancelled");
 }
 
-/// <summary>Pengajuan cuti: dihitung & divalidasi saat simpan dan sekali lagi saat diajukan (saldo bisa berubah di antaranya).</summary>
+/// <summary>
+/// Leave application: calculated &amp; validated on save and before approval transition.
+/// When approved, updates materialized EmployeeDailySchedule rows to LEAVE and checks shift manpower coverage.
+/// </summary>
 public sealed class LeaveApplicationHook(IDocumentStore store)
-    : IBeforeValidate<LeaveApplication>, IBeforeTransition<LeaveApplication>
+    : IBeforeValidate<LeaveApplication>, IBeforeTransition<LeaveApplication>, IAfterSave<LeaveApplication>, IOnCancel<LeaveApplication>
 {
     private async Task CheckAsync(HookContext c, CancellationToken ct)
     {
@@ -318,7 +801,7 @@ public sealed class LeaveApplicationHook(IDocumentStore store)
         var emp = await Approval.ActiveEmployeeAsync(m, d.Str("employee"), ct);
         var type = await m.RequireAsync("LeaveType", d.Str("leave_type"), "leave_type", "Leave type", ct);
         var from = d.Date("from_date"); var to = d.Date("to_date");
-        if (from is null || to is null || to < from) return; // dicek metadata
+        if (from is null || to is null || to < from) return;
 
         var gender = type.Data.Str("applicable_gender");
         if (gender is "Female" or "Male" && emp.Data.Str("gender") != gender) errors.Add("leave_type", $"{type.Name} is only for {gender.ToLowerInvariant()} employees");
@@ -357,9 +840,20 @@ public sealed class LeaveApplicationHook(IDocumentStore store)
 
     public Task BeforeTransitionAsync(HookContext c, CancellationToken ct) =>
         c.ToState == "Pending Approval" || c.ToState == "Approved" ? CheckAsync(c, ct) : Task.CompletedTask;
+
+    public async Task AfterSaveAsync(HookContext c, CancellationToken ct)
+    {
+        if (c.Doc.WorkflowState == Approval.Approved && c.Previous?.WorkflowState != Approval.Approved)
+            await WsmLeaveSync.ApplyApprovedLeaveAsync(store, c, ct);
+        else if (c.Doc.WorkflowState == "Cancelled" && c.Previous?.WorkflowState == Approval.Approved)
+            await WsmLeaveSync.RevertCancelledLeaveAsync(store, c, ct);
+    }
+
+    public Task OnCancelAsync(HookContext c, CancellationToken ct) =>
+        WsmLeaveSync.RevertCancelledLeaveAsync(store, c, ct);
 }
 
-/// <summary>Penerapan event HR ke Employee, dipakai handler event (langsung) dan job harian (tanggal efektif di masa depan).</summary>
+/// <summary>Application of HR events to Employee, shared by the event handler (immediate) and daily job (future effective dates).</summary>
 internal static class HrApply
 {
     public static async Task JobChangeAsync(SystemDocs sys, Document jc, CancellationToken ct)
@@ -370,7 +864,6 @@ internal static class HrApply
         if (emp is null) return;
         var eff = d.Date("effective_date");
         var lastDate = emp.Data.Date("last_job_change_date"); var lastName = emp.Data.Str("last_job_change");
-        // Idempoten & berurutan: jangan terapkan ulang, jangan biarkan perubahan lama menimpa yang lebih baru.
         if (lastName == jc.Name || (lastDate is not null && eff is not null && (eff < lastDate || (eff == lastDate && string.CompareOrdinal(jc.Name, lastName) < 0))))
             return;
         var patch = new Dictionary<string, object?> { ["last_job_change"] = jc.Name, ["last_job_change_date"] = d.Str("effective_date") };
@@ -394,12 +887,6 @@ internal static class HrApply
         }
     }
 
-    /// <summary>
-    /// Akun user untuk karyawan baru (HRSettings.auto_create_user). Username & id = email kantor (huruf kecil), role Employee,
-    /// atribut employee = nomor induk, department = unit organisasi. Tanpa password: karyawan memakai alur lupa password /
-    /// reset oleh admin. Email yang sudah punya akun di tenant yang sama ditautkan saja (bila belum terhubung ke karyawan lain).
-    /// Mengembalikan id akun, atau null bila tidak bisa dibuat/ditautkan.
-    /// </summary>
     public static async Task<string?> EnsureUserAsync(IServiceProvider services, string tenant, Document emp, string email, CancellationToken ct)
     {
         await using var scope = services.CreateAsyncScope();
@@ -409,7 +896,7 @@ internal static class HrApply
         var normalizedEmail = userName.ToUpperInvariant();
         if (await repo.FindByNormalizedEmailAsync(normalizedEmail, ct) is { } existing)
         {
-            if (existing.TenantId != tenant) return null; // email dipakai tenant lain: jangan ditautkan
+            if (existing.TenantId != tenant) return null;
             if (existing.EmployeeId is null)
             {
                 existing.EmployeeId = emp.Name;
@@ -426,7 +913,7 @@ internal static class HrApply
         };
         if (scope.ServiceProvider.GetService<UserManager<UserAccount>>() is { } manager)
         {
-            var result = await manager.CreateAsync(account); // normalisasi & validasi Identity; tanpa password
+            var result = await manager.CreateAsync(account);
             if (!result.Succeeded)
                 throw new InvalidOperationException($"Creating the user for {emp.Name} failed: {string.Join("; ", result.Errors.Select(e => e.Description))}");
         }

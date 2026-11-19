@@ -1,0 +1,41 @@
+{
+  "name": "ShiftPatternItem",
+  "version": 1,
+  "title": "Shift Pattern Item",
+  "module": "HR",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "day_number",
+      "type": "Int",
+      "label": "Day in cycle",
+      "requiredWhen": "true",
+      "min": 1,
+      "max": 366
+    },
+    {
+      "name": "schedule_type",
+      "type": "Select",
+      "label": "Schedule type",
+      "requiredWhen": "true",
+      "options": [
+        "WORK",
+        "REST"
+      ],
+      "default": "WORK"
+    },
+    {
+      "name": "shift_type",
+      "type": "Link",
+      "label": "Shift type",
+      "linkTo": "ShiftType",
+      "requiredWhen": "schedule_type == 'WORK'",
+      "lookupDialog": true
+    },
+    {
+      "name": "description",
+      "type": "Data",
+      "label": "Day label"
+    }
+  ]
+}

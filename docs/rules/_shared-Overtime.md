@@ -2,10 +2,10 @@
 
 # Aturan bersama Overtime
 
-Dipakai oleh: Attendance, OvertimeRequest, Payslip.
+Dipakai oleh: Attendance, EmployeeDailySchedule, OvertimeRequest, Payslip, ShiftOverride, ShiftSwapRequest.
 
-Lembur menurut PP 35/2021: pengali (Pasal 31), batas jam (Pasal 26 jo. UU 13/2003 Pasal 78 sebagaimana diubah), upah sejam 1/173 (Pasal 32).
+Overtime calculation under PP 35/2021: tier multipliers (Art. 31), hour caps (Art. 26), and hourly wage 1/173 (Art. 32).
 
 ## Validasi (dokumen ditolak)
 
-- `{path}`: "Payslip {paid.Name} for {period} is already submitted; this month is locked" — terjadi bila `!(employee is null) && paid is not null` (Overtime, TimeHooks.cs:64)
+- `{path}`: "Payslip {paid.Name} for {period} is already submitted; this month is locked" — terjadi bila `!(employee is null) && paid is not null` (Overtime, TimeHooks.cs:70)

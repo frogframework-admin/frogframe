@@ -75,7 +75,38 @@
       "linkTo": "ShiftType",
       "section": "Attendance",
       "column": 2,
-      "description": "Empty = the employee's shift, then the HR Settings default (hook)"
+      "description": "Empty = from Employee Daily Schedule, then employee's shift, then HR Settings default (hook)"
+    },
+    {
+      "name": "daily_schedule",
+      "type": "Link",
+      "label": "Daily schedule",
+      "linkTo": "EmployeeDailySchedule",
+      "readOnlyWhen": "true",
+      "section": "Attendance",
+      "column": 2
+    },
+    {
+      "name": "schedule_type",
+      "type": "Data",
+      "label": "Schedule type",
+      "readOnlyWhen": "true",
+      "section": "Attendance",
+      "column": 2
+    },
+    {
+      "name": "scheduled_start_datetime",
+      "type": "Datetime",
+      "label": "Scheduled start",
+      "readOnlyWhen": "true",
+      "section": "Time"
+    },
+    {
+      "name": "scheduled_end_datetime",
+      "type": "Datetime",
+      "label": "Scheduled end",
+      "readOnlyWhen": "true",
+      "section": "Time"
     },
     {
       "name": "check_in",

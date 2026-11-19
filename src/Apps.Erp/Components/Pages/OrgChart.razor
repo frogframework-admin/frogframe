@@ -7,7 +7,7 @@
 <header class="page-head">
     <div>
         <h1>Organizational Structure</h1>
-        <p>Built from Organization Unit (parent unit, head) and Employee (reports to) data. Click a node to view details.</p>
+        <p>Dynamic multi-level hierarchy built from Organization Unit (unit type, parent unit, effective validity) and Employee placement data.</p>
     </div>
 </header>
 
@@ -43,7 +43,7 @@ else
             </div></BbCardContent></BbCard>
             @if (WithoutManager.Count > 1)
             {
-                <p class="muted small" style="margin-top:.5rem">Employees without a manager appear at the root: @string.Join(", ", WithoutManager.Select(e => Str(e, "employee_name")))</p>
+                <p class="muted small" style="margin-top:.5rem">Employees without a manager appear at the root: @string.Join(", ", WithoutManager.Select(e => EmpName(e)))</p>
             }
         </BbTabsContent>
     </BbTabs>
@@ -60,12 +60,14 @@ else
         || ActiveEmployees.All(x => x.Name != boss)).ToList();
 
     private static string? Str(Document d, string f) => d.Data.GetValueOrDefault(f) as string;
+    private static string EmpName(Document e) => Str(e, "full_name") ?? Str(e, "employee_name") ?? e.Name;
+    private static string? EmpTitle(Document e) => Str(e, "job_profile") ?? Str(e, "position") ?? Str(e, "designation");
+    private static string? EmpPhoto(Document e) => Str(e, "photo") ?? Str(e, "foto");
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
-            // Lewat DocumentService: tenant, cakupan data, dan field terbatas tetap berlaku.
             orgUnits = await Docs.QueryForReportAsync(Current.Required, "OrganizationUnit", [], DocActions.Read);
             employees = await Docs.QueryForReportAsync(Current.Required, "Employee", [], DocActions.Read);
         }
@@ -76,16 +78,20 @@ else
         DeptNodes = orgUnits.Select(d =>
         {
             var head = Str(d, "manager") is { } h && byId.TryGetValue(h, out var e) ? e : null;
-            var count = ActiveEmployees.Count(x => Str(x, "organization_unit") == d.Name);
+            var pathPrefix = Str(d, "materialized_path") ?? $"/{d.Name}/";
+            var directCount = ActiveEmployees.Count(x => Str(x, "organization_unit") == d.Name);
+            var subtreeCount = ActiveEmployees.Count(x => Str(x, "organization_unit") == d.Name || (Str(x, "organization_path") ?? "").StartsWith(pathPrefix, StringComparison.Ordinal));
+            var unitType = Str(d, "unit_type") ?? "Unit";
+            var countLabel = subtreeCount > directCount ? $"{directCount} direct ({subtreeCount} total)" : $"{directCount} employees";
             return new OrgNode(d.Name, Str(d, "parent_org_unit"), Str(d, "org_unit_name") ?? d.Name,
-                head is null ? "Head not assigned" : $"{Str(head, "employee_name")} · {Str(head, "designation")}",
-                $"{d.Name} · {count} employees", head is null ? null : Str(head, "foto"), $"/app/OrganizationUnit/{d.Name}",
+                head is null ? $"{unitType} · Head not assigned" : $"{unitType} · {EmpName(head)}",
+                $"{d.Name} · {countLabel}", head is null ? null : EmpPhoto(head), $"/app/OrganizationUnit/{d.Name}",
                 Highlight: me is not null && byId.TryGetValue(me, out var self) && Str(self, "organization_unit") == d.Name);
         }).ToList();
 
-        var unitName = orgUnits.ToDictionary(d => d.Name, d => Str(d, "org_unit_name") ?? d.Name);
-        PeopleNodes = ActiveEmployees.Select(e => new OrgNode(e.Name, Str(e, "reports_to"), Str(e, "employee_name") ?? e.Name,
-            Str(e, "designation"), Str(e, "organization_unit") is { } dc ? unitName.GetValueOrDefault(dc, dc) : null,
-            Str(e, "foto"), $"/app/Employee/{e.Name}", Highlight: e.Name == me)).ToList();
+        var unitName = orgUnits.ToDictionary(d => d.Name, d => Str(d, "breadcrumb") ?? Str(d, "org_unit_name") ?? d.Name);
+        PeopleNodes = ActiveEmployees.Select(e => new OrgNode(e.Name, Str(e, "reports_to"), EmpName(e),
+            EmpTitle(e), Str(e, "organization_breadcrumb") ?? (Str(e, "organization_unit") is { } dc ? unitName.GetValueOrDefault(dc, dc) : null),
+            EmpPhoto(e), $"/app/Employee/{e.Name}", Highlight: e.Name == me)).ToList();
     }
 }

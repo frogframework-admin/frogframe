@@ -6,7 +6,7 @@ Aturan yang dijalankan kode saat dokumen Leave Allocation (LeaveAllocation) disi
 
 ## Validasi (dokumen ditolak): Saat simpan/submit (validasi)
 
-- `from_date`: "Overlaps with allocation {other.Name}" — terjadi bila `other is not null` (LeaveAllocationHook, HrHooks.cs:271)
+- `from_date`: "Overlaps with allocation {other.Name}" — terjadi bila `other is not null` (LeaveAllocationHook, HrHooks.cs:733)
 
 ## Aturan bersama yang juga berlaku
 

@@ -149,7 +149,10 @@ public sealed class HrEffectiveDateJob : IScheduledJob
     {
         var m = new Masters(context.Services.GetRequiredService<IDocumentStore>(), context.TenantId);
         var sys = new SystemDocs(context.Docs, context.TenantId);
-        var today = D.Iso(DateOnly.FromDateTime(context.ScheduledTime.Date));
+        var todayDate = DateOnly.FromDateTime(context.ScheduledTime.Date);
+        var today = D.Iso(todayDate);
+        foreach (var planned in await m.QueryAsync("OrganizationUnit", [new FilterClause("status", "=", "Planned"), new FilterClause("effective_from", "<=", today)], ct, "effective_from", "asc", 500))
+            await Safe(context, planned.Name, () => Hr.ActivatePlannedUnitAsync(sys, m, planned, planned.Data.Date("effective_from") ?? todayDate, ct));
         foreach (var jc in (await m.QueryAsync("JobChange", [new FilterClause("effective_date", "<=", today)], ct, "effective_date", "asc", 5000))
                  .Where(j => j.DocStatus == DocStatus.Submitted))
             await Safe(context, jc.Name, () => HrApply.JobChangeAsync(sys, jc, ct));

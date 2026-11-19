@@ -555,6 +555,8 @@ h1:focus {
   position: relative !important;
   min-height: 100vh !important;
   min-height: 100dvh !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
   display: flex !important;
   flex-direction: column !important;
 }
@@ -591,7 +593,14 @@ aside[data-state="collapsed"]~* .bottom-full-wave,
   flex: 1 0 auto;
   padding: 1.5rem 2rem 5rem;
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   box-sizing: border-box;
+}
+
+.app-main > * {
+  min-width: 0;
+  max-width: 100%;
 }
 
 /* ---------- Warna Elemen Form & Filter List Sesuai Desain Biru Lembut ---------- */
@@ -1430,10 +1439,27 @@ aside[data-state="collapsed"] .sidebar-user .who,
 /* ---------- Tabel data (gaya tabel shadcn/ui) ---------- */
 .table-wrap {
   width: 100%;
-  overflow-x: auto;
+  max-width: 100%;
+  overflow-x: auto !important;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--card);
+}
+
+.table-wrap > table {
+  width: max-content;
+  min-width: 100%;
+}
+
+.table-wrap > table th,
+.table-wrap > table td {
+  white-space: nowrap;
+}
+
+.table-wrap > table td {
+  max-width: 22rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 table.data {

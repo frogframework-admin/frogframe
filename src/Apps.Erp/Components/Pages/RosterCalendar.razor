@@ -1,0 +1,375 @@
+@page "/hr/roster-calendar"
+@using System.Globalization
+@using Apps.Erp.Hooks
+@using Framework.Persistence
+@inject DocumentService Docs
+@inject CurrentUser Current
+
+<PageTitle>Workforce Roster Calendar · FrogFrame</PageTitle>
+
+<header class="page-head" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem">
+    <div>
+        <h1>Workforce Roster &amp; Shift Calendar</h1>
+        <p>Visual monthly schedule per squad and employee, with shift color coding, rest/leave/holiday indicators, and manpower coverage analysis.</p>
+    </div>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+        <a class="bb-btn bb-btn-outline" href="/app/ShiftSwapRequest/new" style="text-decoration:none;padding:.45rem .85rem;border:1px solid var(--border,#cbd5e1);border-radius:.375rem;font-size:.875rem">
+            Request Shift Swap
+        </a>
+        @if (Current.Required.HasRole("HR") || Current.Required.HasRole("Manager") || Current.Required.IsAdmin)
+        {
+            <a class="bb-btn bb-btn-outline" href="/app/ShiftOverride/new" style="text-decoration:none;padding:.45rem .85rem;border:1px solid var(--border,#cbd5e1);border-radius:.375rem;font-size:.875rem">
+                New Shift Override
+            </a>
+            <a class="bb-btn bb-btn-primary" href="/app/ScheduleGeneration/new" style="text-decoration:none;padding:.45rem .85rem;background:#2563eb;color:#fff;border-radius:.375rem;font-size:.875rem">
+                Generate Schedules
+            </a>
+        }
+    </div>
+</header>
+
+@if (error is not null)
+{
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@error</BbAlertDescription></BbAlert>
+}
+else if (schedules is null)
+{
+    <div class="stack"><BbSkeleton Height="3rem" /><BbSkeleton Height="16rem" /></div>
+}
+else
+{
+    <BbCard Style="margin-bottom:1rem">
+        <BbCardContent>
+            <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-end;padding-top:.75rem">
+                <div>
+                    <label class="small muted" style="display:block;margin-bottom:.25rem">Month (YYYY-MM)</label>
+                    <input type="month" value="@selectedMonth" @onchange="OnMonthChanged"
+                           style="padding:.4rem .6rem;border:1px solid var(--border,#cbd5e1);border-radius:.375rem;font-size:.875rem" />
+                </div>
+                <div>
+                    <label class="small muted" style="display:block;margin-bottom:.25rem">Organization unit (subtree)</label>
+                    <select value="@selectedUnit" @onchange="OnUnitChanged"
+                            style="padding:.4rem .6rem;border:1px solid var(--border,#cbd5e1);border-radius:.375rem;font-size:.875rem;min-width:14rem">
+                        <option value="">All units</option>
+                        @foreach (var u in orgUnits)
+                        {
+                            <option value="@u.Name">@(Str(u, "breadcrumb") ?? Str(u, "org_unit_name") ?? u.Name)</option>
+                        }
+                    </select>
+                </div>
+                <div>
+                    <label class="small muted" style="display:block;margin-bottom:.25rem">Shift group / squad</label>
+                    <select value="@selectedGroup" @onchange="OnGroupChanged"
+                            style="padding:.4rem .6rem;border:1px solid var(--border,#cbd5e1);border-radius:.375rem;font-size:.875rem;min-width:11rem">
+                        <option value="">All groups</option>
+                        @foreach (var g in shiftGroups)
+                        {
+                            <option value="@g.Name">@(Str(g, "group_name") ?? g.Name)</option>
+                        }
+                    </select>
+                </div>
+                <div style="display:flex;gap:.5rem;align-items:center;margin-left:auto;font-size:.75rem;flex-wrap:wrap">
+                    <span style="padding:.2rem .5rem;border-radius:.25rem;background:#dbeafe;color:#1e40af;font-weight:600">WORK (Day/Morning)</span>
+                    <span style="padding:.2rem .5rem;border-radius:.25rem;background:#fef3c7;color:#92400e;font-weight:600">WORK (Afternoon)</span>
+                    <span style="padding:.2rem .5rem;border-radius:.25rem;background:#e0e7ff;color:#3730a3;font-weight:600">WORK (Night)</span>
+                    <span style="padding:.2rem .5rem;border-radius:.25rem;background:#f1f5f9;color:#475569;font-weight:600">OFF / REST</span>
+                    <span style="padding:.2rem .5rem;border-radius:.25rem;background:#dcfce7;color:#166534;font-weight:600">LEAVE</span>
+                    <span style="padding:.2rem .5rem;border-radius:.25rem;background:#FCE7F3;color:#9d174d;font-weight:600">HOLIDAY</span>
+                </div>
+            </div>
+        </BbCardContent>
+    </BbCard>
+
+    <BbTabs Value="@activeTab" ValueChanged="v => activeTab = v ?? activeTab">
+        <BbTabsList>
+            <BbTabsTrigger Value="calendar"><LucideIcon Name="calendar-days" Size="15" /> Monthly Roster Grid (@FilteredEmployeeNames.Count employees)</BbTabsTrigger>
+            <BbTabsTrigger Value="coverage"><LucideIcon Name="users" Size="15" /> Shift Coverage &amp; Manpower (@CoverageRows.Count checks)</BbTabsTrigger>
+        </BbTabsList>
+
+        <BbTabsContent Value="calendar">
+            <BbCard Style="margin-top:.75rem">
+                <BbCardContent>
+                    @if (FilteredEmployeeNames.Count == 0)
+                    {
+                        <div style="padding:2rem;text-align:center" class="muted">
+                            No materialized daily schedules found for @selectedMonth. Create a <strong>Schedule Generation</strong> batch to materialize roster schedules.
+                        </div>
+                    }
+                    else
+                    {
+                        <div style="overflow-x:auto;padding-top:.75rem">
+                            <table style="width:100%;border-collapse:collapse;font-size:.78rem">
+                                <thead>
+                                    <tr style="border-bottom:2px solid var(--border,#e2e8f0);text-align:left">
+                                        <th style="padding:.5rem;position:sticky;left:0;background:var(--card,#fff);min-width:11rem;z-index:1">Employee</th>
+                                        <th style="padding:.5rem;min-width:7rem">Unit / Squad</th>
+                                        @foreach (var day in MonthDays)
+                                        {
+                                            var isWknd = day.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
+                                            <th style="padding:.35rem .25rem;text-align:center;min-width:2.6rem;background:@(isWknd ? "rgba(241,245,249,.7)" : "transparent")">
+                                                <div>@day.Day</div>
+                                                <div class="muted" style="font-size:.65rem;font-weight:400">@day.ToString("ddd", CultureInfo.InvariantCulture)</div>
+                                            </th>
+                                        }
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var empId in FilteredEmployeeNames)
+                                    {
+                                        var empRow = ScheduleByEmpDate.GetValueOrDefault(empId);
+                                        var firstDoc = empRow?.Values.FirstOrDefault();
+                                        var empName = firstDoc is not null ? (Str(firstDoc, "employee_name") ?? empId) : empId;
+                                        var unitCode = firstDoc is not null ? Str(firstDoc, "organization_unit") : null;
+                                        var grpCode = firstDoc is not null ? Str(firstDoc, "shift_group") : null;
+                                        <tr style="border-bottom:1px solid var(--border,#f1f5f9)">
+                                            <td style="padding:.45rem .5rem;position:sticky;left:0;background:var(--card,#fff);font-weight:500">
+                                                <a href="/app/Employee/@empId" style="text-decoration:none;color:inherit">@empName</a>
+                                                <div class="muted" style="font-size:.68rem">@empId</div>
+                                            </td>
+                                            <td style="padding:.45rem .5rem">
+                                                <div>@(unitCode ?? "-")</div>
+                                                @if (!string.IsNullOrEmpty(grpCode))
+                                                {
+                                                    <div class="muted" style="font-size:.68rem">@grpCode</div>
+                                                }
+                                            </td>
+                                            @foreach (var day in MonthDays)
+                                            {
+                                                var slot = empRow is not null && empRow.TryGetValue(day, out var s) ? s : null;
+                                                var (badgeText, bg, fg, tooltip) = FormatCell(slot);
+                                                <td style="padding:.25rem;text-align:center" title="@tooltip">
+                                                    @if (slot is not null)
+                                                    {
+                                                        <a href="/app/EmployeeDailySchedule/@slot.Name"
+                                                           style="display:inline-block;width:100%;padding:.2rem .15rem;border-radius:.25rem;background:@bg;color:@fg;font-weight:600;text-decoration:none;font-size:.7rem">
+                                                            @badgeText
+                                                        </a>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="muted">-</span>
+                                                    }
+                                                </td>
+                                            }
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </BbCardContent>
+            </BbCard>
+        </BbTabsContent>
+
+        <BbTabsContent Value="coverage">
+            <BbCard Style="margin-top:.75rem">
+                <BbCardContent>
+                    @if (CoverageRows.Count == 0)
+                    {
+                        <div style="padding:2rem;text-align:center" class="muted">
+                            No Shift Requirements configured for this scope. Add manpower targets in <strong>HR → Shift Requirement</strong>.
+                        </div>
+                    }
+                    else
+                    {
+                        <div style="overflow-x:auto;padding-top:.75rem">
+                            <table style="width:100%;border-collapse:collapse;font-size:.85rem">
+                                <thead>
+                                    <tr style="border-bottom:2px solid var(--border,#e2e8f0);text-align:left">
+                                        <th style="padding:.5rem">Work Date</th>
+                                        <th style="padding:.5rem">Organization Unit</th>
+                                        <th style="padding:.5rem">Shift</th>
+                                        <th style="padding:.5rem">Job Profile</th>
+                                        <th style="padding:.5rem;text-align:right">Min Required</th>
+                                        <th style="padding:.5rem;text-align:right">Target</th>
+                                        <th style="padding:.5rem;text-align:right">Actual Scheduled</th>
+                                        <th style="padding:.5rem">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var row in CoverageRows)
+                                    {
+                                        var badgeBg = row.IsUnderstaffed ? "#fee2e2" : "#dcfce7";
+                                        var badgeFg = row.IsUnderstaffed ? "#991b1b" : "#166534";
+                                        <tr style="border-bottom:1px solid var(--border,#f1f5f9)">
+                                            <td style="padding:.5rem">@row.WorkDate.ToString("yyyy-MM-dd (ddd)", CultureInfo.InvariantCulture)</td>
+                                            <td style="padding:.5rem">@row.OrganizationUnit</td>
+                                            <td style="padding:.5rem">@row.ShiftType</td>
+                                            <td style="padding:.5rem">@(row.JobProfile ?? "All roles")</td>
+                                            <td style="padding:.5rem;text-align:right">@row.MinHeadcount</td>
+                                            <td style="padding:.5rem;text-align:right">@row.TargetHeadcount</td>
+                                            <td style="padding:.5rem;text-align:right;font-weight:600">@row.ActualHeadcount</td>
+                                            <td style="padding:.5rem">
+                                                <span style="padding:.2rem .55rem;border-radius:.25rem;background:@badgeBg;color:@badgeFg;font-weight:600;font-size:.75rem">
+                                                    @row.Status
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </BbCardContent>
+            </BbCard>
+        </BbTabsContent>
+    </BbTabs>
+}
+
+@code {
+    private string selectedMonth = DateTime.UtcNow.ToString("yyyy-MM", CultureInfo.InvariantCulture);
+    private string selectedUnit = "";
+    private string selectedGroup = "";
+    private string activeTab = "calendar";
+    private string? error;
+
+    private IReadOnlyList<Document> orgUnits = [];
+    private IReadOnlyList<Document> shiftGroups = [];
+    private IReadOnlyList<Document> requirements = [];
+    private IReadOnlyList<Document>? schedules;
+
+    private List<DateOnly> MonthDays = [];
+    private Dictionary<string, Dictionary<DateOnly, Document>> ScheduleByEmpDate = new(StringComparer.Ordinal);
+    private List<string> FilteredEmployeeNames = [];
+    private List<WsmCoverage.CoverageRow> CoverageRows = [];
+
+    private static string? Str(Document d, string f) => d.Data.GetValueOrDefault(f) as string;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            orgUnits = await Docs.QueryForReportAsync(Current.Required, "OrganizationUnit", [], DocActions.Read);
+            if (Current.Required.HasRole("HR") || Current.Required.HasRole("Manager") || Current.Required.IsAdmin)
+            {
+                shiftGroups = await Docs.QueryForReportAsync(Current.Required, "ShiftGroup", [], DocActions.Read);
+                requirements = await Docs.QueryForReportAsync(Current.Required, "ShiftRequirement", [], DocActions.Read);
+            }
+            await LoadMonthAsync();
+        }
+        catch (PermissionDeniedException ex) { error = ex.Message; }
+    }
+
+    private async Task OnMonthChanged(ChangeEventArgs e)
+    {
+        if (e.Value is string m && m.Length == 7)
+        {
+            selectedMonth = m;
+            await LoadMonthAsync();
+        }
+    }
+
+    private void OnUnitChanged(ChangeEventArgs e)
+    {
+        selectedUnit = e.Value as string ?? "";
+        RebuildGrid();
+    }
+
+    private void OnGroupChanged(ChangeEventArgs e)
+    {
+        selectedGroup = e.Value as string ?? "";
+        RebuildGrid();
+    }
+
+    private async Task LoadMonthAsync()
+    {
+        if (!DateOnly.TryParseExact(selectedMonth + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var start))
+            start = new DateOnly(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1);
+        var end = start.AddMonths(1).AddDays(-1);
+
+        MonthDays.Clear();
+        for (var d = start; d <= end; d = d.AddDays(1))
+            MonthDays.Add(d);
+
+        schedules = await Docs.QueryForReportAsync(Current.Required, "EmployeeDailySchedule",
+            [new FilterClause("work_date", ">=", start.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)),
+             new FilterClause("work_date", "<=", end.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))], DocActions.Read);
+        RebuildGrid();
+    }
+
+    private void RebuildGrid()
+    {
+        if (schedules is null) return;
+
+        HashSet<string>? allowedUnits = null;
+        if (!string.IsNullOrEmpty(selectedUnit))
+        {
+            var root = orgUnits.FirstOrDefault(u => u.Name == selectedUnit);
+            var prefix = root is not null ? (Str(root, "materialized_path") ?? $"/{root.Name}/") : $"/{selectedUnit}/";
+            allowedUnits = orgUnits
+                .Where(u => u.Name == selectedUnit || (Str(u, "materialized_path") ?? "").StartsWith(prefix, StringComparison.Ordinal))
+                .Select(u => u.Name)
+                .ToHashSet(StringComparer.Ordinal);
+        }
+
+        ScheduleByEmpDate.Clear();
+        foreach (var doc in schedules)
+        {
+            var emp = Str(doc, "employee");
+            var wdStr = Str(doc, "work_date");
+            if (emp is null || wdStr is null || !DateOnly.TryParseExact(wdStr, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var wd))
+                continue;
+            if (allowedUnits is not null && (Str(doc, "organization_unit") is not { } u || !allowedUnits.Contains(u)))
+                continue;
+            if (!string.IsNullOrEmpty(selectedGroup) && Str(doc, "shift_group") != selectedGroup)
+                continue;
+
+            if (!ScheduleByEmpDate.TryGetValue(emp, out var byDate))
+            {
+                byDate = new Dictionary<DateOnly, Document>();
+                ScheduleByEmpDate[emp] = byDate;
+            }
+            byDate[wd] = doc;
+        }
+
+        FilteredEmployeeNames = ScheduleByEmpDate.Keys.OrderBy(x => x, StringComparer.Ordinal).ToList();
+
+        // Compute coverage rows for the selected month and unit filter
+        CoverageRows.Clear();
+        foreach (var day in MonthDays)
+        {
+            var dayIso = day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            foreach (var req in requirements)
+            {
+                if (req.Data.GetValueOrDefault("is_active") is false) continue;
+                var reqUnit = Str(req, "organization_unit") ?? "";
+                if (allowedUnits is not null && !allowedUnits.Contains(reqUnit)) continue;
+                var reqShift = Str(req, "shift_type") ?? "";
+                var minH = Convert.ToInt32(req.Data.GetValueOrDefault("min_headcount") ?? 1, CultureInfo.InvariantCulture);
+                var tgtH = Convert.ToInt32(req.Data.GetValueOrDefault("target_headcount") ?? minH, CultureInfo.InvariantCulture);
+                var actual = schedules.Count(s =>
+                    Str(s, "work_date") == dayIso
+                    && Str(s, "organization_unit") == reqUnit
+                    && Str(s, "schedule_type") == "WORK"
+                    && Str(s, "shift_type") == reqShift);
+                var status = actual < minH ? "Understaffed" : actual > tgtH ? "Overstaffed" : "Sufficient";
+                CoverageRows.Add(new WsmCoverage.CoverageRow(day, reqUnit, reqShift, Str(req, "job_profile"), minH, tgtH, actual, status));
+            }
+        }
+    }
+
+    private static (string Badge, string Bg, string Fg, string Tooltip) FormatCell(Document? slot)
+    {
+        if (slot is null) return ("-", "transparent", "inherit", "No schedule");
+        var st = Str(slot, "schedule_type") ?? "WORK";
+        var shift = Str(slot, "shift_type") ?? "";
+        var cat = Str(slot, "day_category") ?? st;
+        var src = Str(slot, "source_type") ?? "";
+        var crosses = slot.Data.GetValueOrDefault("crosses_midnight") is true;
+        var isPh = slot.Data.GetValueOrDefault("is_public_holiday") is true;
+        var phTag = isPh ? " [PH]" : "";
+        var tooltip = $"{Str(slot, "work_date")}: {st} ({cat}) {(string.IsNullOrEmpty(shift) ? "" : "· " + shift)} · Source: {src}{phTag}";
+
+        if (st == "REST") return ("OFF" + phTag, "#f1f5f9", "#475569", tooltip);
+        if (st == "LEAVE") return ("LVE", "#dcfce7", "#166534", tooltip);
+        if (st == "HOLIDAY") return ("HOL", "#fce7f3", "#9d174d", tooltip);
+
+        if (crosses || shift.Contains("Night", StringComparison.OrdinalIgnoreCase) || shift.Contains("Malam", StringComparison.OrdinalIgnoreCase))
+            return ("N" + phTag, "#e0e7ff", "#3730a3", tooltip);
+        if (shift.Contains("Afternoon", StringComparison.OrdinalIgnoreCase) || shift.Contains("Siang", StringComparison.OrdinalIgnoreCase) || shift.Contains("Sore", StringComparison.OrdinalIgnoreCase))
+            return ("A" + phTag, "#fef3c7", "#92400e", tooltip);
+        if (shift.Contains("Morning", StringComparison.OrdinalIgnoreCase) || shift.Contains("Pagi", StringComparison.OrdinalIgnoreCase))
+            return ("M" + phTag, "#dbeafe", "#1e40af", tooltip);
+        return ("W" + phTag, "#dbeafe", "#1e40af", tooltip);
+    }
+}

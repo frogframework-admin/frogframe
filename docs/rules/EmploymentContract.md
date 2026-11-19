@@ -6,12 +6,12 @@ Aturan yang dijalankan kode saat dokumen Employment Contract (EmploymentContract
 
 ## Ringkasan perilaku
 
-- **EmploymentContractHook**: Kontrak: tidak tumpang tindih; total PKWT termasuk perpanjangan maksimal 60 bulan (PP 35/2021, verifikasi); status dihitung saat dibuka.
+- **EmploymentContractHook**: Employment Contract: no overlap; total PKWT duration including renewals at most 60 months (PP 35/2021); status computed on load.
 
 ## Validasi (dokumen ditolak): Saat simpan/submit (validasi)
 
-- `start_date`: "Overlaps with contract {o.Name}" — terjadi bila `Hr.Overlaps(start, end, o.Data.Date("start_date"), o.Data.Date("end_date"))` (EmploymentContractHook, HrHooks.cs:240)
-- `end_date`: "Total fixed-term (PKWT) duration including renewals is {months} months, exceeding {MaxPkwtMonths} months" — terjadi bila `months > MaxPkwtMonths` (EmploymentContractHook, HrHooks.cs:248)
+- `start_date`: "Overlaps with contract {o.Name}" — terjadi bila `Hr.Overlaps(start, end, o.Data.Date("start_date"), o.Data.Date("end_date"))` (EmploymentContractHook, HrHooks.cs:702)
+- `end_date`: "Total fixed-term (PKWT) duration including renewals is {months} months, exceeding {MaxPkwtMonths} months" — terjadi bila `months > MaxPkwtMonths` (EmploymentContractHook, HrHooks.cs:710)
 
 ## Aturan bersama yang juga berlaku
 

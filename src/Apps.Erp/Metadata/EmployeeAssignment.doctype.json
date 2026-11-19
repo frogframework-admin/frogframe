@@ -1,0 +1,235 @@
+{
+  "name": "EmployeeAssignment",
+  "version": 1,
+  "title": "Employee Assignment",
+  "module": "HR",
+  "description": "Effective-dated role assignment for secondary placements, concurrent duties, and acting appointments (Plt. / Pj.). Primary placement remains anchored on Position.",
+  "naming": {
+    "pattern": "ASG-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "employee",
+      "type": "Link",
+      "label": "Employee",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Assignment"
+    },
+    {
+      "name": "employee_name",
+      "type": "Data",
+      "label": "Employee name",
+      "fetchFrom": "employee.full_name",
+      "inListView": true,
+      "section": "Assignment"
+    },
+    {
+      "name": "company",
+      "type": "Data",
+      "label": "Company",
+      "fetchFrom": "employee.company",
+      "inListView": true,
+      "section": "Assignment"
+    },
+    {
+      "name": "assignment_type",
+      "type": "Select",
+      "label": "Assignment type",
+      "requiredWhen": "true",
+      "options": [
+        "Primary",
+        "Secondary",
+        "Acting"
+      ],
+      "default": "Acting",
+      "inListView": true,
+      "section": "Assignment",
+      "column": 2,
+      "description": "Acting = temporary/interim duty holder (Plt./Pj.); Secondary = concurrent functional assignment"
+    },
+    {
+      "name": "is_primary",
+      "type": "Check",
+      "label": "Primary assignment",
+      "default": false,
+      "readOnlyWhen": "true",
+      "section": "Assignment",
+      "column": 2
+    },
+    {
+      "name": "status",
+      "type": "Select",
+      "label": "Status",
+      "requiredWhen": "true",
+      "options": [
+        "Active",
+        "Ended",
+        "Cancelled"
+      ],
+      "default": "Active",
+      "inListView": true,
+      "section": "Assignment",
+      "column": 2
+    },
+    {
+      "name": "organization_unit",
+      "type": "Link",
+      "label": "Organization unit",
+      "linkTo": "OrganizationUnit",
+      "requiredWhen": "true",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Placement"
+    },
+    {
+      "name": "organization_breadcrumb",
+      "type": "Data",
+      "label": "Organization path",
+      "fetchFrom": "organization_unit.breadcrumb",
+      "readOnlyWhen": "true",
+      "section": "Placement"
+    },
+    {
+      "name": "position",
+      "type": "Link",
+      "label": "Position",
+      "linkTo": "Position",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Placement",
+      "column": 2
+    },
+    {
+      "name": "job_profile",
+      "type": "Link",
+      "label": "Job profile",
+      "linkTo": "JobProfile",
+      "lookupDialog": true,
+      "section": "Placement",
+      "column": 2
+    },
+    {
+      "name": "start_date",
+      "type": "Date",
+      "label": "Start date",
+      "requiredWhen": "true",
+      "default": "$today",
+      "inListView": true,
+      "section": "Validity"
+    },
+    {
+      "name": "end_date",
+      "type": "Date",
+      "label": "End date",
+      "inListView": true,
+      "section": "Validity",
+      "column": 2
+    },
+    {
+      "name": "reference_memo",
+      "type": "Data",
+      "label": "Appointment letter / decree number",
+      "section": "Remarks"
+    },
+    {
+      "name": "remarks",
+      "type": "Text",
+      "label": "Remarks",
+      "section": "Remarks"
+    }
+  ],
+  "rules": [
+    {
+      "name": "valid_period",
+      "expr": "empty(end_date) || end_date >= start_date",
+      "message": "The end date must be on or after the start date",
+      "field": "end_date"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "match:employee=employee"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "employee_name",
+    "searchFields": [
+      "name",
+      "employee",
+      "employee_name",
+      "organization_unit",
+      "position",
+      "reference_memo"
+    ],
+    "filters": [
+      "company",
+      "employee",
+      "assignment_type",
+      "status",
+      "organization_unit",
+      "position"
+    ],
+    "defaultSort": [
+      {
+        "field": "start_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "delete"
+    ]
+  }
+}

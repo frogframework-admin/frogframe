@@ -105,52 +105,92 @@ ON CONFLICT (tenant_id, doctype, name) DO UPDATE
 SET data = EXCLUDED.data, modified = NOW(), modified_by = EXCLUDED.modified_by;
 
 INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
-VALUES ('acme', 'OrganizationUnit', 'BOD', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"org_unit_code":"BOD","org_unit_name":"Dewan Direksi (BOD)","unit_type":"Board of Directors","parent_org_unit":null,"company":"ACME","is_active":true,"staffing_model":"Position","effective_from":"2026-01-01"}'::jsonb)
+VALUES ('acme', 'OrganizationUnitType', 'Board of Directors', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"type_code":"BOD","type_name":"Board of Directors","hierarchy_order":1,"parent_type":null,"is_active":true,"is_system":true,"description":"Executive board level"}'::jsonb)
 ON CONFLICT (tenant_id, doctype, name) DO UPDATE 
 SET data = EXCLUDED.data, modified = NOW(), modified_by = EXCLUDED.modified_by;
 
 INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
-VALUES ('acme', 'OrganizationUnit', 'DIV-TECH', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"org_unit_code":"DIV-TECH","org_unit_name":"Direktorat Teknologi & Operasi","unit_type":"Directorate","parent_org_unit":"BOD","company":"ACME","is_active":true,"staffing_model":"Position","effective_from":"2026-01-01"}'::jsonb)
+VALUES ('acme', 'OrganizationUnitType', 'Directorate', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"type_code":"DIR","type_name":"Directorate","hierarchy_order":2,"parent_type":"Board of Directors","is_active":true,"is_system":true,"description":"Directorate level"}'::jsonb)
 ON CONFLICT (tenant_id, doctype, name) DO UPDATE 
 SET data = EXCLUDED.data, modified = NOW(), modified_by = EXCLUDED.modified_by;
 
 INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
-VALUES ('acme', 'OrganizationUnit', 'DIV-FIN', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"org_unit_code":"DIV-FIN","org_unit_name":"Direktorat Keuangan & HR","unit_type":"Directorate","parent_org_unit":"BOD","company":"ACME","is_active":true,"staffing_model":"Position","effective_from":"2026-01-01"}'::jsonb)
+VALUES ('acme', 'OrganizationUnitType', 'Division', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"type_code":"DIV","type_name":"Division","hierarchy_order":3,"parent_type":"Directorate","is_active":true,"is_system":true,"description":"Division level"}'::jsonb)
 ON CONFLICT (tenant_id, doctype, name) DO UPDATE 
 SET data = EXCLUDED.data, modified = NOW(), modified_by = EXCLUDED.modified_by;
 
 INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
-VALUES ('acme', 'OrganizationUnit', 'DIV-COMM', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"org_unit_code":"DIV-COMM","org_unit_name":"Direktorat Komersial","unit_type":"Directorate","parent_org_unit":"BOD","company":"ACME","is_active":true,"staffing_model":"Position","effective_from":"2026-01-01"}'::jsonb)
+VALUES ('acme', 'OrganizationUnitType', 'Department', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"type_code":"DEPT","type_name":"Department","hierarchy_order":4,"parent_type":null,"is_active":true,"is_system":true,"description":"Department level"}'::jsonb)
 ON CONFLICT (tenant_id, doctype, name) DO UPDATE 
 SET data = EXCLUDED.data, modified = NOW(), modified_by = EXCLUDED.modified_by;
 
 INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
-VALUES ('acme', 'OrganizationUnit', 'DEPT-IT', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"org_unit_code":"DEPT-IT","org_unit_name":"Departemen IT","unit_type":"Department","parent_org_unit":"DIV-TECH","company":"ACME","is_active":true,"staffing_model":"Position","effective_from":"2026-01-01"}'::jsonb)
+VALUES ('acme', 'OrganizationUnitType', 'Sub-department', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"type_code":"SUBDEPT","type_name":"Sub-department","hierarchy_order":5,"parent_type":"Department","is_active":true,"is_system":true,"description":"Sub-department level"}'::jsonb)
 ON CONFLICT (tenant_id, doctype, name) DO UPDATE 
 SET data = EXCLUDED.data, modified = NOW(), modified_by = EXCLUDED.modified_by;
 
 INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
-VALUES ('acme', 'OrganizationUnit', 'DEPT-WH', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"org_unit_code":"DEPT-WH","org_unit_name":"Departemen Gudang & Logistik","unit_type":"Department","parent_org_unit":"DIV-TECH","company":"ACME","is_active":true,"staffing_model":"Position","effective_from":"2026-01-01"}'::jsonb)
+VALUES ('acme', 'OrganizationUnitType', 'Section', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"type_code":"SEC","type_name":"Section","hierarchy_order":6,"parent_type":"Department","is_active":true,"is_system":true,"description":"Section level"}'::jsonb)
 ON CONFLICT (tenant_id, doctype, name) DO UPDATE 
 SET data = EXCLUDED.data, modified = NOW(), modified_by = EXCLUDED.modified_by;
 
 INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
-VALUES ('acme', 'OrganizationUnit', 'DEPT-FIN', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"org_unit_code":"DEPT-FIN","org_unit_name":"Departemen Keuangan & Akuntansi","unit_type":"Department","parent_org_unit":"DIV-FIN","company":"ACME","is_active":true,"staffing_model":"Position","effective_from":"2026-01-01"}'::jsonb)
+VALUES ('acme', 'OrganizationUnitType', 'Team', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"type_code":"TEAM","type_name":"Team","hierarchy_order":7,"parent_type":null,"is_active":true,"is_system":true,"description":"Operational team or squad"}'::jsonb)
 ON CONFLICT (tenant_id, doctype, name) DO UPDATE 
 SET data = EXCLUDED.data, modified = NOW(), modified_by = EXCLUDED.modified_by;
 
 INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
-VALUES ('acme', 'OrganizationUnit', 'DEPT-HR', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"org_unit_code":"DEPT-HR","org_unit_name":"Departemen Human Resources","unit_type":"Department","parent_org_unit":"DIV-FIN","company":"ACME","is_active":true,"staffing_model":"Position","effective_from":"2026-01-01"}'::jsonb)
+VALUES ('acme', 'OrganizationUnitType', 'Branch', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"type_code":"BRANCH","type_name":"Branch","hierarchy_order":3,"parent_type":null,"is_active":true,"is_system":true,"description":"Regional branch or office"}'::jsonb)
 ON CONFLICT (tenant_id, doctype, name) DO UPDATE 
 SET data = EXCLUDED.data, modified = NOW(), modified_by = EXCLUDED.modified_by;
 
 INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
-VALUES ('acme', 'OrganizationUnit', 'DEPT-SALES', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"org_unit_code":"DEPT-SALES","org_unit_name":"Departemen Penjualan & Pemasaran","unit_type":"Department","parent_org_unit":"DIV-COMM","company":"ACME","is_active":true,"staffing_model":"Position","effective_from":"2026-01-01"}'::jsonb)
+VALUES ('acme', 'OrganizationUnit', 'BOD', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"org_unit_code":"BOD","org_unit_name":"Dewan Direksi (BOD)","unit_type":"Board of Directors","base_unit_code":"BOD","parent_org_unit":null,"company":"ACME","status":"Active","is_active":true,"staffing_model":"Position","effective_from":"2026-01-01","depth":1,"materialized_path":"/BOD/","breadcrumb":"Dewan Direksi (BOD)"}'::jsonb)
 ON CONFLICT (tenant_id, doctype, name) DO UPDATE 
 SET data = EXCLUDED.data, modified = NOW(), modified_by = EXCLUDED.modified_by;
 
 INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
-VALUES ('acme', 'OrganizationUnit', 'DEPT-PURCH', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"org_unit_code":"DEPT-PURCH","org_unit_name":"Departemen Pengadaan (Purchasing)","unit_type":"Department","parent_org_unit":"DIV-COMM","company":"ACME","is_active":true,"staffing_model":"Position","effective_from":"2026-01-01"}'::jsonb)
+VALUES ('acme', 'OrganizationUnit', 'DIV-TECH', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"org_unit_code":"DIV-TECH","org_unit_name":"Direktorat Teknologi & Operasi","unit_type":"Directorate","base_unit_code":"DIV-TECH","parent_org_unit":"BOD","company":"ACME","status":"Active","is_active":true,"staffing_model":"Position","effective_from":"2026-01-01","depth":2,"materialized_path":"/BOD/DIV-TECH/","breadcrumb":"Dewan Direksi (BOD) > Direktorat Teknologi & Operasi"}'::jsonb)
+ON CONFLICT (tenant_id, doctype, name) DO UPDATE 
+SET data = EXCLUDED.data, modified = NOW(), modified_by = EXCLUDED.modified_by;
+
+INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
+VALUES ('acme', 'OrganizationUnit', 'DIV-FIN', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"org_unit_code":"DIV-FIN","org_unit_name":"Direktorat Keuangan & HR","unit_type":"Directorate","base_unit_code":"DIV-FIN","parent_org_unit":"BOD","company":"ACME","status":"Active","is_active":true,"staffing_model":"Position","effective_from":"2026-01-01","depth":2,"materialized_path":"/BOD/DIV-FIN/","breadcrumb":"Dewan Direksi (BOD) > Direktorat Keuangan & HR"}'::jsonb)
+ON CONFLICT (tenant_id, doctype, name) DO UPDATE 
+SET data = EXCLUDED.data, modified = NOW(), modified_by = EXCLUDED.modified_by;
+
+INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
+VALUES ('acme', 'OrganizationUnit', 'DIV-COMM', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"org_unit_code":"DIV-COMM","org_unit_name":"Direktorat Komersial","unit_type":"Directorate","base_unit_code":"DIV-COMM","parent_org_unit":"BOD","company":"ACME","status":"Active","is_active":true,"staffing_model":"Position","effective_from":"2026-01-01","depth":2,"materialized_path":"/BOD/DIV-COMM/","breadcrumb":"Dewan Direksi (BOD) > Direktorat Komersial"}'::jsonb)
+ON CONFLICT (tenant_id, doctype, name) DO UPDATE 
+SET data = EXCLUDED.data, modified = NOW(), modified_by = EXCLUDED.modified_by;
+
+INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
+VALUES ('acme', 'OrganizationUnit', 'DEPT-IT', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"org_unit_code":"DEPT-IT","org_unit_name":"Departemen IT","unit_type":"Department","base_unit_code":"DEPT-IT","parent_org_unit":"DIV-TECH","company":"ACME","status":"Active","is_active":true,"staffing_model":"Position","effective_from":"2026-01-01","depth":3,"materialized_path":"/BOD/DIV-TECH/DEPT-IT/","breadcrumb":"Dewan Direksi (BOD) > Direktorat Teknologi & Operasi > Departemen IT"}'::jsonb)
+ON CONFLICT (tenant_id, doctype, name) DO UPDATE 
+SET data = EXCLUDED.data, modified = NOW(), modified_by = EXCLUDED.modified_by;
+
+INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
+VALUES ('acme', 'OrganizationUnit', 'DEPT-WH', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"org_unit_code":"DEPT-WH","org_unit_name":"Departemen Gudang & Logistik","unit_type":"Department","base_unit_code":"DEPT-WH","parent_org_unit":"DIV-TECH","company":"ACME","status":"Active","is_active":true,"staffing_model":"Position","effective_from":"2026-01-01","depth":3,"materialized_path":"/BOD/DIV-TECH/DEPT-WH/","breadcrumb":"Dewan Direksi (BOD) > Direktorat Teknologi & Operasi > Departemen Gudang & Logistik"}'::jsonb)
+ON CONFLICT (tenant_id, doctype, name) DO UPDATE 
+SET data = EXCLUDED.data, modified = NOW(), modified_by = EXCLUDED.modified_by;
+
+INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
+VALUES ('acme', 'OrganizationUnit', 'DEPT-FIN', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"org_unit_code":"DEPT-FIN","org_unit_name":"Departemen Keuangan & Akuntansi","unit_type":"Department","base_unit_code":"DEPT-FIN","parent_org_unit":"DIV-FIN","company":"ACME","status":"Active","is_active":true,"staffing_model":"Position","effective_from":"2026-01-01","depth":3,"materialized_path":"/BOD/DIV-FIN/DEPT-FIN/","breadcrumb":"Dewan Direksi (BOD) > Direktorat Keuangan & HR > Departemen Keuangan & Akuntansi"}'::jsonb)
+ON CONFLICT (tenant_id, doctype, name) DO UPDATE 
+SET data = EXCLUDED.data, modified = NOW(), modified_by = EXCLUDED.modified_by;
+
+INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
+VALUES ('acme', 'OrganizationUnit', 'DEPT-HR', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"org_unit_code":"DEPT-HR","org_unit_name":"Departemen Human Resources","unit_type":"Department","base_unit_code":"DEPT-HR","parent_org_unit":"DIV-FIN","company":"ACME","status":"Active","is_active":true,"staffing_model":"Position","effective_from":"2026-01-01","depth":3,"materialized_path":"/BOD/DIV-FIN/DEPT-HR/","breadcrumb":"Dewan Direksi (BOD) > Direktorat Keuangan & HR > Departemen Human Resources"}'::jsonb)
+ON CONFLICT (tenant_id, doctype, name) DO UPDATE 
+SET data = EXCLUDED.data, modified = NOW(), modified_by = EXCLUDED.modified_by;
+
+INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
+VALUES ('acme', 'OrganizationUnit', 'DEPT-SALES', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"org_unit_code":"DEPT-SALES","org_unit_name":"Departemen Penjualan & Pemasaran","unit_type":"Department","base_unit_code":"DEPT-SALES","parent_org_unit":"DIV-COMM","company":"ACME","status":"Active","is_active":true,"staffing_model":"Position","effective_from":"2026-01-01","depth":3,"materialized_path":"/BOD/DIV-COMM/DEPT-SALES/","breadcrumb":"Dewan Direksi (BOD) > Direktorat Komersial > Departemen Penjualan & Pemasaran"}'::jsonb)
+ON CONFLICT (tenant_id, doctype, name) DO UPDATE 
+SET data = EXCLUDED.data, modified = NOW(), modified_by = EXCLUDED.modified_by;
+
+INSERT INTO frogframe_documents (tenant_id, doctype, name, owner, docstatus, created, modified, modified_by, version, schema_version, data)
+VALUES ('acme', 'OrganizationUnit', 'DEPT-PURCH', 'admin', 0, NOW(), NOW(), 'admin', 1, 1, '{"org_unit_code":"DEPT-PURCH","org_unit_name":"Departemen Pengadaan (Purchasing)","unit_type":"Department","base_unit_code":"DEPT-PURCH","parent_org_unit":"DIV-COMM","company":"ACME","status":"Active","is_active":true,"staffing_model":"Position","effective_from":"2026-01-01","depth":3,"materialized_path":"/BOD/DIV-COMM/DEPT-PURCH/","breadcrumb":"Dewan Direksi (BOD) > Direktorat Komersial > Departemen Pengadaan (Purchasing)"}'::jsonb)
 ON CONFLICT (tenant_id, doctype, name) DO UPDATE 
 SET data = EXCLUDED.data, modified = NOW(), modified_by = EXCLUDED.modified_by;
 

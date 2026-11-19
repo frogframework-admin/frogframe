@@ -1,0 +1,170 @@
+{
+  "name": "ShiftOverride",
+  "version": 1,
+  "title": "Shift Override",
+  "module": "HR",
+  "description": "Single-day schedule override for an employee (special assignment, emergency rest day replacement, or dispensation), validated against Workforce Schedule Rules.",
+  "naming": {
+    "pattern": "SOV-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "employee",
+      "type": "Link",
+      "label": "Employee",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Override"
+    },
+    {
+      "name": "employee_name",
+      "type": "Data",
+      "label": "Employee name",
+      "fetchFrom": "employee.full_name",
+      "inListView": true,
+      "section": "Override"
+    },
+    {
+      "name": "override_date",
+      "type": "Date",
+      "label": "Override date",
+      "requiredWhen": "true",
+      "default": "$today",
+      "inListView": true,
+      "section": "Override",
+      "column": 2
+    },
+    {
+      "name": "new_schedule_type",
+      "type": "Select",
+      "label": "New schedule type",
+      "requiredWhen": "true",
+      "options": [
+        "WORK",
+        "REST",
+        "HOLIDAY"
+      ],
+      "default": "WORK",
+      "inListView": true,
+      "section": "New Schedule"
+    },
+    {
+      "name": "new_shift_type",
+      "type": "Link",
+      "label": "New shift type",
+      "linkTo": "ShiftType",
+      "requiredWhen": "new_schedule_type == 'WORK'",
+      "visibleWhen": "new_schedule_type == 'WORK'",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "New Schedule",
+      "column": 2
+    },
+    {
+      "name": "previous_schedule_type",
+      "type": "Data",
+      "label": "Previous schedule type",
+      "readOnlyWhen": "true",
+      "section": "Previous Schedule"
+    },
+    {
+      "name": "previous_shift_type",
+      "type": "Data",
+      "label": "Previous shift type",
+      "readOnlyWhen": "true",
+      "section": "Previous Schedule",
+      "column": 2
+    },
+    {
+      "name": "reason",
+      "type": "Text",
+      "label": "Reason",
+      "requiredWhen": "true",
+      "section": "Remarks"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "match:employee=employee"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "employee_name",
+    "searchFields": [
+      "name",
+      "employee",
+      "employee_name",
+      "new_shift_type",
+      "reason"
+    ],
+    "filters": [
+      "employee",
+      "override_date",
+      "new_schedule_type",
+      "new_shift_type"
+    ],
+    "defaultSort": [
+      {
+        "field": "override_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "delete"
+    ]
+  }
+}

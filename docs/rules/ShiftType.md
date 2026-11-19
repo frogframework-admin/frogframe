@@ -7,3 +7,8 @@ Aturan yang dijalankan kode saat dokumen Shift Type (ShiftType) disimpan, di-sub
 ## Ringkasan perilaku
 
 - **EssCacheInvalidationHook**: Invalidates cached ESS profile, site, and policy data immediately when HR updates master documents.
+
+## Aturan bersama yang juga berlaku
+
+- EssAttendanceService: lihat `_shared-EssAttendanceService.md`
+- Masters: lihat `_shared-Masters.md`

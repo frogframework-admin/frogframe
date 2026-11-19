@@ -10,21 +10,21 @@ Aturan yang dijalankan kode saat dokumen Payslip (Payslip) disimpan, di-submit, 
 
 ## Validasi (dokumen ditolak): Saat cancel
 
-- `name`: "{run.Name} is submitted; cancel the payroll run first" — terjadi bila `run is not null && run.DocStatus == DocStatus.Submitted` (PayslipHook, PayrollHooks.cs:386)
+- `name`: "{run.Name} is submitted; cancel the payroll run first" — terjadi bila `run is not null && run.DocStatus == DocStatus.Submitted` (PayslipHook, PayrollHooks.cs:387)
 
 ## Validasi (dokumen ditolak): Saat simpan/submit (validasi)
 
 - `payroll_run`: "{run.Name} is already submitted; create a new payroll run" — terjadi bila `run.DocStatus != DocStatus.Draft && c.Doc.DocStatus == DocStatus.Draft && c.Previous is null` (PayslipHook, PayrollHooks.cs:202)
 - `employee`: "{emp.Name} belongs to another company" — terjadi bila `emp.Data.Str("company") != run.Data.Str("company")` (PayslipHook, PayrollHooks.cs:209)
-- `employee`: "{emp.Name} already has payslip {others[0].Name} for {period}" — terjadi bila `others.Count > 0` (PayslipHook, PayrollHooks.cs:214)
-- `employee`: "{emp.Name} has no active salary assignment valid on {D.Iso(periodEnd)}" — terjadi bila `assignment is null` (PayslipHook, PayrollHooks.cs:217)
-- `{table}[{i}].salary_component`: "{comp.Name} is not a {type.ToLowerInvariant()}" — terjadi bila `comp.Data.Str("component_type") != type` (PayslipHook, PayrollHooks.cs:247)
-- `{table}[{i}].salary_component`: "Set the GL account of deduction component {comp.Name}" — terjadi bila `comp.Data.Str("account") is null` (PayslipHook, PayrollHooks.cs:261)
-- `employee`: "Set the PTKP status of {emp.Name} (Employee, Identity & Tax)" — terjadi bila `!(comp is null)` (PayslipHook, PayrollHooks.cs:294)
+- `employee`: "{emp.Name} already has payslip {others[0].Name} for {period}" — terjadi bila `others.Count > 0` (PayslipHook, PayrollHooks.cs:215)
+- `employee`: "{emp.Name} has no active salary assignment valid on {D.Iso(periodEnd)}" — terjadi bila `assignment is null` (PayslipHook, PayrollHooks.cs:218)
+- `{table}[{i}].salary_component`: "{comp.Name} is not a {type.ToLowerInvariant()}" — terjadi bila `comp.Data.Str("component_type") != type` (PayslipHook, PayrollHooks.cs:248)
+- `{table}[{i}].salary_component`: "Set the GL account of deduction component {comp.Name}" — terjadi bila `comp.Data.Str("account") is null` (PayslipHook, PayrollHooks.cs:262)
+- `employee`: "Set the PTKP status of {emp.Name} (Employee, Identity & Tax)" — terjadi bila `!(comp is null)` (PayslipHook, PayrollHooks.cs:295)
 
 ## Peringatan (dokumen tetap tersimpan): Saat simpan/submit (validasi)
 
-- "Overtime: {ot.WeightedHours} paid hours × {ot.HourlyWage} = {ot.Amount}" (PayslipHook, PayrollHooks.cs:235)
+- "Overtime: {ot.WeightedHours} paid hours × {ot.HourlyWage} = {ot.Amount}" (PayslipHook, PayrollHooks.cs:236)
 
 ## Aturan bersama yang juga berlaku
 

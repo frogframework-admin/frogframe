@@ -4,8 +4,8 @@
 
 Dipakai oleh: beberapa proses (job/event).
 
-Penerapan event HR ke Employee, dipakai handler event (langsung) dan job harian (tanggal efektif di masa depan).
+Application of HR events to Employee, shared by the event handler (immediate) and daily job (future effective dates).
 
 ## Validasi (dokumen ditolak)
 
-- "Creating the user for {emp.Name} failed: {string.Join("; ", result.Errors.Select(e => e.Description))}" — terjadi bila `!result.Succeeded` (HrApply, HrHooks.cs:431)
+- "Creating the user for {emp.Name} failed: {string.Join("; ", result.Errors.Select(e => e.Description))}" — terjadi bila `!result.Succeeded` (HrApply, HrHooks.cs:918)

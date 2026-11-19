@@ -190,9 +190,28 @@
       "type": "Link",
       "label": "Organization unit",
       "linkTo": "OrganizationUnit",
-      "requiredWhen": "true",
+      "requiredWhen": "empty(position)",
       "lookupDialog": true,
       "inListView": true,
+      "tab": "Job",
+      "section": "Placement",
+      "description": "Derived automatically from Position when staffing model is Position"
+    },
+    {
+      "name": "organization_breadcrumb",
+      "type": "Data",
+      "label": "Organization path",
+      "fetchFrom": "organization_unit.breadcrumb",
+      "inListView": true,
+      "tab": "Job",
+      "section": "Placement"
+    },
+    {
+      "name": "organization_path",
+      "type": "Data",
+      "label": "Hierarchy path",
+      "fetchFrom": "organization_unit.materialized_path",
+      "visible": false,
       "tab": "Job",
       "section": "Placement"
     },
@@ -630,11 +649,14 @@
     "searchFields": [
       "employee_number",
       "full_name",
-      "work_email"
+      "work_email",
+      "organization_breadcrumb",
+      "organization_path"
     ],
     "filters": [
       "company",
       "organization_unit",
+      "organization_path",
       "employment_type",
       "status"
     ],

@@ -6,11 +6,11 @@ Aturan yang dijalankan kode saat dokumen Position (Position) disimpan, di-submit
 
 ## Ringkasan perilaku
 
-- **PositionHook**: Posisi: pemangku & status dihitung dari Employee; grade/cost center default dari profil jabatan/unit.
+- **PositionHook**: Position: holder &amp; status computed from Employee/EmployeeAssignment; default grade/cost center from job profile/unit.
 
 ## Validasi (dokumen ditolak): Saat simpan/submit (validasi)
 
-- `status`: "The position is still filled by {holder.Name}; move the employee first" — terjadi bila `holder is not null && status is "Closed" or "Frozen"` (PositionHook, HrHooks.cs:126)
+- `status`: "The position is still filled by {holder.Name}; move the employee first" — terjadi bila `holder is not null && status is "Closed" or "Frozen"` (PositionHook, HrHooks.cs:337)
 
 ## Aturan bersama yang juga berlaku
 

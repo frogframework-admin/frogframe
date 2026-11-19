@@ -1,0 +1,113 @@
+{
+  "name": "ShiftSwapApproval",
+  "docType": "ShiftSwapRequest",
+  "version": 1,
+  "initialState": "Draft",
+  "states": [
+    {
+      "name": "Draft",
+      "docStatus": 0,
+      "tone": "neutral"
+    },
+    {
+      "name": "Pending Peer Approval",
+      "docStatus": 0,
+      "tone": "pending"
+    },
+    {
+      "name": "Pending Manager Approval",
+      "docStatus": 1,
+      "tone": "pending"
+    },
+    {
+      "name": "Approved",
+      "docStatus": 1,
+      "tone": "positive"
+    },
+    {
+      "name": "Rejected",
+      "docStatus": 2,
+      "tone": "negative"
+    },
+    {
+      "name": "Cancelled",
+      "docStatus": 2,
+      "tone": "negative"
+    }
+  ],
+  "transitions": [
+    {
+      "from": "Draft",
+      "to": "Pending Peer Approval",
+      "action": "Submit for peer acceptance",
+      "allowedRoles": [
+        "Employee",
+        "HR"
+      ],
+      "condition": "requester == user.employee || has_role('HR') || has_role('System Manager')"
+    },
+    {
+      "from": "Pending Peer Approval",
+      "to": "Pending Manager Approval",
+      "action": "Accept swap",
+      "allowedRoles": [
+        "Employee",
+        "HR"
+      ],
+      "condition": "target_employee == user.employee || has_role('HR') || has_role('System Manager')"
+    },
+    {
+      "from": "Pending Peer Approval",
+      "to": "Rejected",
+      "action": "Decline swap",
+      "allowedRoles": [
+        "Employee",
+        "HR"
+      ],
+      "condition": "target_employee == user.employee || has_role('HR') || has_role('System Manager')",
+      "requireComment": true
+    },
+    {
+      "from": "Pending Peer Approval",
+      "to": "Cancelled",
+      "action": "Withdraw",
+      "allowedRoles": [
+        "Employee",
+        "HR"
+      ],
+      "condition": "requester == user.employee || has_role('HR') || has_role('System Manager')"
+    },
+    {
+      "from": "Pending Manager Approval",
+      "to": "Approved",
+      "action": "Approve",
+      "allowedRoles": [
+        "Employee",
+        "Manager",
+        "HR"
+      ],
+      "condition": "approver == user.employee || has_role('Manager') || has_role('HR') || has_role('System Manager')"
+    },
+    {
+      "from": "Pending Manager Approval",
+      "to": "Rejected",
+      "action": "Reject",
+      "allowedRoles": [
+        "Employee",
+        "Manager",
+        "HR"
+      ],
+      "condition": "approver == user.employee || has_role('Manager') || has_role('HR') || has_role('System Manager')",
+      "requireComment": true
+    },
+    {
+      "from": "Approved",
+      "to": "Cancelled",
+      "action": "Cancel",
+      "allowedRoles": [
+        "HR"
+      ],
+      "requireComment": true
+    }
+  ]
+}

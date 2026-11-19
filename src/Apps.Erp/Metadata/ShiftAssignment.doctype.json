@@ -1,0 +1,223 @@
+{
+  "name": "ShiftAssignment",
+  "version": 1,
+  "title": "Shift Assignment",
+  "module": "HR",
+  "description": "Effective-dated assignment of a rotational Shift Pattern to a Shift Group, an Organization Unit, or an individual Employee, with a cycle day offset.",
+  "naming": {
+    "pattern": "SA-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "assignment_target",
+      "type": "Select",
+      "label": "Assignment target",
+      "requiredWhen": "true",
+      "options": [
+        "Shift Group",
+        "Employee",
+        "Organization Unit"
+      ],
+      "default": "Shift Group",
+      "inListView": true,
+      "section": "Target"
+    },
+    {
+      "name": "shift_group",
+      "type": "Link",
+      "label": "Shift group",
+      "linkTo": "ShiftGroup",
+      "requiredWhen": "assignment_target == 'Shift Group'",
+      "visibleWhen": "assignment_target == 'Shift Group'",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Target"
+    },
+    {
+      "name": "employee",
+      "type": "Link",
+      "label": "Employee",
+      "linkTo": "Employee",
+      "requiredWhen": "assignment_target == 'Employee'",
+      "visibleWhen": "assignment_target == 'Employee'",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Target"
+    },
+    {
+      "name": "organization_unit",
+      "type": "Link",
+      "label": "Organization unit",
+      "linkTo": "OrganizationUnit",
+      "requiredWhen": "assignment_target == 'Organization Unit'",
+      "visibleWhen": "assignment_target == 'Organization Unit'",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Target"
+    },
+    {
+      "name": "company",
+      "type": "Link",
+      "label": "Company",
+      "linkTo": "Company",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Target",
+      "column": 2
+    },
+    {
+      "name": "shift_pattern",
+      "type": "Link",
+      "label": "Shift pattern",
+      "linkTo": "ShiftPattern",
+      "requiredWhen": "true",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Pattern & Cycle",
+      "column": 2
+    },
+    {
+      "name": "start_date",
+      "type": "Date",
+      "label": "Start date",
+      "requiredWhen": "true",
+      "default": "$today",
+      "inListView": true,
+      "section": "Pattern & Cycle"
+    },
+    {
+      "name": "end_date",
+      "type": "Date",
+      "label": "End date",
+      "inListView": true,
+      "section": "Pattern & Cycle",
+      "column": 2
+    },
+    {
+      "name": "day_offset",
+      "type": "Int",
+      "label": "Cycle start offset (days)",
+      "default": 0,
+      "min": 0,
+      "max": 365,
+      "inListView": true,
+      "section": "Pattern & Cycle",
+      "description": "0 = starts on Day 1 of pattern; 2 = starts on Day 3 of pattern (staggers squads across the same pattern)"
+    },
+    {
+      "name": "respect_public_holidays",
+      "type": "Check",
+      "label": "Convert public holidays to HOLIDAY",
+      "default": false,
+      "section": "Pattern & Cycle",
+      "column": 2,
+      "description": "Off = 24/7 continuous roster (work continues on public holidays and is flagged for holiday pay)"
+    },
+    {
+      "name": "is_active",
+      "type": "Check",
+      "label": "Active",
+      "default": true,
+      "inListView": true,
+      "section": "Pattern & Cycle",
+      "column": 2
+    },
+    {
+      "name": "remarks",
+      "type": "Text",
+      "label": "Remarks",
+      "section": "Remarks"
+    }
+  ],
+  "rules": [
+    {
+      "name": "valid_period",
+      "expr": "empty(end_date) || end_date >= start_date",
+      "message": "The end date must be on or after the start date",
+      "field": "end_date"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "shift_pattern",
+    "searchFields": [
+      "name",
+      "shift_group",
+      "employee",
+      "organization_unit",
+      "shift_pattern"
+    ],
+    "filters": [
+      "company",
+      "assignment_target",
+      "shift_group",
+      "employee",
+      "organization_unit",
+      "shift_pattern",
+      "is_active"
+    ],
+    "defaultSort": [
+      {
+        "field": "start_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "delete"
+    ]
+  }
+}

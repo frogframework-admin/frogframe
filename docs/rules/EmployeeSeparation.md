@@ -6,16 +6,16 @@ Aturan yang dijalankan kode saat dokumen Employee Separation (EmployeeSeparation
 
 ## Ringkasan perilaku
 
-- **EmployeeSeparationHook**: Pemberhentian (Workday Terminate): checklist default; diterapkan pada hari kerja terakhir (Employee → Keluar, user dinonaktifkan).
+- **EmployeeSeparationHook**: Employee Separation (Workday Terminate): default checklist; applied on the last working day (Employee → Left, user deactivated).
 
 ## Validasi (dokumen ditolak): Saat cancel
 
-- `name`: "The separation has already been applied; reactivate the employee through HR (status) before cancelling" — terjadi bila `emp?.Data.Str("status") == Hr.Left` (EmployeeSeparationHook, HrHooks.cs:221)
+- `name`: "The separation has already been applied; reactivate the employee through HR (status) before cancelling" — terjadi bila `emp?.Data.Str("status") == Hr.Left` (EmployeeSeparationHook, HrHooks.cs:683)
 
 ## Validasi (dokumen ditolak): Saat simpan/submit (validasi)
 
-- `last_working_date`: "The last working date is before the date of joining" — terjadi bila `d.Date("last_working_date") is { } last && emp.Data.Date("hire_date") is { } hire && last < hire` (EmployeeSeparationHook, HrHooks.cs:201)
-- `employee`: "Separation {other.Name} already exists" — terjadi bila `!(d.Date("last_working_date") is { } last && emp.Data.Date("hire_date") is { } hire && last < hire) && other is not null` (EmployeeSeparationHook, HrHooks.cs:204)
+- `last_working_date`: "The last working date is before the date of joining" — terjadi bila `d.Date("last_working_date") is { } last && emp.Data.Date("hire_date") is { } hire && last < hire` (EmployeeSeparationHook, HrHooks.cs:663)
+- `employee`: "Separation {other.Name} already exists" — terjadi bila `!(d.Date("last_working_date") is { } last && emp.Data.Date("hire_date") is { } hire && last < hire) && other is not null` (EmployeeSeparationHook, HrHooks.cs:666)
 
 ## Aturan bersama yang juga berlaku
 

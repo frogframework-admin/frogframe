@@ -2,7 +2,7 @@
 
 # Aturan bersama Approval
 
-Dipakai oleh: Attendance, EmployeeAdvance, EmployeeSeparation, EmploymentContract, ExpenseClaim, JobChange, LeaveAllocation, LeaveApplication, OvertimeRequest, PaymentEntry, PaymentRun, Payslip, PurchaseOrder, PurchaseRequest.
+Dipakai oleh: Attendance, EmployeeAdvance, EmployeeAssignment, EmployeeDailySchedule, EmployeeSeparation, EmploymentContract, ExpenseClaim, JobChange, LeaveAllocation, LeaveApplication, OvertimeRequest, PaymentEntry, PaymentRun, Payslip, PurchaseOrder, PurchaseRequest, ScheduleGeneration, ShiftOverride, ShiftSwapRequest.
 
 ## Validasi (dokumen ditolak)
 

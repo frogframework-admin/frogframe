@@ -1,3 +1,4 @@
+using System.Globalization;
 using Framework.Documents;
 using Framework.Hooks;
 using Framework.Persistence;
@@ -7,13 +8,13 @@ namespace Apps.Erp.Hooks;
 public sealed class Attendance { }
 public sealed class OvertimeRequest { }
 
-/// <summary>Lembur menurut PP 35/2021: pengali (Pasal 31), batas jam (Pasal 26 jo. UU 13/2003 Pasal 78 sebagaimana diubah), upah sejam 1/173 (Pasal 32).</summary>
+/// <summary>Overtime calculation under PP 35/2021: tier multipliers (Art. 31), hour caps (Art. 26), and hourly wage 1/173 (Art. 32).</summary>
 internal static class Overtime
 {
     public const string WorkingDay = "Working day", RestDay = "Rest day or public holiday", ShortestDay = "Public holiday on the shortest working day";
     public const decimal MaxPerWorkingDay = 4, MaxPerWeek = 18;
 
-    /// <summary>Jam dibayar (jam × pengali) dan batas jam per hari untuk jenis hari dan pola kerja 5/6 hari.</summary>
+    /// <summary>Paid hours (hours × tier multiplier) and daily hour cap for a day type and 5/6-day work week.</summary>
     public static (decimal Weighted, decimal MaxHours) Weigh(string dayType, int workWeekDays, decimal hours)
     {
         static decimal Tiers(decimal h, decimal t2) =>
@@ -27,15 +28,20 @@ internal static class Overtime
         };
     }
 
-    public static async Task<int> WorkWeekAsync(Masters m, Document emp, CancellationToken ct)
+    public static async Task<int> WorkWeekAsync(Masters m, Document emp, CancellationToken ct, Document? dailySchedule = null)
     {
-        var shift = emp.Data.Str("shift_type") ?? (await m.SingleAsync("HRSettings", ct)).Str("default_shift_type");
+        if (dailySchedule?.Data.Str("shift_pattern") is { } pat
+            && await m.StrAsync("ShiftPattern", pat, "work_week_days", ct) is { } patWeek)
+            return patWeek == "6" ? 6 : 5;
+        var shift = dailySchedule?.Data.Str("shift_type")
+            ?? emp.Data.Str("shift_type")
+            ?? (await m.SingleAsync("HRSettings", ct)).Str("default_shift_type");
         return await m.StrAsync("ShiftType", shift, "working_days_per_week", ct) == "6" ? 6 : 5;
     }
 
     /// <summary>
-    /// Upah lembur sebulan untuk payslip: Σ jam dibayar lembur Approved × upah sejam. Upah sebulan = pendapatan regular bertanda dasar BPJS
-    /// (upah pokok + tunjangan tetap); bila itu kurang dari 75% total pendapatan regular, dipakai 75% total (Pasal 32 ayat 4).
+    /// Monthly overtime pay for payslip: Σ approved paid overtime hours × hourly wage. Monthly base = regular earnings marked
+    /// in BPJS base (basic salary + fixed allowances); if less than 75% of total regular earnings, 75% of total is used (PP 35/2021 Art. 32(4)).
     /// </summary>
     public static async Task<(decimal WeightedHours, decimal HourlyWage, decimal Amount)> PayAsync(Masters m, string employee, string period, Document assignment, CancellationToken ct)
     {
@@ -65,7 +71,10 @@ internal static class Overtime
     }
 }
 
-/// <summary>Absensi: satu per karyawan per tanggal; jam kerja & keterlambatan dari shift; tautan ke cuti yang disetujui; terkunci setelah payslip bulan itu submit.</summary>
+/// <summary>
+/// Attendance: one per employee per work date; resolves shift &amp; cross-midnight window from materialized EmployeeDailySchedule
+/// (falling back to Employee shift / HRSettings); links to approved leave; locked once the month's payslip is submitted.
+/// </summary>
 public sealed class AttendanceHook(IDocumentStore store) : IBeforeValidate<Attendance>, IBeforeDelete<Attendance>
 {
     public async Task BeforeValidateAsync(HookContext c, CancellationToken ct)
@@ -79,17 +88,41 @@ public sealed class AttendanceHook(IDocumentStore store) : IBeforeValidate<Atten
             .FirstOrDefault(x => x.Name != c.Doc.Name);
         if (dup is not null) throw Errors.One("attendance_date", $"{emp.Name} already has attendance {dup.Name} on {D.Iso(date)}");
 
-        d.SetIfEmpty("shift_type", emp.Data.Str("shift_type") ?? (await m.SingleAsync("HRSettings", ct)).Str("default_shift_type"));
+        var schedule = (await m.QueryAsync("EmployeeDailySchedule",
+            [new FilterClause("employee", "=", emp.Name), new FilterClause("work_date", "=", D.Iso(date))], ct, take: 1)).FirstOrDefault();
+        if (schedule is not null)
+        {
+            d["daily_schedule"] = schedule.Name;
+            d["schedule_type"] = schedule.Data.Str("schedule_type");
+            d["scheduled_start_datetime"] = schedule.Data.GetValueOrDefault("scheduled_start_datetime");
+            d["scheduled_end_datetime"] = schedule.Data.GetValueOrDefault("scheduled_end_datetime");
+            if (schedule.Data.Str("shift_type") is { } schedShift)
+                d.SetIfEmpty("shift_type", schedShift);
+            if (schedule.Data.Str("schedule_type") is "REST" or "HOLIDAY" && d.Str("status") == "Present")
+                c.Messages.Add($"Scheduled {schedule.Data.Str("day_category")?.ToLowerInvariant() ?? "rest/holiday day"} on {D.Iso(date)}; attendance qualifies for rest-day or holiday overtime.");
+        }
+
+        if (schedule is null || schedule.Data.Str("schedule_type") == "WORK")
+            d.SetIfEmpty("shift_type", emp.Data.Str("shift_type") ?? (await m.SingleAsync("HRSettings", ct)).Str("default_shift_type"));
+
         var shift = await m.GetAsync("ShiftType", d.Str("shift_type"), ct);
-        // Jam disimpan UTC ("...Z"); keterlambatan dihitung pada jam dinding zona aplikasi, bukan zona server (container biasanya UTC).
+        if (shift is not null && d.GetValueOrDefault("scheduled_start_datetime") is null)
+        {
+            var (winStart, winEnd, _) = WsmTime.ComputeWindow(date, shift);
+            if (winStart is not null) d["scheduled_start_datetime"] = winStart;
+            if (winEnd is not null) d["scheduled_end_datetime"] = winEnd;
+        }
+
         if (LocalTime(d.GetValueOrDefault("check_in")) is { } inAt)
         {
             if (LocalTime(d.GetValueOrDefault("check_out")) is { } outAt && outAt > inAt)
                 d["working_hours"] = Math.Round((decimal)(outAt - inAt).TotalHours - (shift?.Data.Dec("break_minutes") ?? 0) / 60m, 2);
-            if (shift?.Data.Str("start_time") is { } st && TimeOnly.TryParse(st, out var start))
+
+            if (shift?.Data.Str("start_time") is { } st && TimeOnly.TryParse(st, CultureInfo.InvariantCulture, out var start))
             {
-                var late = (int)(TimeOnly.FromDateTime(inAt) - start).TotalMinutes - (int)(shift.Data.Dec("late_grace_minutes"));
-                d["late_minutes"] = (long)(late > 0 && late < 12 * 60 ? late : 0); // shift malam lintas hari: selisih besar = tidak terlambat
+                var schedStart = LocalTime(d.GetValueOrDefault("scheduled_start_datetime")) ?? date.ToDateTime(start);
+                var late = (int)(inAt - schedStart).TotalMinutes - (int)shift.Data.Dec("late_grace_minutes");
+                d["late_minutes"] = (long)(late > 0 && late < 12 * 60 ? late : 0);
             }
         }
 
@@ -100,10 +133,10 @@ public sealed class AttendanceHook(IDocumentStore store) : IBeforeValidate<Atten
             c.Messages.Add($"Approved leave {leave.Name} covers this date; consider status 'On leave'");
     }
 
-    private static DateTime? LocalTime(object? stored) =>
+    internal static DateTime? LocalTime(object? stored) =>
         Framework.Metadata.DatetimeFieldType.ToZone(stored)?.DateTime
-        ?? (stored is not null && DateTime.TryParse(Convert.ToString(stored, System.Globalization.CultureInfo.InvariantCulture),
-                System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var parsed) ? parsed : null);
+        ?? (stored is not null && DateTime.TryParse(Convert.ToString(stored, CultureInfo.InvariantCulture),
+                CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed) ? parsed : null);
 
     public async Task BeforeDeleteAsync(HookContext c, CancellationToken ct)
     {
@@ -112,7 +145,7 @@ public sealed class AttendanceHook(IDocumentStore store) : IBeforeValidate<Atten
     }
 }
 
-/// <summary>Pengajuan lembur: jam dibayar dihitung dengan pengali PP 35/2021; batas 4 jam per hari kerja, batas jam hari istirahat, dan 18 jam per minggu.</summary>
+/// <summary>Overtime request: paid hours computed using PP 35/2021 multipliers; resolves day type &amp; work week from EmployeeDailySchedule when available.</summary>
 public sealed class OvertimeRequestHook(IDocumentStore store) : IBeforeValidate<OvertimeRequest>
 {
     public async Task BeforeValidateAsync(HookContext c, CancellationToken ct)
@@ -125,8 +158,19 @@ public sealed class OvertimeRequestHook(IDocumentStore store) : IBeforeValidate<
         d["period"] = period;
         if (c.Doc.DocStatus == DocStatus.Draft) await Overtime.CheckNotPaidAsync(m, emp.Name, period, "overtime_date", ct);
 
-        var week = await Overtime.WorkWeekAsync(m, emp, ct);
+        var schedule = (await m.QueryAsync("EmployeeDailySchedule",
+            [new FilterClause("employee", "=", emp.Name), new FilterClause("work_date", "=", D.Iso(date))], ct, take: 1)).FirstOrDefault();
+
+        var week = await Overtime.WorkWeekAsync(m, emp, ct, schedule);
         d["work_week_days"] = (long)week;
+
+        if (c.Previous is null && schedule is not null
+            && (schedule.Data.Str("schedule_type") is "REST" or "HOLIDAY" || schedule.Data.Bool("is_public_holiday"))
+            && d.Str("day_type") is null or Overtime.WorkingDay)
+        {
+            d["day_type"] = Overtime.RestDay;
+        }
+
         var dayType = d.Str("day_type") ?? Overtime.WorkingDay;
         if (dayType == Overtime.ShortestDay && week != 6)
             throw Errors.One("day_type", "'Public holiday on the shortest working day' only applies to a 6-day work week");
@@ -135,7 +179,6 @@ public sealed class OvertimeRequestHook(IDocumentStore store) : IBeforeValidate<
         if (hours > max) throw Errors.One("hours", $"At most {max:0.#} overtime hours on a {dayType.ToLowerInvariant()} ({week}-day work week)");
         d["weighted_hours"] = weighted;
 
-        // Batas 18 jam per minggu (Senin–Minggu), dihitung dari pengajuan lain yang tidak ditolak/dibatalkan.
         var monday = date.AddDays(-(((int)date.DayOfWeek + 6) % 7));
         var others = (await m.QueryAsync("OvertimeRequest", [new FilterClause("employee", "=", emp.Name)], ct, take: 1000))
             .Where(o => o.Name != c.Doc.Name && o.DocStatus != DocStatus.Cancelled && o.WorkflowState is not ("Rejected" or "Cancelled")

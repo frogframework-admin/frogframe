@@ -1,0 +1,187 @@
+{
+  "name": "WorkScheduleRule",
+  "version": 1,
+  "title": "Work Schedule Rule",
+  "module": "HR",
+  "description": "Configurable workforce constraint rules for shift scheduling, shift swaps, and overrides (maximum consecutive working days, minimum rest hours between shifts, night-to-morning restriction).",
+  "naming": {
+    "pattern": "field:rule_code"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "rule_code",
+      "type": "Data",
+      "label": "Rule code",
+      "requiredWhen": "true",
+      "maxLength": 30,
+      "inListView": true,
+      "section": "Rule"
+    },
+    {
+      "name": "rule_name",
+      "type": "Data",
+      "label": "Rule name",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Rule"
+    },
+    {
+      "name": "company",
+      "type": "Link",
+      "label": "Company",
+      "linkTo": "Company",
+      "inListView": true,
+      "section": "Rule",
+      "column": 2
+    },
+    {
+      "name": "organization_unit",
+      "type": "Link",
+      "label": "Organization unit",
+      "linkTo": "OrganizationUnit",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Rule",
+      "column": 2,
+      "description": "Leave empty to apply across all units of the company"
+    },
+    {
+      "name": "max_consecutive_work_days",
+      "type": "Int",
+      "label": "Max consecutive working days",
+      "requiredWhen": "true",
+      "default": 6,
+      "min": 1,
+      "max": 30,
+      "inListView": true,
+      "section": "Fatigue & Rest Constraints"
+    },
+    {
+      "name": "min_rest_hours_between_shifts",
+      "type": "Float",
+      "label": "Min rest between shifts (hours)",
+      "requiredWhen": "true",
+      "default": 11,
+      "min": 0,
+      "max": 48,
+      "inListView": true,
+      "section": "Fatigue & Rest Constraints"
+    },
+    {
+      "name": "forbid_night_to_morning",
+      "type": "Check",
+      "label": "Forbid night shift followed by morning shift",
+      "default": true,
+      "inListView": true,
+      "section": "Fatigue & Rest Constraints",
+      "column": 2
+    },
+    {
+      "name": "enforcement_mode",
+      "type": "Select",
+      "label": "Enforcement mode",
+      "requiredWhen": "true",
+      "options": [
+        "Strict",
+        "Advisory"
+      ],
+      "default": "Strict",
+      "inListView": true,
+      "section": "Fatigue & Rest Constraints",
+      "column": 2,
+      "description": "Strict blocks shift swaps and overrides that violate constraints; Advisory warns only"
+    },
+    {
+      "name": "is_active",
+      "type": "Check",
+      "label": "Active",
+      "default": true,
+      "inListView": true,
+      "section": "Rule",
+      "column": 2
+    },
+    {
+      "name": "description",
+      "type": "Text",
+      "label": "Description",
+      "section": "Remarks"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "rule_name",
+    "searchFields": [
+      "rule_code",
+      "rule_name",
+      "organization_unit"
+    ],
+    "filters": [
+      "company",
+      "organization_unit",
+      "enforcement_mode",
+      "is_active"
+    ],
+    "defaultSort": [
+      {
+        "field": "rule_code",
+        "direction": "asc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "delete"
+    ]
+  }
+}

@@ -795,7 +795,8 @@ public sealed class PostgresMetadataVersionStore(NpgsqlDataSource db) : IMetadat
             dep.ExecuteNonQuery();
         }
         using (var ins = new NpgsqlCommand(
-            "INSERT INTO frogframe_metadata_versions (doctype, version, definition, status, published_by, published_at, changes) VALUES ($1,$2,$3::jsonb,$4,$5,$6,$7::jsonb)", conn, tx))
+            "INSERT INTO frogframe_metadata_versions (doctype, version, definition, status, published_by, published_at, changes) VALUES ($1,$2,$3::jsonb,$4,$5,$6,$7::jsonb) " +
+            "ON CONFLICT (doctype, version) DO UPDATE SET definition = EXCLUDED.definition, status = EXCLUDED.status, published_by = EXCLUDED.published_by, published_at = EXCLUDED.published_at, changes = EXCLUDED.changes", conn, tx))
         {
             ins.Parameters.AddWithValue(v.DocType); ins.Parameters.AddWithValue(v.Version);
             ins.Parameters.AddWithValue(MetadataJson.Serialize(v.Def)); ins.Parameters.AddWithValue(v.Status.ToString());
@@ -846,7 +847,8 @@ public sealed class PostgresMetadataVersionStore(NpgsqlDataSource db) : IMetadat
             dep.ExecuteNonQuery();
         }
         using (var ins = new NpgsqlCommand(
-            "INSERT INTO frogframe_workflow_versions (name, doctype, version, definition, status, published_by, published_at, changes) VALUES ($1,$2,$3,$4::jsonb,$5,$6,$7,$8::jsonb)", conn, tx))
+            "INSERT INTO frogframe_workflow_versions (name, doctype, version, definition, status, published_by, published_at, changes) VALUES ($1,$2,$3,$4::jsonb,$5,$6,$7,$8::jsonb) " +
+            "ON CONFLICT (name, version) DO UPDATE SET doctype = EXCLUDED.doctype, definition = EXCLUDED.definition, status = EXCLUDED.status, published_by = EXCLUDED.published_by, published_at = EXCLUDED.published_at, changes = EXCLUDED.changes", conn, tx))
         {
             ins.Parameters.AddWithValue(v.Name); ins.Parameters.AddWithValue((object?)v.DocType ?? DBNull.Value); ins.Parameters.AddWithValue(v.Version);
             ins.Parameters.AddWithValue(MetadataJson.Serialize(v.Def)); ins.Parameters.AddWithValue(v.Status.ToString());

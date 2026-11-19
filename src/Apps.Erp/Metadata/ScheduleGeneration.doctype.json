@@ -1,0 +1,201 @@
+{
+  "name": "ScheduleGeneration",
+  "version": 1,
+  "title": "Schedule Generation",
+  "module": "HR",
+  "description": "Batch generator run that materializes Employee Daily Schedules 1–3 months ahead from effective Shift Assignments, Holiday Lists, and Approved Leaves.",
+  "naming": {
+    "pattern": "SGEN-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "company",
+      "type": "Link",
+      "label": "Company",
+      "linkTo": "Company",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Scope"
+    },
+    {
+      "name": "organization_unit",
+      "type": "Link",
+      "label": "Organization unit",
+      "linkTo": "OrganizationUnit",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Scope",
+      "description": "Includes all descendant units in the organizational subtree"
+    },
+    {
+      "name": "shift_group",
+      "type": "Link",
+      "label": "Shift group",
+      "linkTo": "ShiftGroup",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Scope",
+      "column": 2
+    },
+    {
+      "name": "employee",
+      "type": "Link",
+      "label": "Employee",
+      "linkTo": "Employee",
+      "lookupDialog": true,
+      "section": "Scope",
+      "column": 2
+    },
+    {
+      "name": "from_date",
+      "type": "Date",
+      "label": "From date",
+      "requiredWhen": "true",
+      "default": "$today",
+      "inListView": true,
+      "section": "Period"
+    },
+    {
+      "name": "to_date",
+      "type": "Date",
+      "label": "To date",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Period",
+      "column": 2
+    },
+    {
+      "name": "overwrite_unlocked",
+      "type": "Check",
+      "label": "Overwrite unlocked generator schedules",
+      "default": true,
+      "section": "Period",
+      "description": "Locked rows, approved shift swaps, manual overrides, and approved leaves are never overwritten"
+    },
+    {
+      "name": "status",
+      "type": "Select",
+      "label": "Status",
+      "options": [
+        "Draft",
+        "Generated"
+      ],
+      "default": "Draft",
+      "readOnlyWhen": "true",
+      "inListView": true,
+      "section": "Result"
+    },
+    {
+      "name": "generated_count",
+      "type": "Int",
+      "label": "Schedules generated",
+      "readOnlyWhen": "true",
+      "inListView": true,
+      "section": "Result"
+    },
+    {
+      "name": "skipped_locked_count",
+      "type": "Int",
+      "label": "Protected rows skipped",
+      "readOnlyWhen": "true",
+      "section": "Result",
+      "column": 2
+    },
+    {
+      "name": "violation_count",
+      "type": "Int",
+      "label": "Constraint warnings",
+      "readOnlyWhen": "true",
+      "inListView": true,
+      "section": "Result",
+      "column": 2
+    },
+    {
+      "name": "summary_log",
+      "type": "Text",
+      "label": "Generation log",
+      "readOnlyWhen": "true",
+      "section": "Result"
+    }
+  ],
+  "rules": [
+    {
+      "name": "valid_period",
+      "expr": "to_date >= from_date",
+      "message": "The end date must be on or after the start date",
+      "field": "to_date"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "company",
+    "searchFields": [
+      "name",
+      "company",
+      "organization_unit",
+      "shift_group"
+    ],
+    "filters": [
+      "company",
+      "organization_unit",
+      "shift_group",
+      "status"
+    ],
+    "defaultSort": [
+      {
+        "field": "from_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "delete"
+    ]
+  }
+}

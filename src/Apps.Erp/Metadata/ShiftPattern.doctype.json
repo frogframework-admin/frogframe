@@ -1,0 +1,212 @@
+{
+  "name": "ShiftPattern",
+  "version": 1,
+  "title": "Shift Pattern",
+  "module": "HR",
+  "description": "Versioned N-day rotational work pattern template (e.g. 4-Group 3-Shift 8-day cycle: 2 Morning, 2 Afternoon, 2 Night, 2 Rest). Preserves historical versions for payroll and audit.",
+  "naming": {
+    "pattern": "field:pattern_code"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "pattern_code",
+      "type": "Data",
+      "label": "Pattern code",
+      "requiredWhen": "true",
+      "maxLength": 30,
+      "inListView": true,
+      "section": "Pattern"
+    },
+    {
+      "name": "pattern_name",
+      "type": "Data",
+      "label": "Pattern name",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Pattern"
+    },
+    {
+      "name": "base_pattern_code",
+      "type": "Data",
+      "label": "Canonical pattern code",
+      "maxLength": 30,
+      "section": "Pattern",
+      "description": "Stable logical identity across pattern versions; defaults to Pattern code"
+    },
+    {
+      "name": "pattern_version",
+      "type": "Int",
+      "label": "Version",
+      "default": 1,
+      "min": 1,
+      "inListView": true,
+      "section": "Pattern",
+      "column": 2
+    },
+    {
+      "name": "cycle_days",
+      "type": "Int",
+      "label": "Cycle length (days)",
+      "requiredWhen": "true",
+      "default": 7,
+      "min": 1,
+      "max": 366,
+      "inListView": true,
+      "section": "Pattern",
+      "column": 2
+    },
+    {
+      "name": "work_week_days",
+      "type": "Select",
+      "label": "Statutory work week (days)",
+      "requiredWhen": "true",
+      "options": [
+        "5",
+        "6"
+      ],
+      "default": "5",
+      "section": "Pattern",
+      "column": 2,
+      "description": "Statutory work week basis for PP 35/2021 rest-day overtime tiers"
+    },
+    {
+      "name": "effective_from",
+      "type": "Date",
+      "label": "Effective from",
+      "requiredWhen": "true",
+      "default": "$today",
+      "inListView": true,
+      "section": "Validity"
+    },
+    {
+      "name": "effective_to",
+      "type": "Date",
+      "label": "Effective to",
+      "inListView": true,
+      "section": "Validity",
+      "column": 2
+    },
+    {
+      "name": "status",
+      "type": "Select",
+      "label": "Status",
+      "requiredWhen": "true",
+      "options": [
+        "Draft",
+        "Active",
+        "Archived"
+      ],
+      "default": "Active",
+      "inListView": true,
+      "section": "Validity"
+    },
+    {
+      "name": "is_active",
+      "type": "Check",
+      "label": "Active",
+      "default": true,
+      "inListView": true,
+      "section": "Validity",
+      "column": 2
+    },
+    {
+      "name": "items",
+      "type": "Table",
+      "label": "Cycle sequence",
+      "childDocType": "ShiftPatternItem",
+      "requiredWhen": "true",
+      "section": "Cycle sequence"
+    },
+    {
+      "name": "description",
+      "type": "Text",
+      "label": "Description",
+      "section": "Remarks"
+    }
+  ],
+  "rules": [
+    {
+      "name": "valid_period",
+      "expr": "empty(effective_to) || effective_to >= effective_from",
+      "message": "The effective end date must be on or after the effective start date",
+      "field": "effective_to"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "pattern_name",
+    "searchFields": [
+      "pattern_code",
+      "pattern_name",
+      "base_pattern_code"
+    ],
+    "filters": [
+      "status",
+      "is_active",
+      "base_pattern_code"
+    ],
+    "defaultSort": [
+      {
+        "field": "pattern_code",
+        "direction": "asc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "delete"
+    ]
+  }
+}

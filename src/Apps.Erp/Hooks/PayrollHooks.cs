@@ -207,7 +207,8 @@ public sealed class PayslipHook(IDocumentStore store) : IBeforeValidate<Payslip>
 
         var emp = await m.RequireAsync("Employee", d.Str("employee"), "employee", "Employee", ct);
         if (emp.Data.Str("company") != run.Data.Str("company")) errors.Add("employee", $"{emp.Name} belongs to another company");
-        d.SetIfEmpty("cost_center", emp.Data.Str("cost_center"));
+        var unitAtPeriodEnd = await Hr.GetOrgUnitAsOfAsync(m, emp.Data.Str("organization_unit"), periodEnd, ct);
+        d.SetIfEmpty("cost_center", unitAtPeriodEnd?.Data.Str("cost_center") ?? emp.Data.Str("cost_center"));
 
         var others = (await m.QueryAsync("Payslip", [new FilterClause("employee", "=", emp.Name), new FilterClause("period", "=", period)], ct, take: 20))
             .Where(x => x.Name != c.Doc.Name && x.DocStatus != DocStatus.Cancelled).ToList();
@@ -477,10 +478,19 @@ public sealed class PayrollRunCreatePayslipsAction(IDocumentStore store) : IForm
         var periodEnd = Payroll.PeriodEnd(period);
         var periodStart = new DateOnly(periodEnd.Year, periodEnd.Month, 1);
         var unit = run.Str("organization_unit");
+        HashSet<string>? unitSubtree = null;
+        if (unit is not null)
+        {
+            var descendants = await Hr.DescendantUnitsAsOfAsync(m, unit, periodEnd, ct);
+            unitSubtree = descendants.Select(u => u.Name)
+                .Concat(descendants.Select(u => u.Data.Str("base_unit_code")).OfType<string>())
+                .Append(unit)
+                .ToHashSet(StringComparer.Ordinal);
+        }
         var existing = (await m.QueryAsync("Payslip", [new FilterClause("period", "=", period)], ct, take: 10_000))
             .Where(s => s.DocStatus != DocStatus.Cancelled).Select(s => s.Data.Str("employee")).ToHashSet();
         var employees = (await m.QueryAsync("Employee", [new FilterClause("company", "=", run.Str("company"))], ct, take: 10_000))
-            .Where(e => unit is null || e.Data.Str("organization_unit") == unit)
+            .Where(e => unitSubtree is null || (e.Data.Str("organization_unit") is { } eu && unitSubtree.Contains(eu)))
             .Where(e => e.Data.Date("hire_date") is not { } j || j <= periodEnd)
             .Where(e => e.Data.Str("status") != Hr.Left || (e.Data.Date("separation_date") is { } sep && sep >= periodStart))
             .ToList();

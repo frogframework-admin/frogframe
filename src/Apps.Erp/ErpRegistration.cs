@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Apps.Erp.Hooks;
 using Apps.Erp.Reports;
 using Apps.Erp.Accounting;
@@ -8,6 +9,8 @@ using Framework.Web;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
+
+[assembly: InternalsVisibleTo("Framework.Tests")]
 
 namespace Apps.Erp;
 
@@ -101,16 +104,29 @@ public static class ErpRegistration
         services.AddDocHook<ExpenseClaim, ExpenseClaimHook>();
         services.AddDocHook<EmployeeAdvance, EmployeeAdvanceHook>();
 
-        // HR
+        // HR & ORGANIZATION MANAGEMENT
         services.AddDocHook<Employee, EmployeeHook>();
         services.AddDocHook<Position, PositionHook>();
+        services.AddDocHook<OrganizationUnitType, OrganizationUnitTypeHook>();
         services.AddDocHook<OrganizationUnit, OrganizationUnitHook>();
+        services.AddFormAction<OrganizationUnit, OrganizationUnitActivateAction>();
+        services.AddDocHook<EmployeeAssignment, EmployeeAssignmentHook>();
         services.AddDocHook<JobChange, JobChangeHook>();
         services.AddDocHook<EmployeeSeparation, EmployeeSeparationHook>();
         services.AddDocHook<EmploymentContract, EmploymentContractHook>();
         services.AddDocHook<LeaveAllocation, LeaveAllocationHook>();
         services.AddDocHook<LeaveApplication, LeaveApplicationHook>();
 
+        // WORKFORCE SCHEDULING & ATTENDANCE (WSM)
+        services.AddDocHook<ShiftGroup, ShiftGroupHook>();
+        services.AddDocHook<ShiftPattern, ShiftPatternHook>();
+        services.AddDocHook<ShiftAssignment, ShiftAssignmentHook>();
+        services.AddDocHook<EmployeeDailySchedule, EmployeeDailyScheduleHook>();
+        services.AddDocHook<ScheduleGeneration, ScheduleGenerationHook>();
+        services.AddFormAction<ScheduleGeneration, ScheduleGenerationRunAction>();
+        services.AddDocHook<ShiftOverride, ShiftOverrideHook>();
+        services.AddDocHook<ShiftSwapRequest, ShiftSwapRequestHook>();
+        services.AddDocHook<ShiftRequirement, ShiftRequirementHook>();
         services.AddDocHook<Attendance, AttendanceHook>();
         services.AddDocHook<OvertimeRequest, OvertimeRequestHook>();
 

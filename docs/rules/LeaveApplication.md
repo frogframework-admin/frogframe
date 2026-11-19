@@ -6,18 +6,19 @@ Aturan yang dijalankan kode saat dokumen Leave Application (LeaveApplication) di
 
 ## Ringkasan perilaku
 
-- **LeaveApplicationHook**: Pengajuan cuti: dihitung & divalidasi saat simpan dan sekali lagi saat diajukan (saldo bisa berubah di antaranya).
+- **LeaveApplicationHook**: Leave application: calculated &amp; validated on save and before approval transition. When approved, updates materialized EmployeeDailySchedule rows to LEAVE and checks shift manpower coverage.
 
 ## Validasi (dokumen ditolak): Pemeriksaan CheckAsync
 
-- `leave_type`: "{type.Name} is only for {gender.ToLowerInvariant()} employees" — terjadi bila `!(from is null || to is null || to < from) && gender is "Female" or "Male" && emp.Data.Str("gender") != gender` (LeaveApplicationHook, HrHooks.cs:324)
-- `from_date`: "There are no working days in this date range" — terjadi bila `!(from is null || to is null || to < from) && days <= 0` (LeaveApplicationHook, HrHooks.cs:327)
-- `to_date`: "At most {max} consecutive days for {type.Name}" — terjadi bila `!(from is null || to is null || to < from) && max > 0 && days > max` (LeaveApplicationHook, HrHooks.cs:329)
-- `from_date`: "Overlaps with application {clash.Name}" — terjadi bila `!(from is null || to is null || to < from) && mine.FirstOrDefault(a => Hr.Overlaps(from, to, a.Data.Date("from_date"), a.Data.Date("to_date"))) is { } clash` (LeaveApplicationHook, HrHooks.cs:335)
-- `leave_type`: "There is no {type.Name} allocation for this period" — terjadi bila `alloc is null` (LeaveApplicationHook, HrHooks.cs:341)
-- `to_date`: "Only {balance} days of {type.Name} remain" — terjadi bila `days > balance` (LeaveApplicationHook, HrHooks.cs:350)
+- `leave_type`: "{type.Name} is only for {gender.ToLowerInvariant()} employees" — terjadi bila `!(from is null || to is null || to < from) && gender is "Female" or "Male" && emp.Data.Str("gender") != gender` (LeaveApplicationHook, HrHooks.cs:807)
+- `from_date`: "There are no working days in this date range" — terjadi bila `!(from is null || to is null || to < from) && days <= 0` (LeaveApplicationHook, HrHooks.cs:810)
+- `to_date`: "At most {max} consecutive days for {type.Name}" — terjadi bila `!(from is null || to is null || to < from) && max > 0 && days > max` (LeaveApplicationHook, HrHooks.cs:812)
+- `from_date`: "Overlaps with application {clash.Name}" — terjadi bila `!(from is null || to is null || to < from) && mine.FirstOrDefault(a => Hr.Overlaps(from, to, a.Data.Date("from_date"), a.Data.Date("to_date"))) is { } clash` (LeaveApplicationHook, HrHooks.cs:818)
+- `leave_type`: "There is no {type.Name} allocation for this period" — terjadi bila `alloc is null` (LeaveApplicationHook, HrHooks.cs:824)
+- `to_date`: "Only {balance} days of {type.Name} remain" — terjadi bila `days > balance` (LeaveApplicationHook, HrHooks.cs:833)
 
 ## Aturan bersama yang juga berlaku
 
 - Approval: lihat `_shared-Approval.md`
 - Masters: lihat `_shared-Masters.md`
+- WsmLeaveSync: lihat `_shared-WsmLeaveSync.md`
