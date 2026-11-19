@@ -41,7 +41,24 @@
       "label": "Approver",
       "fetchFrom": "employee.leave_approver",
       "section": "Request",
-      "description": "The employee's leave approver"
+      "description": "The employee's line approver (or Acting substitute)"
+    },
+    {
+      "name": "project",
+      "type": "Link",
+      "label": "Project",
+      "linkTo": "Project",
+      "lookupDialog": true,
+      "section": "Request"
+    },
+    {
+      "name": "project_approver",
+      "type": "Link",
+      "label": "Project approver (Dotted-line)",
+      "linkTo": "Employee",
+      "readOnlyWhen": "true",
+      "section": "Request",
+      "description": "Resolved automatically from dotted-line EmployeeAssignment or Project Manager"
     },
     {
       "name": "overtime_date",
@@ -131,6 +148,13 @@
         "read"
       ],
       "scope": "match:approver=employee"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "match:project_approver=employee"
     },
     {
       "role": "HR",

@@ -1289,3 +1289,82 @@ public sealed class RosterRollingHorizonJob : IScheduledJob
         }
     }
 }
+
+/// <summary>
+/// Daily scheduled job: checks pending approval documents whose current approver is on approved leave (or left)
+/// and delegates them to an active Acting (Plt.) holder, sending in-app notifications to the substitute and requester.
+/// </summary>
+public sealed class ApprovalDelegationRefreshJob : IScheduledJob
+{
+    public string Name => "Erp.ApprovalDelegationRefresh";
+    public string Schedule => "@daily";
+
+    private static readonly (string DocType, string ApproverField, string RequesterField, string PendingState)[] Targets =
+    [
+        ("LeaveApplication", "leave_approver", "employee", "Pending Approval"),
+        ("OvertimeRequest", "approver", "employee", "Pending Approval"),
+        ("OvertimeRequest", "project_approver", "employee", "Pending Project Approval"),
+        ("ExpenseClaim", "expense_approver", "employee", "Pending Manager"),
+        ("ExpenseClaim", "project_approver", "employee", "Pending Project Approval"),
+        ("EmployeeAdvance", "expense_approver", "employee", "Pending Manager"),
+        ("PurchaseRequest", "approver", "requested_by", "Pending Approval"),
+        ("PurchaseRequest", "project_approver", "requested_by", "Pending Project Approval"),
+    ];
+
+    public async Task ExecuteAsync(ScheduledJobContext context, CancellationToken ct)
+    {
+        var store = context.Services.GetRequiredService<IDocumentStore>();
+        var users = context.Services.GetService<IUserDirectory>();
+        var inbox = context.Services.GetService<INotificationStore>();
+        var m = new Masters(store, context.TenantId);
+        var today = DateOnly.FromDateTime(context.ScheduledTime.Date);
+        var now = DateTimeOffset.UtcNow;
+
+        foreach (var (docType, approverField, requesterField, pendingState) in Targets)
+        {
+            var docs = (await m.QueryAsync(docType, [], ct, take: 1000))
+                .Where(d => d.WorkflowState == pendingState)
+                .ToList();
+
+            foreach (var doc in docs)
+            {
+                var curApprover = doc.Data.Str(approverField);
+                var requester = doc.Data.Str(requesterField) ?? "";
+                if (curApprover is null) continue;
+
+                var approverDoc = await m.GetAsync("Employee", curApprover, ct);
+                var unavailable = approverDoc is null || approverDoc.Data.Str("status") == Hr.Left
+                    || await Hr.IsOnApprovedLeaveAsync(m, curApprover, today, ct);
+                if (!unavailable) continue;
+
+                var acting = await Hr.FindActingDelegateAsync(m, curApprover, approverDoc?.Data.Str("position"), requester, today, ct);
+                if (acting is null || acting == curApprover) continue;
+
+                var clone = doc.Clone();
+                clone.Data[approverField] = acting;
+                clone.Version = doc.Version + 1;
+                clone.Modified = now;
+                clone.ModifiedBy = "system";
+
+                var uow = new UnitOfWork();
+                uow.Upserts.Add((clone, doc.Version));
+                await store.CommitAsync(uow, ct);
+
+                if (users is not null && inbox is not null)
+                {
+                    await Notify.ToEmployeesAsync(users, inbox, context.TenantId, [acting],
+                        $"Delegated approval: {docType} {doc.Name}",
+                        $"You have been assigned as Acting (Plt.) approver for {docType} {doc.Name} while {curApprover} is unavailable.",
+                        docType, doc.Name, $"deleg-act|{docType}|{doc.Name}|{acting}|{D.Iso(today)}", ct);
+                    if (!string.IsNullOrEmpty(requester))
+                    {
+                        await Notify.ToEmployeesAsync(users, inbox, context.TenantId, [requester],
+                            $"Approver delegated for {docType} {doc.Name}",
+                            $"Pending approval for {docType} {doc.Name} has been delegated from {curApprover} to Acting approver {acting}.",
+                            docType, doc.Name, $"deleg-req|{docType}|{doc.Name}|{acting}|{D.Iso(today)}", ct);
+                    }
+                }
+            }
+        }
+    }
+}

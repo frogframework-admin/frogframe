@@ -227,6 +227,153 @@ public static class WsmDemoSeeder
                 // Ignore if a public holiday happens to fall on the first Monday
             }
         }
+
+        // 10. Priority 3 Demo: Shift Preferences (Prefer, Avoid, Unavailable)
+        var nextMonthStart = monthStart.AddMonths(1);
+        var nextMonth14 = nextMonthStart.AddDays(13);
+        if ((await m.QueryAsync("ShiftPreference", [], ct, take: 1)).Count == 0)
+        {
+            var samplePrefs = new (string Emp, string Type, string? Shift, string? Days, string? From, string? To, int Weight, string Reason)[]
+            {
+                ("EMP-0006", "Prefer", "Shift Pagi 06-14", "Mon,Tue,Wed", null, null, 4, "Prefers morning shifts early in the week"),
+                ("EMP-0006", "Avoid", "Shift Malam 22-06", "Fri,Sat", null, null, 3, "Avoids weekend night shifts"),
+                ("EMP-0007", "Prefer", "Shift Siang 14-22", "Mon,Tue,Wed,Thu,Fri", null, null, 4, "Prefers afternoon shifts"),
+                ("EMP-0008", "Avoid", "Shift Pagi 06-14", "Sat,Sun", null, null, 3, "Avoids weekend morning shifts"),
+                ("EMP-0009", "Prefer", "Shift Malam 22-06", null, D.Iso(nextMonthStart), D.Iso(nextMonth14), 5, "Volunteers for night shift allowance"),
+                ("EMP-0007", "Unavailable", null, null, D.Iso(nextMonthStart.AddDays(4)), D.Iso(nextMonthStart.AddDays(4)), 5, "Medical appointment — unavailable"),
+            };
+            foreach (var p in samplePrefs)
+            {
+                if (await m.GetAsync("Employee", p.Emp, ct) is null) continue;
+                await docs.InsertAsync(admin, "ShiftPreference", new Dictionary<string, object?>
+                {
+                    ["employee"] = p.Emp,
+                    ["preference_type"] = p.Type,
+                    ["shift_type"] = p.Shift,
+                    ["days_of_week"] = p.Days,
+                    ["from_date"] = p.From,
+                    ["to_date"] = p.To,
+                    ["weight"] = p.Weight,
+                    ["status"] = "Active",
+                    ["reason"] = p.Reason,
+                }, "Seeded demo data", ct);
+            }
+        }
+
+        // 11. Priority 3 Demo: ScheduleOptimization in Proposed state (14-day window next month)
+        if ((await m.QueryAsync("ScheduleOptimization", [], ct, take: 1)).Count == 0)
+        {
+            var optDoc = await docs.InsertAsync(admin, "ScheduleOptimization", new Dictionary<string, object?>
+            {
+                ["company"] = "ACME",
+                ["from_date"] = D.Iso(nextMonthStart),
+                ["to_date"] = D.Iso(nextMonth14),
+                ["candidate_shift_types"] = "Shift Pagi 06-14,Shift Siang 14-22,Shift Malam 22-06",
+                ["time_limit_seconds"] = 10,
+                ["w_coverage"] = 100,
+                ["w_preference"] = 10,
+                ["w_fairness"] = 20,
+                ["w_night_balance"] = 15,
+                ["w_stability"] = 3,
+            }, "Seeded demo data", ct);
+            await WsmOptimizationService.RunAsync(store, tenant, optDoc, ct);
+        }
+
+        // 12. Priority 3 Demo: Matrix Project (PRJ-ERP-ROLLOUT) + Dotted-line & Acting (Plt.) Assignments
+        if (await m.GetAsync("Project", "PRJ-ERP-ROLLOUT", ct) is null
+            && await m.GetAsync("Employee", "EMP-0003", ct) is not null)
+        {
+            await docs.InsertAsync(admin, "Project", new Dictionary<string, object?>
+            {
+                ["project_code"] = "PRJ-ERP-ROLLOUT",
+                ["project_name"] = "ERP Cross-Department Rollout",
+                ["company"] = "ACME",
+                ["status"] = "In Progress",
+                ["start_date"] = monthStartStr,
+                ["project_manager"] = "EMP-0003",
+                ["sponsor"] = await m.GetAsync("Employee", "EMP-0001", ct) is not null ? "EMP-0001" : null,
+            }, "Seeded demo data", ct);
+        }
+
+        var allAsgs = await m.QueryAsync("EmployeeAssignment", [], ct, take: 100);
+        if (!allAsgs.Any(a => a.Data.Str("project") == "PRJ-ERP-ROLLOUT")
+            && await m.GetAsync("Employee", "EMP-0006", ct) is not null
+            && await m.GetAsync("Project", "PRJ-ERP-ROLLOUT", ct) is not null)
+        {
+            await docs.InsertAsync(admin, "EmployeeAssignment", new Dictionary<string, object?>
+            {
+                ["employee"] = "EMP-0006",
+                ["assignment_type"] = "Secondary",
+                ["status"] = "Active",
+                ["reporting_line"] = "Dotted",
+                ["project"] = "PRJ-ERP-ROLLOUT",
+                ["dotted_line_manager"] = "EMP-0003",
+                ["has_approval_authority"] = true,
+                ["start_date"] = monthStartStr,
+                ["remarks"] = "Cross-department ERP rollout implementation team member (dotted-line to Project Manager).",
+            }, "Seeded demo data", ct);
+        }
+
+        if (!allAsgs.Any(a => a.Data.Str("acting_for") == "EMP-0002")
+            && await m.GetAsync("Employee", "EMP-0005", ct) is not null
+            && await m.GetAsync("Employee", "EMP-0002", ct) is not null)
+        {
+            var emp2 = await m.GetAsync("Employee", "EMP-0002", ct);
+            await docs.InsertAsync(admin, "EmployeeAssignment", new Dictionary<string, object?>
+            {
+                ["employee"] = "EMP-0005",
+                ["assignment_type"] = "Acting",
+                ["status"] = "Active",
+                ["reporting_line"] = "Solid",
+                ["organization_unit"] = emp2?.Data.Str("organization_unit"),
+                ["acting_for"] = "EMP-0002",
+                ["has_approval_authority"] = true,
+                ["start_date"] = monthStartStr,
+                ["end_date"] = D.Iso(nextMonthEnd),
+                ["reference_memo"] = "SK-PLT-2026-009",
+                ["remarks"] = "Acting (Plt.) substitute for EMP-0002 during scheduled leave.",
+            }, "Seeded demo data", ct);
+        }
+
+        // 13. Priority 3 Demo: Sample ExpenseClaim with Project in Pending Project Approval
+        if ((await m.QueryAsync("ExpenseClaim", [new FilterClause("project", "=", "PRJ-ERP-ROLLOUT")], ct, take: 1)).Count == 0
+            && await m.GetAsync("Employee", "EMP-0006", ct) is not null
+            && await m.GetAsync("Project", "PRJ-ERP-ROLLOUT", ct) is not null)
+        {
+            var expType = (await m.QueryAsync("ExpenseClaimType", [], ct, take: 10))
+                .FirstOrDefault(t => !t.Data.Bool("requires_receipt"))
+                ?? (await m.QueryAsync("ExpenseClaimType", [], ct, take: 1)).FirstOrDefault();
+            if (expType is not null && !expType.Data.Bool("requires_receipt"))
+            {
+                try
+                {
+                    var emp6User = new UserContext("demo-emp6", "EMP-0006", tenant, new HashSet<string> { "Employee" },
+                        new Dictionary<string, string> { ["employee"] = "EMP-0006" });
+                    var claim = await docs.InsertAsync(emp6User, "ExpenseClaim", new Dictionary<string, object?>
+                    {
+                        ["employee"] = "EMP-0006",
+                        ["posting_date"] = D.Iso(today),
+                        ["purpose"] = "ERP Rollout workshop transport & meals",
+                        ["project"] = "PRJ-ERP-ROLLOUT",
+                        ["items"] = new List<Dictionary<string, object?>>
+                        {
+                            new()
+                            {
+                                ["expense_date"] = D.Iso(today),
+                                ["expense_type"] = expType.Name,
+                                ["description"] = "Cross-department ERP rollout workshop",
+                                ["amount"] = 150_000m,
+                            }
+                        }
+                    }, "Seeded demo data", ct);
+                    await docs.RunActionAsync(emp6User, "ExpenseClaim", claim.Name, "Submit for project approval", claim.Version, null, ct);
+                }
+                catch
+                {
+                    // Skip gracefully if accounting period or expense type requires extra setup
+                }
+            }
+        }
     }
 
     private static async Task EnsureShiftGroupAsync(

@@ -10,6 +10,11 @@
       "tone": "neutral"
     },
     {
+      "name": "Pending Project Approval",
+      "docStatus": 1,
+      "tone": "pending"
+    },
+    {
       "name": "Pending Approval",
       "docStatus": 1,
       "tone": "pending"
@@ -33,13 +38,51 @@
   "transitions": [
     {
       "from": "Draft",
+      "to": "Pending Project Approval",
+      "action": "Submit for project approval",
+      "allowedRoles": [
+        "Employee",
+        "HR"
+      ],
+      "condition": "(employee == user.employee || has_role('HR')) && !empty(project_approver)"
+    },
+    {
+      "from": "Draft",
       "to": "Pending Approval",
       "action": "Submit for approval",
       "allowedRoles": [
         "Employee",
         "HR"
       ],
-      "condition": "employee == user.employee || has_role('HR')"
+      "condition": "(employee == user.employee || has_role('HR')) && empty(project_approver)"
+    },
+    {
+      "from": "Pending Project Approval",
+      "to": "Pending Approval",
+      "action": "Approve (Project)",
+      "allowedRoles": [
+        "Employee"
+      ],
+      "condition": "project_approver == user.employee && employee != user.employee"
+    },
+    {
+      "from": "Pending Project Approval",
+      "to": "Rejected",
+      "action": "Reject",
+      "allowedRoles": [
+        "Employee"
+      ],
+      "condition": "project_approver == user.employee && employee != user.employee",
+      "requireComment": true
+    },
+    {
+      "from": "Pending Project Approval",
+      "to": "Cancelled",
+      "action": "Withdraw",
+      "allowedRoles": [
+        "Employee"
+      ],
+      "condition": "employee == user.employee"
     },
     {
       "from": "Pending Approval",

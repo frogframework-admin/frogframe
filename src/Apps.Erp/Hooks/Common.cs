@@ -53,6 +53,9 @@ public sealed class WorkScheduleRule { }
 public sealed class ShiftOverride { }
 public sealed class ShiftSwapRequest { }
 public sealed class ShiftRequirement { }
+public sealed class ShiftPreference { }
+public sealed class ScheduleOptimization { }
+public sealed class Project { }
 public sealed class Lead { }
 public sealed class Opportunity { }
 public sealed class Quotation { }

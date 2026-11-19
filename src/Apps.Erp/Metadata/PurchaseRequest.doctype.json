@@ -68,6 +68,25 @@
       "description": "Empty = the requester's cost center (hook)"
     },
     {
+      "name": "project",
+      "type": "Link",
+      "label": "Project",
+      "linkTo": "Project",
+      "lookupDialog": true,
+      "section": "Request",
+      "column": 2
+    },
+    {
+      "name": "project_approver",
+      "type": "Link",
+      "label": "Project approver (Dotted-line)",
+      "linkTo": "Employee",
+      "readOnlyWhen": "true",
+      "section": "Request",
+      "column": 2,
+      "description": "Resolved automatically from dotted-line EmployeeAssignment or Project Manager"
+    },
+    {
       "name": "required_by",
       "type": "Date",
       "label": "Required by",
@@ -154,6 +173,13 @@
         "read"
       ],
       "scope": "match:approver=employee"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "match:project_approver=employee"
     },
     {
       "role": "Purchasing",

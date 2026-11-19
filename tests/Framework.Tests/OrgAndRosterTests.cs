@@ -595,4 +595,230 @@ sealed partial class Tests
         var dec02StillLeave = (await mAfterLeave.QueryAsync("EmployeeDailySchedule", [new FilterClause("employee", "=", opA.Name), new FilterClause("work_date", "=", "2026-12-02")], CancellationToken.None)).Single();
         Assert.Equal("LEAVE", dec02StillLeave.Data.Str("schedule_type"), "Rolling horizon job preserves existing LEAVE slot");
     }
+
+    [Test]
+    public async Task WsmOptimizer_cpsat_respects_constraints_fairness_preferences_and_preserves_protected_slots()
+    {
+        // 1. Pure CP-SAT Engine test: 4 employees, 7 days, 3 shifts (Morning, Afternoon, Night)
+        var days = Enumerable.Range(0, 7).Select(i => new DateOnly(2026, 12, 1).AddDays(i)).ToList();
+        var emps = new List<WsmOptimizerEngine.EmployeeInput>
+        {
+            new("E1", "Alice"), new("E2", "Bob"), new("E3", "Charlie"), new("E4", "Dana")
+        };
+        var shifts = new List<WsmOptimizerEngine.ShiftInput>
+        {
+            new("SH-MORN", new TimeOnly(6, 0), new TimeOnly(14, 0), IsNight: false, IsMorning: true),
+            new("SH-AFT", new TimeOnly(14, 0), new TimeOnly(22, 0), IsNight: false, IsMorning: false),
+            new("SH-NGT", new TimeOnly(22, 0), new TimeOnly(6, 0), IsNight: true, IsMorning: false),
+        };
+        var demands = days.SelectMany(d => shifts.Select(s => new WsmOptimizerEngine.DemandInput(d, s.Code, 1, 1))).ToList();
+        var pinned = new List<WsmOptimizerEngine.PinnedSlot>
+        {
+            new("E1", days[1], "LEAVE", null),
+        };
+        var prefs = new List<WsmOptimizerEngine.PreferenceInput>
+        {
+            new("E2", "Unavailable", null, days[2], days[2], null, 5),
+            new("E3", "Prefer", "SH-MORN", days[0], days[6], null, 4),
+        };
+
+        var res = WsmOptimizerEngine.Solve(new WsmOptimizerEngine.OptimizerInput(
+            emps, days, shifts, demands, pinned, prefs,
+            new Dictionary<(string, DateOnly), string?>(),
+            new WsmOptimizerEngine.RuleInput(MaxConsecutiveWorkDays: 5, MinRestHours: 11.0, ForbidNightToMorning: true),
+            new WsmOptimizerEngine.WeightInput(Coverage: 100, Preference: 10, Fairness: 20, NightBalance: 15, Stability: 0, TimeLimitSeconds: 10)));
+
+        Assert.True(res.IsSuccess, $"CP-SAT solved successfully (status={res.SolverStatus})");
+        Assert.Equal(100.0, res.CoveragePct, "All shift demands covered 100%");
+        Assert.Equal(0, res.ShortageSlots, "Zero shortage slots");
+
+        // Verify pinned LEAVE and Unavailable respected
+        var e1Day1 = res.Lines.Single(l => l.EmployeeId == "E1" && l.WorkDate == days[1]);
+        Assert.Equal("LEAVE", e1Day1.ScheduleType, "Pinned LEAVE slot preserved");
+        var e2Day2 = res.Lines.Single(l => l.EmployeeId == "E2" && l.WorkDate == days[2]);
+        Assert.Equal("REST", e2Day2.ScheduleType, "Unavailable preference enforced as REST");
+
+        // Verify no Night -> Morning violation and max consecutive <= 5
+        foreach (var emp in emps)
+        {
+            var seq = res.Lines.Where(l => l.EmployeeId == emp.Id).OrderBy(l => l.WorkDate).ToList();
+            int consec = 0;
+            for (int i = 0; i < seq.Count; i++)
+            {
+                consec = seq[i].ScheduleType == "WORK" ? consec + 1 : 0;
+                Assert.True(consec <= 5, $"Employee {emp.Id} consecutive work days ({consec}) <= 5");
+                if (i > 0 && seq[i - 1].ShiftCode == "SH-NGT")
+                    Assert.True(seq[i].ShiftCode != "SH-MORN", $"Employee {emp.Id} has no Night -> Morning transition");
+            }
+        }
+
+        // Verify fairness spread <= 1 on symmetric workload
+        var counts = emps.Select(e => res.Lines.Count(l => l.EmployeeId == e.Id && l.ScheduleType == "WORK")).ToList();
+        Assert.True(counts.Max() - counts.Min() <= 2, $"Workload balanced across employees ({counts.Min()}..{counts.Max()})");
+
+        // 2. Over-demanded instance reports shortages cleanly instead of failing
+        var overDemands = days.Select(d => new WsmOptimizerEngine.DemandInput(d, "SH-MORN", 10, 10)).ToList();
+        var overRes = WsmOptimizerEngine.Solve(new WsmOptimizerEngine.OptimizerInput(
+            emps, days, shifts, overDemands, [], [],
+            new Dictionary<(string, DateOnly), string?>(),
+            new WsmOptimizerEngine.RuleInput(6, 11.0, true),
+            new WsmOptimizerEngine.WeightInput(100, 10, 20, 15, 0, 5)));
+        Assert.True(overRes.IsSuccess, "Over-demanded instance still returns feasible solution with shortage slack");
+        Assert.True(overRes.ShortageSlots > 0, "Shortage slots accurately reported");
+
+        // 3. End-to-end ScheduleOptimization Apply preserves locked rows
+        await using var provider = BuildErpProvider();
+        var docs = provider.GetRequiredService<DocumentService>();
+        var store = provider.GetRequiredService<IDocumentStore>();
+        var sys = UserContext.System("acme");
+
+        await docs.InsertAsync(sys, "Currency", new Dictionary<string, object?> { ["currency_code"] = "IDR", ["currency_name"] = "IDR", ["symbol"] = "Rp" });
+        await docs.InsertAsync(sys, "Company", new Dictionary<string, object?> { ["company_code"] = "ACME", ["company_name"] = "Acme Corp", ["base_currency"] = "IDR", ["country"] = "ID" });
+        await docs.InsertAsync(sys, "JobProfile", new Dictionary<string, object?> { ["job_code"] = "JOB-STD", ["job_title"] = "Standard Staff" });
+        await docs.InsertAsync(sys, "OrganizationUnit", new Dictionary<string, object?> { ["org_unit_code"] = "OPS", ["org_unit_name"] = "Ops", ["company"] = "ACME", ["unit_type"] = "Department", ["staffing_model"] = "Job", ["status"] = "Active", ["effective_from"] = "2026-01-01" });
+        await docs.InsertAsync(sys, "ShiftType", new Dictionary<string, object?> { ["shift_name"] = "Morning 06-14", ["start_time"] = "06:00:00", ["end_time"] = "14:00:00", ["break_minutes"] = 60, ["working_hours_per_day"] = 7, ["working_days_per_week"] = "6", ["late_grace_minutes"] = 10, ["is_night_shift"] = false });
+        await docs.InsertAsync(sys, "ShiftType", new Dictionary<string, object?> { ["shift_name"] = "Afternoon 14-22", ["start_time"] = "14:00:00", ["end_time"] = "22:00:00", ["break_minutes"] = 60, ["working_hours_per_day"] = 7, ["working_days_per_week"] = "6", ["late_grace_minutes"] = 10, ["is_night_shift"] = false });
+        await docs.InsertAsync(sys, "Employee", new Dictionary<string, object?> { ["employee_number"] = "OPT-1", ["full_name"] = "Opt One", ["gender"] = "Male", ["date_of_birth"] = "1995-01-01", ["company"] = "ACME", ["organization_unit"] = "OPS", ["job_profile"] = "JOB-STD", ["hire_date"] = "2026-01-01", ["status"] = "Active" });
+        await docs.InsertAsync(sys, "Employee", new Dictionary<string, object?> { ["employee_number"] = "OPT-2", ["full_name"] = "Opt Two", ["gender"] = "Female", ["date_of_birth"] = "1995-02-02", ["company"] = "ACME", ["organization_unit"] = "OPS", ["job_profile"] = "JOB-STD", ["hire_date"] = "2026-01-01", ["status"] = "Active" });
+        await docs.InsertAsync(sys, "ShiftRequirement", new Dictionary<string, object?> { ["company"] = "ACME", ["organization_unit"] = "OPS", ["shift_type"] = "Morning 06-14", ["day_scope"] = "All days", ["min_headcount"] = 1, ["target_headcount"] = 1, ["effective_from"] = "2026-01-01", ["is_active"] = true });
+
+        // Pre-seed a locked row on 2026-12-01 for OPT-1
+        await docs.InsertAsync(sys, "EmployeeDailySchedule", new Dictionary<string, object?>
+        {
+            ["employee"] = "OPT-1", ["company"] = "ACME", ["organization_unit"] = "OPS",
+            ["work_date"] = "2026-12-01", ["schedule_type"] = "WORK", ["day_category"] = "Scheduled Workday",
+            ["shift_type"] = "Afternoon 14-22", ["source_type"] = "Manual", ["is_locked"] = true,
+        });
+
+        var optDoc = await docs.InsertAsync(sys, "ScheduleOptimization", new Dictionary<string, object?>
+        {
+            ["company"] = "ACME", ["organization_unit"] = "OPS",
+            ["from_date"] = "2026-12-01", ["to_date"] = "2026-12-03",
+            ["candidate_shift_types"] = "Morning 06-14,Afternoon 14-22",
+            ["time_limit_seconds"] = 10,
+        });
+
+        var runRes = await WsmOptimizationService.RunAsync(store, "acme", optDoc, CancellationToken.None);
+        Assert.True(runRes.IsSuccess, "Optimization service run succeeded");
+        var refreshed = await store.GetAsync("acme", "ScheduleOptimization", optDoc.Name, CancellationToken.None);
+        Assert.Equal("Proposed", refreshed!.Data.Str("status"), "Status moved to Proposed");
+
+        var (applied, skipped, _) = await WsmOptimizationService.ApplyAsync(store, "acme", refreshed, CancellationToken.None);
+        Assert.True(applied >= 5, $"Applied {applied} unlocked slots");
+        Assert.Equal(1, skipped, "Skipped 1 locked row");
+
+        var m = new Masters(store, "acme");
+        var lockedAfter = (await m.QueryAsync("EmployeeDailySchedule", [new FilterClause("employee", "=", "OPT-1"), new FilterClause("work_date", "=", "2026-12-01")], CancellationToken.None)).Single();
+        Assert.Equal("Afternoon 14-22", lockedAfter.Data.Str("shift_type"), "Locked manual slot not overwritten");
+        Assert.Equal("Manual", lockedAfter.Data.Str("source_type"), "Locked slot source preserved");
+    }
+
+    [Test]
+    public async Task MatrixReporting_dotted_line_project_approval_and_acting_delegation_on_leave()
+    {
+        await using var provider = BuildErpProvider();
+        var docs = provider.GetRequiredService<DocumentService>();
+        var store = provider.GetRequiredService<IDocumentStore>();
+        var sys = UserContext.System("acme");
+        var m = new Masters(store, "acme");
+
+        await docs.InsertAsync(sys, "Currency", new Dictionary<string, object?> { ["currency_code"] = "IDR", ["currency_name"] = "IDR", ["symbol"] = "Rp" });
+        await docs.InsertAsync(sys, "Company", new Dictionary<string, object?> { ["company_code"] = "ACME", ["company_name"] = "Acme Corp", ["base_currency"] = "IDR", ["country"] = "ID" });
+        await docs.InsertAsync(sys, "JobProfile", new Dictionary<string, object?> { ["job_code"] = "JOB-STD", ["job_title"] = "Standard Staff" });
+        await docs.InsertAsync(sys, "OrganizationUnit", new Dictionary<string, object?> { ["org_unit_code"] = "DEPT-A", ["org_unit_name"] = "Dept A", ["company"] = "ACME", ["unit_type"] = "Department", ["staffing_model"] = "Job", ["status"] = "Active", ["effective_from"] = "2026-01-01" });
+        await docs.InsertAsync(sys, "OrganizationUnit", new Dictionary<string, object?> { ["org_unit_code"] = "DEPT-B", ["org_unit_name"] = "Dept B", ["company"] = "ACME", ["unit_type"] = "Department", ["staffing_model"] = "Job", ["status"] = "Active", ["effective_from"] = "2026-01-01" });
+
+        // Employees: MGR-A (line manager), PLT-A (acting substitute), PM-B (cross-dept project manager), SPONSOR (director), STAFF-A (requester)
+        await docs.InsertAsync(sys, "Employee", new Dictionary<string, object?> { ["employee_number"] = "SPONSOR", ["full_name"] = "Director Sponsor", ["gender"] = "Male", ["date_of_birth"] = "1980-01-01", ["company"] = "ACME", ["organization_unit"] = "DEPT-A", ["job_profile"] = "JOB-STD", ["hire_date"] = "2026-01-01", ["status"] = "Active" });
+        await docs.InsertAsync(sys, "Employee", new Dictionary<string, object?> { ["employee_number"] = "MGR-A", ["full_name"] = "Manager A", ["gender"] = "Male", ["date_of_birth"] = "1985-01-01", ["company"] = "ACME", ["organization_unit"] = "DEPT-A", ["job_profile"] = "JOB-STD", ["reports_to"] = "SPONSOR", ["hire_date"] = "2026-01-01", ["status"] = "Active" });
+        await docs.InsertAsync(sys, "Employee", new Dictionary<string, object?> { ["employee_number"] = "PLT-A", ["full_name"] = "Acting A", ["gender"] = "Female", ["date_of_birth"] = "1988-01-01", ["company"] = "ACME", ["organization_unit"] = "DEPT-A", ["job_profile"] = "JOB-STD", ["reports_to"] = "SPONSOR", ["hire_date"] = "2026-01-01", ["status"] = "Active" });
+        await docs.InsertAsync(sys, "Employee", new Dictionary<string, object?> { ["employee_number"] = "PM-B", ["full_name"] = "Project Manager B", ["gender"] = "Female", ["date_of_birth"] = "1987-01-01", ["company"] = "ACME", ["organization_unit"] = "DEPT-B", ["job_profile"] = "JOB-STD", ["reports_to"] = "SPONSOR", ["hire_date"] = "2026-01-01", ["status"] = "Active" });
+        var staffDoc = await docs.InsertAsync(sys, "Employee", new Dictionary<string, object?> { ["employee_number"] = "STAFF-A", ["full_name"] = "Staff A", ["gender"] = "Male", ["date_of_birth"] = "1995-01-01", ["company"] = "ACME", ["organization_unit"] = "DEPT-A", ["job_profile"] = "JOB-STD", ["reports_to"] = "MGR-A", ["leave_approver"] = "MGR-A", ["expense_approver"] = "MGR-A", ["hire_date"] = "2026-01-01", ["status"] = "Active" });
+
+        // Project + Dotted-line Assignment + Acting Assignment
+        await docs.InsertAsync(sys, "Project", new Dictionary<string, object?>
+        {
+            ["project_code"] = "PRJ-MATRIX", ["project_name"] = "Matrix Project",
+            ["company"] = "ACME", ["status"] = "In Progress", ["project_manager"] = "PM-B", ["sponsor"] = "SPONSOR",
+        });
+        await docs.InsertAsync(sys, "EmployeeAssignment", new Dictionary<string, object?>
+        {
+            ["employee"] = "STAFF-A", ["assignment_type"] = "Secondary", ["status"] = "Active",
+            ["reporting_line"] = "Dotted", ["project"] = "PRJ-MATRIX", ["dotted_line_manager"] = "PM-B",
+            ["has_approval_authority"] = true, ["start_date"] = "2026-01-01",
+        });
+        await docs.InsertAsync(sys, "EmployeeAssignment", new Dictionary<string, object?>
+        {
+            ["employee"] = "PLT-A", ["assignment_type"] = "Acting", ["status"] = "Active",
+            ["reporting_line"] = "Solid", ["organization_unit"] = "DEPT-A", ["acting_for"] = "MGR-A",
+            ["has_approval_authority"] = true, ["start_date"] = "2026-12-01", ["end_date"] = "2026-12-31",
+        });
+
+        // 1. ResolveApproversAsync when MGR-A is NOT on leave
+        var r1 = await Hr.ResolveApproversAsync(m, staffDoc, "PRJ-MATRIX", new DateOnly(2026, 12, 10), CancellationToken.None, "leave_approver");
+        Assert.Equal("MGR-A", r1.LineApprover, "Solid line approver is MGR-A");
+        Assert.Equal("PM-B", r1.ProjectApprover, "Dotted/project approver is PM-B");
+        Assert.True(!r1.LineDelegated, "Not delegated when MGR-A is available");
+
+        // Self-approval guard: PM-B requesting on PRJ-MATRIX falls back to SPONSOR
+        var pmDoc = (await m.GetAsync("Employee", "PM-B", CancellationToken.None))!;
+        var rSelf = await Hr.ResolveApproversAsync(m, pmDoc, "PRJ-MATRIX", new DateOnly(2026, 12, 10), CancellationToken.None);
+        Assert.Equal("SPONSOR", rSelf.ProjectApprover, "Self-approval prevented: PM-B falls back to project sponsor");
+
+        // 2. OvertimeRequest WITH project routes through Pending Project Approval -> Pending Approval -> Approved
+        var staffUser = new UserContext("u-staff", "Staff A", "acme", new HashSet<string> { "Employee" }, new Dictionary<string, string> { ["employee"] = "STAFF-A" });
+        var pmUser = new UserContext("u-pm", "PM B", "acme", new HashSet<string> { "Employee" }, new Dictionary<string, string> { ["employee"] = "PM-B" });
+        var mgrUser = new UserContext("u-mgr", "Mgr A", "acme", new HashSet<string> { "Employee" }, new Dictionary<string, string> { ["employee"] = "MGR-A" });
+        var pltUser = new UserContext("u-plt", "Acting A", "acme", new HashSet<string> { "Employee" }, new Dictionary<string, string> { ["employee"] = "PLT-A" });
+
+        var otWithProj = await docs.InsertAsync(staffUser, "OvertimeRequest", new Dictionary<string, object?>
+        {
+            ["employee"] = "STAFF-A", ["overtime_date"] = "2026-12-10", ["hours"] = 2m,
+            ["day_type"] = "Working day", ["project"] = "PRJ-MATRIX", ["reason"] = "Matrix deployment",
+        });
+        Assert.Equal("PM-B", otWithProj.Data.Str("project_approver"), "Project approver resolved on OvertimeRequest");
+        otWithProj = await docs.RunActionAsync(staffUser, "OvertimeRequest", otWithProj.Name, "Submit for project approval", otWithProj.Version, null);
+        Assert.Equal("Pending Project Approval", otWithProj.WorkflowState, "Routed to Pending Project Approval first");
+        otWithProj = await docs.RunActionAsync(pmUser, "OvertimeRequest", otWithProj.Name, "Approve (Project)", otWithProj.Version, "PM approved");
+        Assert.Equal("Pending Approval", otWithProj.WorkflowState, "Advanced to Pending Approval (line manager)");
+        otWithProj = await docs.RunActionAsync(mgrUser, "OvertimeRequest", otWithProj.Name, "Approve", otWithProj.Version, "Line manager approved");
+        Assert.Equal("Approved", otWithProj.WorkflowState, "Final approval completed");
+
+        // 3. OvertimeRequest WITHOUT project skips Pending Project Approval
+        var otNoProj = await docs.InsertAsync(staffUser, "OvertimeRequest", new Dictionary<string, object?>
+        {
+            ["employee"] = "STAFF-A", ["overtime_date"] = "2026-12-11", ["hours"] = 2m,
+            ["day_type"] = "Working day", ["reason"] = "Regular task",
+        });
+        otNoProj = await docs.RunActionAsync(staffUser, "OvertimeRequest", otNoProj.Name, "Submit for approval", otNoProj.Version, null);
+        Assert.Equal("Pending Approval", otNoProj.WorkflowState, "Without project goes directly to Pending Approval");
+
+        // 4. MGR-A takes approved leave on 2026-12-15 -> Resolver + Delegation Refresh Job delegate to PLT-A!
+        await docs.InsertAsync(sys, "LeaveType", new Dictionary<string, object?> { ["leave_type_name"] = "Annual", ["is_annual_quota"] = false, ["is_paid"] = true, ["max_consecutive_days"] = 10 });
+        var hrUser = new UserContext("u-hr", "HR", "acme", new HashSet<string> { "HR", "Employee" }, new Dictionary<string, string>());
+        var mgrLeave = await docs.InsertAsync(hrUser, "LeaveApplication", new Dictionary<string, object?>
+        {
+            ["employee"] = "MGR-A", ["leave_type"] = "Annual",
+            ["from_date"] = "2026-12-15", ["to_date"] = "2026-12-16", ["reason"] = "Vacation",
+        });
+        mgrLeave = await docs.RunActionAsync(hrUser, "LeaveApplication", mgrLeave.Name, "Submit for approval", mgrLeave.Version, null);
+        mgrLeave = await docs.RunActionAsync(hrUser, "LeaveApplication", mgrLeave.Name, "Approve (HR)", mgrLeave.Version, "OK");
+
+        var rOnLeave = await Hr.ResolveApproversAsync(m, staffDoc, "PRJ-MATRIX", new DateOnly(2026, 12, 15), CancellationToken.None, "leave_approver");
+        Assert.Equal("PLT-A", rOnLeave.LineApprover, "Acting (Plt.) PLT-A substituted while MGR-A is on leave");
+        Assert.True(rOnLeave.LineDelegated, "LineDelegated flag set");
+
+        // Pending document (otNoProj) gets re-pointed by ApprovalDelegationRefreshJob
+        var delegJob = new ApprovalDelegationRefreshJob();
+        await delegJob.ExecuteAsync(new Framework.Jobs.ScheduledJobContext
+        {
+            TenantId = "acme", SystemUser = sys, Docs = docs, Services = provider,
+            ScheduledTime = new DateTimeOffset(2026, 12, 15, 3, 0, 0, TimeSpan.Zero),
+        }, CancellationToken.None);
+
+        var otDelegated = (await store.GetAsync("acme", "OvertimeRequest", otNoProj.Name, CancellationToken.None))!;
+        Assert.Equal("PLT-A", otDelegated.Data.Str("approver"), "Delegation refresh job re-pointed pending doc to PLT-A");
+        otDelegated = await docs.RunActionAsync(pltUser, "OvertimeRequest", otDelegated.Name, "Approve", otDelegated.Version, "Approved as Acting (Plt.)");
+        Assert.Equal("Approved", otDelegated.WorkflowState, "Acting (Plt.) holder successfully approved delegated document");
+    }
 }

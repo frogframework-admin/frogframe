@@ -43,8 +43,12 @@ This document tracks the implemented architecture for **Enterprise Organization 
 3. **PostgreSQL Composite Index Optimization**:
    - Explicit indexes in `DocumentIndexSync` for `(tenant_id, employee, work_date)` on `EmployeeDailySchedule` and `text_pattern_ops` on `OrganizationUnit.materialized_path`.
 
-### Priority 3: Advanced Optimization (Future)
-1. **Constraint Solver Auto-Scheduling**:
-   - Optimization engine (e.g., MILP / Google OR-Tools) to propose optimal shift assignments balancing employee preferences, competencies, and rest constraints.
-2. **Matrix Reporting Approval Routing**:
-   - Extended approval delegation using `EmployeeAssignment` (`Secondary` / `Acting`) for cross-functional projects.
+### Priority 3: Advanced Optimization & Matrix Governance (Implemented)
+1. **Constraint Solver Auto-Scheduling (`WsmOptimizerEngine` / Google OR-Tools CP-SAT)**:
+   - Added `ShiftPreference` (`Prefer` / `Avoid` / `Unavailable` with date ranges, day-of-week filters, and 1–5 priority weight) and `ScheduleOptimization` + `ScheduleOptimizationLine`.
+   - Implemented `WsmOptimizerEngine` (OR-Tools CP-SAT) optimizing coverage shortage slack, preferences, total/weekend workload fairness, night shift balance, and stability vs baseline while strictly enforcing `WorkScheduleRule` (max consecutive work days, min rest hours, night-to-morning restriction), pinned/locked/override/swap/leave rows, and `Unavailable` constraints.
+   - Added `Run Optimizer (CP-SAT)`, `Apply Proposal`, and `Discard Proposal` actions, interactive preview page at `/hr/schedule-optimization/{name}`, and ESS mobile API endpoints (`GET/POST /api/ess/v1/shift-preferences`).
+2. **Matrix Reporting & Dotted-Line Approval**:
+   - Extended `EmployeeAssignment` with `reporting_line` (`Solid` / `Dotted`), `dotted_line_manager`, `project`, `acting_for` (Plt.), and `has_approval_authority`, and `Project` with `project_manager` and `sponsor`.
+   - Implemented `Hr.ResolveApproversAsync` supporting automatic Acting (Plt.) substitution when a line manager is on approved leave or vacant, dotted-line / project approver resolution, and self-approval guards.
+   - Added `Pending Project Approval` stage to `ExpenseClaimApproval`, `OvertimeApproval`, and `PurchaseRequestApproval` workflows, daily `Erp.ApprovalDelegationRefresh` job with in-app notifications, ESS pending-approval integration, and dotted-line / Acting (Plt.) visualization on `/hr/organizational-chart/{id}`.

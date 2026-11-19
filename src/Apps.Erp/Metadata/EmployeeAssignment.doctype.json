@@ -86,7 +86,7 @@
       "type": "Link",
       "label": "Organization unit",
       "linkTo": "OrganizationUnit",
-      "requiredWhen": "true",
+      "requiredWhen": "empty(project)",
       "lookupDialog": true,
       "inListView": true,
       "section": "Placement"
@@ -117,6 +117,61 @@
       "lookupDialog": true,
       "section": "Placement",
       "column": 2
+    },
+    {
+      "name": "reporting_line",
+      "type": "Select",
+      "label": "Reporting line",
+      "requiredWhen": "true",
+      "options": [
+        "Solid",
+        "Dotted"
+      ],
+      "default": "Solid",
+      "inListView": true,
+      "section": "Matrix & Delegation",
+      "description": "Solid = structural reporting; Dotted = functional / cross-department matrix reporting"
+    },
+    {
+      "name": "dotted_line_manager",
+      "type": "Link",
+      "label": "Dotted-line manager",
+      "linkTo": "Employee",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Matrix & Delegation",
+      "description": "Functional or project supervisor for this dotted-line assignment"
+    },
+    {
+      "name": "project",
+      "type": "Link",
+      "label": "Project",
+      "linkTo": "Project",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Matrix & Delegation",
+      "column": 2,
+      "description": "Cross-department project scope for matrix reporting and project approvals"
+    },
+    {
+      "name": "acting_for",
+      "type": "Link",
+      "label": "Acting for (Plt.)",
+      "linkTo": "Employee",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Matrix & Delegation",
+      "column": 2,
+      "description": "Manager being substituted during leave or vacancy (for Acting assignments)"
+    },
+    {
+      "name": "has_approval_authority",
+      "type": "Check",
+      "label": "Has approval authority",
+      "default": true,
+      "section": "Matrix & Delegation",
+      "column": 2,
+      "description": "Grants approval delegation rights for this Acting or Dotted-line assignment"
     },
     {
       "name": "start_date",

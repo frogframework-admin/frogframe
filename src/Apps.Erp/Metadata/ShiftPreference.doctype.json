@@ -1,0 +1,210 @@
+{
+  "name": "ShiftPreference",
+  "version": 1,
+  "title": "Shift Preference",
+  "module": "HR",
+  "description": "Employee shift preference or availability constraint used by the CP-SAT Auto-Scheduling Optimizer.",
+  "naming": {
+    "pattern": "SPREF-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "employee",
+      "type": "Link",
+      "label": "Employee",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Preference"
+    },
+    {
+      "name": "employee_name",
+      "type": "Data",
+      "label": "Employee name",
+      "fetchFrom": "employee.full_name",
+      "inListView": true,
+      "section": "Preference"
+    },
+    {
+      "name": "company",
+      "type": "Data",
+      "label": "Company",
+      "fetchFrom": "employee.company",
+      "inListView": true,
+      "section": "Preference"
+    },
+    {
+      "name": "preference_type",
+      "type": "Select",
+      "label": "Preference type",
+      "requiredWhen": "true",
+      "options": [
+        "Prefer",
+        "Avoid",
+        "Unavailable"
+      ],
+      "default": "Prefer",
+      "inListView": true,
+      "section": "Preference",
+      "column": 2,
+      "description": "Prefer = bonus if assigned; Avoid = soft penalty; Unavailable = hard constraint (cannot be scheduled)"
+    },
+    {
+      "name": "shift_type",
+      "type": "Link",
+      "label": "Shift type",
+      "linkTo": "ShiftType",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Preference",
+      "column": 2,
+      "description": "Leave empty to apply to all working shifts on the specified days/dates"
+    },
+    {
+      "name": "weight",
+      "type": "Int",
+      "label": "Priority weight (1-5)",
+      "default": 3,
+      "min": 1,
+      "max": 5,
+      "inListView": true,
+      "section": "Preference",
+      "column": 2
+    },
+    {
+      "name": "from_date",
+      "type": "Date",
+      "label": "From date",
+      "inListView": true,
+      "section": "Applicability"
+    },
+    {
+      "name": "to_date",
+      "type": "Date",
+      "label": "To date",
+      "inListView": true,
+      "section": "Applicability",
+      "column": 2
+    },
+    {
+      "name": "days_of_week",
+      "type": "Data",
+      "label": "Days of week (optional)",
+      "section": "Applicability",
+      "description": "Comma-separated days, e.g. Mon,Tue,Fri or Sat,Sun. Leave empty for every day in the date range."
+    },
+    {
+      "name": "status",
+      "type": "Select",
+      "label": "Status",
+      "requiredWhen": "true",
+      "options": [
+        "Active",
+        "Inactive"
+      ],
+      "default": "Active",
+      "inListView": true,
+      "section": "Applicability",
+      "column": 2
+    },
+    {
+      "name": "reason",
+      "type": "Text",
+      "label": "Reason",
+      "section": "Remarks"
+    }
+  ],
+  "rules": [
+    {
+      "name": "valid_period",
+      "expr": "empty(from_date) || empty(to_date) || to_date >= from_date",
+      "message": "The end date must be on or after the start date",
+      "field": "to_date"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete"
+      ],
+      "scope": "match:employee=employee"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "employee_name",
+    "searchFields": [
+      "name",
+      "employee",
+      "employee_name",
+      "shift_type",
+      "days_of_week"
+    ],
+    "filters": [
+      "company",
+      "employee",
+      "preference_type",
+      "shift_type",
+      "status"
+    ],
+    "defaultSort": [
+      {
+        "field": "from_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "delete"
+    ]
+  }
+}

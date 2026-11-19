@@ -1,0 +1,67 @@
+{
+  "name": "ScheduleOptimizationLine",
+  "version": 1,
+  "title": "Schedule Optimization Line",
+  "module": "HR",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "employee",
+      "type": "Link",
+      "label": "Employee",
+      "linkTo": "Employee",
+      "requiredWhen": "true"
+    },
+    {
+      "name": "employee_name",
+      "type": "Data",
+      "label": "Employee name"
+    },
+    {
+      "name": "work_date",
+      "type": "Date",
+      "label": "Work date",
+      "requiredWhen": "true"
+    },
+    {
+      "name": "schedule_type",
+      "type": "Select",
+      "label": "Schedule type",
+      "options": [
+        "WORK",
+        "REST",
+        "LEAVE",
+        "HOLIDAY"
+      ],
+      "default": "WORK"
+    },
+    {
+      "name": "shift_type",
+      "type": "Link",
+      "label": "Shift type",
+      "linkTo": "ShiftType"
+    },
+    {
+      "name": "previous_shift_type",
+      "type": "Data",
+      "label": "Previous shift"
+    },
+    {
+      "name": "is_changed",
+      "type": "Check",
+      "label": "Changed",
+      "default": false
+    },
+    {
+      "name": "is_pinned",
+      "type": "Check",
+      "label": "Pinned",
+      "default": false
+    },
+    {
+      "name": "preference_hit",
+      "type": "Data",
+      "label": "Preference"
+    }
+  ]
+}

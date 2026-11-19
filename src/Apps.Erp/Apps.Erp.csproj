@@ -13,4 +13,7 @@
     <ProjectReference Include="..\Framework.Web\Framework.Web.csproj" />
     <ProjectReference Include="..\Framework.Persistence.PostgreSql\Framework.Persistence.PostgreSql.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Google.OrTools" Version="9.15.6755" />
+  </ItemGroup>
 </Project>

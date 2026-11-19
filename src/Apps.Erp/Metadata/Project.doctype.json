@@ -103,6 +103,25 @@
       "min": 0,
       "section": "Schedule & Value",
       "column": 2
+    },
+    {
+      "name": "project_manager",
+      "type": "Link",
+      "label": "Project manager",
+      "linkTo": "Employee",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Governance",
+      "description": "Functional approver for cross-department requests tagged with this project"
+    },
+    {
+      "name": "sponsor",
+      "type": "Link",
+      "label": "Project sponsor",
+      "linkTo": "Employee",
+      "lookupDialog": true,
+      "section": "Governance",
+      "column": 2
     }
   ],
   "rules": [

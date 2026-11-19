@@ -10,6 +10,11 @@
       "tone": "neutral"
     },
     {
+      "name": "Pending Project Approval",
+      "docStatus": 1,
+      "tone": "pending"
+    },
+    {
       "name": "Pending Manager",
       "docStatus": 1,
       "tone": "pending"
@@ -38,8 +43,45 @@
   "transitions": [
     {
       "from": "Draft",
+      "to": "Pending Project Approval",
+      "action": "Submit for project approval",
+      "allowedRoles": [
+        "Employee"
+      ],
+      "condition": "employee == user.employee && !empty(project_approver)"
+    },
+    {
+      "from": "Draft",
       "to": "Pending Manager",
       "action": "Submit for approval",
+      "allowedRoles": [
+        "Employee"
+      ],
+      "condition": "employee == user.employee && empty(project_approver)"
+    },
+    {
+      "from": "Pending Project Approval",
+      "to": "Pending Manager",
+      "action": "Approve (Project)",
+      "allowedRoles": [
+        "Employee"
+      ],
+      "condition": "project_approver == user.employee && employee != user.employee"
+    },
+    {
+      "from": "Pending Project Approval",
+      "to": "Rejected",
+      "action": "Reject",
+      "allowedRoles": [
+        "Employee"
+      ],
+      "condition": "project_approver == user.employee && employee != user.employee",
+      "requireComment": true
+    },
+    {
+      "from": "Pending Project Approval",
+      "to": "Cancelled",
+      "action": "Withdraw",
       "allowedRoles": [
         "Employee"
       ],

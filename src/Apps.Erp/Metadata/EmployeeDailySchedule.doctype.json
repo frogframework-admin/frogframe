@@ -150,6 +150,7 @@
       "label": "Source",
       "options": [
         "Generator",
+        "Optimizer",
         "Override",
         "Shift Swap",
         "Leave",

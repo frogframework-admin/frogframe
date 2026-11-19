@@ -52,6 +52,14 @@ public sealed class PurchaseRequestHook(IDocumentStore store) : IBeforeValidate<
         {
             d.SetIfEmpty("company", emp.Data.Str("company"));
             d.SetIfEmpty("cost_center", emp.Data.Str("cost_center"));
+            if (c.Doc.DocStatus == DocStatus.Draft)
+            {
+                var asOf = d.Date("required_by") ?? DateOnly.FromDateTime(DateTime.UtcNow);
+                var resolved = await Hr.ResolveApproversAsync(m, emp, d.Str("project"), asOf, ct, "expense_approver");
+                if (resolved.LineDelegated || d.Str("approver") is null)
+                    d["approver"] = resolved.LineApprover;
+                d["project_approver"] = resolved.ProjectApprover;
+            }
         }
     }
 

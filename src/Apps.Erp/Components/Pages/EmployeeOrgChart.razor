@@ -1,5 +1,6 @@
 @page "/hr/organizational-chart/{EmployeeId}"
 @page "/hr/org-chart/{EmployeeId}"
+@using Apps.Erp.Hooks
 @inject DocumentService Docs
 @inject CurrentUser Current
 @inject IPermissionService Perms
@@ -68,6 +69,14 @@ else
                             <strong>@EmpName(targetEmployee)</strong>
                             <span class="muted" style="margin-left:.35rem;font-family:monospace;font-size:.8rem">(@targetCode)</span>
                             <span style="margin-left:.4rem;padding:.1rem .45rem;border-radius:999px;font-size:.7rem;font-weight:600;background:#dcfce7;color:#166534">@targetStatus</span>
+                            @if (actingRoles.Count > 0)
+                            {
+                                var actingTip = string.Join("; ", actingRoles.Select(a =>
+                                    $"Acting for {Str(a, "acting_for") ?? Str(a, "position") ?? Str(a, "organization_unit")}"));
+                                <span title="@actingTip" style="margin-left:.35rem;padding:.1rem .5rem;border-radius:999px;font-size:.7rem;font-weight:600;background:#ede9fe;color:#6d28d9;border:1px dashed #7c3aed">
+                                    Acting (Plt.)
+                                </span>
+                            }
                         </div>
                     </div>
                     <div class="emp-org-detail-item">
@@ -111,16 +120,105 @@ else
             </div>
         </BbCardContent>
     </BbCard>
+
+    @if (dottedManagers.Count > 0 || matrixReports.Count > 0 || actingRoles.Count > 0)
+    {
+        <BbCard Style="margin-top:1rem">
+            <BbCardContent>
+                <div style="padding-top:.75rem;display:flex;flex-direction:column;gap:1rem">
+                    <div style="display:flex;align-items:center;gap:.5rem">
+                        <strong style="font-size:.95rem">Matrix Reporting &amp; Dotted-Line Relationships</strong>
+                        <span style="padding:.15rem .5rem;border-radius:.25rem;background:#f5f3ff;color:#6d28d9;border:1.5px dashed #7c3aed;font-size:.72rem;font-weight:600">Dotted-Line / Project</span>
+                    </div>
+
+                    @if (dottedManagers.Count > 0)
+                    {
+                        <div>
+                            <div class="muted small" style="margin-bottom:.4rem">Dotted-line / Project Managers</div>
+                            <div style="display:flex;gap:.75rem;flex-wrap:wrap">
+                                @foreach (var dm in dottedManagers)
+                                {
+                                    <a href="/hr/organizational-chart/@dm.Manager.Name"
+                                       style="text-decoration:none;color:inherit;display:flex;gap:.6rem;align-items:center;padding:.55rem .75rem;border-radius:.5rem;border:2px dashed #7c3aed;background:#f5f3ff;min-width:14rem">
+                                        <span class="org-avatar">@Initials(EmpName(dm.Manager))</span>
+                                        <span style="display:flex;flex-direction:column;font-size:.8rem">
+                                            <strong>@EmpName(dm.Manager)</strong>
+                                            <span class="muted" style="font-size:.72rem">@(EmpTitle(dm.Manager) ?? dm.Manager.Name)</span>
+                                            @if (!string.IsNullOrWhiteSpace(dm.Project))
+                                            {
+                                                <span style="color:#6d28d9;font-size:.7rem;font-weight:600">Project: @dm.Project</span>
+                                            }
+                                        </span>
+                                    </a>
+                                }
+                            </div>
+                        </div>
+                    }
+
+                    @if (matrixReports.Count > 0)
+                    {
+                        <div>
+                            <div class="muted small" style="margin-bottom:.4rem">Matrix Reports (Dotted-line subordinates)</div>
+                            <div style="display:flex;gap:.75rem;flex-wrap:wrap">
+                                @foreach (var mr in matrixReports)
+                                {
+                                    <a href="/hr/organizational-chart/@mr.Employee.Name"
+                                       style="text-decoration:none;color:inherit;display:flex;gap:.6rem;align-items:center;padding:.55rem .75rem;border-radius:.5rem;border:1.5px dashed #7c3aed;background:#faf5ff;min-width:14rem">
+                                        <span class="org-avatar">@Initials(EmpName(mr.Employee))</span>
+                                        <span style="display:flex;flex-direction:column;font-size:.8rem">
+                                            <strong>@EmpName(mr.Employee)</strong>
+                                            <span class="muted" style="font-size:.72rem">@(EmpTitle(mr.Employee) ?? mr.Employee.Name)</span>
+                                            @if (!string.IsNullOrWhiteSpace(mr.Project))
+                                            {
+                                                <span style="color:#6d28d9;font-size:.7rem;font-weight:600">Project: @mr.Project</span>
+                                            }
+                                        </span>
+                                    </a>
+                                }
+                            </div>
+                        </div>
+                    }
+
+                    @if (actingRoles.Count > 0)
+                    {
+                        <div>
+                            <div class="muted small" style="margin-bottom:.4rem">Active Acting (Plt.) Appointments</div>
+                            <div style="display:flex;gap:.6rem;flex-wrap:wrap">
+                                @foreach (var act in actingRoles)
+                                {
+                                    <div style="padding:.45rem .75rem;border-radius:.375rem;border:1px solid #c4b5fd;background:#f5f3ff;font-size:.8rem">
+                                        <strong>Acting (Plt.)</strong>
+                                        @if (!string.IsNullOrWhiteSpace(Str(act, "acting_for")))
+                                        {
+                                            <span> for <a href="/hr/organizational-chart/@Str(act, "acting_for")">@Str(act, "acting_for")</a></span>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(Str(act, "position")))
+                                        {
+                                            <span class="muted"> · @Str(act, "position")</span>
+                                        }
+                                        <span class="muted small"> (@Str(act, "start_date") – @(Str(act, "end_date") ?? "open"))</span>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            </BbCardContent>
+        </BbCard>
+    }
 }
 
 @code {
     [Parameter] public string EmployeeId { get; set; } = string.Empty;
 
-    private IReadOnlyList<Document>? orgUnits, employees;
+    private IReadOnlyList<Document>? orgUnits, employees, assignments;
     private Document? targetEmployee;
     private string? error;
     private IReadOnlyList<OrgNode> FocusedNodes = [];
     private Dictionary<string, string> unitNames = new(StringComparer.OrdinalIgnoreCase);
+    private List<(Document Manager, string? Project)> dottedManagers = [];
+    private List<(Document Employee, string? Project)> matrixReports = [];
+    private List<Document> actingRoles = [];
 
     private static string? Str(Document d, string f) => d.Data.GetValueOrDefault(f) as string;
     private static string EmpName(Document e) => Str(e, "full_name") ?? Str(e, "employee_name") ?? e.Name;
@@ -152,6 +250,7 @@ else
                 var sys = UserContext.System(Current.Required.TenantId);
                 orgUnits = await Docs.QueryForReportAsync(sys, "OrganizationUnit", [], DocActions.Read);
                 employees = await Docs.QueryForReportAsync(sys, "Employee", [], DocActions.Read);
+                assignments = await Docs.QueryForReportAsync(sys, "EmployeeAssignment", [], DocActions.Read);
             }
             catch (PermissionDeniedException ex) { error = ex.Message; return; }
 
@@ -228,6 +327,34 @@ else
         }
 
         FocusedNodes = nodes;
+
+        // Matrix & Acting relationships (valid today)
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var activeAsgs = (assignments ?? [])
+            .Where(a => string.Equals(Str(a, "status"), "Active", StringComparison.OrdinalIgnoreCase))
+            .Where(a => (a.Data.Date("start_date") is not { } s || s <= today) && (a.Data.Date("end_date") is not { } e || today <= e))
+            .ToList();
+
+        actingRoles = activeAsgs
+            .Where(a => string.Equals(Str(a, "employee"), targetEmployee.Name, StringComparison.OrdinalIgnoreCase)
+                        && string.Equals(Str(a, "assignment_type"), "Acting", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        dottedManagers = activeAsgs
+            .Where(a => string.Equals(Str(a, "employee"), targetEmployee.Name, StringComparison.OrdinalIgnoreCase)
+                        && string.Equals(Str(a, "reporting_line"), "Dotted", StringComparison.OrdinalIgnoreCase)
+                        && Str(a, "dotted_line_manager") is { } dmId && byId.ContainsKey(dmId))
+            .Select(a => (byId[Str(a, "dotted_line_manager")!], Str(a, "project")))
+            .DistinctBy(x => (x.Item1.Name, x.Item2))
+            .ToList();
+
+        matrixReports = activeAsgs
+            .Where(a => string.Equals(Str(a, "reporting_line"), "Dotted", StringComparison.OrdinalIgnoreCase)
+                        && string.Equals(Str(a, "dotted_line_manager"), targetEmployee.Name, StringComparison.OrdinalIgnoreCase)
+                        && Str(a, "employee") is { } eId && byId.ContainsKey(eId))
+            .Select(a => (byId[Str(a, "employee")!], Str(a, "project")))
+            .DistinctBy(x => (x.Item1.Name, x.Item2))
+            .ToList();
     }
 
     private OrgNode ToNode(Document e, string? parentId, string cssClass, bool highlight)

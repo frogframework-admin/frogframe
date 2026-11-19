@@ -32,7 +32,14 @@ public sealed class EmployeeAdvanceHook(ILedgerReader ledger, IDocumentStore sto
     {
         var m = new Masters(store, c.Doc.TenantId);
         var d = c.Doc.Data;
-        await Approval.ActiveEmployeeAsync(m, d.Str("employee"), ct);
+        var emp = await Approval.ActiveEmployeeAsync(m, d.Str("employee"), ct);
+        if (c.Doc.DocStatus == DocStatus.Draft)
+        {
+            var asOf = d.Date("posting_date") ?? DateOnly.FromDateTime(clock.GetLocalNow().Date);
+            var resolved = await Hr.ResolveApproversAsync(m, emp, null, asOf, ct, "expense_approver");
+            if (resolved.LineDelegated || d.Str("expense_approver") is null)
+                d["expense_approver"] = resolved.LineApprover;
+        }
         if (d.Str("advance_account") is null)
         {
             var acc = (await m.QueryAsync("Account", [new FilterClause("account_type", "=", "Advance"), new FilterClause("is_group", "=", false)], ct, take: 5))
@@ -112,6 +119,14 @@ public sealed class ExpenseClaimHook(ILedgerReader ledger, IDocumentStore store,
         var d = c.Doc.Data;
         var errors = new Errors();
         var emp = await Approval.ActiveEmployeeAsync(m, d.Str("employee"), ct);
+        if (c.Doc.DocStatus == DocStatus.Draft)
+        {
+            var asOf = d.Date("posting_date") ?? DateOnly.FromDateTime(clock.GetLocalNow().Date);
+            var resolved = await Hr.ResolveApproversAsync(m, emp, d.Str("project"), asOf, ct, "expense_approver");
+            if (resolved.LineDelegated || d.Str("expense_approver") is null)
+                d["expense_approver"] = resolved.LineApprover;
+            d["project_approver"] = resolved.ProjectApprover;
+        }
         var company = await CompanyInfo.LoadAsync(m, emp.Data.Str("company"), ct);
         d.SetIfEmpty("payable_account", company.Default("default_payable_account"));
         var rows = d.Rows("items");

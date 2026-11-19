@@ -1,0 +1,262 @@
+@page "/hr/schedule-optimization/{Name}"
+@using System.Globalization
+@using Apps.Erp.Hooks
+@using Framework.Persistence
+@inject IDocumentStore Store
+@inject DocumentService Docs
+@inject CurrentUser Current
+@inject NavigationManager Nav
+
+<PageTitle>Schedule Optimization · @Name · FrogFrame</PageTitle>
+
+<header class="page-head" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem">
+    <div>
+        <h1>Schedule Optimization · @Name</h1>
+        <p>CP-SAT auto-scheduling proposal preview — review coverage, preferences, and changes before applying to daily schedules.</p>
+    </div>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+        <a class="bb-btn bb-btn-outline" href="/app/ScheduleOptimization/@Name" style="text-decoration:none;padding:.45rem .85rem;border:1px solid var(--border,#cbd5e1);border-radius:.375rem;font-size:.875rem">
+            Open Document
+        </a>
+        <a class="bb-btn bb-btn-outline" href="/hr/roster-calendar" style="text-decoration:none;padding:.45rem .85rem;border:1px solid var(--border,#cbd5e1);border-radius:.375rem;font-size:.875rem">
+            Roster Calendar
+        </a>
+        @if (optDoc is not null && CanRun && Status is "Draft" or "Proposed" or "Failed")
+        {
+            <button type="button" disabled="@busy" @onclick="RunOptimizerAsync"
+                    style="padding:.45rem .85rem;background:#2563eb;color:#fff;border:none;border-radius:.375rem;font-size:.875rem;cursor:pointer">
+                @(busy ? "Solving..." : "Run Optimizer (CP-SAT)")
+            </button>
+        }
+        @if (optDoc is not null && CanApply && Status == "Proposed")
+        {
+            <button type="button" disabled="@busy" @onclick="ApplyProposalAsync"
+                    style="padding:.45rem .85rem;background:#16a34a;color:#fff;border:none;border-radius:.375rem;font-size:.875rem;cursor:pointer">
+                Apply Proposal
+            </button>
+            <button type="button" disabled="@busy" @onclick="DiscardProposalAsync"
+                    style="padding:.45rem .85rem;background:#dc2626;color:#fff;border:none;border-radius:.375rem;font-size:.875rem;cursor:pointer">
+                Discard
+            </button>
+        }
+    </div>
+</header>
+
+@if (error is not null)
+{
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@error</BbAlertDescription></BbAlert>
+}
+@if (message is not null)
+{
+    <BbAlert Variant="AlertVariant.Success" Style="margin-bottom:.75rem"><BbAlertDescription>@message</BbAlertDescription></BbAlert>
+}
+
+@if (optDoc is null && error is null)
+{
+    <div class="stack"><BbSkeleton Height="4rem" /><BbSkeleton Height="16rem" /></div>
+}
+else if (optDoc is not null)
+{
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(10rem,1fr));gap:.75rem;margin-bottom:1rem">
+        <BbCard><BbCardContent><div style="padding-top:.75rem"><div class="muted small">Status</div><strong style="font-size:1.1rem">@Status</strong> <span class="muted small">(@(Str(optDoc, "solver_status") ?? "-"))</span></div></BbCardContent></BbCard>
+        <BbCard><BbCardContent><div style="padding-top:.75rem"><div class="muted small">Coverage</div><strong style="font-size:1.1rem">@Dec(optDoc, "coverage_pct")%</strong></div></BbCardContent></BbCard>
+        <BbCard><BbCardContent><div style="padding-top:.75rem"><div class="muted small">Preference Hit</div><strong style="font-size:1.1rem">@Dec(optDoc, "preference_satisfaction_pct")%</strong></div></BbCardContent></BbCard>
+        <BbCard><BbCardContent><div style="padding-top:.75rem"><div class="muted small">Shortage Slots</div><strong style="font-size:1.1rem;color:@(Dec(optDoc, "shortage_slots") > 0 ? "#dc2626" : "#16a34a")">@((int)Dec(optDoc, "shortage_slots"))</strong></div></BbCardContent></BbCard>
+        <BbCard><BbCardContent><div style="padding-top:.75rem"><div class="muted small">Changed Slots</div><strong style="font-size:1.1rem">@((int)Dec(optDoc, "changed_rows"))</strong></div></BbCardContent></BbCard>
+        <BbCard><BbCardContent><div style="padding-top:.75rem"><div class="muted small">Solve Time</div><strong style="font-size:1.1rem">@((long)Dec(optDoc, "solve_ms")) ms</strong></div></BbCardContent></BbCard>
+    </div>
+
+    <BbCard>
+        <BbCardContent>
+            <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;padding-top:.75rem;margin-bottom:.5rem;font-size:.75rem">
+                <span style="padding:.2rem .5rem;border-radius:.25rem;background:#dbeafe;color:#1e40af;font-weight:600">Morning</span>
+                <span style="padding:.2rem .5rem;border-radius:.25rem;background:#fef3c7;color:#92400e;font-weight:600">Afternoon</span>
+                <span style="padding:.2rem .5rem;border-radius:.25rem;background:#e0e7ff;color:#3730a3;font-weight:600">Night</span>
+                <span style="padding:.2rem .5rem;border-radius:.25rem;background:#f1f5f9;color:#475569;font-weight:600">REST</span>
+                <span style="padding:.2rem .5rem;border-radius:.25rem;border:2px solid #2563eb;font-weight:600">Changed vs baseline</span>
+                <span style="padding:.2rem .5rem;border-radius:.25rem;background:#dcfce7;color:#166534;font-weight:600">★ Prefer hit</span>
+                <span style="padding:.2rem .5rem;border-radius:.25rem;background:#fee2e2;color:#991b1b;font-weight:600">⚠ Avoid hit</span>
+            </div>
+
+            @if (employeeIds.Count == 0)
+            {
+                <div style="padding:2rem;text-align:center" class="muted">
+                    No proposed lines yet. Click <strong>Run Optimizer (CP-SAT)</strong> to generate a proposal.
+                </div>
+            }
+            else
+            {
+                <div style="overflow-x:auto">
+                    <table style="width:100%;border-collapse:collapse;font-size:.76rem">
+                        <thead>
+                            <tr style="border-bottom:2px solid var(--border,#e2e8f0);text-align:left">
+                                <th style="padding:.45rem;position:sticky;left:0;background:var(--card,#fff);min-width:10.5rem;z-index:1">Employee</th>
+                                @foreach (var day in days)
+                                {
+                                    var isWknd = day.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
+                                    <th style="padding:.3rem .2rem;text-align:center;min-width:2.8rem;background:@(isWknd ? "rgba(241,245,249,.7)" : "transparent")">
+                                        <div>@day.Day</div>
+                                        <div class="muted" style="font-size:.65rem;font-weight:400">@day.ToString("ddd", CultureInfo.InvariantCulture)</div>
+                                    </th>
+                                }
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var eid in employeeIds)
+                            {
+                                var rowMap = grid.GetValueOrDefault(eid);
+                                var empName = empNames.GetValueOrDefault(eid, eid);
+                                <tr style="border-bottom:1px solid var(--border,#f1f5f9)">
+                                    <td style="padding:.4rem .45rem;position:sticky;left:0;background:var(--card,#fff);font-weight:500">
+                                        <a href="/hr/organizational-chart/@eid" style="text-decoration:none;color:inherit">@empName</a>
+                                        <div class="muted" style="font-size:.66rem">@eid</div>
+                                    </td>
+                                    @foreach (var day in days)
+                                    {
+                                        var cell = rowMap is not null && rowMap.TryGetValue(day, out var c) ? c : null;
+                                        var (label, bg, fg, border, tip) = FormatCell(cell);
+                                        <td style="padding:.2rem;text-align:center" title="@tip">
+                                            <span style="display:inline-block;width:100%;padding:.2rem .12rem;border-radius:.25rem;background:@bg;color:@fg;border:@border;font-weight:600;font-size:.68rem">
+                                                @label
+                                            </span>
+                                        </td>
+                                    }
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(Str(optDoc, "summary_log")))
+            {
+                <pre style="margin-top:1rem;padding:.75rem;background:var(--muted,#f8fafc);border-radius:.375rem;font-size:.78rem;white-space:pre-wrap">@Str(optDoc, "summary_log")</pre>
+            }
+        </BbCardContent>
+    </BbCard>
+}
+
+@code {
+    [Parameter] public string Name { get; set; } = string.Empty;
+
+    private Document? optDoc;
+    private string? error, message;
+    private bool busy;
+    private List<DateOnly> days = [];
+    private List<string> employeeIds = [];
+    private Dictionary<string, string> empNames = new(StringComparer.Ordinal);
+    private Dictionary<string, Dictionary<DateOnly, Dictionary<string, object?>>> grid = new(StringComparer.Ordinal);
+
+    private string Status => optDoc?.Data.Str("status") ?? "Draft";
+    private bool CanRun => Current.Required.HasRole("HR") || Current.Required.HasRole("Manager") || Current.Required.IsAdmin;
+    private bool CanApply => Current.Required.HasRole("HR") || Current.Required.IsAdmin;
+
+    private static string? Str(Document d, string f) => d.Data.GetValueOrDefault(f) as string;
+    private static decimal Dec(Document d, string f) => d.Data.TryGetValue(f, out var v) && v is not null ? Convert.ToDecimal(v, CultureInfo.InvariantCulture) : 0m;
+
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        error = null;
+        try
+        {
+            optDoc = await Docs.GetAsync(Current.Required, "ScheduleOptimization", Name);
+        }
+        catch (Exception ex) { error = ex.Message; return; }
+
+        if (optDoc is null) { error = $"Schedule Optimization '{Name}' not found."; return; }
+
+        days = [];
+        if (optDoc.Data.Date("from_date") is { } f && optDoc.Data.Date("to_date") is { } t)
+            for (var d = f; d <= t; d = d.AddDays(1)) days.Add(d);
+
+        grid = new(StringComparer.Ordinal);
+        empNames = new(StringComparer.Ordinal);
+        foreach (var row in optDoc.Data.Rows("lines"))
+        {
+            var eid = row.Str("employee");
+            var wd = row.Date("work_date");
+            if (eid is null || wd is null) continue;
+            empNames[eid] = row.Str("employee_name") ?? eid;
+            if (!grid.TryGetValue(eid, out var m)) grid[eid] = m = new();
+            m[wd.Value] = row;
+        }
+        employeeIds = grid.Keys.OrderBy(k => k, StringComparer.Ordinal).ToList();
+    }
+
+    private async Task RunOptimizerAsync()
+    {
+        if (optDoc is null) return;
+        busy = true; error = null; message = null;
+        try
+        {
+            var res = await WsmOptimizationService.RunAsync(Store, optDoc.TenantId, optDoc, CancellationToken.None);
+            message = res.Log;
+            await LoadAsync();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { busy = false; }
+    }
+
+    private async Task ApplyProposalAsync()
+    {
+        if (optDoc is null) return;
+        busy = true; error = null; message = null;
+        try
+        {
+            var (applied, skipped, warnings) = await WsmOptimizationService.ApplyAsync(Store, optDoc.TenantId, optDoc, CancellationToken.None);
+            message = $"Applied {applied} schedule slot(s); {skipped} protected slot(s) skipped ({warnings} warning(s)).";
+            await LoadAsync();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { busy = false; }
+    }
+
+    private async Task DiscardProposalAsync()
+    {
+        if (optDoc is null) return;
+        busy = true; error = null; message = null;
+        try
+        {
+            await WsmOptimizationService.DiscardAsync(Store, optDoc, CancellationToken.None);
+            message = "Proposal discarded.";
+            await LoadAsync();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { busy = false; }
+    }
+
+    private static (string Label, string Bg, string Fg, string Border, string Tip) FormatCell(Dictionary<string, object?>? row)
+    {
+        if (row is null) return ("-", "transparent", "#94a3b8", "none", "");
+        var sType = row.Str("schedule_type") ?? "REST";
+        var shift = row.Str("shift_type");
+        var prev = row.Str("previous_shift_type");
+        var changed = row.Bool("is_changed");
+        var pinned = row.Bool("is_pinned");
+        var pref = row.Str("preference_hit") ?? "";
+
+        var (bg, fg, code) = sType switch
+        {
+            "LEAVE" => ("#dcfce7", "#166534", "LV"),
+            "HOLIDAY" => ("#fce7f3", "#9d174d", "HOL"),
+            "REST" => ("#f1f5f9", "#475569", "OFF"),
+            _ => shift switch
+            {
+                string s when s.Contains("NGT", StringComparison.OrdinalIgnoreCase) || s.Contains("NIGHT", StringComparison.OrdinalIgnoreCase)
+                    => ("#e0e7ff", "#3730a3", ShortCode(s)),
+                string s when s.Contains("AFT", StringComparison.OrdinalIgnoreCase) || s.Contains("SIANG", StringComparison.OrdinalIgnoreCase)
+                    => ("#fef3c7", "#92400e", ShortCode(s)),
+                _ => ("#dbeafe", "#1e40af", ShortCode(shift ?? "WRK")),
+            }
+        };
+
+        var suffix = pref == "Prefer" ? " ★" : pref == "Avoid" ? " ⚠" : pinned ? " 🔒" : "";
+        var border = changed ? "2px solid #2563eb" : "1px solid transparent";
+        var tip = $"{sType} {shift ?? ""}" + (changed ? $" (was {prev ?? "OFF"})" : "") + (pinned ? " [Pinned]" : "") + (pref.Length > 0 ? $" [{pref}]" : "");
+        return (code + suffix, bg, fg, border, tip);
+    }
+
+    private static string ShortCode(string s) => s.StartsWith("SH-", StringComparison.OrdinalIgnoreCase) ? s[3..] : (s.Length > 5 ? s[..5] : s);
+}

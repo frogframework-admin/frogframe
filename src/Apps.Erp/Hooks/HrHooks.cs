@@ -160,6 +160,122 @@ internal static class Hr
         return null;
     }
 
+    public sealed record ResolvedApprovers(
+        string? LineApprover,
+        string? ProjectApprover,
+        bool LineDelegated,
+        string? OriginalLineApprover);
+
+    /// <summary>Returns true if <paramref name="employeeId"/> has an Approved LeaveApplication covering <paramref name="asOfDate"/>.</summary>
+    public static async Task<bool> IsOnApprovedLeaveAsync(Masters m, string employeeId, DateOnly asOfDate, CancellationToken ct)
+    {
+        var leaves = await m.QueryAsync("LeaveApplication", [new FilterClause("employee", "=", employeeId)], ct, take: 200);
+        return leaves.Any(l =>
+            (l.WorkflowState == Approval.Approved || l.DocStatus == DocStatus.Submitted)
+            && l.WorkflowState != "Cancelled" && l.WorkflowState != "Rejected"
+            && Overlaps(asOfDate, asOfDate, l.Data.Date("from_date"), l.Data.Date("to_date")));
+    }
+
+    /// <summary>Finds an active Acting (Plt.) employee substituting for <paramref name="managerId"/> (or their position) on <paramref name="asOfDate"/>.</summary>
+    public static async Task<string?> FindActingDelegateAsync(Masters m, string managerId, string? managerPosition, string exceptEmployee, DateOnly asOfDate, CancellationToken ct)
+    {
+        var activeActing = (await m.QueryAsync("EmployeeAssignment",
+            [new FilterClause("assignment_type", "=", "Acting"), new FilterClause("status", "=", "Active")], ct, take: 200))
+            .Where(a => a.Data.Str("employee") is { } holder && holder != exceptEmployee && holder != managerId)
+            .Where(a => !a.Data.ContainsKey("has_approval_authority") || a.Data.Bool("has_approval_authority"))
+            .Where(a => (a.Data.Date("start_date") is not { } s || s <= asOfDate) && (a.Data.Date("end_date") is not { } e || asOfDate <= e))
+            .OrderByDescending(a => a.Data.Str("acting_for") == managerId ? 1 : 0)
+            .ThenByDescending(a => a.Data.Date("start_date"))
+            .ToList();
+
+        foreach (var a in activeActing)
+        {
+            var matchesManager = a.Data.Str("acting_for") == managerId;
+            var matchesPosition = managerPosition is not null && a.Data.Str("position") == managerPosition;
+            if (!matchesManager && !matchesPosition) continue;
+            var holderId = a.Data.Str("employee")!;
+            if (await m.GetAsync("Employee", holderId, ct) is { } emp && emp.Data.Str("status") != Left)
+                return holderId;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Resolves solid-line approver (with Acting/Plt. substitution if the manager is on leave or vacant)
+    /// and dotted-line / project approver from EmployeeAssignment and Project. Enforces no self-approval.
+    /// </summary>
+    public static async Task<ResolvedApprovers> ResolveApproversAsync(
+        Masters m, Document employee, string? project, DateOnly asOfDate, CancellationToken ct, string? preferredLineField = null)
+    {
+        var self = employee.Name;
+        var origLine = (preferredLineField is not null ? employee.Data.Str(preferredLineField) : null)
+            ?? employee.Data.Str("reports_to")
+            ?? await ManagerForAsync(m, self, employee.Data.Str("position"), employee.Data.Str("organization_unit"), ct, asOfDate);
+
+        if (origLine == self) origLine = null;
+
+        string? resolvedLine = origLine;
+        bool delegated = false;
+
+        if (origLine is not null)
+        {
+            var bossDoc = await m.GetAsync("Employee", origLine, ct);
+            var bossUnavailable = bossDoc is null || bossDoc.Data.Str("status") == Left
+                || await IsOnApprovedLeaveAsync(m, origLine, asOfDate, ct);
+            if (bossUnavailable)
+            {
+                var acting = await FindActingDelegateAsync(m, origLine, bossDoc?.Data.Str("position"), self, asOfDate, ct);
+                if (acting is not null)
+                {
+                    resolvedLine = acting;
+                    delegated = true;
+                }
+            }
+        }
+        else if (employee.Data.Str("position") is { } myPos)
+        {
+            var posDoc = await m.GetAsync("Position", myPos, ct);
+            if (posDoc?.Data.Str("reports_to_position") is { } bossPos)
+            {
+                var acting = await FindActingDelegateAsync(m, "", bossPos, self, asOfDate, ct);
+                if (acting is not null) { resolvedLine = acting; delegated = true; }
+            }
+        }
+
+        string? projectApprover = null;
+        if (!string.IsNullOrWhiteSpace(project))
+        {
+            var dotted = (await m.QueryAsync("EmployeeAssignment",
+                [new FilterClause("employee", "=", self), new FilterClause("status", "=", "Active")], ct, take: 100))
+                .Where(a => a.Data.Str("reporting_line") == "Dotted" && a.Data.Str("project") == project)
+                .Where(a => (a.Data.Date("start_date") is not { } s || s <= asOfDate) && (a.Data.Date("end_date") is not { } e || asOfDate <= e))
+                .OrderByDescending(a => a.Data.Date("start_date"))
+                .FirstOrDefault();
+
+            projectApprover = dotted?.Data.Str("dotted_line_manager");
+            var projDoc = await m.GetAsync("Project", project, ct);
+            projectApprover ??= projDoc?.Data.Str("project_manager");
+
+            if (projectApprover == self)
+            {
+                var sponsor = projDoc?.Data.Str("sponsor");
+                projectApprover = sponsor != self ? sponsor : null;
+            }
+
+            if (projectApprover is not null)
+            {
+                var pmDoc = await m.GetAsync("Employee", projectApprover, ct);
+                if (pmDoc is null || pmDoc.Data.Str("status") == Left || await IsOnApprovedLeaveAsync(m, projectApprover, asOfDate, ct))
+                {
+                    var actingPm = await FindActingDelegateAsync(m, projectApprover, pmDoc?.Data.Str("position"), self, asOfDate, ct);
+                    if (actingPm is not null) projectApprover = actingPm;
+                }
+            }
+        }
+
+        return new ResolvedApprovers(resolvedLine, projectApprover, delegated, origLine);
+    }
+
     public static bool Overlaps(DateOnly? aFrom, DateOnly? aTo, DateOnly? bFrom, DateOnly? bTo) =>
         (aFrom ?? DateOnly.MinValue) <= (bTo ?? DateOnly.MaxValue) && (bFrom ?? DateOnly.MinValue) <= (aTo ?? DateOnly.MaxValue);
 
@@ -574,6 +690,23 @@ public sealed class EmployeeAssignmentHook(IDocumentStore store)
         if (start is not null && end is not null && end < start)
             errors.Add("end_date", "The end date must be on or after the start date");
 
+        var asgType = d.Str("assignment_type");
+        var repLine = d.Str("reporting_line") ?? "Solid";
+        if (asgType == "Acting" && d.Str("acting_for") is null && d.Str("position") is null)
+            errors.Add("acting_for", "An Acting (Plt.) assignment must specify either 'Acting for' or a 'Position'");
+        if (d.Str("acting_for") == emp.Name)
+            errors.Add("acting_for", "An employee cannot be Acting for themselves");
+        if (repLine == "Dotted" && d.Str("dotted_line_manager") is null && d.Str("project") is null)
+            errors.Add("dotted_line_manager", "A Dotted-line assignment must specify either a 'Dotted-line manager' or a 'Project'");
+        if (d.Str("dotted_line_manager") == emp.Name)
+            errors.Add("dotted_line_manager", "An employee cannot be their own dotted-line manager");
+        if (d.Str("project") is { } prjCode && d.Str("dotted_line_manager") is null)
+        {
+            var prj = await m.GetAsync("Project", prjCode, ct);
+            if (prj?.Data.Str("project_manager") is { } pm && pm != emp.Name)
+                d["dotted_line_manager"] = pm;
+        }
+
         if (d.Str("status") == "Active")
         {
             var existing = await m.QueryAsync("EmployeeAssignment", [new FilterClause("employee", "=", emp.Name), new FilterClause("status", "=", "Active")], ct, take: 100);
@@ -802,6 +935,12 @@ public sealed class LeaveApplicationHook(IDocumentStore store)
         var type = await m.RequireAsync("LeaveType", d.Str("leave_type"), "leave_type", "Leave type", ct);
         var from = d.Date("from_date"); var to = d.Date("to_date");
         if (from is null || to is null || to < from) return;
+        if (c.Doc.DocStatus == DocStatus.Draft)
+        {
+            var resolved = await Hr.ResolveApproversAsync(m, emp, null, from.Value, ct, "leave_approver");
+            if (resolved.LineDelegated || d.Str("leave_approver") is null)
+                d["leave_approver"] = resolved.LineApprover;
+        }
 
         var gender = type.Data.Str("applicable_gender");
         if (gender is "Female" or "Male" && emp.Data.Str("gender") != gender) errors.Add("leave_type", $"{type.Name} is only for {gender.ToLowerInvariant()} employees");

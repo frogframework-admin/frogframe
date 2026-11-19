@@ -1,0 +1,293 @@
+{
+  "name": "ScheduleOptimization",
+  "version": 1,
+  "title": "Schedule Optimization",
+  "module": "HR",
+  "description": "Constraint-solver (Google OR-Tools CP-SAT) auto-scheduling run that proposes fair, constraint-compliant shift rosters balancing coverage, preferences, rest rules, and stability.",
+  "naming": {
+    "pattern": "SOPT-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "company",
+      "type": "Link",
+      "label": "Company",
+      "linkTo": "Company",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Scope"
+    },
+    {
+      "name": "organization_unit",
+      "type": "Link",
+      "label": "Organization unit",
+      "linkTo": "OrganizationUnit",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Scope"
+    },
+    {
+      "name": "shift_group",
+      "type": "Link",
+      "label": "Shift group",
+      "linkTo": "ShiftGroup",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Scope",
+      "column": 2
+    },
+    {
+      "name": "candidate_shift_types",
+      "type": "Data",
+      "label": "Candidate shift types (optional)",
+      "section": "Scope",
+      "column": 2,
+      "description": "Comma-separated ShiftType codes to consider (e.g. SH-MORN,SH-AFT,SH-NGT). Leave empty to infer from Shift Requirements & active Shift Types."
+    },
+    {
+      "name": "from_date",
+      "type": "Date",
+      "label": "From date",
+      "requiredWhen": "true",
+      "default": "$today",
+      "inListView": true,
+      "section": "Period"
+    },
+    {
+      "name": "to_date",
+      "type": "Date",
+      "label": "To date",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Period",
+      "column": 2
+    },
+    {
+      "name": "time_limit_seconds",
+      "type": "Int",
+      "label": "Solver time limit (sec)",
+      "default": 20,
+      "min": 1,
+      "max": 120,
+      "section": "Optimization Weights"
+    },
+    {
+      "name": "w_coverage",
+      "type": "Int",
+      "label": "Coverage shortage weight",
+      "default": 100,
+      "min": 0,
+      "max": 1000,
+      "section": "Optimization Weights"
+    },
+    {
+      "name": "w_preference",
+      "type": "Int",
+      "label": "Preference weight",
+      "default": 10,
+      "min": 0,
+      "max": 500,
+      "section": "Optimization Weights"
+    },
+    {
+      "name": "w_fairness",
+      "type": "Int",
+      "label": "Workload fairness weight",
+      "default": 20,
+      "min": 0,
+      "max": 500,
+      "section": "Optimization Weights",
+      "column": 2
+    },
+    {
+      "name": "w_night_balance",
+      "type": "Int",
+      "label": "Night shift balance weight",
+      "default": 15,
+      "min": 0,
+      "max": 500,
+      "section": "Optimization Weights",
+      "column": 2
+    },
+    {
+      "name": "w_stability",
+      "type": "Int",
+      "label": "Stability vs baseline weight",
+      "default": 3,
+      "min": 0,
+      "max": 500,
+      "section": "Optimization Weights",
+      "column": 2
+    },
+    {
+      "name": "status",
+      "type": "Select",
+      "label": "Status",
+      "options": [
+        "Draft",
+        "Proposed",
+        "Applied",
+        "Discarded",
+        "Failed"
+      ],
+      "default": "Draft",
+      "readOnlyWhen": "true",
+      "inListView": true,
+      "section": "Result"
+    },
+    {
+      "name": "solver_status",
+      "type": "Data",
+      "label": "Solver status",
+      "readOnlyWhen": "true",
+      "inListView": true,
+      "section": "Result"
+    },
+    {
+      "name": "coverage_pct",
+      "type": "Float",
+      "label": "Coverage (%)",
+      "readOnlyWhen": "true",
+      "inListView": true,
+      "section": "Result"
+    },
+    {
+      "name": "preference_satisfaction_pct",
+      "type": "Float",
+      "label": "Preference satisfaction (%)",
+      "readOnlyWhen": "true",
+      "section": "Result"
+    },
+    {
+      "name": "shortage_slots",
+      "type": "Int",
+      "label": "Shortage slots",
+      "readOnlyWhen": "true",
+      "inListView": true,
+      "section": "Result",
+      "column": 2
+    },
+    {
+      "name": "changed_rows",
+      "type": "Int",
+      "label": "Changed slots",
+      "readOnlyWhen": "true",
+      "section": "Result",
+      "column": 2
+    },
+    {
+      "name": "objective_value",
+      "type": "Float",
+      "label": "Objective value",
+      "readOnlyWhen": "true",
+      "section": "Result",
+      "column": 2
+    },
+    {
+      "name": "solve_ms",
+      "type": "Int",
+      "label": "Solve time (ms)",
+      "readOnlyWhen": "true",
+      "section": "Result",
+      "column": 2
+    },
+    {
+      "name": "summary_log",
+      "type": "Text",
+      "label": "Optimization log",
+      "readOnlyWhen": "true",
+      "section": "Result"
+    },
+    {
+      "name": "lines",
+      "type": "Table",
+      "label": "Proposed schedule lines",
+      "childDocType": "ScheduleOptimizationLine",
+      "readOnlyWhen": "true",
+      "section": "Proposal"
+    }
+  ],
+  "rules": [
+    {
+      "name": "valid_period",
+      "expr": "to_date >= from_date",
+      "message": "The end date must be on or after the start date",
+      "field": "to_date"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "company",
+    "searchFields": [
+      "name",
+      "company",
+      "organization_unit",
+      "shift_group",
+      "solver_status"
+    ],
+    "filters": [
+      "company",
+      "organization_unit",
+      "shift_group",
+      "status"
+    ],
+    "defaultSort": [
+      {
+        "field": "from_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "delete"
+    ]
+  }
+}

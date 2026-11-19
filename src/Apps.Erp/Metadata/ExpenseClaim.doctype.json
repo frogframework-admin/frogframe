@@ -74,8 +74,19 @@
       "type": "Link",
       "label": "Project",
       "linkTo": "Project",
+      "lookupDialog": true,
       "section": "Claim",
       "column": 2
+    },
+    {
+      "name": "project_approver",
+      "type": "Link",
+      "label": "Project approver (Dotted-line)",
+      "linkTo": "Employee",
+      "readOnlyWhen": "true",
+      "section": "Claim",
+      "column": 2,
+      "description": "Resolved automatically from dotted-line EmployeeAssignment or Project Manager"
     },
     {
       "name": "items",
@@ -194,6 +205,13 @@
         "read"
       ],
       "scope": "match:expense_approver=employee"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "match:project_approver=employee"
     },
     {
       "role": "Finance",

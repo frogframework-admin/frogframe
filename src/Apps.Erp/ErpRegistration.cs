@@ -124,6 +124,11 @@ public static class ErpRegistration
         services.AddDocHook<EmployeeDailySchedule, EmployeeDailyScheduleHook>();
         services.AddDocHook<ScheduleGeneration, ScheduleGenerationHook>();
         services.AddFormAction<ScheduleGeneration, ScheduleGenerationRunAction>();
+        services.AddDocHook<ShiftPreference, ShiftPreferenceHook>();
+        services.AddDocHook<ScheduleOptimization, ScheduleOptimizationHook>();
+        services.AddFormAction<ScheduleOptimization, ScheduleOptimizationRunAction>();
+        services.AddFormAction<ScheduleOptimization, ScheduleOptimizationApplyAction>();
+        services.AddFormAction<ScheduleOptimization, ScheduleOptimizationDiscardAction>();
         services.AddDocHook<ShiftOverride, ShiftOverrideHook>();
         services.AddDocHook<ShiftSwapRequest, ShiftSwapRequestHook>();
         services.AddDocHook<ShiftRequirement, ShiftRequirementHook>();
@@ -168,6 +173,7 @@ public static class ErpRegistration
         services.AddScheduledJob<JournalAutoReverseJob>();
         services.AddScheduledJob<HrEffectiveDateJob>();
         services.AddScheduledJob<RosterRollingHorizonJob>();
+        services.AddScheduledJob<ApprovalDelegationRefreshJob>();
         services.AddScheduledJob<LeaveAllocationJob>();
         services.AddScheduledJob<ContractExpiryReminderJob>();
         services.AddScheduledJob<CrmDailyJob>();

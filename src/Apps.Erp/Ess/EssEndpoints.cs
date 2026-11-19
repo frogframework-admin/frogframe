@@ -145,6 +145,31 @@ public static class EssEndpoints
             return Results.Created($"{Prefix}/shift-swaps/{doc.Name}", SwapDto(doc));
         }));
 
+        g.MapGet("/shift-preferences", (Func<HttpContext, Task<IResult>>)(http => Ess(http, async (user, emp, sp, ct) =>
+        {
+            var m = new Masters(sp.GetRequiredService<IDocumentStore>(), user.TenantId);
+            var rows = await m.QueryAsync("ShiftPreference", [new("employee", "=", emp)], ct, "from_date", "desc", 100);
+            return Results.Ok(new { items = rows.Select(PreferenceDto) });
+        })));
+
+        g.MapPost("/shift-preferences", (HttpContext http, EssShiftPreferenceRequest body) => Ess(http, async (user, emp, sp, ct) =>
+        {
+            var docs = sp.GetRequiredService<DocumentService>();
+            var doc = await docs.InsertAsync(user, "ShiftPreference", new Dictionary<string, object?>
+            {
+                ["employee"] = emp,
+                ["preference_type"] = string.IsNullOrWhiteSpace(body.PreferenceType) ? "Prefer" : body.PreferenceType,
+                ["shift_type"] = body.ShiftType,
+                ["from_date"] = body.FromDate,
+                ["to_date"] = body.ToDate,
+                ["days_of_week"] = body.DaysOfWeek,
+                ["weight"] = body.Weight ?? 3,
+                ["reason"] = body.Reason,
+                ["status"] = "Active",
+            }, "Created via ESS Mobile", ct);
+            return Results.Created($"{Prefix}/shift-preferences/{doc.Name}", PreferenceDto(doc));
+        }));
+
         // ---------------- Attendance ----------------
         g.MapPost("/attendance/punches", (HttpContext http, EssPunchRequest body) => Ess(http, async (user, emp, sp, ct) =>
         {
@@ -402,9 +427,12 @@ public static class EssEndpoints
     private static readonly (string DocType, string ApproverField, string State)[] ApprovalSources =
     [
         ("LeaveApplication", "leave_approver", "Pending Approval"),
+        ("OvertimeRequest", "project_approver", "Pending Project Approval"),
         ("OvertimeRequest", "approver", "Pending Approval"),
+        ("ExpenseClaim", "project_approver", "Pending Project Approval"),
         ("ExpenseClaim", "expense_approver", "Pending Manager"),
         ("EmployeeAdvance", "expense_approver", "Pending Manager"),
+        ("PurchaseRequest", "project_approver", "Pending Project Approval"),
     ];
 
     private static async Task<List<Document>> PendingApprovalsAsync(Masters m, string emp, CancellationToken ct)
@@ -463,8 +491,23 @@ public static class EssEndpoints
         state = d.WorkflowState,
         modified = d.Modified,
     };
+
+    private static object PreferenceDto(Document d) => new
+    {
+        name = d.Name,
+        employee = d.Data.Str("employee"),
+        preferenceType = d.Data.Str("preference_type"),
+        shiftType = d.Data.Str("shift_type"),
+        fromDate = d.Data.Str("from_date"),
+        toDate = d.Data.Str("to_date"),
+        daysOfWeek = d.Data.Str("days_of_week"),
+        weight = (int)d.Data.Dec("weight"),
+        reason = d.Data.Str("reason"),
+        status = d.Data.Str("status"),
+    };
 }
 
 public sealed record EssLeaveRequest(string? LeaveType, string? FromDate, string? ToDate, bool HalfDay, string? Reason, bool? Submit);
 public sealed record EssShiftSwapRequest(string TargetEmployee, string SwapDate, string? TargetSwapDate, string? Reason, bool? Submit);
+public sealed record EssShiftPreferenceRequest(string? PreferenceType, string? ShiftType, string? FromDate, string? ToDate, string? DaysOfWeek, int? Weight, string? Reason);
 public sealed record EssDecisionBody(string? Comment);

@@ -154,6 +154,13 @@ public sealed class OvertimeRequestHook(IDocumentStore store) : IBeforeValidate<
         var d = c.Doc.Data;
         var emp = await m.RequireAsync("Employee", d.Str("employee"), "employee", "Employee", ct);
         var date = d.Date("overtime_date") ?? throw Errors.One("overtime_date", "The date is required");
+        if (c.Doc.DocStatus == DocStatus.Draft)
+        {
+            var resolved = await Hr.ResolveApproversAsync(m, emp, d.Str("project"), date, ct, "leave_approver");
+            if (resolved.LineDelegated || d.Str("approver") is null)
+                d["approver"] = resolved.LineApprover;
+            d["project_approver"] = resolved.ProjectApprover;
+        }
         var period = $"{date:yyyy-MM}";
         d["period"] = period;
         if (c.Doc.DocStatus == DocStatus.Draft) await Overtime.CheckNotPaidAsync(m, emp.Name, period, "overtime_date", ct);
