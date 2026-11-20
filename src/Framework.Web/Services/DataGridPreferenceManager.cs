@@ -283,8 +283,8 @@ public sealed class DataGridPreferenceManager<TData> : IDisposable where TData :
     public string? GetWidth(string colId, string? defaultWidth = null)
     {
         if (colId is "actions" or "action" or "_select" && defaultWidth is not null) return defaultWidth;
-        return Preference.Columns.TryGetValue(colId, out var pref) && !string.IsNullOrWhiteSpace(pref.Width)
-            ? pref.Width
+        return Preference.Columns.TryGetValue(colId, out var pref) && GridColumnPreference.NormalizeWidth(pref.Width) is { } validWidth
+            ? validWidth
             : defaultWidth;
     }
 
@@ -294,11 +294,13 @@ public sealed class DataGridPreferenceManager<TData> : IDisposable where TData :
     public void HandleResize((string ColumnId, string Width) args)
     {
         if (string.IsNullOrWhiteSpace(args.ColumnId) || args.ColumnId is "actions" or "action" or "_select") return;
+        var normalized = GridColumnPreference.NormalizeWidth(args.Width);
+        if (normalized is null) return;
         if (!Preference.Columns.TryGetValue(args.ColumnId, out var pref))
         {
             pref = new GridColumnPreference { Visible = true };
         }
-        Preference.Columns[args.ColumnId] = pref with { Width = args.Width };
+        Preference.Columns[args.ColumnId] = pref with { Width = normalized };
         HasCustomLayout = true;
         ScheduleSave();
     }
@@ -310,21 +312,23 @@ public sealed class DataGridPreferenceManager<TData> : IDisposable where TData :
         foreach (var entry in state.Columns.Entries)
         {
             if (string.IsNullOrEmpty(entry.ColumnId) || entry.ColumnId is "actions" or "action" or "_select") continue;
+            var entryWidth = GridColumnPreference.NormalizeWidth(entry.Width);
             if (!Preference.Columns.TryGetValue(entry.ColumnId, out var pref))
             {
-                if (!entry.Visible || !string.IsNullOrWhiteSpace(entry.Width))
+                if (!entry.Visible || entryWidth is not null)
                 {
                     Preference.Columns[entry.ColumnId] = new GridColumnPreference
                     {
                         Visible = entry.Visible,
-                        Width = entry.Width
+                        Width = entryWidth
                     };
                     changed = true;
                 }
             }
             else
             {
-                var widthToSave = !string.IsNullOrWhiteSpace(entry.Width) ? entry.Width : pref.Width;
+                var prefWidth = GridColumnPreference.NormalizeWidth(pref.Width);
+                var widthToSave = entryWidth ?? prefWidth;
                 if (pref.Visible != entry.Visible || pref.Width != widthToSave)
                 {
                     Preference.Columns[entry.ColumnId] = pref with { Visible = entry.Visible, Width = widthToSave };

@@ -12,6 +12,31 @@ public sealed record GridColumnPreference
     public bool Visible { get; init; } = true;
     public string? Width { get; init; }
     public int? Order { get; init; }
+
+    /// <summary>
+    /// Rejects empty or non-positive CSS lengths (such as "0px" captured from an unallocated column)
+    /// so newly shown columns keep natural sizing instead of collapsing to zero width.
+    /// </summary>
+    public static string? NormalizeWidth(string? width)
+    {
+        if (string.IsNullOrWhiteSpace(width)) return null;
+        var trimmed = width.Trim();
+        if (trimmed.EndsWith("px", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!double.TryParse(trimmed[..^2].Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var val) || val <= 0)
+                return null;
+        }
+        else if (trimmed.EndsWith("rem", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!double.TryParse(trimmed[..^3].Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var val) || val <= 0)
+                return null;
+        }
+        else if (double.TryParse(trimmed, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var val) && val <= 0)
+        {
+            return null;
+        }
+        return trimmed;
+    }
 }
 
 /// <summary>

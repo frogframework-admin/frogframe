@@ -114,6 +114,47 @@ window.frogframe = window.frogframe || {};
     // 2. Keep table.style.width synced with the sum of <col> pixel widths when all columns
     //    have explicit pixel widths so table-fixed + w-full never rescales other columns.
     var isDraggingColumn = false;
+    var isSyncingTableWidth = false;
+    var gridWidthObserver = null;
+
+    function measureColumnFitWidth(table, th, minWidth, maxWidth) {
+        if (!table || !th || !th.parentElement) return 0;
+        var headerCells = Array.from(th.parentElement.children);
+        var index = headerCells.indexOf(th);
+        if (index < 0) return 0;
+
+        // A cell's own width says nothing about its content once the column is constrained or 0px,
+        // so each cell's content is laid out in a hidden, unconstrained box with the same font and padding.
+        var probe = document.createElement('div');
+        probe.setAttribute('aria-hidden', 'true');
+        probe.style.cssText = 'position:absolute;left:-10000px;top:0;visibility:hidden;white-space:nowrap;width:auto;max-width:none;display:inline-block';
+        document.body.appendChild(probe);
+
+        var widest = 0;
+        var measure = function (cell) {
+            if (!cell) return;
+            var cs = getComputedStyle(cell);
+            probe.style.font = cs.font;
+            probe.style.letterSpacing = cs.letterSpacing;
+            probe.style.paddingLeft = cs.paddingLeft;
+            probe.style.paddingRight = cs.paddingRight;
+            probe.style.borderLeft = cs.borderLeftWidth + ' solid transparent';
+            probe.style.borderRight = cs.borderRightWidth + ' solid transparent';
+            probe.innerHTML = cell.innerHTML;
+            // The resize handle is absolutely positioned and takes no room.
+            probe.querySelectorAll('[data-resize-handle]').forEach(function (h) { h.remove(); });
+            widest = Math.max(widest, Math.ceil(probe.getBoundingClientRect().width));
+        };
+        measure(th);
+        table.querySelectorAll('tbody tr').forEach(function (tr) {
+            // Rows with merged cells (group headers, detail rows) do not line up with the columns.
+            if (tr.children.length === headerCells.length) measure(tr.children[index]);
+        });
+        probe.remove();
+
+        if (widest <= 0) return 0;
+        return Math.min(Math.max(widest + 2, minWidth), maxWidth);
+    }
 
     function syncDataGridTableWidth(table) {
         if (isDraggingColumn || !table || !table.classList.contains('bb:table-fixed')) return;
@@ -121,10 +162,15 @@ window.frogframe = window.frogframe || {};
         if (cols.length === 0) return;
 
         var hasAnyPx = cols.some(function (c) {
-            return (c.style.width || '').trim().endsWith('px');
+            var w = (c.style.width || '').trim();
+            return w.endsWith('px') && parseFloat(w) > 0;
         });
-        if (!hasAnyPx) return;
+        if (!hasAnyPx) {
+            if (table.style.width) table.style.width = '';
+            return;
+        }
 
+        var hadFixedTableWidth = !!(table.style.width && table.style.width.trim());
         var rootFontSize = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
         var totalPx = 0;
 
@@ -132,15 +178,26 @@ window.frogframe = window.frogframe || {};
             var col = cols[i];
             var w = (col.style.width || '').trim();
             var pxVal = 0;
-            if (w.endsWith('px')) {
+            if (w.endsWith('px') && parseFloat(w) > 0) {
                 pxVal = parseFloat(w);
-            } else if (w.endsWith('rem')) {
+            } else if (w.endsWith('rem') && parseFloat(w) > 0) {
                 pxVal = Math.round(parseFloat(w) * rootFontSize);
-                col.style.width = pxVal + 'px';
+                if (pxVal > 0) {
+                    col.style.width = pxVal + 'px';
+                }
             } else {
                 var colId = col.getAttribute('data-column-id');
                 var th = colId ? table.querySelector('thead th[data-column-id="' + CSS.escape(colId) + '"]') : null;
-                pxVal = th ? Math.round(th.getBoundingClientRect().width) : 150;
+                if (hadFixedTableWidth) {
+                    // Fixed table width is already claimed by existing columns, so a newly shown column
+                    // would measure as 0px via getBoundingClientRect(); measure its natural content width instead.
+                    pxVal = (th && measureColumnFitWidth(table, th, 100, 420)) || 150;
+                } else {
+                    pxVal = th ? Math.round(th.getBoundingClientRect().width) : 0;
+                    if (pxVal <= 0) {
+                        pxVal = (th && measureColumnFitWidth(table, th, 100, 420)) || 150;
+                    }
+                }
                 if (pxVal > 0) {
                     col.style.width = pxVal + 'px';
                 }
@@ -159,10 +216,16 @@ window.frogframe = window.frogframe || {};
     }
 
     function syncAllDataGridTables() {
-        if (isDraggingColumn) return;
-        var tables = document.querySelectorAll('table[role="grid"]');
-        for (var i = 0; i < tables.length; i++) {
-            syncDataGridTableWidth(tables[i]);
+        if (isDraggingColumn || isSyncingTableWidth) return;
+        isSyncingTableWidth = true;
+        try {
+            var tables = document.querySelectorAll('table[role="grid"]');
+            for (var i = 0; i < tables.length; i++) {
+                syncDataGridTableWidth(tables[i]);
+            }
+        } finally {
+            if (gridWidthObserver) gridWidthObserver.takeRecords();
+            isSyncingTableWidth = false;
         }
     }
 
@@ -186,9 +249,13 @@ window.frogframe = window.frogframe || {};
 
             // Read pass: measure all columns before any style mutation
             var measurements = ths.map(function (th) {
+                var w = Math.round(th.getBoundingClientRect().width);
+                if (w <= 0) {
+                    w = measureColumnFitWidth(table, th, 100, 420) || 150;
+                }
                 return {
                     id: th.getAttribute('data-column-id'),
-                    width: Math.round(th.getBoundingClientRect().width)
+                    width: w
                 };
             });
 
@@ -230,42 +297,10 @@ window.frogframe = window.frogframe || {};
             e.preventDefault();
             e.stopPropagation();
 
-            var headerCells = Array.from(th.parentElement.children);
-            var index = headerCells.indexOf(th);
-            if (index < 0) return;
+            var target = measureColumnFitWidth(table, th, 50, 640);
+            if (target <= 0) return;
 
-            // A cell's own width says nothing about its content once the column is wider or narrower,
-            // so each cell's content is laid out again in a hidden, unconstrained box with the same font
-            // and padding.
-            var probe = document.createElement('div');
-            probe.setAttribute('aria-hidden', 'true');
-            probe.style.cssText = 'position:absolute;left:-10000px;top:0;visibility:hidden;white-space:nowrap;width:auto;max-width:none;display:inline-block';
-            document.body.appendChild(probe);
-            var widest = 0;
-            var measure = function (cell) {
-                if (!cell) return;
-                var cs = getComputedStyle(cell);
-                probe.style.font = cs.font;
-                probe.style.letterSpacing = cs.letterSpacing;
-                probe.style.paddingLeft = cs.paddingLeft;
-                probe.style.paddingRight = cs.paddingRight;
-                probe.style.borderLeft = cs.borderLeftWidth + ' solid transparent';
-                probe.style.borderRight = cs.borderRightWidth + ' solid transparent';
-                probe.innerHTML = cell.innerHTML;
-                // The resize handle is absolutely positioned and takes no room.
-                probe.querySelectorAll('[data-resize-handle]').forEach(function (h) { h.remove(); });
-                widest = Math.max(widest, Math.ceil(probe.getBoundingClientRect().width));
-            };
-            measure(th);
-            table.querySelectorAll('tbody tr').forEach(function (tr) {
-                // Rows with merged cells (group headers, detail rows) do not line up with the columns.
-                if (tr.children.length === headerCells.length) measure(tr.children[index]);
-            });
-            probe.remove();
             var current = Math.round(th.getBoundingClientRect().width);
-            if (widest <= 0) return;
-
-            var target = Math.min(Math.max(widest + 2, 50), 640);
             var delta = target - current;
             if (Math.abs(delta) < 1) return;
 
@@ -278,15 +313,15 @@ window.frogframe = window.frogframe || {};
             handle.dispatchEvent(new PointerEvent('pointerup', Object.assign({}, init, { clientX: x + delta, buttons: 0 })));
         }, true);
 
-        var observer = new MutationObserver(function () {
+        gridWidthObserver = new MutationObserver(function () {
             syncAllDataGridTables();
         });
 
         if (document.body) {
-            observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] });
+            gridWidthObserver.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] });
         } else {
             document.addEventListener('DOMContentLoaded', function () {
-                observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] });
+                gridWidthObserver.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] });
                 syncAllDataGridTables();
             });
         }

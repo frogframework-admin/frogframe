@@ -132,4 +132,28 @@ sealed partial class Tests
         Assert.Equal("8rem", restored.Columns["status"].Width, "lebar status 8rem");
         return Task.CompletedTask;
     }
+
+    [Test]
+    public Task UserPreferences_NormalizeWidth_RejectsZeroAndInvalidValues()
+    {
+        Assert.True(GridColumnPreference.NormalizeWidth(null) is null, "null stays null");
+        Assert.True(GridColumnPreference.NormalizeWidth("") is null, "empty stays null");
+        Assert.True(GridColumnPreference.NormalizeWidth("0px") is null, "0px is rejected");
+        Assert.True(GridColumnPreference.NormalizeWidth(" 0 px ") is null || GridColumnPreference.NormalizeWidth("0.0px") is null, "0.0px is rejected");
+        Assert.True(GridColumnPreference.NormalizeWidth("-10px") is null, "negative px is rejected");
+        Assert.True(GridColumnPreference.NormalizeWidth("0rem") is null, "0rem is rejected");
+        Assert.Equal("221px", GridColumnPreference.NormalizeWidth("221px"), "positive px is kept");
+        Assert.Equal("3rem", GridColumnPreference.NormalizeWidth(" 3rem "), "positive rem is kept and trimmed");
+
+        var prefs = sp.GetRequiredService<IUserPreferenceStore>();
+        var mgr = new Framework.Web.Services.DataGridPreferenceManager<RoleDef>(prefs, null!, "grid:test", () => { });
+        mgr.Preference.Columns["modified"] = new GridColumnPreference { Visible = false, Width = "0px" };
+        Assert.True(mgr.GetWidth("modified") is null, "GetWidth ignores poisoned 0px width");
+        mgr.HandleResize(("modified", "0px"));
+        Assert.True(mgr.GetWidth("modified") is null, "HandleResize refuses to store 0px width");
+        mgr.HandleResize(("modified", "180px"));
+        Assert.Equal("180px", mgr.GetWidth("modified"), "HandleResize stores valid positive width");
+
+        return Task.CompletedTask;
+    }
 }

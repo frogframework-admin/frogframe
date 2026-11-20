@@ -1414,8 +1414,8 @@ else if (meta is not null)
     }
 
     private string? GetColWidth(string colId, string? defaultWidth = null) =>
-        gridPref.Columns.TryGetValue(colId, out var pref) && !string.IsNullOrWhiteSpace(pref.Width)
-            ? pref.Width
+        gridPref.Columns.TryGetValue(colId, out var pref) && GridColumnPreference.NormalizeWidth(pref.Width) is { } validWidth
+            ? validWidth
             : defaultWidth;
 
     private bool IsColVisible(string colId) =>
@@ -1448,11 +1448,13 @@ else if (meta is not null)
     private void HandleColumnResize((string ColumnId, string Width) args)
     {
         if (string.IsNullOrWhiteSpace(args.ColumnId)) return;
+        var normalized = GridColumnPreference.NormalizeWidth(args.Width);
+        if (normalized is null) return;
         if (!gridPref.Columns.TryGetValue(args.ColumnId, out var pref))
         {
             pref = new Framework.Preferences.GridColumnPreference { Visible = GetDefaultColVisible(args.ColumnId) };
         }
-        gridPref.Columns[args.ColumnId] = pref with { Width = args.Width };
+        gridPref.Columns[args.ColumnId] = pref with { Width = normalized };
         hasCustomLayout = true;
         ScheduleSavePreference();
     }
@@ -1488,14 +1490,15 @@ else if (meta is not null)
         {
             if (string.IsNullOrEmpty(entry.ColumnId) || entry.ColumnId == "_select") continue;
             var defaultVisible = GetDefaultColVisible(entry.ColumnId);
+            var entryWidth = GridColumnPreference.NormalizeWidth(entry.Width);
             if (!gridPref.Columns.TryGetValue(entry.ColumnId, out var pref))
             {
-                if (entry.Visible != defaultVisible || !string.IsNullOrWhiteSpace(entry.Width) || orderChanged)
+                if (entry.Visible != defaultVisible || entryWidth is not null || orderChanged)
                 {
                     gridPref.Columns[entry.ColumnId] = new Framework.Preferences.GridColumnPreference
                     {
                         Visible = entry.Visible,
-                        Width = entry.Width,
+                        Width = entryWidth,
                         Order = orderChanged ? entry.Order : null
                     };
                     changed = true;
@@ -1503,7 +1506,8 @@ else if (meta is not null)
             }
             else
             {
-                var widthToSave = !string.IsNullOrWhiteSpace(entry.Width) ? entry.Width : pref.Width;
+                var prefWidth = GridColumnPreference.NormalizeWidth(pref.Width);
+                var widthToSave = entryWidth ?? prefWidth;
                 var orderToSave = orderChanged || hasSavedOrder ? entry.Order : pref.Order;
                 if (pref.Visible != entry.Visible || pref.Width != widthToSave || pref.Order != orderToSave)
                 {
