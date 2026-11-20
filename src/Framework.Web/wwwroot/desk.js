@@ -218,6 +218,66 @@ window.frogframe = window.frogframe || {};
             window.addEventListener('pointercancel', onEnd, true);
         }, true);
 
+        // Double-click on a column's resize handle: fit the column to its widest header or cell content.
+        // The new width goes through the regular resize drag of table-columns.js, so it is saved like a
+        // manual resize.
+        document.addEventListener('dblclick', function (e) {
+            var handle = e.target && e.target.closest ? e.target.closest('[data-resize-handle]') : null;
+            if (!handle) return;
+            var table = handle.closest('table[role="grid"]');
+            var th = handle.closest('th[data-column-id]');
+            if (!table || !th) return;
+            e.preventDefault();
+            e.stopPropagation();
+
+            var headerCells = Array.from(th.parentElement.children);
+            var index = headerCells.indexOf(th);
+            if (index < 0) return;
+
+            // A cell's own width says nothing about its content once the column is wider or narrower,
+            // so each cell's content is laid out again in a hidden, unconstrained box with the same font
+            // and padding.
+            var probe = document.createElement('div');
+            probe.setAttribute('aria-hidden', 'true');
+            probe.style.cssText = 'position:absolute;left:-10000px;top:0;visibility:hidden;white-space:nowrap;width:auto;max-width:none;display:inline-block';
+            document.body.appendChild(probe);
+            var widest = 0;
+            var measure = function (cell) {
+                if (!cell) return;
+                var cs = getComputedStyle(cell);
+                probe.style.font = cs.font;
+                probe.style.letterSpacing = cs.letterSpacing;
+                probe.style.paddingLeft = cs.paddingLeft;
+                probe.style.paddingRight = cs.paddingRight;
+                probe.style.borderLeft = cs.borderLeftWidth + ' solid transparent';
+                probe.style.borderRight = cs.borderRightWidth + ' solid transparent';
+                probe.innerHTML = cell.innerHTML;
+                // The resize handle is absolutely positioned and takes no room.
+                probe.querySelectorAll('[data-resize-handle]').forEach(function (h) { h.remove(); });
+                widest = Math.max(widest, Math.ceil(probe.getBoundingClientRect().width));
+            };
+            measure(th);
+            table.querySelectorAll('tbody tr').forEach(function (tr) {
+                // Rows with merged cells (group headers, detail rows) do not line up with the columns.
+                if (tr.children.length === headerCells.length) measure(tr.children[index]);
+            });
+            probe.remove();
+            var current = Math.round(th.getBoundingClientRect().width);
+            if (widest <= 0) return;
+
+            var target = Math.min(Math.max(widest + 2, 50), 640);
+            var delta = target - current;
+            if (Math.abs(delta) < 1) return;
+
+            var box = handle.getBoundingClientRect();
+            var x = box.left + box.width / 2;
+            var y = box.top + box.height / 2;
+            var init = { bubbles: true, cancelable: true, pointerId: 9001, pointerType: 'mouse', isPrimary: true, button: 0, buttons: 1, clientY: y };
+            handle.dispatchEvent(new PointerEvent('pointerdown', Object.assign({}, init, { clientX: x })));
+            document.dispatchEvent(new PointerEvent('pointermove', Object.assign({}, init, { clientX: x + delta })));
+            handle.dispatchEvent(new PointerEvent('pointerup', Object.assign({}, init, { clientX: x + delta, buttons: 0 })));
+        }, true);
+
         var observer = new MutationObserver(function () {
             syncAllDataGridTables();
         });
