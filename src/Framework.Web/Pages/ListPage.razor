@@ -101,23 +101,9 @@ else if (meta is not null)
         var groupedFields = meta.Fields.Where(f => f.Def.Type != "Table" && f.Def.RowGrouping).ToList();
         var groupCollapsed = groupedFields.Any(f => f.Def.GroupCollapsedByDefault);
         var visibleColSet = result.Columns.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        <BbDataGrid @key="gridRenderKey"
-                    TData="Dictionary<string, object?>"
-                    Items="@result.Items"
-                    ItemKey="@(r => (string)r["name"]!)"
-                    OnRowClick="@(row => Go((string)row["name"]!))"
-                    RowClass="@(row => selectedItems.Contains((string)row["name"]!) ? "clickable selected" : "clickable")"
-                    State="@gridState"
-                    Resizable="true"
-                    Reorderable="true"
-                    OnColumnResize="HandleColumnResize"
-                    StateChanged="OnGridStateChanged"
-                    GroupsCollapsedByDefault="@groupCollapsed"
-                    ShowPagination="true"
-                    InitialPageSize="10"
-                    PageSizes="@([10, 20, 50, 100])"
-                    TableContainerClass="table-wrap">
-            <Toolbar>
+        // Search, filters and saved views, shared by the grid and the board. inGrid = rendered inside the grid
+        // (column visibility and layout reset only exist there).
+        RenderFragment<bool> listToolbar = inGrid => @<div class="list-toolbar">
                 <div class="filters" role="search" style="margin-bottom:.75rem;width:100%">
                     <div class="filter view-select" style="min-width:11rem;max-width:16rem">
                         <span>@T["View / Filter"]</span>
@@ -174,14 +160,47 @@ else if (meta is not null)
                                 <span>@T["Export CSV"]@(selectedItems.Count > 0 ? $" ({selectedItems.Count})" : "")</span>
                             </BbButton>
                         }
-                        @if (hasCustomLayout)
+                        @if (inGrid && hasCustomLayout)
                         {
                             <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="ResetColumnsLayout" Title="@(T["Reset column layout to default"])">
                                 <LucideIcon Name="rotate-ccw" Size="14" />
                                 <span>@T["Reset Columns"]</span>
                             </BbButton>
                         }
-                        <BbDataGridColumnVisibility TData="Dictionary<string, object?>" />
+                        @if (inGrid)
+                        {
+                            <BbDataGridColumnVisibility TData="Dictionary<string, object?>" />
+                        }
+                        @if (CanBoard || CanCalendar || CanTree)
+                        {
+                            <div class="view-toggle" role="group" aria-label="@(T["Layout"])">
+                                <BbButton Variant="@(CurrentLayout == "list" ? ButtonVariant.Secondary : ButtonVariant.Ghost)" Size="ButtonSize.Small"
+                                          OnClick="@(() => SetLayout("list"))" Title="@(T["List view"])" aria-pressed="@(CurrentLayout == "list")">
+                                    <LucideIcon Name="list" Size="14" /><span>@T["List"]</span>
+                                </BbButton>
+                                @if (CanBoard)
+                                {
+                                    <BbButton Variant="@(CurrentLayout == "board" ? ButtonVariant.Secondary : ButtonVariant.Ghost)" Size="ButtonSize.Small"
+                                              OnClick="@(() => SetLayout("board"))" Title="@(T["Board view by status"])" aria-pressed="@(CurrentLayout == "board")">
+                                        <LucideIcon Name="kanban" Size="14" /><span>@T["Board"]</span>
+                                    </BbButton>
+                                }
+                                @if (CanTree)
+                                {
+                                    <BbButton Variant="@(CurrentLayout == "tree" ? ButtonVariant.Secondary : ButtonVariant.Ghost)" Size="ButtonSize.Small"
+                                              OnClick="@(() => SetLayout("tree"))" Title="@(T["Tree view by parent"])" aria-pressed="@(CurrentLayout == "tree")">
+                                        <LucideIcon Name="list-tree" Size="14" /><span>@T["Tree"]</span>
+                                    </BbButton>
+                                }
+                                @if (CanCalendar)
+                                {
+                                    <BbButton Variant="@(CurrentLayout == "calendar" ? ButtonVariant.Secondary : ButtonVariant.Ghost)" Size="ButtonSize.Small"
+                                              OnClick="@(() => SetLayout("calendar"))" Title="@(T["Calendar view by date"])" aria-pressed="@(CurrentLayout == "calendar")">
+                                        <LucideIcon Name="calendar-days" Size="14" /><span>@T["Calendar"]</span>
+                                    </BbButton>
+                                }
+                            </div>
+                        }
                     </div>
                 </div>
 
@@ -221,7 +240,41 @@ else if (meta is not null)
                         </button>
                     </div>
                 }
-            </Toolbar>
+        </div>;
+        if (CurrentLayout == "board")
+        {
+            @listToolbar(false)
+            <KanbanBoard Meta="meta" Items="result.Items" OnChanged="Reload" />
+        }
+        else if (CurrentLayout == "tree")
+        {
+            @listToolbar(false)
+            <TreeBoard Meta="meta" Items="result.Items" Capped="@(result.TotalCapped || result.Total > result.Items.Count)" />
+        }
+        else if (CurrentLayout == "calendar")
+        {
+            @listToolbar(false)
+            <CalendarBoard Meta="meta" Items="result.Items" Capped="@(result.TotalCapped || result.Total > result.Items.Count)" />
+        }
+        else
+        {
+        <BbDataGrid @key="gridRenderKey"
+                    TData="Dictionary<string, object?>"
+                    Items="@result.Items"
+                    ItemKey="@(r => (string)r["name"]!)"
+                    OnRowClick="@(row => Go((string)row["name"]!))"
+                    RowClass="@(row => selectedItems.Contains((string)row["name"]!) ? "clickable selected" : "clickable")"
+                    State="@gridState"
+                    Resizable="true"
+                    Reorderable="true"
+                    OnColumnResize="HandleColumnResize"
+                    StateChanged="OnGridStateChanged"
+                    GroupsCollapsedByDefault="@groupCollapsed"
+                    ShowPagination="true"
+                    InitialPageSize="10"
+                    PageSizes="@([10, 20, 50, 100])"
+                    TableContainerClass="table-wrap">
+            <Toolbar>@listToolbar(true)</Toolbar>
             <EmptyTemplate>
                 <div style="padding:2.5rem 1rem">
                     <BbEmpty Title="@(T.Format("No matching {0} found", T.Title(meta).ToLower()))"
@@ -350,6 +403,7 @@ else if (meta is not null)
                 </BbDataGridPropertyColumn>
             </Columns>
         </BbDataGrid>
+        }
 
         <AdminDrawer Open="@bulkEditOpen"
                      OpenChanged="v => bulkEditOpen = v"
@@ -579,6 +633,29 @@ else if (meta is not null)
 
 @code {
     [Parameter] public string DocType { get; set; } = "";
+    /// <summary>
+    /// "board" shows the Kanban board (DocTypes with a workflow or submit), "calendar" the calendar (DocTypes with a
+    /// Date/Datetime field), "tree" the tree (DocTypes with a parent Link to themselves); anything else the grid.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "view")] public string? View { get; set; }
+
+    private bool CanBoard => meta is not null && WorkflowBoard.Supports(meta);
+    private bool CanCalendar => meta is not null && CalendarView.Supports(meta);
+    private bool CanTree => meta is not null && TreeView.Supports(meta);
+    private string CurrentLayout => View?.ToLowerInvariant() switch
+    {
+        "board" when CanBoard => "board",
+        "calendar" when CanCalendar => "calendar",
+        "tree" when CanTree => "tree",
+        _ => "list",
+    };
+
+    private void SetLayout(string layout)
+    {
+        if (layout == CurrentLayout) return;
+        selectedItems.Clear();
+        Nav.NavigateTo(Nav.GetUriWithQueryParameter("view", layout == "list" ? null : layout), replace: true);
+    }
 
     private CompiledDocType? meta;
     private ListResponse? result;

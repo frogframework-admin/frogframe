@@ -563,6 +563,26 @@ public sealed partial class MetadataCompiler(IFieldTypeRegistry fieldTypes, Func
             if (byName.TryGetValue(s, out var sf) && !sf.Type.Searchable)
                 errors.Add(new(src, "listView.searchFields", $"Field '{s}' bukan tipe teks"));
 
+        if (lv.Calendar is { } cal)
+        {
+            bool IsDateField(string? f) => f is not null && byName.TryGetValue(f, out var df) && df.Def.Type is "Date" or "Datetime";
+            if (!IsDateField(cal.StartField))
+                errors.Add(new(src, "listView.calendar.startField", $"Field '{cal.StartField}' must be a Date or Datetime field"));
+            if (cal.EndField is { Length: > 0 } && !IsDateField(cal.EndField))
+                errors.Add(new(src, "listView.calendar.endField", $"Field '{cal.EndField}' must be a Date or Datetime field"));
+            if (cal.ColorField is { Length: > 0 } cfn && !(StandardFields.Queryable.Contains(cfn)
+                    || (byName.TryGetValue(cfn, out var colf) && colf.Def.Type != "Table" && FieldKinds.IsQueryable(colf.Def.Type))))
+                errors.Add(new(src, "listView.calendar.colorField", $"Field '{cfn}' cannot be used to colour calendar entries"));
+        }
+
+        if (lv.Tree is { } tree)
+        {
+            if (!(byName.TryGetValue(tree.ParentField, out var tpf) && tpf.Def.Type == "Link" && tpf.Def.LinkTo == d.Name))
+                errors.Add(new(src, "listView.tree.parentField", $"Field '{tree.ParentField}' must be a Link to {d.Name}"));
+            if (tree.GroupField is { Length: > 0 } gfn && !(byName.TryGetValue(gfn, out var gf) && gf.Def.Type == "Check"))
+                errors.Add(new(src, "listView.tree.groupField", $"Field '{gfn}' must be a Check field"));
+        }
+
         foreach (var op in d.Api.Operations.Where(o => o is not ("list" or "read" or "create" or "update" or "delete" or "action")))
             errors.Add(new(src, "api.operations", $"Operasi '{op}' tidak dikenal"));
 

@@ -1,0 +1,309 @@
+@*
+    Board view of a list (/app/{DocType}?view=board): one column per workflow state. Dragging a card to another
+    column runs the action that leads there. The actions offered are the ones DocumentService.AvailableActionsAsync
+    returns for the stored document (roles, transition conditions, row scope), and RunActionAsync checks them again,
+    so the board cannot do anything the form toolbar could not. Each card also has a "Move" menu with the same
+    actions, for keyboard and touch users.
+*@
+@inject DocumentService Docs
+@inject CurrentUser Current
+@inject DialogService Dialogs
+@inject ToastService Toasts
+@inject UiText T
+
+<div class="kb-board" role="list" aria-label="@(T.Format("{0} board", T.Title(Meta)))">
+    @foreach (var col in columns)
+    {
+        var cards = byColumn.GetValueOrDefault(col.Key) ?? [];
+        var target = DropState(col.Key);
+        <section class="kb-col tone-@col.Tone @target" role="listitem" aria-label="@T[col.Key]"
+                 @ondragover:preventDefault="true"
+                 @ondragenter="() => overColumn = col.Key"
+                 @ondrop="() => DropAsync(col.Key)">
+            <header class="kb-col-head">
+                <span class="kb-dot"></span>
+                <span class="kb-col-title">@T[col.Key]</span>
+                <span class="kb-count">@cards.Count</span>
+            </header>
+            <div class="kb-cards">
+                @foreach (var row in cards.Take(MaxCardsPerColumn))
+                {
+                    var name = (string)row["name"]!;
+                    var title = row.GetValueOrDefault("_title") is { } tv && tv.ToString() is { Length: > 0 } ts ? ts : null;
+                    <article @key="name" class="kb-card @(busyCard == name ? "is-busy" : "") @(dragName == name ? "is-dragging" : "")"
+                             draggable="@(busyCard is null ? "true" : "false")" data-kanban-card="@name"
+                             @ondragstart="() => StartDrag(row)" @ondragend="EndDrag">
+                        <div class="kb-card-head">
+                            <a class="kb-card-title" href="/app/@Meta.Name/@name" draggable="false">@(title ?? name)</a>
+                            <button type="button" class="kb-move-btn" title="@(T["Move to another status"])" aria-label="@(T.Format("Move {0}", name))"
+                                    aria-expanded="@(menuFor == name ? "true" : "false")" @onclick="() => ToggleMenuAsync(row)">
+                                <LucideIcon Name="arrow-right-left" Size="14" />
+                            </button>
+                        </div>
+                        @if (title is not null)
+                        {
+                            <div class="kb-card-name">@name</div>
+                        }
+                        @foreach (var f in cardFields)
+                        {
+                            if (row.GetValueOrDefault(f.Name) is null or "") continue;
+                            <div class="kb-card-field"><span>@T.Label(f)</span><span>@Fmt.Value(f, row[f.Name])</span></div>
+                        }
+                        @if (menuFor == name)
+                        {
+                            <div class="kb-menu" role="menu">
+                                @if (menuActions is null)
+                                {
+                                    <span class="muted small">@T["Loading…"]</span>
+                                }
+                                else if (menuActions.Count == 0)
+                                {
+                                    <span class="muted small">@T["No status change is available to you for this document."]</span>
+                                }
+                                else
+                                {
+                                    @foreach (var a in menuActions)
+                                    {
+                                        <button type="button" role="menuitem" class="kb-menu-item tone-@a.Tone" @onclick="() => RunAsync(row, a)">
+                                            @ActionLabel(a.Action) <span class="muted">→ @T[a.ToState]</span>
+                                        </button>
+                                    }
+                                }
+                            </div>
+                        }
+                    </article>
+                }
+                @if (cards.Count > MaxCardsPerColumn)
+                {
+                    <div class="kb-more muted small">@T.Format("+{0} more. Narrow the list with search or filters.", cards.Count - MaxCardsPerColumn)</div>
+                }
+                @if (cards.Count == 0)
+                {
+                    <div class="kb-empty muted small">@T["No documents"]</div>
+                }
+            </div>
+        </section>
+    }
+</div>
+
+<BbDialog Open="@(choice is not null)" OpenChanged="@(o => { if (!o) choice = null; })">
+    <BbDialogContent>
+        <BbDialogHeader>
+            <BbDialogTitle>@T["Choose an action"]</BbDialogTitle>
+            <BbDialogDescription>@T.Format("More than one action leads {0} to {1}.", choice?.Name ?? "", T[choice?.Column ?? ""])</BbDialogDescription>
+        </BbDialogHeader>
+        @if (choice is not null)
+        {
+            <div class="stack" style="gap:.5rem">
+                @foreach (var a in choice.Actions)
+                {
+                    <BbButton Variant="ButtonVariant.Outline" OnClick="@(() => ChooseAsync(a))">@ActionLabel(a.Action)</BbButton>
+                }
+            </div>
+        }
+        <BbDialogFooter>
+            <BbButton Variant="ButtonVariant.Ghost" OnClick="@(() => choice = null)">@T["Cancel"]</BbButton>
+        </BbDialogFooter>
+    </BbDialogContent>
+</BbDialog>
+
+@code {
+    /// <summary>Cards rendered per column; the rest is counted. The list itself is capped by the store.</summary>
+    public const int MaxCardsPerColumn = 100;
+
+    [Parameter, EditorRequired] public CompiledDocType Meta { get; set; } = default!;
+    [Parameter, EditorRequired] public IReadOnlyList<Dictionary<string, object?>> Items { get; set; } = [];
+    /// <summary>Raised after a card moved (or the move hit a concurrency conflict), so the page reloads the list.</summary>
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private sealed record Choice(Dictionary<string, object?> Row, string Name, string Column, IReadOnlyList<ActionView> Actions);
+
+    private IReadOnlyList<WorkflowBoard.Column> columns = [];
+    private Dictionary<string, List<Dictionary<string, object?>>> byColumn = new();
+    private IReadOnlyList<CompiledField> cardFields = [];
+    private readonly Dictionary<string, Task<IReadOnlyList<ActionView>>> actionCache = new(StringComparer.Ordinal);
+    private IReadOnlyList<Dictionary<string, object?>>? renderedItems;
+    private CompiledDocType? renderedMeta;
+
+    private Dictionary<string, object?>? dragRow;
+    private string? dragName;
+    private IReadOnlyList<ActionView>? dragActions;
+    private string? overColumn;
+    private string? busyCard;
+    private string? menuFor;
+    private IReadOnlyList<ActionView>? menuActions;
+    private Choice? choice;
+
+    protected override void OnParametersSet()
+    {
+        if (ReferenceEquals(Items, renderedItems) && ReferenceEquals(Meta, renderedMeta)) return;
+        renderedItems = Items; renderedMeta = Meta;
+        actionCache.Clear();
+        menuFor = null; menuActions = null; choice = null;
+        columns = WorkflowBoard.Columns(Meta);
+        byColumn = columns.ToDictionary(c => c.Key, _ => new List<Dictionary<string, object?>>(), StringComparer.Ordinal);
+        foreach (var row in Items)
+        {
+            var key = WorkflowBoard.ColumnOf(Meta, row);
+            if (!byColumn.TryGetValue(key, out var list))
+            {
+                // A state that is no longer in the workflow: keep the documents visible in a column of their own.
+                byColumn[key] = list = [];
+                columns = [.. columns, new WorkflowBoard.Column(key, -1, "neutral")];
+            }
+            list.Add(row);
+        }
+        var sample = Items.Count > 0 ? Items[0] : null;
+        cardFields = Meta.ListColumns
+            .Where(c => c != Meta.Def.ListView.TitleField && Meta.ByName.TryGetValue(c, out var f) && !f.IsLayout && f.Def.Type is not ("Table" or "Image" or "Attach"))
+            .Where(c => sample is null || sample.ContainsKey(c))
+            .Take(3)
+            .Select(c => Meta.ByName[c])
+            .ToList();
+    }
+
+    private static string NameOf(Dictionary<string, object?> row) => (string)row["name"]!;
+    private static int VersionOf(Dictionary<string, object?> row) => row.GetValueOrDefault("version") switch
+    {
+        int i => i,
+        long l => (int)l,
+        decimal d => (int)d,
+        _ => 0,
+    };
+
+    private Task<IReadOnlyList<ActionView>> ActionsFor(Dictionary<string, object?> row)
+    {
+        var key = NameOf(row) + "@" + VersionOf(row);
+        if (!actionCache.TryGetValue(key, out var task))
+            actionCache[key] = task = Docs.AvailableActionsAsync(Current.Required, Meta.Name, NameOf(row));
+        return task;
+    }
+
+    private string ActionLabel(string action) => T[action switch
+    {
+        DocActions.Submit => "Submit", DocActions.Cancel => "Cancel", _ => action
+    }];
+
+    private string DropState(string column)
+    {
+        if (dragRow is null) return "";
+        if (column == WorkflowBoard.ColumnOf(Meta, dragRow)) return "kb-source";
+        if (dragActions is null) return "kb-pending";
+        var allowed = WorkflowBoard.MovesTo(dragActions, column).Count > 0;
+        return (allowed ? "kb-allowed" : "kb-blocked") + (overColumn == column ? " kb-over" : "");
+    }
+
+    private async Task StartDrag(Dictionary<string, object?> row)
+    {
+        dragRow = row; dragName = NameOf(row); dragActions = null; overColumn = null; menuFor = null;
+        try
+        {
+            var actions = await ActionsFor(row);
+            if (ReferenceEquals(dragRow, row)) dragActions = actions;
+        }
+        catch (Exception ex) when (IsDomainError(ex))
+        {
+            actionCache.Remove(NameOf(row) + "@" + VersionOf(row));
+            if (ReferenceEquals(dragRow, row)) dragActions = [];
+        }
+    }
+
+    private void EndDrag()
+    {
+        // dragend fires after drop; the drop handler has already taken the row.
+        dragRow = null; dragName = null; dragActions = null; overColumn = null;
+    }
+
+    private async Task DropAsync(string column)
+    {
+        var row = dragRow;
+        EndDrag();
+        if (row is null || busyCard is not null) return;
+        var from = WorkflowBoard.ColumnOf(Meta, row);
+        if (column == from) return;
+        IReadOnlyList<ActionView> actions;
+        try { actions = await ActionsFor(row); }
+        catch (Exception ex) when (IsDomainError(ex)) { Toasts.Error(T.Message(ex.Message), T.Format("{0} could not be moved", NameOf(row))); return; }
+        var moves = WorkflowBoard.MovesTo(actions, column);
+        if (moves.Count == 0)
+        {
+            Toasts.Error(T.Format("No action available to you moves {0} from {1} to {2}.", NameOf(row), T[from], T[column]), T["Move not allowed"]);
+            return;
+        }
+        if (moves.Count > 1) { choice = new Choice(row, NameOf(row), column, moves); return; }
+        await RunAsync(row, moves[0]);
+    }
+
+    private async Task ChooseAsync(ActionView a)
+    {
+        var c = choice;
+        choice = null;
+        if (c is not null) await RunAsync(c.Row, a);
+    }
+
+    private async Task ToggleMenuAsync(Dictionary<string, object?> row)
+    {
+        var name = NameOf(row);
+        if (menuFor == name) { menuFor = null; return; }
+        menuFor = name; menuActions = null;
+        try
+        {
+            var actions = (await ActionsFor(row)).Where(a => a.Action != DocActions.Amend).ToList();
+            if (menuFor == name) menuActions = actions;
+        }
+        catch (Exception ex) when (IsDomainError(ex))
+        {
+            actionCache.Remove(name + "@" + VersionOf(row));
+            if (menuFor == name) { menuFor = null; Toasts.Error(T.Message(ex.Message)); }
+        }
+    }
+
+    private async Task RunAsync(Dictionary<string, object?> row, ActionView a)
+    {
+        var name = NameOf(row);
+        menuFor = null;
+        string? comment = null;
+        if (a.RequireComment)
+        {
+            var prompt = await Dialogs.PromptAsync($"{ActionLabel(a.Action)} {name}?",
+                T["Write a reason or note. This comment will be sent to the requester and recorded in history."],
+                new PromptDialogOptions { Placeholder = T["Reason…"], ConfirmText = ActionLabel(a.Action), CancelText = T["Cancel"], MaxLength = 1000 });
+            if (prompt.Cancelled) return;
+            if (string.IsNullOrWhiteSpace(prompt.Value))
+            {
+                Toasts.Error(T.Format("Action “{0}” requires a reason. Nothing was changed.", ActionLabel(a.Action)), T["Empty comment"]);
+                return;
+            }
+            comment = prompt.Value.Trim();
+        }
+
+        busyCard = name;
+        StateHasChanged();
+        try
+        {
+            var result = await Docs.RunActionAsync(Current.Required, Meta.Name, name, a.Action, VersionOf(row), comment);
+            foreach (var msg in result.TransientMessages) Toasts.Info(T.Message(msg));
+            Toasts.Success(T.Format("Status is now {0}.", T.State(result.WorkflowState, result.DocStatus)), T.Format("{0} succeeded", ActionLabel(a.Action)));
+            busyCard = null;
+            await OnChanged.InvokeAsync();
+        }
+        catch (ConcurrencyException)
+        {
+            busyCard = null;
+            Toasts.Error(T.Format("{0} was changed by someone else. The board has been refreshed; try again.", name), T["Conflict"]);
+            await OnChanged.InvokeAsync();
+        }
+        catch (ValidationFailedException v)
+        {
+            Toasts.Error(string.Join("; ", v.Errors.Select(e => T.Message(e.Message))), T.Format("{0} could not be moved. Open the document to fix it.", name));
+        }
+        catch (Exception ex) when (IsDomainError(ex))
+        {
+            Toasts.Error(T.Message(ex.Message), T.Format("{0} could not be moved", name));
+        }
+        finally { busyCard = null; }
+    }
+
+    private static bool IsDomainError(Exception ex) =>
+        ex is PermissionDeniedException or InvalidStateException or InvalidPayloadException or DocumentNotFoundException or LinkedDocumentException;
+}

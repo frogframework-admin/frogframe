@@ -1,0 +1,500 @@
+@page "/reports/builder"
+@page "/reports/builder/{Id:guid}"
+@*
+    Ad-hoc report builder: DocType, columns, filters, group-by with aggregates, sort and row limit; run, export
+    (Excel / CSV) and save as a named report, optionally shared with roles. AdHocReportService enforces the rules
+    (report permission, row scope, readable fields only); a shared report always runs with the viewer's permissions.
+*@
+@using System.Globalization
+@using Framework.Reports
+@inject AdHocReportService Builder
+@inject CurrentUser Current
+@inject IPermissionService Perms
+@inject IMetadataProvider Metadata
+@inject NavigationManager Nav
+@inject ReportDownloads Downloads
+@inject IJSRuntime JS
+@inject DialogService Dialogs
+@inject ToastService Toasts
+@inject UiText T
+
+<PageTitle>@(string.IsNullOrWhiteSpace(name) ? T["Report builder"] : name) · FrogFrame</PageTitle>
+
+<header class="page-head">
+    <div>
+        <h1>@(saved is null ? T["New report"] : saved.Name)</h1>
+        <p>@T["Pick a document type, columns and filters, optionally group and summarise, then run, export or save."]</p>
+    </div>
+    <div class="row" style="gap:.5rem;flex-wrap:wrap">
+        @if (savedList.Count > 0)
+        {
+            <div style="min-width:14rem">
+                <BbSelect TValue="string" Value="@(saved?.Id.ToString() ?? "")" ValueChanged="OpenSaved" Options="SavedOptions" AriaLabel="@(T["Saved reports"])" />
+            </div>
+        }
+        <BbButton Variant="ButtonVariant.Outline" Href="/reports/builder"><LucideIcon Name="plus" Size="16" /> @T["New"]</BbButton>
+    </div>
+</header>
+
+@if (fatal is not null)
+{
+    <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@T.Message(fatal)</BbAlertDescription></BbAlert>
+}
+else
+{
+<div class="rb">
+    <aside class="rb-config">
+        <section>
+            <label class="rb-label">@T["Document type"]</label>
+            <BbSelect TValue="string" Value="@docType" ValueChanged="OnDocTypeChanged" Options="DocTypeOptions" Placeholder="@(T["Choose…"])" AriaLabel="@(T["Document type"])" Disabled="@readOnly" />
+        </section>
+
+        @if (fields.Count > 0)
+        {
+            <section>
+                <label class="rb-label">@T["Group by"] <span class="muted small">(@T["optional"])</span></label>
+                <BbMultiSelect TValue="string" Values="@groupBy" ValuesChanged="@(v => { groupBy = v.Take(AdHocLimits.MaxGroupBy).ToList(); EnsureAggregates(); })"
+                               Options="FieldOptions(f => true)" Placeholder="@(T["No grouping: one row per document"])" ShowSelectAll="false" MaxDisplayTags="3" Disabled="@readOnly" />
+            </section>
+
+            @if (groupBy.Count == 0)
+            {
+                <section>
+                    <label class="rb-label">@T["Columns"]</label>
+                    <BbMultiSelect TValue="string" Values="@columns" ValuesChanged="@(v => columns = v.Take(AdHocLimits.MaxColumns).ToList())"
+                                   Options="FieldOptions(f => true)" Placeholder="@(T["Choose columns…"])" ShowSelectAll="false" MaxDisplayTags="6" Disabled="@readOnly" />
+                </section>
+            }
+            else
+            {
+                <section>
+                    <label class="rb-label">@T["Summaries"]</label>
+                    @foreach (var a in aggregates)
+                    {
+                        var agg = a;
+                        <div class="rb-line">
+                            <select class="rb-native" value="@agg.Function" @onchange="@(e => SetAggFunction(agg, (string)e.Value!))" disabled="@readOnly" aria-label="@(T["Function"])">
+                                @foreach (var fn in Functions) { <option value="@fn.Key">@T[fn.Label]</option> }
+                            </select>
+                            <select class="rb-native" value="@(agg.Field ?? "")" @onchange="@(e => agg.Field = (string)e.Value! is { Length: > 0 } s ? s : null)" disabled="@readOnly" aria-label="@(T["Field"])">
+                                @if (agg.Function == "count") { <option value="">@T["(documents)"]</option> }
+                                @foreach (var f in fields.Where(f => agg.Function is not ("sum" or "avg") || AdHocLimits.NumericTypes.Contains(f.Type)))
+                                {
+                                    <option value="@f.Key">@T[f.Label]</option>
+                                }
+                            </select>
+                            <button type="button" class="rb-remove" disabled="@readOnly" @onclick="@(() => aggregates.Remove(agg))" aria-label="@(T["Remove"])">✕</button>
+                        </div>
+                    }
+                    @if (!readOnly && aggregates.Count < AdHocLimits.MaxAggregates)
+                    {
+                        <button type="button" class="rb-addline" @onclick="@(() => aggregates.Add(new AggRow { Function = "sum", Field = fields.FirstOrDefault(f => AdHocLimits.NumericTypes.Contains(f.Type))?.Key }))">+ @T["Add summary"]</button>
+                    }
+                </section>
+            }
+
+            <section>
+                <label class="rb-label">@T["Filters"]</label>
+                @foreach (var fl in filters)
+                {
+                    var row = fl;
+                    <div class="rb-line">
+                        <select class="rb-native" value="@row.Field" @onchange="@(e => row.Field = (string)e.Value!)" disabled="@readOnly" aria-label="@(T["Field"])">
+                            @foreach (var f in fields) { <option value="@f.Key">@T[f.Label]</option> }
+                        </select>
+                        <select class="rb-native rb-op" value="@row.Op" @onchange="@(e => row.Op = (string)e.Value!)" disabled="@readOnly" aria-label="@(T["Operator"])">
+                            @foreach (var op in Ops) { <option value="@op.Key">@T[op.Label]</option> }
+                        </select>
+                        <input class="rb-native rb-value" value="@row.Value" @onchange="@(e => row.Value = (string?)e.Value)" disabled="@readOnly"
+                               placeholder="@ValueHint(row)" aria-label="@(T["Value"])" />
+                        <button type="button" class="rb-remove" disabled="@readOnly" @onclick="@(() => filters.Remove(row))" aria-label="@(T["Remove"])">✕</button>
+                    </div>
+                }
+                @if (!readOnly && filters.Count < AdHocLimits.MaxFilters)
+                {
+                    <button type="button" class="rb-addline" @onclick="@(() => filters.Add(new FilterRow { Field = fields[0].Key, Op = "=" }))">+ @T["Add filter"]</button>
+                }
+            </section>
+
+            <section class="rb-grid2">
+                <div>
+                    <label class="rb-label">@T["Sort by"]</label>
+                    <select class="rb-native" value="@(sortBy ?? "")" @onchange="@(e => sortBy = (string)e.Value! is { Length: > 0 } s ? s : null)" disabled="@readOnly" aria-label="@(T["Sort by"])">
+                        <option value="">@T["(default)"]</option>
+                        @foreach (var (key, label) in OutputColumns()) { <option value="@key">@label</option> }
+                    </select>
+                    <label class="rb-check"><input type="checkbox" checked="@sortDesc" @onchange="@(e => sortDesc = e.Value is true)" disabled="@readOnly" /> @T["Descending"]</label>
+                </div>
+                <div>
+                    <label class="rb-label">@T["Row limit"]</label>
+                    <input class="rb-native" type="number" min="1" max="@AdHocLimits.MaxRows" value="@limit" disabled="@readOnly"
+                           @onchange="@(e => limit = int.TryParse((string?)e.Value, out var l) ? Math.Clamp(l, 1, AdHocLimits.MaxRows) : 500)" aria-label="@(T["Row limit"])" />
+                </div>
+            </section>
+
+            <div class="rb-actions">
+                <BbButton Disabled="@busy" OnClick="RunAsync"><LucideIcon Name="play" Size="16" /> @T["Run"]</BbButton>
+                @if (canExport)
+                {
+                    <BbButton Variant="ButtonVariant.Outline" Disabled="@busy" OnClick="@(() => ExportAsync("xlsx"))"><LucideIcon Name="file-spreadsheet" Size="16" /> Excel</BbButton>
+                    <BbButton Variant="ButtonVariant.Outline" Disabled="@busy" OnClick="@(() => ExportAsync("csv"))"><LucideIcon Name="file-down" Size="16" /> CSV</BbButton>
+                }
+            </div>
+
+            <section class="rb-save">
+                <label class="rb-label">@T["Save as"]</label>
+                <BbInput @bind-Value="name" Placeholder="@(T["Report name"])" MaxLength="@AdHocLimits.MaxNameLength" Disabled="@readOnly" />
+                <BbInput @bind-Value="description" Placeholder="@(T["Description (optional)"])" Disabled="@readOnly" />
+                @if (ShareRoleOptions.Count > 0)
+                {
+                    <BbMultiSelect TValue="string" Values="@sharedRoles" ValuesChanged="@(v => sharedRoles = v.ToList())" Options="ShareRoleOptions"
+                                   Placeholder="@(T["Private: only you"])" ShowSelectAll="false" MaxDisplayTags="3" Disabled="@readOnly" />
+                    <p class="muted small" style="margin:0">@T["Shared reports run with each viewer's own permissions."]</p>
+                }
+                <div class="rb-actions">
+                    @if (!readOnly)
+                    {
+                        <BbButton Variant="ButtonVariant.Secondary" Disabled="@busy" OnClick="@(() => SaveAsync(copy: false))">
+                            <LucideIcon Name="save" Size="16" /> @T[saved is null ? "Save" : "Save changes"]
+                        </BbButton>
+                    }
+                    @if (saved is not null)
+                    {
+                        <BbButton Variant="ButtonVariant.Outline" Disabled="@busy" OnClick="@(() => SaveAsync(copy: true))"><LucideIcon Name="copy" Size="16" /> @T["Save a copy"]</BbButton>
+                        @if (!readOnly)
+                        {
+                            <BbButton Variant="ButtonVariant.Ghost" Disabled="@busy" OnClick="DeleteAsync"><LucideIcon Name="trash-2" Size="16" /> @T["Delete"]</BbButton>
+                        }
+                    }
+                </div>
+                @if (readOnly)
+                {
+                    <p class="muted small" style="margin:0">@T["Shared with you. Save a copy to change it."]</p>
+                }
+            </section>
+        }
+    </aside>
+
+    <section class="rb-result">
+        @if (error is not null)
+        {
+            <BbAlert Variant="AlertVariant.Danger" Style="margin-bottom:1rem"><BbAlertDescription>@error</BbAlertDescription></BbAlert>
+        }
+        @if (result is null)
+        {
+            <BbEmpty Title="@(T["No results yet"])" Description="@(T["Set up the report on the left and choose Run."])">
+                <Icon><LucideIcon Name="table-2" Size="28" /></Icon>
+            </BbEmpty>
+        }
+        else
+        {
+            <p class="muted small rb-meta">
+                @T.Format("{0} rows from {1} documents.", result.Rows.Count.ToString("N0", CultureInfo.CurrentCulture), result.SourceRows.ToString("N0", CultureInfo.CurrentCulture))
+                @if (result.LimitApplied) { <span> @T.Format("Showing the first {0}.", limit) </span> }
+                @if (result.Truncated) { <strong class="rb-warn"> @T.Format("Only the first {0} documents were read; add filters for complete totals.", AdHocLimits.MaxRows.ToString("N0", CultureInfo.CurrentCulture))</strong> }
+                @if (result.SkippedFields.Count > 0) { <span class="rb-warn"> @T.Format("Left out (no permission): {0}.", string.Join(", ", result.SkippedFields))</span> }
+            </p>
+            <div class="table-wrap">
+                <table class="data">
+                    <thead><tr>@foreach (var c in result.Columns) { <th class="@(IsNum(c) ? "num" : "")">@T[c.Label]</th> }</tr></thead>
+                    <tbody>
+                        @foreach (var r in result.Rows)
+                        {
+                            <tr>
+                                @for (var i = 0; i < result.Columns.Count; i++)
+                                {
+                                    var c = result.Columns[i];
+                                    <td class="@(IsNum(c) ? "num" : "")">
+                                        @if (c.Key == StandardFields.Name && r[i] is string docName && groupByRun.Count == 0)
+                                        {
+                                            <a class="doc-link" href="/app/@docTypeRun/@docName">@docName</a>
+                                        }
+                                        else
+                                        {
+                                            @Format(c, r[i])
+                                        }
+                                    </td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                    @if (groupByRun.Count > 0 && result.Rows.Count > 1 && result.Columns.Any(c => c.Key.StartsWith("sum:") || c.Key.StartsWith("count")))
+                    {
+                        <tfoot>
+                            <tr>
+                                @for (var i = 0; i < result.Columns.Count; i++)
+                                {
+                                    var c = result.Columns[i];
+                                    <td class="@(IsNum(c) ? "num" : "")">
+                                        @if (i == 0) { <strong>@T["Total"]</strong> }
+                                        else if (c.Key.StartsWith("sum:") || c.Key.StartsWith("count")) { <strong>@Format(c, result.Rows.Sum(r => Framework.Expressions.Values.ToDecimal(r[i]) ?? 0m))</strong> }
+                                    </td>
+                                }
+                            </tr>
+                        </tfoot>
+                    }
+                </table>
+            </div>
+            @if (!result.Truncated && !result.LimitApplied && groupByRun.Count > 0)
+            {
+                <p class="muted small" style="margin-top:.5rem">@T["Totals only include documents you have permission to view."]</p>
+            }
+        }
+    </section>
+</div>
+}
+
+@code {
+    [Parameter] public Guid? Id { get; set; }
+
+    private sealed class FilterRow { public string Field { get; set; } = ""; public string Op { get; set; } = "="; public string? Value { get; set; } }
+    private sealed class AggRow { public string Function { get; set; } = "count"; public string? Field { get; set; } }
+
+    private static readonly (string Key, string Label)[] Ops =
+        [("=", "is"), ("!=", "is not"), (">", "greater than"), (">=", "at least"), ("<", "less than"), ("<=", "at most"), ("like", "contains"), ("in", "is one of")];
+    private static readonly (string Key, string Label)[] Functions =
+        [("count", "Count"), ("sum", "Sum"), ("avg", "Average"), ("min", "Minimum"), ("max", "Maximum")];
+
+    private IReadOnlyList<SavedAdHocReport> savedList = [];
+    private SavedAdHocReport? saved;
+    private bool readOnly;
+    private string? docType;
+    private IReadOnlyList<AdHocColumn> fields = [];
+    private List<string> columns = [];
+    private List<string> groupBy = [];
+    private List<AggRow> aggregates = [];
+    private List<FilterRow> filters = [];
+    private string? sortBy;
+    private bool sortDesc;
+    private int limit = 500;
+    private string? name, description;
+    private List<string> sharedRoles = [];
+    private AdHocResult? result;
+    private IReadOnlyList<string> groupByRun = [];
+    private string? docTypeRun;
+    private string? error, fatal;
+    private bool busy, canExport;
+    private Guid? loadedId = Guid.Empty;
+
+    private UserContext User => Current.Required;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Id == loadedId) return;
+        loadedId = Id;
+        fatal = null; error = null; result = null;
+        savedList = await Builder.ListAsync(User);
+        if (Id is null) { saved = null; readOnly = false; Reset(null); return; }
+        try
+        {
+            saved = await Builder.GetAsync(User, Id.Value);
+            readOnly = !AdHocReportService.CanEdit(User, saved);
+            Load(saved);
+            await RunCoreAsync(savedRun: true);
+        }
+        catch (Exception ex) when (ex is DocumentNotFoundException or PermissionDeniedException or InvalidPayloadException) { fatal = ex.Message; }
+    }
+
+    private void Reset(string? dt)
+    {
+        docType = dt; columns = []; groupBy = []; aggregates = []; filters = []; sortBy = null; sortDesc = false; limit = 500;
+        name = null; description = null; sharedRoles = []; result = null;
+        LoadFields();
+        if (fields.Count > 0)
+            columns = fields.Where(f => f.Key == StandardFields.Name || (Meta?.ListColumns.Contains(f.Key) ?? false)).Select(f => f.Key).Take(8).ToList();
+    }
+
+    private void Load(SavedAdHocReport r)
+    {
+        var d = r.Definition;
+        docType = d.DocType; LoadFields();
+        var known = fields.Select(f => f.Key).ToHashSet(StringComparer.Ordinal);
+        columns = d.Columns.Where(known.Contains).ToList();
+        groupBy = d.GroupBy.Where(known.Contains).ToList();
+        aggregates = d.Aggregates.Select(a => new AggRow { Function = a.Function, Field = a.Field }).ToList();
+        filters = d.Filters.Select(f => new FilterRow { Field = f.Field, Op = f.Op, Value = f.Value }).ToList();
+        sortBy = d.SortBy; sortDesc = d.SortDescending; limit = d.Limit;
+        name = r.Name; description = r.Description; sharedRoles = r.SharedWithRoles.ToList();
+    }
+
+    private CompiledDocType? Meta => docType is not null && Metadata.Current.TryGet(docType, out var m) ? m : null;
+
+    private void LoadFields()
+    {
+        fields = [];
+        canExport = false;
+        if (Meta is not { } m) return;
+        try
+        {
+            fields = Builder.Fields(User, m.Name);
+            canExport = Perms.Can(User, m, DocActions.Export);
+        }
+        catch (Exception ex) when (ex is PermissionDeniedException or InvalidPayloadException) { error = ex.Message; }
+    }
+
+    private void OnDocTypeChanged(string? value)
+    {
+        if (value == docType) return;
+        var keepName = name; var keepDesc = description;
+        Reset(value);
+        name = keepName; description = keepDesc;
+    }
+
+    private void EnsureAggregates()
+    {
+        if (groupBy.Count > 0 && aggregates.Count == 0) aggregates.Add(new AggRow { Function = "count" });
+    }
+
+    private void SetAggFunction(AggRow a, string fn)
+    {
+        a.Function = fn;
+        if (fn is "sum" or "avg" && (a.Field is null || !fields.Any(f => f.Key == a.Field && AdHocLimits.NumericTypes.Contains(f.Type))))
+            a.Field = fields.FirstOrDefault(f => AdHocLimits.NumericTypes.Contains(f.Type))?.Key;
+        else if (fn is "min" or "max" && a.Field is null) a.Field = fields.FirstOrDefault()?.Key;
+    }
+
+    private IReadOnlyList<SelectOption<string>> DocTypeOptions =>
+        Builder.DocTypes(User).Select(m => new SelectOption<string>(m.Name, T.Title(m))).ToList();
+
+    private IReadOnlyList<SelectOption<string>> SavedOptions =>
+        savedList.Select(r => new SelectOption<string>(r.Id.ToString(), r.Name)).Prepend(new SelectOption<string>("", T["Saved reports…"])).ToList();
+
+    private IReadOnlyList<SelectOption<string>> FieldOptions(Func<AdHocColumn, bool> where) =>
+        fields.Where(where).Select(f => new SelectOption<string>(f.Key, T[f.Label])).ToList();
+
+    /// <summary>Roles that may run reports on this DocType and that the user has (any role for administrators).</summary>
+    private IReadOnlyList<SelectOption<string>> ShareRoleOptions =>
+        Meta is not { } m ? [] : m.Def.Permissions
+            .Where(p => p.Actions.Contains(DocActions.Report) && p.PermLevel == 0 && (User.IsAdmin || User.Roles.Contains(p.Role)))
+            .Select(p => p.Role).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)
+            .Select(r => new SelectOption<string>(r, r)).ToList();
+
+    private IEnumerable<(string Key, string Label)> OutputColumns()
+    {
+        string Label(string key) => T[fields.FirstOrDefault(f => f.Key == key)?.Label ?? key];
+        if (groupBy.Count == 0) return columns.Select(c => (c, Label(c)));
+        return groupBy.Select(g => (g, Label(g)))
+            .Concat(aggregates.Select(a => (AdHocReportService.AggregateKey(new AdHocAggregate(a.Function, a.Field)),
+                $"{T[Functions.First(f => f.Key == a.Function).Label]} {(a.Field is null ? "" : Label(a.Field))}".Trim())));
+    }
+
+    private AdHocReportDef Definition() => new()
+    {
+        DocType = docType ?? "",
+        Columns = groupBy.Count == 0 ? columns : [],
+        GroupBy = groupBy,
+        Aggregates = groupBy.Count == 0 ? [] : aggregates.Select(a => new AdHocAggregate(a.Function, a.Field)).ToList(),
+        Filters = filters.Select(f => new AdHocFilter(f.Field, f.Op, f.Value)).ToList(),
+        SortBy = sortBy, SortDescending = sortDesc, Limit = limit,
+    };
+
+    private string ValueHint(FilterRow r)
+    {
+        var type = fields.FirstOrDefault(f => f.Key == r.Field)?.Type;
+        return r.Op == "in" ? T["a, b, c"] : type switch
+        {
+            "Date" => "yyyy-MM-dd",
+            "Check" => T["yes / no"],
+            "Int" or "Float" or "Currency" or "Percent" => "0",
+            _ => T["Value"],
+        };
+    }
+
+    private Task RunAsync() => RunCoreAsync(savedRun: false);
+
+    private async Task RunCoreAsync(bool savedRun)
+    {
+        busy = true; error = null;
+        try
+        {
+            if (savedRun && saved is not null)
+            {
+                (_, result) = await Builder.RunSavedAsync(User, saved.Id);
+                groupByRun = saved.Definition.GroupBy; docTypeRun = saved.Definition.DocType;
+            }
+            else
+            {
+                var def = Definition();
+                result = await Builder.RunAsync(User, def);
+                groupByRun = def.GroupBy; docTypeRun = def.DocType;
+            }
+        }
+        catch (Exception ex) when (IsUserError(ex)) { error = Message(ex); }
+        finally { busy = false; }
+    }
+
+    private async Task ExportAsync(string format)
+    {
+        busy = true; error = null;
+        try
+        {
+            var output = await Builder.ExportAsync(User, Definition(), format, name ?? Meta?.Title ?? "report");
+            var token = Downloads.Put(User.TenantId, User.Id, output);
+            await JS.InvokeVoidAsync("frogframe.downloadUrl", $"/report-downloads/{token}", output.FileName);
+        }
+        catch (Exception ex) when (IsUserError(ex)) { error = Message(ex); }
+        finally { busy = false; }
+    }
+
+    private async Task SaveAsync(bool copy)
+    {
+        busy = true; error = null;
+        try
+        {
+            var reportName = copy && saved is not null && string.Equals(name, saved.Name, StringComparison.Ordinal)
+                ? T.Format("{0} (copy)", saved.Name) : name ?? "";
+            var result = await Builder.SaveAsync(User, copy ? null : saved?.Id, reportName, description, sharedRoles, Definition(),
+                copy ? null : saved?.Version);
+            Toasts.Success(T.Format("Report “{0}” saved.", result.Name), T["Saved"]);
+            loadedId = result.Id; saved = result; readOnly = false; name = result.Name;
+            savedList = await Builder.ListAsync(User);
+            Nav.NavigateTo($"/reports/builder/{result.Id}", replace: true);
+        }
+        catch (ConcurrencyException) { error = T["The report was changed by someone else. Reload it and try again."]; }
+        catch (Exception ex) when (IsUserError(ex)) { error = Message(ex); }
+        finally { busy = false; }
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (saved is null) return;
+        var confirm = await Dialogs.ConfirmAsync(T.Format("Delete report “{0}”?", saved.Name), T["People it was shared with lose it too. The documents are not affected."],
+            new ConfirmDialogOptions { Destructive = true, ConfirmText = T["Delete"], CancelText = T["Cancel"] });
+        if (!confirm.Confirmed) return;
+        try
+        {
+            await Builder.DeleteAsync(User, saved.Id);
+            Toasts.Success(T.Format("Report “{0}” deleted.", saved.Name), T["Deleted"]);
+            Nav.NavigateTo("/reports/builder");
+        }
+        catch (Exception ex) when (IsUserError(ex)) { error = Message(ex); }
+    }
+
+    private async Task OpenSaved(string? id)
+    {
+        if (Guid.TryParse(id, out var g) && g != saved?.Id) Nav.NavigateTo($"/reports/builder/{g}");
+        await Task.CompletedTask;
+    }
+
+    private static bool IsUserError(Exception ex) =>
+        ex is ValidationFailedException or PermissionDeniedException or InvalidPayloadException or DocumentNotFoundException;
+
+    private string Message(Exception ex) => ex is ValidationFailedException v
+        ? string.Join(" ", v.Errors.Select(e => T.Message(e.Message)))
+        : T.Message(ex.Message);
+
+    private static bool IsNum(AdHocColumn c) => AdHocLimits.NumericTypes.Contains(c.Type);
+
+    private string Format(AdHocColumn c, object? v)
+    {
+        if (v is null) return "—";
+        if (Meta?.ByName.TryGetValue(c.Key, out var f) == true) return T.Value(f, v);
+        return c.Type switch
+        {
+            "Currency" => Framework.Expressions.Values.ToDecimal(v) is { } m ? "Rp" + m.ToString("#,0.##", Fmt.Id) : v.ToString()!,
+            "Int" or "Float" or "Percent" => Framework.Expressions.Values.ToDecimal(v) is { } n ? n.ToString("#,0.##", Fmt.Id) : v.ToString()!,
+            _ when c.Key == StandardFields.DocStatus => T[DocStatus.Label((int)(Framework.Expressions.Values.ToDecimal(v) ?? 0))],
+            _ => Fmt.Value(null, v),
+        };
+    }
+}

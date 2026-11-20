@@ -80,7 +80,8 @@ public sealed class CommentMentionNotifier(
     IMetadataProvider metadata,
     IPermissionService permissions,
     TimeProvider clock,
-    INotificationLiveFeed? liveFeed = null) : IEventHandler
+    INotificationLiveFeed? liveFeed = null,
+    Framework.Sharing.IDocShareStore? shares = null) : IEventHandler
 {
     public const int BodyPreviewLength = 280;
 
@@ -115,7 +116,7 @@ public sealed class CommentMentionNotifier(
             if (target is null || target.TenantId != message.TenantId) continue;
             if (string.Equals(target.Id, actor, StringComparison.OrdinalIgnoreCase)) continue;
             if (!permissions.Can(target, meta, DocActions.Read)) continue;
-            if (!permissions.InScope(target, meta, DocActions.Read, doc.Owner, doc.Data)) continue;
+            if (!await Framework.Sharing.RowAccess.InScopeAsync(permissions, shares, target, meta, DocActions.Read, doc, ct)) continue;
             if (!notified.Add(target.Id)) continue;
 
             var id = new Guid(MD5.HashData(Encoding.UTF8.GetBytes($"{message.TenantId}|comment-mention|{commentId}|{target.Id}")));
@@ -133,7 +134,7 @@ public sealed class CommentMentionNotifier(
                 if (target.TenantId != message.TenantId) continue;
                 if (string.Equals(target.Id, actor, StringComparison.OrdinalIgnoreCase)) continue;
                 if (!permissions.Can(target, meta, DocActions.Read)) continue;
-                if (!permissions.InScope(target, meta, DocActions.Read, doc.Owner, doc.Data)) continue;
+                if (!await Framework.Sharing.RowAccess.InScopeAsync(permissions, shares, target, meta, DocActions.Read, doc, ct)) continue;
                 if (!notified.Add(target.Id)) continue;
 
                 var id = new Guid(MD5.HashData(Encoding.UTF8.GetBytes($"{message.TenantId}|comment-mention|{commentId}|{target.Id}")));

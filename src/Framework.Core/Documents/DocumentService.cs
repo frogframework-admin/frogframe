@@ -70,7 +70,8 @@ public sealed class DocumentService(
     TimeProvider clock,
     IFileStore files,
     HookRunner hooks,
-    OutboxWakeSignal? outboxWake = null)
+    OutboxWakeSignal? outboxWake = null,
+    Framework.Sharing.IDocShareStore? shares = null)
 {
     private sealed class TenantLookup(IDocumentStore store, string tenantId) : IDocumentLookup
     {
@@ -194,10 +195,34 @@ public sealed class DocumentService(
             }
             throw new DocumentNotFoundException(meta.Title, name);
         }
-        if (!permissions.InScope(user, meta, DocActions.Read, doc.Owner, doc.Data))
+        if (!await InScopeAsync(user, meta, DocActions.Read, doc, ct))
             throw new DocumentNotFoundException(meta.Title, name);
         return doc;
     }
+
+    /// <summary>
+    /// Row scope of a query, widened by the documents shared with the user (row sharing). Shares only apply to read
+    /// and write, and only when a role already gives the DocType permission for that action.
+    /// </summary>
+    private async Task<RowScope> ScopeAsync(UserContext user, CompiledDocType meta, string action, CancellationToken ct)
+    {
+        var scope = permissions.ScopeFor(user, meta, action);
+        if (shares is null || scope is RowScope.AllRows || action is not (DocActions.Read or DocActions.Write)
+            || !permissions.Can(user, meta, action))
+            return scope;
+        var names = await shares.SharedNamesAsync(user.TenantId, meta.Name, user.Id, action == DocActions.Write,
+            Framework.Sharing.DocShareLimits.MaxSharedNamesPerQuery, ct);
+        if (names.Count == 0) return scope;
+        return scope is RowScope.AnyOf any ? any with { SharedNames = names } : new RowScope.AnyOf([]) { SharedNames = names };
+    }
+
+    /// <summary>Role row scope, or a share of this document with the user (read, or write for <see cref="DocActions.Write"/>).</summary>
+    private Task<bool> InScopeAsync(UserContext user, CompiledDocType meta, string action, Document doc, CancellationToken ct) =>
+        Framework.Sharing.RowAccess.InScopeAsync(permissions, shares, user, meta, action, doc, ct);
+
+    /// <summary>The share of a document with the user, if any (for the form: edit button, share drawer).</summary>
+    public async Task<Framework.Sharing.DocShare?> ShareForAsync(UserContext user, string docType, string name, CancellationToken ct = default) =>
+        shares is null ? null : await shares.FindAsync(user.TenantId, docType, name, user.Id, ct);
 
     private Document RedactForRead(UserContext user, CompiledDocType meta, Document doc)
     {
@@ -254,7 +279,7 @@ public sealed class DocumentService(
 
         var pageSize = Math.Clamp(req.PageSize <= 0 ? lv.PageSize : req.PageSize, 1, QueryLimits.CountCap);
         var page = Math.Max(1, req.Page);
-        var scope = permissions.ScopeFor(user, meta, DocActions.Read);
+        var scope = await ScopeAsync(user, meta, DocActions.Read, ct);
         var result = await store.QueryAsync(new StoreQuery(user.TenantId, docType, scope, filters,
             string.IsNullOrWhiteSpace(req.Search) ? null : req.Search.Trim(),
             lv.SearchFields.Where(Readable).ToList(), sort, (page - 1) * pageSize, pageSize), ct);
@@ -298,7 +323,7 @@ public sealed class DocumentService(
         foreach (var f in filters)
             if (!meta.IsQueryable(f.Field) || !FilterOps.All.Contains(f.Op))
                 throw new InvalidPayloadException($"Filter '{f.Field} {f.Op}' is not allowed", [f.Field]);
-        var scope = permissions.ScopeFor(user, meta, DocActions.Read);
+        var scope = await ScopeAsync(user, meta, DocActions.Read, ct);
         var res = await store.QueryAsync(new StoreQuery(user.TenantId, docType, scope, filters, null, [], meta.Def.ListView.DefaultSort, 0, 10_000), ct);
         return res.Items.Select(d => RedactForRead(user, meta, d)).ToList();
     }
@@ -363,7 +388,7 @@ public sealed class DocumentService(
         }
         sort.AddRange(lv.DefaultSort);
 
-        var scope = permissions.ScopeFor(user, meta, DocActions.Read);
+        var scope = await ScopeAsync(user, meta, DocActions.Read, ct);
         var result = await store.QueryAsync(new StoreQuery(
             user.TenantId,
             docType,
@@ -494,7 +519,7 @@ public sealed class DocumentService(
         var result = new List<(CompiledDocType, Document, IReadOnlyList<string>)>();
         foreach (var meta in Meta.DocTypes.Values.Where(m => m.Workflow is not null && permissions.Can(user, m, DocActions.Read)))
         {
-            var scope = permissions.ScopeFor(user, meta, DocActions.Read);
+            var scope = await ScopeAsync(user, meta, DocActions.Read, ct);
             var open = await store.QueryAsync(new StoreQuery(user.TenantId, meta.Name, scope,
                 [new FilterClause(StandardFields.DocStatus, "in", new List<object?> { 0m, 1m })], null, [], meta.Def.ListView.DefaultSort, 0, 200), ct);
             foreach (var d in open.Items)
@@ -522,7 +547,7 @@ public sealed class DocumentService(
 
         foreach (var meta in targets)
         {
-            var scope = permissions.ScopeFor(user, meta, DocActions.Read);
+            var scope = await ScopeAsync(user, meta, DocActions.Read, ct);
             var sort = new List<SortDef> { new() { Field = StandardFields.Modified, Direction = "desc" } };
             var res = await store.QueryAsync(new StoreQuery(user.TenantId, meta.Name, scope, [], null, [], sort, 0, limit), ct);
             foreach (var d in res.Items)
@@ -570,11 +595,18 @@ public sealed class DocumentService(
         return entries.Select(e => e with { Changes = e.Changes.Where(c => !hiddenLevels.Contains(c.PermLevel)).ToList() }).ToList();
     }
 
-    public async Task<IReadOnlyList<ActionView>> AvailableActionsAsync(UserContext user, Document doc, CancellationToken ct = default)
+    public Task<IReadOnlyList<ActionView>> AvailableActionsAsync(UserContext user, Document doc, CancellationToken ct = default) =>
+        AvailableActionsAsync(user, doc.DocType, doc.Name, ct);
+
+    /// <summary>
+    /// Workflow transitions (or submit / cancel / amend) the user can run on the stored document now: role, condition
+    /// and row scope are checked against the stored version. Used by the form toolbar and the list board view.
+    /// </summary>
+    public async Task<IReadOnlyList<ActionView>> AvailableActionsAsync(UserContext user, string docType, string name, CancellationToken ct = default)
     {
-        var meta = TopLevel(doc.DocType);
-        if (string.IsNullOrEmpty(doc.Name)) return [];
-        var stored = await LoadInScopeAsync(user, meta, doc.Name, ct);
+        var meta = TopLevel(docType);
+        if (string.IsNullOrEmpty(name)) return [];
+        var stored = await LoadInScopeAsync(user, meta, name, ct);
         var actions = new List<ActionView>();
         if (meta.Workflow is not null)
         {
@@ -772,7 +804,7 @@ public sealed class DocumentService(
         var meta = TopLevel(docType);
         permissions.Demand(user, meta, DocActions.Write);
         var current = await LoadInScopeAsync(user, meta, name, ct);
-        if (!permissions.InScope(user, meta, DocActions.Write, current.Owner, current.Data))
+        if (!await InScopeAsync(user, meta, DocActions.Write, current, ct))
             throw new PermissionDeniedException($"You are not allowed to modify {meta.Title} {name}.");
         if (current.Version != expectedVersion) throw new ConcurrencyException(name, expectedVersion, current.Version);
         if (current.DocStatus != DocStatus.Draft)
@@ -789,7 +821,7 @@ public sealed class DocumentService(
         await RunPipelineAsync(ctx, ct);
         RunVisualHooks(meta, "BeforeUpdate", CreateHookContext(ctx), current);
         await hooks.RunAsync(DocHookStage.BeforeUpdate, CreateHookContext(ctx), ct, Diff(meta, current, doc));
-        if (!permissions.InScope(user, meta, DocActions.Write, doc.Owner, doc.Data))
+        if (!await InScopeAsync(user, meta, DocActions.Write, doc, ct))
             throw new PermissionDeniedException("This modification moves the document outside your data scope.");
 
         var changes = Diff(meta, current, doc);

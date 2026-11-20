@@ -1,0 +1,219 @@
+@*
+    Tree view of a list (/app/{DocType}?view=tree) for parent–child masters. The nodes are the rows the list loaded,
+    so search, filters, saved views and permissions are the list's own. Keyboard (ARIA tree pattern):
+    Up/Down move, Right expands or goes to the first child, Left collapses or goes to the parent, Home/End,
+    Enter opens the document. "+" on a group node opens a new document with the parent filled in.
+*@
+@using System.Globalization
+@inject CurrentUser Current
+@inject IPermissionService Perms
+@inject NavigationManager Nav
+@inject UiText T
+
+<div class="tree">
+    <div class="tree-bar">
+        <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick="ExpandAll" Disabled="@(roots.Count == 0)">
+            <LucideIcon Name="chevrons-up-down" Size="14" /> @T["Expand all"]
+        </BbButton>
+        <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick="CollapseAll" Disabled="@(roots.Count == 0)">
+            <LucideIcon Name="chevrons-down-up" Size="14" /> @T["Collapse all"]
+        </BbButton>
+        @if (settings is not null)
+        {
+            <span class="muted small">@T.Format("{0} documents · grouped by {1}", Items.Count.ToString("N0", CultureInfo.CurrentCulture), T.Label(Meta.ByName[settings.ParentField]))</span>
+        }
+    </div>
+    @if (Capped)
+    {
+        <p class="muted small tree-note">@T.Format("Only the first {0} documents are shown. Narrow the list with search or filters.", Items.Count.ToString("N0", CultureInfo.CurrentCulture))</p>
+    }
+    @if (orphans > 0)
+    {
+        <p class="muted small tree-note">@T.Format("Shown at the top level because their parent is not in this list (filtered out or not visible to you): {0}.", orphans)</p>
+    }
+
+    @if (roots.Count == 0)
+    {
+        <div style="padding:2rem 1rem">
+            <BbEmpty Title="@(T.Format("No matching {0} found", T.Title(Meta).ToLower()))" Description="@(T["Modify or clear search to view other documents."])">
+                <Icon><LucideIcon Name="list-tree" Size="28" /></Icon>
+            </BbEmpty>
+        </div>
+    }
+    else
+    {
+        <div class="tree-list" role="tree" aria-label="@T.Title(Meta)">
+            @foreach (var n in visible)
+            {
+                var node = n;
+                var open = expanded.Contains(node.Name);
+                var hasChildren = node.Children.Count > 0;
+                <div @key="node.Name" role="treeitem" class="tree-row @(focusName == node.Name ? "is-focus" : "")"
+                     aria-level="@(node.Depth + 1)" aria-expanded="@(hasChildren ? (open ? "true" : "false") : null)"
+                     tabindex="@(focusName == node.Name ? "0" : "-1")" data-tree-item
+                     @ref="rowRefs[node.Name]"
+                     @onkeydown="@(e => OnKeyAsync(e, node))" @onfocus="@(() => focusName = node.Name)"
+                     style="--depth:@node.Depth">
+                    @if (hasChildren)
+                    {
+                        <button type="button" class="tree-toggle" tabindex="-1" @onclick="() => Toggle(node)"
+                                aria-label="@(T[open ? "Collapse" : "Expand"])">
+                            <LucideIcon Name="chevron-right" Size="14" Class="@(open ? "is-open" : "")" />
+                        </button>
+                    }
+                    else
+                    {
+                        <span class="tree-toggle-spacer"></span>
+                    }
+                    <LucideIcon Name="@(node.IsGroup || hasChildren ? (open ? "folder-open" : "folder") : "file-text")" Size="15" Class="tree-icon" />
+                    <a class="tree-title" href="/app/@Meta.Name/@node.Name" tabindex="-1">@node.Title</a>
+                    @if (node.Title != node.Name)
+                    {
+                        <span class="tree-name muted">@node.Name</span>
+                    }
+                    @if (node.ParentMissing)
+                    {
+                        <span class="tree-flag" title="@(T.Format("Parent {0} is not in this list.", node.Parent ?? ""))">@T["parent not shown"]</span>
+                    }
+                    @if (node.InCycle)
+                    {
+                        <span class="tree-flag is-bad" title="@(T["The parent chain of this document loops back to itself. Fix the parent field."])">@T["parent loop"]</span>
+                    }
+                    <span class="tree-fields">
+                        @foreach (var f in extraFields)
+                        {
+                            if (node.Row.GetValueOrDefault(f.Name) is null or "") continue;
+                            <span title="@T.Label(f)">@T.Value(f, node.Row[f.Name])</span>
+                        }
+                    </span>
+                    @if (hasChildren)
+                    {
+                        <span class="tree-count" title="@(T.Format("{0} below", node.Descendants))">@node.Descendants</span>
+                    }
+                    else
+                    {
+                        <span class="tree-count is-empty" aria-hidden="true"></span>
+                    }
+                    @if (AddChildHref(node) is { } href)
+                    {
+                        <a class="tree-add" href="@href" tabindex="-1" title="@(T.Format("New {0} under {1}", T.Title(Meta).ToLower(), node.Title))">
+                            <LucideIcon Name="plus" Size="14" />
+                        </a>
+                    }
+                    else if (canAddChild)
+                    {
+                        <span class="tree-add is-empty" aria-hidden="true"></span>
+                    }
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>Levels expanded when the tree opens (more when the list is small).</summary>
+    private const int SmallTree = 150;
+
+    [Parameter, EditorRequired] public CompiledDocType Meta { get; set; } = default!;
+    [Parameter, EditorRequired] public IReadOnlyList<Dictionary<string, object?>> Items { get; set; } = [];
+    [Parameter] public bool Capped { get; set; }
+
+    private TreeView.Settings? settings;
+    private List<TreeView.Node> roots = [];
+    private List<TreeView.Node> visible = [];
+    private HashSet<string> expanded = new(StringComparer.Ordinal);
+    private IReadOnlyList<CompiledField> extraFields = [];
+    private readonly Dictionary<string, ElementReference> rowRefs = new(StringComparer.Ordinal);
+    private int orphans;
+    private string? focusName;
+    private bool focusPending;
+    private IReadOnlyList<Dictionary<string, object?>>? builtItems;
+    private CompiledDocType? builtMeta;
+    private bool canAddChild;
+
+    protected override void OnParametersSet()
+    {
+        if (ReferenceEquals(Items, builtItems) && ReferenceEquals(Meta, builtMeta)) return;
+        var firstBuild = !ReferenceEquals(Meta, builtMeta);
+        builtItems = Items; builtMeta = Meta;
+        settings = TreeView.Resolve(Meta);
+        roots = settings is null ? [] : TreeView.Build(settings, Items);
+        orphans = roots.Count(r => r.ParentMissing);
+        var names = TreeView.All(roots).Select(n => n.Name).ToHashSet(StringComparer.Ordinal);
+        if (firstBuild || expanded.Count == 0)
+            expanded = TreeView.ExpandedTo(roots, Items.Count <= SmallTree ? 3 : 1);
+        else
+            expanded.IntersectWith(names); // keep what the user opened across reloads
+        if (focusName is null || !names.Contains(focusName)) focusName = roots.FirstOrDefault()?.Name;
+
+        var skip = new HashSet<string?>(StringComparer.Ordinal) { Meta.Def.ListView.TitleField, settings?.ParentField, settings?.GroupField };
+        extraFields = Meta.ListColumns
+            .Where(c => !skip.Contains(c) && Meta.ByName.TryGetValue(c, out var f) && !f.IsLayout && f.Def.Type is not ("Table" or "Image" or "Attach" or "Check"))
+            .Where(c => Items.Count == 0 || Items[0].ContainsKey(c))
+            .Take(2).Select(c => Meta.ByName[c]).ToList();
+
+        var user = Current.Required;
+        canAddChild = settings is not null && Perms.Can(user, Meta, DocActions.Create)
+                      && Perms.CanWriteField(user, Meta, Meta.ByName[settings.ParentField]);
+        Refresh();
+    }
+
+    private void Refresh() => visible = TreeView.Visible(roots, expanded).ToList();
+
+    private string? AddChildHref(TreeView.Node node)
+    {
+        if (!canAddChild || settings is null) return null;
+        if (settings.GroupField is not null && !node.IsGroup) return null;
+        return $"/app/{Meta.Name}/new?{Uri.EscapeDataString("prefill." + settings.ParentField)}={Uri.EscapeDataString(node.Name)}";
+    }
+
+    private void Toggle(TreeView.Node node)
+    {
+        if (!expanded.Remove(node.Name)) expanded.Add(node.Name);
+        focusName = node.Name;
+        Refresh();
+    }
+
+    private void ExpandAll() { expanded = TreeView.ExpandedTo(roots, int.MaxValue); Refresh(); }
+    private void CollapseAll() { expanded.Clear(); Refresh(); }
+
+    private void Focus(TreeView.Node? node)
+    {
+        if (node is null) return;
+        focusName = node.Name;
+        focusPending = true;
+    }
+
+    private void OnKeyAsync(KeyboardEventArgs e, TreeView.Node node)
+    {
+        var i = visible.IndexOf(node);
+        switch (e.Key)
+        {
+            case "ArrowDown": Focus(i + 1 < visible.Count ? visible[i + 1] : null); break;
+            case "ArrowUp": Focus(i > 0 ? visible[i - 1] : null); break;
+            case "Home": Focus(visible.FirstOrDefault()); break;
+            case "End": Focus(visible.LastOrDefault()); break;
+            case "ArrowRight":
+                if (node.Children.Count == 0) break;
+                if (!expanded.Contains(node.Name)) { expanded.Add(node.Name); Refresh(); }
+                else Focus(node.Children[0]);
+                break;
+            case "ArrowLeft":
+                if (node.Children.Count > 0 && expanded.Contains(node.Name)) { expanded.Remove(node.Name); Refresh(); }
+                else Focus(TreeView.ParentOf(roots, node));
+                break;
+            case "Enter":
+                Nav.NavigateTo($"/app/{Meta.Name}/{node.Name}");
+                break;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!focusPending || focusName is null || !rowRefs.TryGetValue(focusName, out var el)) return;
+        focusPending = false;
+        try { await el.FocusAsync(); }
+        catch (JSDisconnectedException) { }
+        catch (InvalidOperationException) { }
+    }
+}

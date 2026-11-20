@@ -1,0 +1,320 @@
+@*
+    Calendar view of a list (/app/{DocType}?view=calendar): month, week and day. Entries come from the rows the
+    list already loaded, so search, filters, saved views, row scope and field permissions are the list's own.
+    The date field is listView.calendar.startField (optional endField / colorField) or the first Date/Datetime
+    list column; the user can switch to another date field. Clicking an entry opens the document; "+" on a day
+    opens a new document with the date filled in (when the user may create and write that field).
+*@
+@using System.Globalization
+@inject IJSRuntime JS
+@inject CurrentUser Current
+@inject IPermissionService Perms
+@inject UiText T
+
+<div class="cal">
+    <div class="cal-bar">
+        <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick="GoToday">@T["Today"]</BbButton>
+        <div class="cal-nav">
+            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="@(() => Move(-1))" Title="@(T["Previous"])" aria-label="@(T["Previous"])">
+                <LucideIcon Name="chevron-left" Size="16" />
+            </BbButton>
+            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="@(() => Move(1))" Title="@(T["Next"])" aria-label="@(T["Next"])">
+                <LucideIcon Name="chevron-right" Size="16" />
+            </BbButton>
+        </div>
+        <h2 class="cal-title" aria-live="polite">@Heading</h2>
+        <div class="cal-bar-end">
+            @if (dateFields.Count > 1)
+            {
+                <label class="cal-field">
+                    <span class="muted small">@T["Date field"]</span>
+                    <select value="@settings?.StartField" @onchange="OnFieldChanged" aria-label="@(T["Date field"])">
+                        @foreach (var f in dateFields)
+                        {
+                            <option value="@f.Name">@T.Label(f)</option>
+                        }
+                    </select>
+                </label>
+            }
+            <div class="view-toggle" role="group" aria-label="@(T["Calendar range"])">
+                @foreach (var (m, label) in Modes)
+                {
+                    <BbButton Variant="@(mode == m ? ButtonVariant.Secondary : ButtonVariant.Ghost)" Size="ButtonSize.Small"
+                              OnClick="@(() => SetMode(m))" aria-pressed="@(mode == m)">@T[label]</BbButton>
+                }
+            </div>
+        </div>
+    </div>
+
+    @if (Capped)
+    {
+        <p class="muted small cal-note">@T.Format("Only the first {0} documents are placed. Narrow the list with search or filters.", Items.Count.ToString("N0", CultureInfo.CurrentCulture))</p>
+    }
+    @if (settings is not null && undated > 0)
+    {
+        <p class="muted small cal-note">@T.Format("{0} documents without {1} are not shown.", undated, T.Label(Meta.ByName[settings.StartField]))</p>
+    }
+
+    @if (mode == CalendarView.Mode.Month)
+    {
+        var (from, _) = CalendarView.Range(mode, anchor);
+        <div class="cal-month" role="grid" aria-label="@Heading">
+            <div class="cal-row cal-weekdays" role="row">
+                @for (var i = 0; i < 7; i++)
+                {
+                    <div role="columnheader">@Culture.DateTimeFormat.GetAbbreviatedDayName(from.AddDays(i).DayOfWeek)</div>
+                }
+            </div>
+            @for (var w = 0; w < 6; w++)
+            {
+                <div class="cal-row" role="row">
+                    @for (var i = 0; i < 7; i++)
+                    {
+                        var day = from.AddDays(w * 7 + i);
+                        var dayEntries = CalendarView.ForDay(entries, day);
+                        <div role="gridcell" class="cal-day @(day.Month != anchor.Month ? "is-outside" : "") @(day == today ? "is-today" : "")">
+                            <div class="cal-day-head">
+                                <button type="button" class="cal-daynum" @onclick="() => OpenDay(day)" title="@(T["Open day"])"
+                                        aria-label="@day.ToString("D", Culture)">@day.Day</button>
+                                @if (NewHref(day) is { } href)
+                                {
+                                    <a class="cal-add" href="@href" title="@(T.Format("New {0}", T.Title(Meta).ToLower()))" aria-label="@(T.Format("New {0} on {1}", T.Title(Meta).ToLower(), day.ToString("D", Culture)))">+</a>
+                                }
+                            </div>
+                            @foreach (var e in dayEntries.Take(MonthChips))
+                            {
+                                @Chip(e, day)
+                            }
+                            @if (dayEntries.Count > MonthChips)
+                            {
+                                <button type="button" class="cal-more" @onclick="() => OpenDay(day)">@T.Format("+{0} more", dayEntries.Count - MonthChips)</button>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        var (from, to) = CalendarView.Range(mode, anchor);
+        var days = Enumerable.Range(0, to.DayNumber - from.DayNumber + 1).Select(i => from.AddDays(i)).ToList();
+        <div class="cal-week" style="--cal-days:@days.Count">
+            <div class="cal-week-head">
+                <div class="cal-gutter"></div>
+                @foreach (var day in days)
+                {
+                    <div class="cal-week-day @(day == today ? "is-today" : "")">
+                        <button type="button" class="cal-daynum" @onclick="() => OpenDay(day)" disabled="@(mode == CalendarView.Mode.Day)">
+                            <span>@Culture.DateTimeFormat.GetAbbreviatedDayName(day.DayOfWeek)</span> <strong>@day.Day</strong>
+                        </button>
+                        @if (NewHref(day) is { } href)
+                        {
+                            <a class="cal-add" href="@href" title="@(T.Format("New {0}", T.Title(Meta).ToLower()))">+</a>
+                        }
+                    </div>
+                }
+            </div>
+            <div class="cal-allday">
+                <div class="cal-gutter muted small">@T["All day"]</div>
+                @foreach (var day in days)
+                {
+                    <div class="cal-allday-cell">
+                        @foreach (var e in CalendarView.AllDay(entries, day))
+                        {
+                            @Chip(e, day)
+                        }
+                    </div>
+                }
+            </div>
+            <div class="cal-scroll" @ref="scrollBox">
+                <div class="cal-grid" style="height:@(24 * HourPx)px">
+                    <div class="cal-gutter cal-hours">
+                        @for (var h = 1; h < 24; h++)
+                        {
+                            <span style="top:@(h * HourPx)px">@($"{h:00}:00")</span>
+                        }
+                    </div>
+                    @foreach (var day in days)
+                    {
+                        <div class="cal-col @(day == today ? "is-today" : "")" style="--hour:@(HourPx)px">
+                            @foreach (var p in CalendarView.LayoutDay(entries, day))
+                            {
+                                <a class="cal-event @ColorClass(p.Entry) @(p.HeightMinutes < 45 ? "is-short" : "")" href="/app/@Meta.Name/@p.Entry.Name"
+                                   style="@EventStyle(p)" title="@Tooltip(p.Entry)">
+                                    <span class="cal-event-time">@p.Entry.Start.ToString("HH:mm", CultureInfo.InvariantCulture)–@p.Entry.End.ToString("HH:mm", CultureInfo.InvariantCulture)</span>
+                                    <span class="cal-event-title">@p.Entry.Title</span>
+                                </a>
+                            }
+                            @if (day == today)
+                            {
+                                <div class="cal-now" style="top:@(NowMinutes * HourPx / 60.0 + "px")"></div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (colorField is not null && colorSlots.Count > 0)
+    {
+        <div class="cal-legend">
+            <span class="muted small">@T.Label(colorField):</span>
+            @foreach (var (key, slot) in colorSlots)
+            {
+                <span class="cal-legend-item"><span class="cal-swatch cal-c@(slot)"></span>@T.Value(colorField, key)</span>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private const int MonthChips = 3;
+    private const int HourPx = 44;
+    private static readonly (CalendarView.Mode Mode, string Label)[] Modes =
+        [(CalendarView.Mode.Month, "Month"), (CalendarView.Mode.Week, "Week"), (CalendarView.Mode.Day, "Day")];
+
+    [Parameter, EditorRequired] public CompiledDocType Meta { get; set; } = default!;
+    [Parameter, EditorRequired] public IReadOnlyList<Dictionary<string, object?>> Items { get; set; } = [];
+    /// <summary>True when the list hit the store's row cap: some documents are not placed.</summary>
+    [Parameter] public bool Capped { get; set; }
+
+    private CalendarView.Mode mode = CalendarView.Mode.Month;
+    private DateOnly anchor;
+    private DateOnly today;
+    private int NowMinutes;
+    private CalendarView.Settings? settings;
+    private string? fieldOverride;
+    private IReadOnlyList<CompiledField> dateFields = [];
+    private CompiledField? colorField;
+    private List<CalendarView.Entry> entries = [];
+    private Dictionary<string, int> colorSlots = new();
+    private int undated;
+    private ElementReference scrollBox;
+    private bool scrollPending;
+    private IReadOnlyList<Dictionary<string, object?>>? builtItems;
+    private CompiledDocType? builtMeta;
+
+    private static CultureInfo Culture => CultureInfo.CurrentUICulture;
+
+    protected override void OnInitialized()
+    {
+        var now = DatetimeFieldType.ToZone(DateTimeOffset.UtcNow.ToString(DatetimeFieldType.Format, CultureInfo.InvariantCulture))!.Value;
+        today = DateOnly.FromDateTime(now.DateTime);
+        NowMinutes = now.Hour * 60 + now.Minute;
+        anchor = today;
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (ReferenceEquals(Items, builtItems) && ReferenceEquals(Meta, builtMeta)) return;
+        if (!ReferenceEquals(Meta, builtMeta)) fieldOverride = null;
+        builtItems = Items; builtMeta = Meta;
+        Build();
+    }
+
+    private void Build()
+    {
+        dateFields = CalendarView.DateFields(Meta).Where(f => Perms.CanReadField(Current.Required, Meta, f)).ToList();
+        settings = CalendarView.Resolve(Meta, fieldOverride);
+        if (settings is not null && dateFields.All(f => f.Name != settings.StartField))
+            settings = dateFields.Count > 0 ? CalendarView.Resolve(Meta, dateFields[0].Name) : null;
+        if (settings is null) { entries = []; colorSlots = new(); colorField = null; undated = 0; return; }
+        colorField = settings.ColorField is { } cf && Meta.ByName.TryGetValue(cf, out var c) && Perms.CanReadField(Current.Required, Meta, c) ? c : null;
+        entries = CalendarView.Entries(Meta, settings with { ColorField = colorField?.Name }, Items);
+        undated = Items.Count - entries.Count;
+        colorSlots = CalendarView.ColorSlots(entries, colorField);
+    }
+
+    private string Heading
+    {
+        get
+        {
+            var (from, to) = CalendarView.Range(mode, anchor);
+            return mode switch
+            {
+                CalendarView.Mode.Month => anchor.ToString("MMMM yyyy", Culture),
+                CalendarView.Mode.Week when from.Month == to.Month => $"{from.Day}–{to.ToString("d MMMM yyyy", Culture)}",
+                CalendarView.Mode.Week => $"{from.ToString("d MMM", Culture)} – {to.ToString("d MMM yyyy", Culture)}",
+                _ => anchor.ToString("dddd, d MMMM yyyy", Culture),
+            };
+        }
+    }
+
+    private void GoToday() { anchor = today; scrollPending = true; }
+    private void Move(int dir) => anchor = CalendarView.Shift(mode, anchor, dir);
+    private void SetMode(CalendarView.Mode m) { if (mode == m) return; mode = m; scrollPending = true; }
+    private void OpenDay(DateOnly day) { anchor = day; mode = CalendarView.Mode.Day; scrollPending = true; }
+
+    private void OnFieldChanged(ChangeEventArgs e)
+    {
+        fieldOverride = e.Value as string;
+        Build();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!scrollPending || mode == CalendarView.Mode.Month) return;
+        scrollPending = false;
+        // Start the time grid at 07:00 (or just before the first entry when it is earlier).
+        var (from, to) = CalendarView.Range(mode, anchor);
+        var first = Enumerable.Range(0, to.DayNumber - from.DayNumber + 1)
+            .SelectMany(i => CalendarView.LayoutDay(entries, from.AddDays(i)))
+            .Select(p => (int?)p.TopMinutes).Min();
+        var minutes = Math.Min(7 * 60, first ?? 7 * 60);
+        try { await JS.InvokeVoidAsync("frogframe.scrollToTop", scrollBox, Math.Max(0, minutes - 30) * HourPx / 60); }
+        catch (JSDisconnectedException) { }
+        catch (InvalidOperationException) { } // prerendering
+    }
+
+    private string? NewHref(DateOnly day)
+    {
+        if (settings is null || !Perms.Can(Current.Required, Meta, DocActions.Create)) return null;
+        var f = Meta.ByName[settings.StartField];
+        if (!Perms.CanWriteField(Current.Required, Meta, f)) return null;
+        var value = f.Def.Type == "Datetime" ? day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) + "T09:00" : day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        return $"/app/{Meta.Name}/new?{Uri.EscapeDataString("prefill." + f.Name)}={Uri.EscapeDataString(value)}";
+    }
+
+    private string ColorClass(CalendarView.Entry e)
+    {
+        if (e.ColorKey is { } k && colorSlots.TryGetValue(k, out var slot)) return "cal-c" + slot;
+        if (Meta.Workflow is not null || Meta.Def.Document.AllowSubmit)
+        {
+            var state = e.Row.GetValueOrDefault(StandardFields.WorkflowState) as string;
+            var ds = e.Row.GetValueOrDefault(StandardFields.DocStatus) is int i ? i : 0;
+            return "tone-" + Fmt.Tone(Meta, state, ds);
+        }
+        return "cal-c0";
+    }
+
+    private string Tooltip(CalendarView.Entry e)
+    {
+        var when = e.AllDay
+            ? (e.End.AddDays(-1).Date == e.Start.Date
+                ? e.Start.ToString("d MMM yyyy", Culture)
+                : $"{e.Start.ToString("d MMM", Culture)} – {e.End.AddDays(-1).ToString("d MMM yyyy", Culture)}")
+            : $"{e.Start.ToString("d MMM yyyy HH:mm", Culture)} – {e.End.ToString(e.End.Date == e.Start.Date ? "HH:mm" : "d MMM HH:mm", Culture)}";
+        return e.Title == e.Name ? $"{e.Name} · {when}" : $"{e.Title} ({e.Name}) · {when}";
+    }
+
+    private static string EventStyle(CalendarView.Placed p)
+    {
+        var width = 100.0 / p.Lanes;
+        return string.Create(CultureInfo.InvariantCulture,
+            $"top:{p.TopMinutes * HourPx / 60.0:0.##}px;height:{Math.Max(18, p.HeightMinutes * HourPx / 60.0 - 2):0.##}px;left:calc({p.Lane * width:0.###}% + 2px);width:calc({width:0.###}% - 4px)");
+    }
+
+    private RenderFragment Chip(CalendarView.Entry e, DateOnly day) => __builder =>
+    {
+        var continues = e.Start.Date < day.ToDateTime(TimeOnly.MinValue);
+        <a class="cal-chip @ColorClass(e) @(continues ? "is-continued" : "")" href="/app/@Meta.Name/@e.Name" title="@Tooltip(e)">
+            @if (!e.AllDay && !continues)
+            {
+                <span class="cal-chip-time">@e.Start.ToString("HH:mm", CultureInfo.InvariantCulture)</span>
+            }
+            <span class="cal-chip-title">@e.Title</span>
+        </a>
+    };
+}

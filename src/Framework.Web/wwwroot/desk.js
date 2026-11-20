@@ -51,6 +51,10 @@ window.frogframe = window.frogframe || {};
         if (element) element.scrollTop = element.scrollHeight;
     };
 
+    window.frogframe.scrollToTop = function (element, top) {
+        if (element) element.scrollTop = top || 0;
+    };
+
     window.frogframe.setLanguage = function (code) {
         if (!code) return;
         document.documentElement.lang = code;
@@ -326,4 +330,22 @@ window.frogframe = window.frogframe || {};
             });
         }
     }
+})();
+
+// Board (Kanban) view: Firefox only starts an HTML5 drag when dataTransfer carries data.
+(function () {
+    document.addEventListener('dragstart', function (e) {
+        var card = e.target && e.target.closest ? e.target.closest('[data-kanban-card]') : null;
+        if (!card || !e.dataTransfer) return;
+        e.dataTransfer.effectAllowed = 'move';
+        try { e.dataTransfer.setData('text/plain', card.getAttribute('data-kanban-card') || ''); } catch (_) { }
+    }, true);
+})();
+
+// Tree view: arrow keys, Home and End move between tree items instead of scrolling the page.
+(function () {
+    document.addEventListener('keydown', function (e) {
+        if (!e.target || !e.target.hasAttribute || !e.target.hasAttribute('data-tree-item')) return;
+        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].indexOf(e.key) >= 0) e.preventDefault();
+    }, true);
 })();

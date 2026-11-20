@@ -1,0 +1,196 @@
+@*
+    Row sharing drawer of a document form: who the document is shared with (read / write / share), add or change
+    a share, stop sharing, or leave a share that was given to you. All rules live in DocShareService; this
+    component only shows what the service allows.
+*@
+@using Framework.Sharing
+@inject DocShareService Sharing
+@inject CurrentUser Current
+@inject ToastService Toasts
+@inject UiText T
+
+<AdminDrawer Open="@Open" OpenChanged="OnOpenChanged" Title="@($"{T["Share"]} · {Name}")" WidthScale="1.2"
+             Description="@(T["Give specific people access to this document. They still need a role that allows reading (or editing) this document type."])">
+    <ChildContent>
+        @if (error is not null)
+        {
+            <BbAlert Variant="AlertVariant.Danger" Style="margin-bottom:1rem"><BbAlertDescription>@T.Message(error)</BbAlertDescription></BbAlert>
+        }
+        @if (loading)
+        {
+            <div class="stack"><BbSkeleton Height="2.25rem" /><BbSkeleton Height="2.25rem" /></div>
+        }
+        else
+        {
+            @if (rights.CanManage)
+            {
+                <div class="share-add">
+                    <label class="form-label" style="font-weight:600">@T["Share with"]</label>
+                    <BbSelect TValue="string" Value="@pickUser" ValueChanged="@(v => pickUser = v)" Options="CandidateOptions"
+                              Placeholder="@(T["Select a user…"])" AriaLabel="@(T["Share with"])" />
+                    @if (PickedCandidate is { } pc)
+                    {
+                        @if (!pc.HasRoleRead)
+                        {
+                            <p class="small share-warn">@T.Format("{0} has no role that can read {1}. The share takes effect once such a role is given.", pc.FullName, DocTypeTitle)</p>
+                        }
+                        else if (pc.AlreadyHasAccess)
+                        {
+                            <p class="small muted">@T.Format("{0} can already see this document through their role.", pc.FullName)</p>
+                        }
+                    }
+                    <div class="share-rights">
+                        <label><BbCheckbox Checked="true" Disabled="true" /> @T["Read"]</label>
+                        <label title="@(rights.CanGrantWrite ? "" : T["You cannot edit this document, so you can only share it read-only."])">
+                            <BbCheckbox @bind-Checked="pickWrite" Disabled="@(!rights.CanGrantWrite)" /> @T["Write"]
+                        </label>
+                        <label><BbCheckbox @bind-Checked="pickShare" Disabled="@(!rights.CanGrantShare)" /> @T["Share"]</label>
+                    </div>
+                    <BbButton Size="ButtonSize.Small" Disabled="@(busy || string.IsNullOrEmpty(pickUser))" OnClick="AddAsync">
+                        <LucideIcon Name="share-2" Size="14" /> @T["Share"]
+                    </BbButton>
+                </div>
+            }
+            else
+            {
+                <p class="muted small">@T["Only the owner, people who can edit this document, or people given the Share right can change who it is shared with."]</p>
+            }
+
+            <div class="share-list">
+                <strong style="font-size:.9rem">@T["Shared with"] (@shares.Count)</strong>
+                @if (shares.Count == 0)
+                {
+                    <p class="muted small">@T["Not shared with anyone yet."]</p>
+                }
+                @foreach (var v in shares)
+                {
+                    var s = v.Share;
+                    var self = string.Equals(s.UserId, Current.Required.Id, StringComparison.OrdinalIgnoreCase);
+                    <div class="share-row" @key="s.UserId">
+                        <div class="share-who">
+                            <span class="assignment-avatar-chip">@Initials(v.UserName)</span>
+                            <div>
+                                <div><strong>@v.UserName</strong>@(self ? $" ({T["you"]})" : "")</div>
+                                @if (!v.HasRoleRead)
+                                {
+                                    <div class="small share-warn">@T["No role can read this document type: the share has no effect yet."]</div>
+                                }
+                                else if (s.CanWrite && !v.HasRoleWrite)
+                                {
+                                    <div class="small share-warn">@T["No role can edit this document type: the share works as read-only."]</div>
+                                }
+                            </div>
+                        </div>
+                        <div class="share-row-rights">
+                            <label><BbCheckbox Checked="@s.CanWrite" CheckedChanged="@(c => ChangeAsync(s, c, s.CanShare))"
+                                               Disabled="@(busy || !rights.CanManage || !rights.CanGrantWrite)" /> @T["Write"]</label>
+                            <label><BbCheckbox Checked="@s.CanShare" CheckedChanged="@(c => ChangeAsync(s, s.CanWrite, c))"
+                                               Disabled="@(busy || !rights.CanManage || !rights.CanGrantShare)" /> @T["Share"]</label>
+                            @if (rights.CanManage || self)
+                            {
+                                <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" Disabled="@busy" OnClick="@(() => RemoveAsync(s, self))"
+                                          Title="@(T[self ? "Leave this share" : "Stop sharing"])">
+                                    <LucideIcon Name="@(self ? "log-out" : "x")" Size="14" />
+                                </BbButton>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </ChildContent>
+</AdminDrawer>
+
+@code {
+    [Parameter, EditorRequired] public string DocType { get; set; } = "";
+    [Parameter, EditorRequired] public string Name { get; set; } = "";
+    [Parameter, EditorRequired] public string DocTypeTitle { get; set; } = "";
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public EventCallback<bool> OpenChanged { get; set; }
+    /// <summary>Raised after a change; <c>true</c> when the current user left a share (they may lose access).</summary>
+    [Parameter] public EventCallback<bool> OnChanged { get; set; }
+
+    private bool loading, busy, wasOpen;
+    private string? error;
+    private ShareRights rights = new(false, false, false);
+    private IReadOnlyList<ShareView> shares = [];
+    private IReadOnlyList<ShareCandidate> candidates = [];
+    private string? pickUser;
+    private bool pickWrite, pickShare;
+
+    private ShareCandidate? PickedCandidate => candidates.FirstOrDefault(c => c.UserId == pickUser);
+
+    private IReadOnlyList<SelectOption<string>> CandidateOptions =>
+        candidates.Where(c => shares.All(s => !string.Equals(s.Share.UserId, c.UserId, StringComparison.OrdinalIgnoreCase)))
+                  .Select(c => new SelectOption<string>(c.UserId, c.HasRoleRead ? c.FullName : $"{c.FullName} ({T["no read role"]})"))
+                  .ToList();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Open && !wasOpen) await LoadAsync();
+        wasOpen = Open;
+    }
+
+    private Task OnOpenChanged(bool v) => OpenChanged.InvokeAsync(v);
+
+    private async Task LoadAsync()
+    {
+        loading = true; error = null;
+        try
+        {
+            var user = Current.Required;
+            rights = await Sharing.RightsAsync(user, DocType, Name);
+            shares = await Sharing.ListAsync(user, DocType, Name);
+            candidates = rights.CanManage ? await Sharing.CandidatesAsync(user, DocType, Name) : [];
+            pickUser = null; pickWrite = false; pickShare = false;
+        }
+        catch (Exception ex) when (IsDomainError(ex)) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    private async Task AddAsync()
+    {
+        if (string.IsNullOrEmpty(pickUser)) return;
+        await RunAsync(async () =>
+        {
+            var name = PickedCandidate?.FullName ?? pickUser;
+            await Sharing.ShareAsync(Current.Required, DocType, Name, pickUser, pickWrite, pickShare);
+            Toasts.Success(T.Format("{0} shared with {1}.", Name, name), T["Shared"]);
+        }, left: false);
+    }
+
+    private Task ChangeAsync(DocShare s, bool write, bool share) =>
+        RunAsync(() => Sharing.ShareAsync(Current.Required, DocType, Name, s.UserId, write, share), left: false);
+
+    private Task RemoveAsync(DocShare s, bool self) =>
+        RunAsync(async () =>
+        {
+            await Sharing.UnshareAsync(Current.Required, DocType, Name, s.UserId);
+            Toasts.Success(T[self ? "You left the share." : "Sharing stopped."], Name);
+        }, left: self);
+
+    private async Task RunAsync(Func<Task> action, bool left)
+    {
+        busy = true; error = null;
+        try
+        {
+            await action();
+            if (left)
+            {
+                await OpenChanged.InvokeAsync(false);
+                await OnChanged.InvokeAsync(true);
+                return;
+            }
+            await LoadAsync();
+            await OnChanged.InvokeAsync(false);
+        }
+        catch (Exception ex) when (IsDomainError(ex)) { error = ex.Message; }
+        finally { busy = false; }
+    }
+
+    private static bool IsDomainError(Exception ex) =>
+        ex is PermissionDeniedException or InvalidPayloadException or DocumentNotFoundException or InvalidStateException;
+
+    private static string Initials(string name) =>
+        string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(p => char.ToUpperInvariant(p[0])));
+}

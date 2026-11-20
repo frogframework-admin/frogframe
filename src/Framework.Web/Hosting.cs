@@ -153,6 +153,13 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<Framework.Assignments.AssignmentService>();
         services.AddSingleton<IEventHandler, Framework.Assignments.AssignmentNotifier>();
         services.AddSingleton<IEventHandler, Framework.Assignments.AssignmentDocumentCleanupHandler>();
+        // Row sharing (frogframe_doc_shares): per-document read / write / share grants from the form.
+        services.TryAddSingleton<Framework.Sharing.IDocShareStore, Framework.Sharing.InMemoryDocShareStore>();
+        services.AddSingleton<Framework.Sharing.DocShareService>();
+        services.AddSingleton<IEventHandler, Framework.Sharing.DocShareCleanupHandler>();
+        // Ad-hoc report builder (/reports/builder): saved reports in frogframe_adhoc_reports.
+        services.TryAddSingleton<Framework.Reports.IAdHocReportStore, Framework.Reports.InMemoryAdHocReportStore>();
+        services.AddSingleton<Framework.Reports.AdHocReportService>();
         services.TryAddSingleton<IUserPreferenceStore, InMemoryUserPreferenceStore>();
         // Multi-bahasa (Indonesia/Inggris): kamus framework + aplikasi + terjemahan per tenant.
         Framework.Localization.LocalizationSetup.AddFrogFrameLocalization(services, options.Translations);
@@ -193,6 +200,7 @@ public static class ServiceCollectionExtensions
             sp.GetService<IConfiguration>()?[PublicUrlOptions.ConfigKey],
             allowRequestFallback: sp.GetService<IHostEnvironment>()?.IsDevelopment() ?? false));
         // Automation identity & secret protection (Phase 3 foundations).
+        services.TryAddSingleton<IUserAccountRepository, InMemoryUserAccountRepository>();
         services.TryAddSingleton<IAutomationIdentity, AutomationIdentity>();
         services.TryAddSingleton<ISecretProtector, DataProtectionSecretProtector>();
         services.AddSingleton<ApiMethodRegistry>();

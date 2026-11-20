@@ -240,6 +240,36 @@ public sealed class ListViewDef
     public List<string> SearchFields { get; set; } = ["name"];
     public List<string> Filters { get; set; } = [];
     public int PageSize { get; set; } = 20;
+    /// <summary>
+    /// Calendar view of the list. Optional: without it the calendar uses the first Date/Datetime list column
+    /// (or the first Date/Datetime field) and colours entries by status.
+    /// </summary>
+    public CalendarViewDef? Calendar { get; set; }
+    /// <summary>
+    /// Tree view of the list for parent–child masters. Optional: without it the tree uses a Link field to the same
+    /// DocType (preferring one whose name starts with "parent") and a Check field named is_group.
+    /// </summary>
+    public TreeViewDef? Tree { get; set; }
+}
+
+/// <summary>Tree view settings of a self-referencing DocType (chart of accounts, cost centers, organization units).</summary>
+public sealed class TreeViewDef
+{
+    /// <summary>Link field to the same DocType that holds the parent document.</summary>
+    public string ParentField { get; set; } = "";
+    /// <summary>Optional Check field marking nodes that can have children (only those offer "add child").</summary>
+    public string? GroupField { get; set; }
+}
+
+/// <summary>Calendar view settings of a DocType list (month / week / day).</summary>
+public sealed class CalendarViewDef
+{
+    /// <summary>Date or Datetime field where an entry starts (e.g. due_date, delivery_date, work_date).</summary>
+    public string StartField { get; set; } = "";
+    /// <summary>Optional Date or Datetime field where it ends (inclusive for Date fields).</summary>
+    public string? EndField { get; set; }
+    /// <summary>Optional field whose value picks the entry colour (e.g. a Select such as priority or shift type).</summary>
+    public string? ColorField { get; set; }
 }
 
 public sealed class SortDef

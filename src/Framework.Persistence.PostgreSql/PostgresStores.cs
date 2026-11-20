@@ -889,6 +889,8 @@ public static class PostgreSqlServiceCollectionExtensions
         services.AddHostedService(sp => sp.GetRequiredService<PostgresClusterBus>());
         services.Replace(ServiceDescriptor.Singleton<INotificationStore, PostgresNotificationStore>());
         services.Replace(ServiceDescriptor.Singleton<Framework.Assignments.IAssignmentStore, PostgresAssignmentStore>());
+        services.Replace(ServiceDescriptor.Singleton<Framework.Sharing.IDocShareStore, PostgresDocShareStore>());
+        services.Replace(ServiceDescriptor.Singleton<Framework.Reports.IAdHocReportStore, PostgresAdHocReportStore>());
         services.Replace(ServiceDescriptor.Singleton<Framework.Notifications.INotificationRuleStore, PostgresNotificationRuleStore>());
         services.Replace(ServiceDescriptor.Singleton<Framework.Integrations.IWebhookStore, PostgresWebhookStore>());
         services.Replace(ServiceDescriptor.Singleton<Framework.Integrations.IAutoRepeatStore, PostgresAutoRepeatStore>());

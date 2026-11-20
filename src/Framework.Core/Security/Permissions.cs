@@ -39,7 +39,14 @@ public abstract record RowScope
     public sealed record AllRows : RowScope;
     public sealed record NoRows : RowScope;
     /// <summary>Gabungan OR dari beberapa kondisi kepemilikan / kecocokan field.</summary>
-    public sealed record AnyOf(IReadOnlyList<ScopeCondition> Conditions) : RowScope;
+    public sealed record AnyOf(IReadOnlyList<ScopeCondition> Conditions) : RowScope
+    {
+        /// <summary>
+        /// Documents shared with the user (row sharing): matched by name in addition to <see cref="Conditions"/>.
+        /// Filled by DocumentService from the share store; the role rules alone never produce it.
+        /// </summary>
+        public IReadOnlyList<string> SharedNames { get; init; } = [];
+    }
 }
 
 public sealed record ScopeCondition(string Field, string Value);

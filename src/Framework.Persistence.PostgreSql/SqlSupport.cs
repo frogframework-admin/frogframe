@@ -177,12 +177,21 @@ internal sealed class SqlQueryBuilder(CompiledDocType? meta)
     public string Scope(RowScope scope) => scope switch
     {
         RowScope.AllRows => "TRUE",
-        RowScope.AnyOf any => "(" + string.Join(" OR ", any.Conditions.Select(c =>
-            c.Field == StandardFields.Owner
-                ? $"d.owner = {Param(c.Value, NpgsqlDbType.Text)}"
-                : $"{MatchField(c.Field)} = {Param(c.Value, NpgsqlDbType.Text)}")) + ")",
+        RowScope.AnyOf any => AnyOfScope(any),
         _ => "FALSE"
     };
+
+    private string AnyOfScope(RowScope.AnyOf any)
+    {
+        var parts = any.Conditions.Select(c =>
+            c.Field == StandardFields.Owner
+                ? $"d.owner = {Param(c.Value, NpgsqlDbType.Text)}"
+                : $"{MatchField(c.Field)} = {Param(c.Value, NpgsqlDbType.Text)}").ToList();
+        // Row sharing: documents shared with the user, by name (resolved from frogframe_doc_shares beforehand).
+        if (any.SharedNames.Count > 0)
+            parts.Add($"d.name = ANY({Param(any.SharedNames.ToArray(), NpgsqlDbType.Array | NpgsqlDbType.Text)})");
+        return parts.Count == 0 ? "FALSE" : "(" + string.Join(" OR ", parts) + ")";
+    }
 
     /// <summary>Field kondisi row scope (match:field=atribut); nama berasal dari metadata yang sudah tervalidasi.</summary>
     private static string MatchField(string field)

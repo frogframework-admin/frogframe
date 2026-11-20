@@ -2,8 +2,13 @@
 @using System.Globalization
 @using Apps.Erp.Hooks
 @using Framework.Persistence
+@using Microsoft.JSInterop
 @inject DocumentService Docs
 @inject CurrentUser Current
+@inject IPermissionService Perms
+@inject IMetadataProvider Metadata
+@inject ReportDownloads Downloads
+@inject IJSRuntime JS
 
 <PageTitle>Workforce Roster Calendar · FrogFrame</PageTitle>
 
@@ -24,12 +29,101 @@
             <a class="bb-btn bb-btn-outline" href="/app/ScheduleOptimization/new" style="text-decoration:none;padding:.45rem .85rem;border:1px solid var(--border,#cbd5e1);border-radius:.375rem;font-size:.875rem">
                 Optimize Schedule
             </a>
-            <a class="bb-btn bb-btn-primary" href="/app/ScheduleGeneration/new" style="text-decoration:none;padding:.45rem .85rem;background:#2563eb;color:#fff;border-radius:.375rem;font-size:.875rem">
-                Generate Schedules
-            </a>
+        }
+        @if (CanExport)
+        {
+            <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Disabled="@(exporting || FilteredEmployeeNames.Count == 0)" OnClick="@(() => ExportAsync("xlsx"))">
+                <LucideIcon Name="file-spreadsheet" Size="15" /> Export Excel
+            </BbButton>
+            <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Disabled="@(exporting || FilteredEmployeeNames.Count == 0)" OnClick="@(() => ExportAsync("csv"))">
+                <LucideIcon Name="download" Size="15" /> Export CSV
+            </BbButton>
+        }
+        @if (CanGenerate)
+        {
+            <BbButton Size="ButtonSize.Small" OnClick="OpenGenerateDialog">
+                <LucideIcon Name="calendar-plus" Size="15" /> Generate Roster
+            </BbButton>
         }
     </div>
 </header>
+
+@if (notice is not null)
+{
+    <BbAlert Variant="AlertVariant.Success" Style="margin-bottom:1rem"><BbAlertDescription>@notice</BbAlertDescription></BbAlert>
+}
+
+@* ---------------- Generate Roster dialog: saves a ScheduleGeneration batch, whose hook materializes the schedules ---------------- *@
+<BbDialog Open="@generateOpen" OpenChanged="v => generateOpen = v">
+    <BbDialogContent Class="sm:max-w-lg">
+        <BbDialogHeader>
+            <BbDialogTitle>Generate Roster</BbDialogTitle>
+            <BbDialogDescription>
+                Creates daily schedules from shift assignments and rotation patterns. Locked days, overrides, approved swaps and leave are kept.
+                The batch is saved as a Schedule Generation record.
+            </BbDialogDescription>
+        </BbDialogHeader>
+
+        @if (generateError is not null)
+        {
+            <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@generateError</BbAlertDescription></BbAlert>
+        }
+
+        <div class="stack" style="gap:.75rem;margin:.5rem 0">
+            <div>
+                <label class="small muted" for="gen-company" style="display:block;margin-bottom:.25rem">Company *</label>
+                <select id="gen-company" value="@genCompany" @onchange="e => genCompany = e.Value as string ?? string.Empty" style="@InputStyle;width:100%">
+                    @foreach (var c in companies)
+                    {
+                        <option value="@c.Name">@(Str(c, "company_name") ?? c.Name)</option>
+                    }
+                </select>
+            </div>
+            <div>
+                <label class="small muted" for="gen-unit" style="display:block;margin-bottom:.25rem">Organization unit (subtree)</label>
+                <select id="gen-unit" value="@genUnit" @onchange="e => genUnit = e.Value as string ?? string.Empty" style="@InputStyle;width:100%">
+                    <option value="">All units</option>
+                    @foreach (var u in orgUnits)
+                    {
+                        <option value="@u.Name">@(Str(u, "breadcrumb") ?? Str(u, "org_unit_name") ?? u.Name)</option>
+                    }
+                </select>
+            </div>
+            <div>
+                <label class="small muted" for="gen-group" style="display:block;margin-bottom:.25rem">Shift group / squad</label>
+                <select id="gen-group" value="@genGroup" @onchange="e => genGroup = e.Value as string ?? string.Empty" style="@InputStyle;width:100%">
+                    <option value="">All groups</option>
+                    @foreach (var g in shiftGroups)
+                    {
+                        <option value="@g.Name">@(Str(g, "group_name") ?? g.Name)</option>
+                    }
+                </select>
+            </div>
+            <div style="display:flex;gap:.75rem;flex-wrap:wrap">
+                <div style="flex:1;min-width:9rem">
+                    <label class="small muted" for="gen-from" style="display:block;margin-bottom:.25rem">From *</label>
+                    <input id="gen-from" type="date" value="@genFrom" @onchange="e => genFrom = e.Value as string ?? string.Empty" style="@InputStyle;width:100%" />
+                </div>
+                <div style="flex:1;min-width:9rem">
+                    <label class="small muted" for="gen-to" style="display:block;margin-bottom:.25rem">To *</label>
+                    <input id="gen-to" type="date" value="@genTo" @onchange="e => genTo = e.Value as string ?? string.Empty" style="@InputStyle;width:100%" />
+                </div>
+            </div>
+            <div class="label-row">
+                <BbCheckbox Id="gen-overwrite" @bind-Checked="genOverwrite" />
+                <BbLabel For="gen-overwrite">Replace existing unlocked schedules in this period</BbLabel>
+            </div>
+            <p class="muted small" style="margin:0">At most @ScheduleGenerationHook.MaxBatchDays days per batch.</p>
+        </div>
+
+        <BbDialogFooter>
+            <BbButton Variant="ButtonVariant.Outline" OnClick="() => generateOpen = false">Cancel</BbButton>
+            <BbButton Disabled="@(generating || string.IsNullOrEmpty(genCompany) || string.IsNullOrEmpty(genFrom) || string.IsNullOrEmpty(genTo))" OnClick="GenerateAsync">
+                <LucideIcon Name="calendar-plus" Size="16" /> @(generating ? "Generating…" : "Generate")
+            </BbButton>
+        </BbDialogFooter>
+    </BbDialogContent>
+</BbDialog>
 
 @if (error is not null)
 {
@@ -157,6 +251,34 @@ else
                                         </tr>
                                     }
                                 </tbody>
+                                @if (SlotShifts.Count > 0)
+                                {
+                                    @* One row per required shift: scheduled / minimum for each day; red when any requirement of the slot is short. *@
+                                    <tfoot>
+                                        @foreach (var shift in SlotShifts)
+                                        {
+                                            <tr style="border-top:1px solid var(--border,#e2e8f0)">
+                                                <td colspan="2" style="padding:.4rem .5rem;position:sticky;left:0;background:var(--card,#fff);font-weight:600;font-size:.72rem">
+                                                    <LucideIcon Name="users" Size="12" /> Coverage · @shift
+                                                </td>
+                                                @foreach (var day in MonthDays)
+                                                {
+                                                    var cell = SlotByDayShift.GetValueOrDefault((day, shift));
+                                                    var (cbg, cfg, ctip) = FormatSlot(cell);
+                                                    <td style="padding:.2rem;text-align:center" title="@ctip">
+                                                        @if (cell is not null)
+                                                        {
+                                                            <span class="roster-slot" data-status="@cell.Status"
+                                                                  style="display:inline-block;width:100%;padding:.15rem .1rem;border-radius:.25rem;background:@cbg;color:@cfg;font-weight:600;font-size:.68rem">
+                                                                @cell.Actual/@cell.Required
+                                                            </span>
+                                                        }
+                                                    </td>
+                                                }
+                                            </tr>
+                                        }
+                                    </tfoot>
+                                }
                             </table>
                         </div>
                     }
@@ -196,7 +318,7 @@ else
                                         var badgeFg = row.IsUnderstaffed ? "#991b1b" : "#166534";
                                         <tr style="border-bottom:1px solid var(--border,#f1f5f9)">
                                             <td style="padding:.5rem">@row.WorkDate.ToString("yyyy-MM-dd (ddd)", CultureInfo.InvariantCulture)</td>
-                                            <td style="padding:.5rem">@row.OrganizationUnit</td>
+                                            <td style="padding:.5rem">@(row.OrganizationUnit.Length == 0 ? "All units" : row.OrganizationUnit)</td>
                                             <td style="padding:.5rem">@row.ShiftType</td>
                                             <td style="padding:.5rem">@(row.JobProfile ?? "All roles")</td>
                                             <td style="padding:.5rem;text-align:right">@row.MinHeadcount</td>
@@ -225,6 +347,23 @@ else
     private string selectedGroup = "";
     private string activeTab = "calendar";
     private string? error;
+    private string? notice;
+    private bool exporting;
+
+    private const string InputStyle = "padding:.4rem .6rem;border:1px solid var(--border,#cbd5e1);border-radius:.375rem;font-size:.875rem";
+
+    // Generate Roster dialog
+    private bool generateOpen;
+    private bool generating;
+    private string? generateError;
+    private string genCompany = "";
+    private string genUnit = "";
+    private string genGroup = "";
+    private string genFrom = "";
+    private string genTo = "";
+    private bool genOverwrite = true;
+    private IReadOnlyList<Document> companies = [];
+    private Dictionary<string, string?> jobProfileByEmployee = new(StringComparer.Ordinal);
 
     private IReadOnlyList<Document> orgUnits = [];
     private IReadOnlyList<Document> shiftGroups = [];
@@ -235,6 +374,15 @@ else
     private Dictionary<string, Dictionary<DateOnly, Document>> ScheduleByEmpDate = new(StringComparer.Ordinal);
     private List<string> FilteredEmployeeNames = [];
     private List<WsmCoverage.CoverageRow> CoverageRows = [];
+    private Dictionary<(DateOnly Date, string Shift), WsmRosterView.SlotCoverage> SlotByDayShift = new();
+    private List<string> SlotShifts = [];
+
+    private bool CanGenerate =>
+        (Current.Required.HasRole("HR") || Current.Required.IsAdmin)
+        && Metadata.Current.TryGet("ScheduleGeneration", out var meta) && Perms.Can(Current.Required, meta, DocActions.Create);
+
+    private bool CanExport =>
+        Metadata.Current.TryGet("EmployeeDailySchedule", out var meta) && Perms.Can(Current.Required, meta, DocActions.Export);
 
     private static string? Str(Document d, string f) => d.Data.GetValueOrDefault(f) as string;
 
@@ -247,7 +395,13 @@ else
             {
                 shiftGroups = await Docs.QueryForReportAsync(Current.Required, "ShiftGroup", [], DocActions.Read);
                 requirements = await Docs.QueryForReportAsync(Current.Required, "ShiftRequirement", [], DocActions.Read);
+                // Job profiles, for requirements limited to one job profile.
+                if (requirements.Any(r => Str(r, "job_profile") is not null))
+                    jobProfileByEmployee = (await Docs.QueryForReportAsync(Current.Required, "Employee", [], DocActions.Read))
+                        .ToDictionary(e => e.Name, e => Str(e, "job_profile"), StringComparer.Ordinal);
             }
+            if (CanGenerate)
+                companies = await Docs.QueryForReportAsync(Current.Required, "Company", [], DocActions.Read);
             await LoadMonthAsync();
         }
         catch (PermissionDeniedException ex) { error = ex.Message; }
@@ -327,27 +481,106 @@ else
 
         FilteredEmployeeNames = ScheduleByEmpDate.Keys.OrderBy(x => x, StringComparer.Ordinal).ToList();
 
-        // Compute coverage rows for the selected month and unit filter
-        CoverageRows.Clear();
-        foreach (var day in MonthDays)
+        // Coverage per requirement scope and per day/shift slot (same rules as the schedule optimizer).
+        var units = orgUnits.Select(u => new WsmRosterView.UnitNode(u.Name, Str(u, "materialized_path"))).ToList();
+        CoverageRows = WsmRosterView.CoverageRows(MonthDays, requirements.Select(r => r.Data), schedules.Select(x => x.Data),
+            jobProfileByEmployee, units, string.IsNullOrEmpty(selectedUnit) ? null : selectedUnit);
+        SlotByDayShift = WsmRosterView.SlotSummary(CoverageRows);
+        SlotShifts = SlotByDayShift.Keys.Select(k => k.Shift).Distinct().Order(StringComparer.Ordinal).ToList();
+    }
+
+    private static (string Bg, string Fg, string Tooltip) FormatSlot(WsmRosterView.SlotCoverage? c)
+    {
+        if (c is null) return ("transparent", "inherit", "No requirement");
+        var tip = $"{c.Date:yyyy-MM-dd} {c.ShiftType}: {c.Actual} scheduled, minimum {c.Required}, target {c.Target}";
+        if (c.ShortScopes.Count > 0) tip += " · Short: " + string.Join("; ", c.ShortScopes);
+        return c.Status switch
         {
-            var dayIso = day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-            foreach (var req in requirements)
+            "Understaffed" => ("#fee2e2", "#991b1b", tip),
+            "Overstaffed" => ("#fef3c7", "#92400e", tip),
+            _ => ("#dcfce7", "#166534", tip),
+        };
+    }
+
+    // ---------------- Generate Roster ----------------
+
+    private void OpenGenerateDialog()
+    {
+        generateError = null;
+        if (!DateOnly.TryParseExact(selectedMonth + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var start))
+            start = new DateOnly(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1);
+        genFrom = start.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        genTo = start.AddMonths(1).AddDays(-1).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        genUnit = selectedUnit;
+        genGroup = selectedGroup;
+        // The company of the selected unit, else the first company.
+        var unitCompany = orgUnits.FirstOrDefault(u => u.Name == selectedUnit) is { } unit ? Str(unit, "company") : null;
+        genCompany = unitCompany ?? (companies.Count > 0 ? companies[0].Name : "");
+        generateOpen = true;
+    }
+
+    private async Task GenerateAsync()
+    {
+        generating = true;
+        generateError = null;
+        try
+        {
+            var data = new Dictionary<string, object?>
             {
-                if (req.Data.GetValueOrDefault("is_active") is false) continue;
-                var reqUnit = Str(req, "organization_unit") ?? "";
-                if (allowedUnits is not null && !allowedUnits.Contains(reqUnit)) continue;
-                var reqShift = Str(req, "shift_type") ?? "";
-                var minH = Convert.ToInt32(req.Data.GetValueOrDefault("min_headcount") ?? 1, CultureInfo.InvariantCulture);
-                var tgtH = Convert.ToInt32(req.Data.GetValueOrDefault("target_headcount") ?? minH, CultureInfo.InvariantCulture);
-                var actual = schedules.Count(s =>
-                    Str(s, "work_date") == dayIso
-                    && Str(s, "organization_unit") == reqUnit
-                    && Str(s, "schedule_type") == "WORK"
-                    && Str(s, "shift_type") == reqShift);
-                var status = actual < minH ? "Understaffed" : actual > tgtH ? "Overstaffed" : "Sufficient";
-                CoverageRows.Add(new WsmCoverage.CoverageRow(day, reqUnit, reqShift, Str(req, "job_profile"), minH, tgtH, actual, status));
-            }
+                ["company"] = genCompany,
+                ["organization_unit"] = string.IsNullOrEmpty(genUnit) ? null : genUnit,
+                ["shift_group"] = string.IsNullOrEmpty(genGroup) ? null : genGroup,
+                ["from_date"] = genFrom,
+                ["to_date"] = genTo,
+                ["overwrite_unlocked"] = genOverwrite,
+            };
+            var batch = await Docs.InsertAsync(Current.Required, "ScheduleGeneration", data);
+            generateOpen = false;
+            notice = $"Roster generated ({batch.Name}): {Num(batch, "generated_count")} schedule(s) written, " +
+                     $"{Num(batch, "skipped_locked_count")} protected day(s) kept, {Num(batch, "violation_count")} rule warning(s).";
+            await LoadMonthAsync();
+        }
+        catch (Exception ex) when (ex is InvalidPayloadException or PermissionDeniedException or DocumentNotFoundException)
+        {
+            generateError = ex.Message;
+        }
+        finally
+        {
+            generating = false;
+        }
+    }
+
+    private static long Num(Document d, string f) => d.Data.GetValueOrDefault(f) switch
+    {
+        long l => l,
+        decimal m => (long)m,
+        int i => i,
+        _ => 0,
+    };
+
+    // ---------------- Export ----------------
+
+    private async Task ExportAsync(string format)
+    {
+        exporting = true;
+        try
+        {
+            var employees = FilteredEmployeeNames.Select(id =>
+            {
+                var row = ScheduleByEmpDate[id];
+                var first = row.Values.First();
+                return new WsmRosterView.ExportEmployee(id, Str(first, "employee_name") ?? id, Str(first, "organization_unit"), Str(first, "shift_group"),
+                    row.ToDictionary(kv => kv.Key, kv => (IReadOnlyDictionary<string, object?>)kv.Value.Data));
+            }).ToList();
+            var unitLabel = string.IsNullOrEmpty(selectedUnit) ? null : selectedUnit;
+            var output = WsmRosterView.Export(format, selectedMonth, unitLabel, MonthDays, employees, CoverageRows);
+            var token = Downloads.Put(Current.Required.TenantId, Current.Required.Id, output);
+            await JS.InvokeVoidAsync("frogframe.downloadUrl", $"/report-downloads/{token}", output.FileName);
+            notice = $"Exported the roster of {output.Rows} employee(s) to {output.FileName}.";
+        }
+        finally
+        {
+            exporting = false;
         }
     }
 

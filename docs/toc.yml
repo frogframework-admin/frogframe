@@ -22,6 +22,12 @@
       href: guides/doctype-and-workflow-catalog.md
     - name: DocType Data Entry Sequence
       href: guides/doctype-data-entry-sequence.md
+    - name: List Views (Board, Calendar & Tree)
+      href: guides/list-views-board-and-calendar.md
+    - name: Row Sharing
+      href: guides/row-sharing.md
+    - name: Ad-hoc Report Builder
+      href: guides/report-builder.md
     - name: SQL Dashboards & Widgets
       href: guides/sql-dashboards.md
     - name: KPI Catalog & Analytics Dashboards

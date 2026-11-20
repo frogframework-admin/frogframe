@@ -8,6 +8,7 @@ using Framework.Metadata;
 using Framework.Notifications;
 using Framework.Persistence;
 using Framework.Security;
+using Framework.Sharing;
 using Framework.Validation;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -43,7 +44,8 @@ public sealed class AssignmentService(
     IPermissionService permissions,
     IUserDirectory users,
     TimeProvider clock,
-    OutboxWakeSignal? outboxWake = null)
+    OutboxWakeSignal? outboxWake = null,
+    Framework.Sharing.IDocShareStore? shares = null)
 {
     public DateOnly Today => DateOnly.FromDateTime(clock.GetLocalNow().DateTime);
 
@@ -57,7 +59,7 @@ public sealed class AssignmentService(
     private async Task<Document> LoadInScopeAsync(UserContext user, CompiledDocType meta, string name, CancellationToken ct)
     {
         var doc = await docs.GetAsync(user.TenantId, meta.Name, name, ct);
-        if (doc is null || !permissions.InScope(user, meta, DocActions.Read, doc.Owner, doc.Data))
+        if (doc is null || !await permissions.InScopeAsync(shares, user, meta, DocActions.Read, doc, ct))
             throw new DocumentNotFoundException(meta.Title, name);
         return doc;
     }
@@ -78,12 +80,12 @@ public sealed class AssignmentService(
         permissions.Demand(actor, meta, DocActions.Read);
         var doc = await LoadInScopeAsync(actor, meta, docName, ct);
         var tenantUsers = await users.ListAsync(actor.TenantId, ct);
-        return tenantUsers
-            .Where(u => u.TenantId == actor.TenantId
-                && permissions.Can(u, meta, DocActions.Read)
-                && permissions.InScope(u, meta, DocActions.Read, doc.Owner, doc.Data))
-            .OrderBy(u => u.FullName, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        var eligible = new List<UserContext>();
+        foreach (var u in tenantUsers)
+            if (u.TenantId == actor.TenantId && permissions.Can(u, meta, DocActions.Read)
+                && await permissions.InScopeAsync(shares, u, meta, DocActions.Read, doc, ct))
+                eligible.Add(u);
+        return eligible.OrderBy(u => u.FullName, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
     public async Task<IReadOnlyList<Assignment>> ListForDocumentAsync(UserContext actor, string docType, string docName, CancellationToken ct = default)
@@ -140,7 +142,7 @@ public sealed class AssignmentService(
                 fieldErrors.Add(new FieldError("assignees", $"User '{id}' was not found or is inactive."));
                 continue;
             }
-            if (!permissions.Can(target, meta, DocActions.Read) || !permissions.InScope(target, meta, DocActions.Read, doc.Owner, doc.Data))
+            if (!permissions.Can(target, meta, DocActions.Read) || !await permissions.InScopeAsync(shares, target, meta, DocActions.Read, doc, ct))
             {
                 fieldErrors.Add(new FieldError("assignees", $"User '{target.FullName}' does not have access to this document."));
                 continue;
@@ -286,7 +288,7 @@ public sealed class AssignmentService(
             var target = await users.FindAsync(nextAssignee, ct);
             if (target is null || target.TenantId != actor.TenantId)
                 errors.Add(new FieldError("assignedTo", $"User '{nextAssignee}' was not found or is inactive."));
-            else if (!permissions.Can(target, meta, DocActions.Read) || !permissions.InScope(target, meta, DocActions.Read, doc.Owner, doc.Data))
+            else if (!permissions.Can(target, meta, DocActions.Read) || !await permissions.InScopeAsync(shares, target, meta, DocActions.Read, doc, ct))
                 errors.Add(new FieldError("assignedTo", $"User '{target.FullName}' does not have access to this document."));
             else
             {
@@ -436,7 +438,7 @@ public sealed class AssignmentService(
                 else
                 {
                     var doc = await docs.GetAsync(actor.TenantId, a.DocType, a.DocName, ct);
-                    var allowed = doc is not null && permissions.InScope(actor, meta, DocActions.Read, doc.Owner, doc.Data);
+                    var allowed = doc is not null && await permissions.InScopeAsync(shares, actor, meta, DocActions.Read, doc, ct);
                     cached = (meta, doc, allowed);
                 }
                 docCache[key] = cached;
@@ -514,7 +516,8 @@ public sealed class AssignmentNotifier(
     TimeProvider clock,
     INotificationLiveFeed? liveFeed = null,
     IEmailQueue? emailQueue = null,
-    AssignmentNotificationOptions? options = null) : IEventHandler
+    AssignmentNotificationOptions? options = null,
+    Framework.Sharing.IDocShareStore? shares = null) : IEventHandler
 {
     public bool CanHandle(string eventType) => eventType == EventTypes.AssignmentChanged;
 
@@ -553,7 +556,7 @@ public sealed class AssignmentNotifier(
             if (target is null || target.TenantId != message.TenantId) return;
             if (string.Equals(target.Id, actor, StringComparison.OrdinalIgnoreCase)) return;
             if (!permissions.Can(target, meta, DocActions.Read)) return;
-            if (!permissions.InScope(target, meta, DocActions.Read, doc.Owner, doc.Data)) return;
+            if (!await permissions.InScopeAsync(shares, target, meta, DocActions.Read, doc, ct)) return;
 
             var id = new Guid(MD5.HashData(Encoding.UTF8.GetBytes($"{message.TenantId}|assignment|{assignmentId}|{keySuffix}|{target.Id}")));
             var notification = new Notification(id, message.TenantId, target.Id, subject, body, docType, name, clock.GetUtcNow());
@@ -655,6 +658,7 @@ public sealed class AssignmentReminderJob : IScheduledJob
         var docs = sp.GetRequiredService<IDocumentStore>();
         var metadata = sp.GetRequiredService<IMetadataProvider>();
         var permissions = sp.GetRequiredService<IPermissionService>();
+        var shares = sp.GetService<Framework.Sharing.IDocShareStore>();
         var users = sp.GetRequiredService<IUserDirectory>();
         var inbox = sp.GetRequiredService<INotificationStore>();
         var liveFeed = sp.GetService<INotificationLiveFeed>();
@@ -683,7 +687,7 @@ public sealed class AssignmentReminderJob : IScheduledJob
             var doc = await docs.GetAsync(context.TenantId, a.DocType, a.DocName, ct);
             if (doc is null)
                 continue;
-            if (!permissions.Can(target, meta, DocActions.Read) || !permissions.InScope(target, meta, DocActions.Read, doc.Owner, doc.Data))
+            if (!permissions.Can(target, meta, DocActions.Read) || !await permissions.InScopeAsync(shares, target, meta, DocActions.Read, doc, ct))
                 continue;
 
             var title = string.IsNullOrWhiteSpace(meta.Title) ? a.DocType : meta.Title;

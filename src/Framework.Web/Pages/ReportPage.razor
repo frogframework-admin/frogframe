@@ -4,12 +4,36 @@
 @inject CurrentUser Current
 @inject IPermissionService Perms
 @inject IMetadataProvider Metadata
+@inject Framework.Reports.AdHocReportService AdHoc
 
 <PageTitle>Reports · FrogFrame</PageTitle>
 
 @if (ReportName is null)
 {
-    <header class="page-head"><div><h1>Reports</h1><p>Registered C# report providers; tenant and row scope match list view.</p></div></header>
+    <header class="page-head">
+        <div><h1>Reports</h1><p>Registered C# report providers and saved reports; tenant and row scope match list view.</p></div>
+        @if (AdHoc.DocTypes(Current.Required).Count > 0)
+        {
+            <BbButton Href="/reports/builder"><LucideIcon Name="table-properties" Size="16" /> Report builder</BbButton>
+        }
+    </header>
+    @if (savedReports.Count > 0)
+    {
+        <h2 style="margin:0 0 .75rem;font-size:1rem;font-weight:600">Saved reports</h2>
+        <div class="shortcuts" style="margin-bottom:1.5rem">
+            @foreach (var r in savedReports)
+            {
+                <BbCard>
+                    <BbCardHeader>
+                        <BbCardTitle Class="card-title">@r.Name</BbCardTitle>
+                        <BbCardDescription>@(r.Description ?? (Metadata.Current.TryGet(r.Definition.DocType, out var rm) ? rm.Title : r.Definition.DocType))</BbCardDescription>
+                    </BbCardHeader>
+                    <BbCardFooter><BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Href="@($"/reports/builder/{r.Id}")">Open report</BbButton></BbCardFooter>
+                </BbCard>
+            }
+        </div>
+        <h2 style="margin:0 0 .75rem;font-size:1rem;font-weight:600">Standard reports</h2>
+    }
     <div class="shortcuts">
         @foreach (var r in Reports.AvailableFor(Current.Required))
         {
@@ -91,6 +115,7 @@ else if (error is not null)
     private string? error;
     private bool canExport;
     private readonly Dictionary<string, string?> filters = new();
+    private IReadOnlyList<Framework.Reports.SavedAdHocReport> savedReports = [];
 
     private static bool IsNum(ReportColumn c) => c.Type is "Currency" or "Int";
     private string ExportUrl => $"/api/reports/{ReportName}/export.csv?" + string.Join("&", filters.Where(f => !string.IsNullOrEmpty(f.Value)).Select(f => $"{f.Key}={Uri.EscapeDataString(f.Value!)}"));
@@ -103,7 +128,7 @@ else if (error is not null)
         var key = ReportName;
         if (key == loadedKey) return;
         loadedKey = key;
-        if (ReportName is null) return;
+        if (ReportName is null) { savedReports = await AdHoc.ListAsync(Current.Required); return; }
         try
         {
             report = Reports.Get(ReportName);

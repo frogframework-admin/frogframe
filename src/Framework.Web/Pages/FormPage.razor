@@ -155,6 +155,13 @@ else if (meta is not null && doc is not null)
                       AdditionalAttributes="@(new Dictionary<string, object> { ["title"] = T["Assign document to users"] })">
                 <LucideIcon Name="user-plus" Size="16" /> @T["Assign"]@(OpenAssignments.Count > 0 ? $" ({OpenAssignments.Count})" : "")
             </BbButton>
+            @if (!meta.Def.IsSingle)
+            {
+                <BbButton Variant="ButtonVariant.Ghost" OnClick="@(() => isShareDrawerOpen = true)"
+                          AdditionalAttributes="@(new Dictionary<string, object> { ["title"] = T["Share this document with specific people"] })">
+                    <LucideIcon Name="share-2" Size="16" /> @T["Share"]
+                </BbButton>
+            }
         }
         @if (!IsNew && !meta.Def.IsSingle && doc.DocStatus == DocStatus.Draft && meta.Def.Document.AllowDelete && Perms.Can(User, meta, DocActions.Delete))
         {
@@ -616,6 +623,11 @@ else if (meta is not null && doc is not null)
             </FooterContent>
         </AdminDrawer>
 
+        @if (!IsNew && !meta.Def.IsSingle)
+        {
+            <ShareDrawer DocType="@DocType" Name="@Name" DocTypeTitle="@T.Title(meta)"
+                         Open="@isShareDrawerOpen" OpenChanged="@(v => isShareDrawerOpen = v)" OnChanged="OnSharesChanged" />
+        }
         <AdminDrawer Open="@isAssignDrawerOpen"
                      OpenChanged="v => isAssignDrawerOpen = v"
                      Title="@($"{T["Assign To"]} · {Name}")"
@@ -922,7 +934,8 @@ else if (meta is not null && doc is not null)
             ? Perms.Can(User, meta!, DocActions.Write) && Perms.InScope(User, meta!, DocActions.Write, doc.Owner, doc.Data)
             : IsNew
                 ? Perms.Can(User, meta!, DocActions.Create)
-                : Perms.Can(User, meta!, DocActions.Write) && Perms.InScope(User, meta!, DocActions.Write, doc.Owner, doc.Data));
+                : Perms.Can(User, meta!, DocActions.Write)
+                  && (Perms.InScope(User, meta!, DocActions.Write, doc.Owner, doc.Data) || myShare?.CanWrite == true));
 
     private Dictionary<string, object?> Scope
     {
@@ -1090,6 +1103,23 @@ else if (meta is not null && doc is not null)
         await Load();
     }
 
+    /// <summary>
+    /// <c>/app/{DocType}/new?prefill.{field}=value</c> (used by the calendar view): starting values for scalar
+    /// fields the user may write. Values go through the field type's normalization; the server validates on save.
+    /// </summary>
+    private void ApplyPrefill(Document target)
+    {
+        var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(new Uri(Nav.Uri).Query);
+        foreach (var (key, values) in query)
+        {
+            if (!key.StartsWith("prefill.", StringComparison.Ordinal) || values.Count != 1) continue;
+            if (!meta!.ByName.TryGetValue(key["prefill.".Length..], out var f) || f.IsLayout || f.Def.Type is "Table" or "Password") continue;
+            if (!Perms.CanWriteField(User, meta, f)) continue;
+            var normalized = f.Type.Normalize(values[0]);
+            if (normalized.Ok && normalized.Value is not null) target.Data[f.Name] = normalized.Value;
+        }
+    }
+
     private async Task Load()
     {
         fatal = null; banner = null; conflict = null; errors.Clear();
@@ -1101,6 +1131,8 @@ else if (meta is not null && doc is not null)
         try
         {
             doc = !meta.Def.IsSingle && Name == "new" ? Docs.New(User, DocType) : await Docs.GetAsync(User, DocType, meta.Def.IsSingle ? meta.Name : Name);
+            if (!meta.Def.IsSingle && Name == "new") ApplyPrefill(doc);
+            myShare = meta.Def.IsSingle || Name == "new" ? null : await Docs.ShareForAsync(User, DocType, Name);
             model = Document.DeepCopy(doc.Data);
             // Pilih tab aktif SEBELUM await berikutnya: dengan database sungguhan Blazor bisa merender di tengah Load,
             // dan BbTabs memakai nilai awal Value. Tab kosong pada render pertama membuat isi form tersembunyi.
@@ -1971,6 +2003,16 @@ else if (meta is not null && doc is not null)
     }
 
     private bool isAssignDrawerOpen;
+    private bool isShareDrawerOpen;
+    /// <summary>Share of this document with the current user (row sharing); a write share makes the form editable.</summary>
+    private Framework.Sharing.DocShare? myShare;
+
+    private async Task OnSharesChanged(bool leftShare)
+    {
+        if (leftShare) { await Load(); return; } // may no longer be visible: Load shows "not found"
+        myShare = await Docs.ShareForAsync(User, DocType, Name);
+        audit = await Docs.GetAuditAsync(User, DocType, Name);
+    }
     private bool assignBusy;
     private string? assignError;
     private List<string> assignSelectedUsers = [];

@@ -179,7 +179,8 @@ public sealed class InMemoryDocumentStore(IEnumerable<IInMemoryUnitOfWorkExtensi
     private static bool MatchScope(Document d, RowScope scope) => scope switch
     {
         RowScope.AllRows => true,
-        RowScope.AnyOf any => any.Conditions.Any(c => Convert.ToString(d.Get(c.Field), CultureInfo.InvariantCulture) == c.Value),
+        RowScope.AnyOf any => any.Conditions.Any(c => Convert.ToString(d.Get(c.Field), CultureInfo.InvariantCulture) == c.Value)
+                              || any.SharedNames.Contains(d.Name, StringComparer.Ordinal),
         _ => false
     };
 
