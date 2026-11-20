@@ -17,6 +17,7 @@
 @inject IJSRuntime JS
 @inject UiText T
 @inject SystemConnectivityService Connectivity
+@inject Microsoft.Extensions.Configuration.IConfiguration Config
 
 <BbSidebarProvider DefaultOpen="true">
     <BbSidebar Collapsible="true">
@@ -189,7 +190,7 @@
             }
         </BbSidebarContent>
 
-        @if (Current.User is { } me)
+        @if (Current.User is { } me && ShowSidebarUser)
         {
             var avatarId = me.Attr("avatar");
             <BbSidebarFooter>
@@ -250,10 +251,59 @@
                     <BbSeparator Orientation="SeparatorOrientation.Vertical" Style="height:1.25rem;opacity:0.4;" />
                     <span class="theme-toggle"><BbDarkModeToggle Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" /></span>
                     <LanguageSwitch />
-                    <button type="button" class="header-logout-btn" @onclick="Logout">
-                        <LucideIcon Name="log-out" Size="16" />
-                        <span>@T["Log out"]</span>
-                    </button>
+                    @if (ShowHeaderUser)
+                    {
+                        var headAvatar = who.Attr("avatar");
+                        <div style="position:relative;display:inline-flex;">
+                            <button type="button" class="header-logout-btn" style="gap:0.35rem;padding:0.2rem 0.4rem;border:1px solid rgba(255,255,255,0.25);background:rgba(255,255,255,0.12);border-radius:9999px;"
+                                    @onclick="ToggleUserDropdown" title="@who.FullName" aria-label="@who.FullName">
+                                <div class="sidebar-avatar-box" style="width:1.6rem;height:1.6rem;font-size:0.75rem;border-radius:50%;margin:0;">
+                                    @if (!string.IsNullOrWhiteSpace(headAvatar))
+                                    {
+                                        <img src="@($"/files/{headAvatar}")" alt="@who.FullName" style="border-radius:50%;width:100%;height:100%;object-fit:cover;" />
+                                    }
+                                    else
+                                    {
+                                        <span>@Initials(who.FullName)</span>
+                                    }
+                                </div>
+                                <LucideIcon Name="chevron-down" Size="14" style="opacity:0.8;" />
+                            </button>
+                            @if (isUserDropdownOpen)
+                            {
+                                <div style="position:fixed;inset:0;z-index:90;" @onclick="CloseUserDropdown"></div>
+                                <div style="position:absolute;top:calc(100% + 0.35rem);right:0;width:13.5rem;background:var(--popover, #ffffff);color:var(--popover-foreground, #0f172a);border:1px solid var(--border, #e2e8f0);border-radius:0.5rem;box-shadow:0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1);padding:0.35rem;z-index:95;display:flex;flex-direction:column;gap:0.2rem;">
+                                    <div style="padding:0.45rem 0.6rem;border-bottom:1px solid var(--border, #e2e8f0);margin-bottom:0.2rem;">
+                                        <div style="font-weight:600;font-size:0.875rem;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">@who.FullName</div>
+                                        <div style="font-size:0.75rem;color:var(--muted-foreground, #64748b);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:0.15rem;">@who.Id</div>
+                                    </div>
+                                    <button type="button" class="header-logout-btn" style="color:var(--popover-foreground, #0f172a);justify-content:flex-start;padding:0.45rem 0.6rem;width:100%;font-weight:400;"
+                                            @onclick="OpenUserProfileFromDropdown">
+                                        <LucideIcon Name="user" Size="15" />
+                                        <span>@T["User Information"]</span>
+                                    </button>
+                                    <a href="/account/password" class="header-logout-btn" style="color:var(--popover-foreground, #0f172a);text-decoration:none;justify-content:flex-start;padding:0.45rem 0.6rem;width:100%;font-weight:400;"
+                                       @onclick="CloseUserDropdown">
+                                        <LucideIcon Name="key-round" Size="15" />
+                                        <span>@T["Change Password"]</span>
+                                    </a>
+                                    <div style="height:1px;background:var(--border, #e2e8f0);margin:0.2rem 0;"></div>
+                                    <button type="button" class="header-logout-btn" style="color:var(--destructive, #ef4444);justify-content:flex-start;padding:0.45rem 0.6rem;width:100%;font-weight:500;"
+                                            @onclick="LogoutFromDropdown">
+                                        <LucideIcon Name="log-out" Size="15" />
+                                        <span>@T["Log out"]</span>
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <button type="button" class="header-logout-btn" @onclick="Logout">
+                            <LucideIcon Name="log-out" Size="16" />
+                            <span>@T["Log out"]</span>
+                        </button>
+                    }
                 }
                 else
                 {
@@ -264,6 +314,9 @@
                         <span>@T["Sign In"]</span>
                     </a>
                 }
+                <button type="button" class="header-logout-btn" style="padding:0.35rem;border-radius:0.35rem;" @onclick="OpenAboutDialog" title="@T["About FrogFrame"]" aria-label="@T["About"]">
+                    <LucideIcon Name="circle-question-mark" Size="18" />
+                </button>
             </div>
         </header>
         <div class="page-top-bar">
@@ -380,6 +433,33 @@
     <AiAssistantDrawer @bind-Open="isAiAssistantOpen" />
 }
 
+<BbDialog Open="@isAboutDialogOpen" OpenChanged="v => isAboutDialogOpen = v">
+    <BbDialogContent Class="sm:max-w-md">
+        <BbDialogHeader>
+            <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.35rem;">
+                <div style="width:2.5rem;height:2.5rem;border-radius:0.5rem;background:var(--primary, #2563eb);color:#fff;display:flex;align-items:center;justify-content:center;">
+                    <LucideIcon Name="circle-question-mark" Size="24" />
+                </div>
+                <div>
+                    <BbDialogTitle>@T["About FrogFrame"]</BbDialogTitle>
+                    <BbDialogDescription>Enterprise Application Framework</BbDialogDescription>
+                </div>
+            </div>
+        </BbDialogHeader>
+        <div style="padding:0.5rem 0;font-size:0.875rem;color:var(--foreground, #0f172a);display:flex;flex-direction:column;gap:0.5rem;">
+            <p>FrogFrame is a high-performance, metadata-driven enterprise application framework built with .NET 10 and Blazor.</p>
+            <div style="font-size:0.75rem;color:var(--muted-foreground, #64748b);line-height:1.5;">
+                <div>Version: 1.0.0</div>
+                <div>Runtime: .NET 10.0</div>
+                <div>PostgreSQL 17 &bull; SeaweedFS S3</div>
+            </div>
+        </div>
+        <BbDialogFooter>
+            <BbButton Variant="ButtonVariant.Outline" OnClick="() => isAboutDialogOpen = false">@T["Close"]</BbButton>
+        </BbDialogFooter>
+    </BbDialogContent>
+</BbDialog>
+
 @if (Current.User is { } modalUser)
 {
     var modalModules = navModules.Where(m => m.IsVisibleFor(modalUser)).OrderBy(m => m.SortOrder).ThenBy(m => m.Name).ToList();
@@ -469,6 +549,8 @@
     private bool isProfileOpen;
     private bool isAwesomebarOpen;
     private bool isAiAssistantOpen;
+    private bool isAboutDialogOpen;
+    private bool isUserDropdownOpen;
     private DotNetObjectReference<DeskLayout>? dotNetRef;
     private FrogFrameErrorBoundary? errorBoundary;
     private bool checkingConnectivity;
@@ -496,6 +578,28 @@
     private void OnConnectivityChanged() => _ = InvokeAsync(StateHasChanged);
 
     private void OpenUserProfile() => isProfileOpen = true;
+
+    private void OpenAboutDialog() => isAboutDialogOpen = true;
+
+    private void ToggleUserDropdown() => isUserDropdownOpen = !isUserDropdownOpen;
+
+    private void CloseUserDropdown() => isUserDropdownOpen = false;
+
+    private void OpenUserProfileFromDropdown()
+    {
+        CloseUserDropdown();
+        OpenUserProfile();
+    }
+
+    private void LogoutFromDropdown()
+    {
+        CloseUserDropdown();
+        Logout();
+    }
+
+    private string UserPlacement => Config["Ui:UserPlacement"] ?? "Both";
+    private bool ShowSidebarUser => !string.Equals(UserPlacement, "Header", StringComparison.OrdinalIgnoreCase);
+    private bool ShowHeaderUser => !string.Equals(UserPlacement, "Sidebar", StringComparison.OrdinalIgnoreCase);
 
     [JSInvokable]
     public void OpenAwesomebarFromJs()
