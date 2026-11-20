@@ -8,7 +8,7 @@ Orchestrates loading DocFrame records, calling WsmOptimizerEngine, and applying 
 
 ## Validasi (dokumen ditolak)
 
-- `company`: "Company is required" — terjadi bila `d.Str("company") tidak ditemukan/kosong` (WsmOptimizationService, WsmOptimizer.cs:574)
-- `from_date`: "From date is required" — terjadi bila `d.Date("from_date") tidak ditemukan/kosong` (WsmOptimizationService, WsmOptimizer.cs:575)
-- `to_date`: "To date is required" — terjadi bila `d.Date("to_date") tidak ditemukan/kosong` (WsmOptimizationService, WsmOptimizer.cs:576)
-- `status`: "Only a Proposed optimization can be applied" — terjadi bila `optDoc.Data.Str("status") != "Proposed"` (WsmOptimizationService, WsmOptimizer.cs:770)
+- `company`: "Company is required" — terjadi bila `d.Str("company") tidak ditemukan/kosong` (WsmOptimizationService, WsmOptimizer.cs:694)
+- `from_date`: "From date is required" — terjadi bila `d.Date("from_date") tidak ditemukan/kosong` (WsmOptimizationService, WsmOptimizer.cs:695)
+- `to_date`: "To date is required" — terjadi bila `d.Date("to_date") tidak ditemukan/kosong` (WsmOptimizationService, WsmOptimizer.cs:696)
+- `status`: "Only a Proposed optimization can be applied" — terjadi bila `optDoc.Data.Str("status") != "Proposed"` (WsmOptimizationService, WsmOptimizer.cs:952)

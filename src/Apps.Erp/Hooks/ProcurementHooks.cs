@@ -42,7 +42,7 @@ internal static class Procure
 }
 
 /// <summary>Purchase Request: perusahaan & cost center dari pemohon; status pemesanan dihitung saat dibuka.</summary>
-public sealed class PurchaseRequestHook(IDocumentStore store) : IBeforeValidate<PurchaseRequest>, IOnLoad<PurchaseRequest>
+public sealed class PurchaseRequestHook(IDocumentStore store, TimeProvider clock) : IBeforeValidate<PurchaseRequest>, IOnLoad<PurchaseRequest>
 {
     public async Task BeforeValidateAsync(HookContext c, CancellationToken ct)
     {
@@ -54,10 +54,10 @@ public sealed class PurchaseRequestHook(IDocumentStore store) : IBeforeValidate<
             d.SetIfEmpty("cost_center", emp.Data.Str("cost_center"));
             if (c.Doc.DocStatus == DocStatus.Draft)
             {
-                var asOf = d.Date("required_by") ?? DateOnly.FromDateTime(DateTime.UtcNow);
+                // Approver availability is checked for today (when the request is approved), not for the required-by date.
+                var asOf = DateOnly.FromDateTime(clock.GetLocalNow().Date);
                 var resolved = await Hr.ResolveApproversAsync(m, emp, d.Str("project"), asOf, ct, "expense_approver");
-                if (resolved.LineDelegated || d.Str("approver") is null)
-                    d["approver"] = resolved.LineApprover;
+                d["approver"] = resolved.LineApprover;
                 d["project_approver"] = resolved.ProjectApprover;
             }
         }

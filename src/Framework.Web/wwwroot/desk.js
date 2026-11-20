@@ -177,6 +177,10 @@ window.frogframe = window.frogframe || {};
 
             isDraggingColumn = true;
 
+            // Keep the header highlighted while resizing so both column edges stay visible.
+            var activeTh = handle.closest('th');
+            if (activeTh) activeTh.classList.add('ff-col-resizing');
+
             var ths = Array.from(table.querySelectorAll('thead th[data-column-id]'));
             if (ths.length === 0) return;
 
@@ -205,6 +209,7 @@ window.frogframe = window.frogframe || {};
 
             var onEnd = function () {
                 isDraggingColumn = false;
+                if (activeTh) activeTh.classList.remove('ff-col-resizing');
                 window.removeEventListener('pointerup', onEnd, true);
                 window.removeEventListener('pointercancel', onEnd, true);
                 setTimeout(syncAllDataGridTables, 0);

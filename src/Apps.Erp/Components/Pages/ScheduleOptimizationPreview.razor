@@ -62,6 +62,7 @@ else if (optDoc is not null)
         <BbCard><BbCardContent><div style="padding-top:.75rem"><div class="muted small">Coverage</div><strong style="font-size:1.1rem">@Dec(optDoc, "coverage_pct")%</strong></div></BbCardContent></BbCard>
         <BbCard><BbCardContent><div style="padding-top:.75rem"><div class="muted small">Preference Hit</div><strong style="font-size:1.1rem">@Dec(optDoc, "preference_satisfaction_pct")%</strong></div></BbCardContent></BbCard>
         <BbCard><BbCardContent><div style="padding-top:.75rem"><div class="muted small">Shortage Slots</div><strong style="font-size:1.1rem;color:@(Dec(optDoc, "shortage_slots") > 0 ? "#dc2626" : "#16a34a")">@((int)Dec(optDoc, "shortage_slots"))</strong></div></BbCardContent></BbCard>
+        <BbCard><BbCardContent><div style="padding-top:.75rem"><div class="muted small">Shifts Above Target</div><strong style="font-size:1.1rem;color:@(Dec(optDoc, "overstaff_slots") > 0 ? "#d97706" : "#16a34a")">@((int)Dec(optDoc, "overstaff_slots"))</strong></div></BbCardContent></BbCard>
         <BbCard><BbCardContent><div style="padding-top:.75rem"><div class="muted small">Changed Slots</div><strong style="font-size:1.1rem">@((int)Dec(optDoc, "changed_rows"))</strong></div></BbCardContent></BbCard>
         <BbCard><BbCardContent><div style="padding-top:.75rem"><div class="muted small">Solve Time</div><strong style="font-size:1.1rem">@((long)Dec(optDoc, "solve_ms")) ms</strong></div></BbCardContent></BbCard>
     </div>

@@ -10,12 +10,12 @@ Aturan yang dijalankan kode saat dokumen Leave Application (LeaveApplication) di
 
 ## Validasi (dokumen ditolak): Pemeriksaan CheckAsync
 
-- `leave_type`: "{type.Name} is only for {gender.ToLowerInvariant()} employees" — terjadi bila `!(from is null || to is null || to < from) && gender is "Female" or "Male" && emp.Data.Str("gender") != gender` (LeaveApplicationHook, HrHooks.cs:946)
-- `from_date`: "There are no working days in this date range" — terjadi bila `!(from is null || to is null || to < from) && days <= 0` (LeaveApplicationHook, HrHooks.cs:949)
-- `to_date`: "At most {max} consecutive days for {type.Name}" — terjadi bila `!(from is null || to is null || to < from) && max > 0 && days > max` (LeaveApplicationHook, HrHooks.cs:951)
-- `from_date`: "Overlaps with application {clash.Name}" — terjadi bila `!(from is null || to is null || to < from) && mine.FirstOrDefault(a => Hr.Overlaps(from, to, a.Data.Date("from_date"), a.Data.Date("to_date"))) is { } clash` (LeaveApplicationHook, HrHooks.cs:957)
-- `leave_type`: "There is no {type.Name} allocation for this period" — terjadi bila `alloc is null` (LeaveApplicationHook, HrHooks.cs:963)
-- `to_date`: "Only {balance} days of {type.Name} remain" — terjadi bila `days > balance` (LeaveApplicationHook, HrHooks.cs:972)
+- `leave_type`: "{type.Name} is only for {gender.ToLowerInvariant()} employees" — terjadi bila `!(from is null || to is null || to < from) && gender is "Female" or "Male" && emp.Data.Str("gender") != gender` (LeaveApplicationHook, HrHooks.cs:948)
+- `from_date`: "There are no working days in this date range" — terjadi bila `!(from is null || to is null || to < from) && days <= 0` (LeaveApplicationHook, HrHooks.cs:951)
+- `to_date`: "At most {max} consecutive days for {type.Name}" — terjadi bila `!(from is null || to is null || to < from) && max > 0 && days > max` (LeaveApplicationHook, HrHooks.cs:953)
+- `from_date`: "Overlaps with application {clash.Name}" — terjadi bila `!(from is null || to is null || to < from) && mine.FirstOrDefault(a => Hr.Overlaps(from, to, a.Data.Date("from_date"), a.Data.Date("to_date"))) is { } clash` (LeaveApplicationHook, HrHooks.cs:959)
+- `leave_type`: "There is no {type.Name} allocation for this period" — terjadi bila `alloc is null` (LeaveApplicationHook, HrHooks.cs:965)
+- `to_date`: "Only {balance} days of {type.Name} remain" — terjadi bila `days > balance` (LeaveApplicationHook, HrHooks.cs:974)
 
 ## Aturan bersama yang juga berlaku
 

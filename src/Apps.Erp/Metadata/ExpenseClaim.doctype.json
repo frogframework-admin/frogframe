@@ -46,8 +46,9 @@
       "name": "expense_approver",
       "type": "Data",
       "label": "Approver",
-      "fetchFrom": "employee.expense_approver",
-      "section": "Claim"
+      "readOnlyWhen": "true",
+      "section": "Claim",
+      "description": "Set when the draft is saved: the employee's line approver, or the Acting (Plt.) holder while that approver is on approved leave or the post is vacant"
     },
     {
       "name": "posting_date",

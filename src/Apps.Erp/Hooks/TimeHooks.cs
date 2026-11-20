@@ -64,10 +64,16 @@ internal static class Overtime
 
     public static async Task CheckNotPaidAsync(Masters m, string? employee, string period, string path, CancellationToken ct)
     {
-        if (employee is null) return;
-        var paid = (await m.QueryAsync("Payslip", [new FilterClause("employee", "=", employee), new FilterClause("period", "=", period)], ct, take: 10))
-            .FirstOrDefault(p => p.DocStatus == DocStatus.Submitted);
+        var paid = await SubmittedPayslipAsync(m, employee, period, ct);
         if (paid is not null) throw Errors.One(path, $"Payslip {paid.Name} for {period} is already submitted; this month is locked");
+    }
+
+    /// <summary>The submitted payslip of <paramref name="employee"/> for <paramref name="period"/> (yyyy-MM), if any: that month is locked.</summary>
+    public static async Task<Document?> SubmittedPayslipAsync(Masters m, string? employee, string period, CancellationToken ct)
+    {
+        if (employee is null) return null;
+        return (await m.QueryAsync("Payslip", [new FilterClause("employee", "=", employee), new FilterClause("period", "=", period)], ct, take: 10))
+            .FirstOrDefault(p => p.DocStatus == DocStatus.Submitted);
     }
 }
 
@@ -146,7 +152,7 @@ public sealed class AttendanceHook(IDocumentStore store) : IBeforeValidate<Atten
 }
 
 /// <summary>Overtime request: paid hours computed using PP 35/2021 multipliers; resolves day type &amp; work week from EmployeeDailySchedule when available.</summary>
-public sealed class OvertimeRequestHook(IDocumentStore store) : IBeforeValidate<OvertimeRequest>
+public sealed class OvertimeRequestHook(IDocumentStore store, TimeProvider clock) : IBeforeValidate<OvertimeRequest>
 {
     public async Task BeforeValidateAsync(HookContext c, CancellationToken ct)
     {
@@ -156,9 +162,9 @@ public sealed class OvertimeRequestHook(IDocumentStore store) : IBeforeValidate<
         var date = d.Date("overtime_date") ?? throw Errors.One("overtime_date", "The date is required");
         if (c.Doc.DocStatus == DocStatus.Draft)
         {
-            var resolved = await Hr.ResolveApproversAsync(m, emp, d.Str("project"), date, ct, "leave_approver");
-            if (resolved.LineDelegated || d.Str("approver") is null)
-                d["approver"] = resolved.LineApprover;
+            // Approver availability is checked for today (when the request is approved), not for the overtime date.
+            var resolved = await Hr.ResolveApproversAsync(m, emp, d.Str("project"), DateOnly.FromDateTime(clock.GetLocalNow().Date), ct, "leave_approver");
+            d["approver"] = resolved.LineApprover;
             d["project_approver"] = resolved.ProjectApprover;
         }
         var period = $"{date:yyyy-MM}";

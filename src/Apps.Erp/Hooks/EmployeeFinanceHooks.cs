@@ -37,8 +37,7 @@ public sealed class EmployeeAdvanceHook(ILedgerReader ledger, IDocumentStore sto
         {
             var asOf = d.Date("posting_date") ?? DateOnly.FromDateTime(clock.GetLocalNow().Date);
             var resolved = await Hr.ResolveApproversAsync(m, emp, null, asOf, ct, "expense_approver");
-            if (resolved.LineDelegated || d.Str("expense_approver") is null)
-                d["expense_approver"] = resolved.LineApprover;
+            d["expense_approver"] = resolved.LineApprover;
         }
         if (d.Str("advance_account") is null)
         {
@@ -123,8 +122,7 @@ public sealed class ExpenseClaimHook(ILedgerReader ledger, IDocumentStore store,
         {
             var asOf = d.Date("posting_date") ?? DateOnly.FromDateTime(clock.GetLocalNow().Date);
             var resolved = await Hr.ResolveApproversAsync(m, emp, d.Str("project"), asOf, ct, "expense_approver");
-            if (resolved.LineDelegated || d.Str("expense_approver") is null)
-                d["expense_approver"] = resolved.LineApprover;
+            d["expense_approver"] = resolved.LineApprover;
             d["project_approver"] = resolved.ProjectApprover;
         }
         var company = await CompanyInfo.LoadAsync(m, emp.Data.Str("company"), ct);

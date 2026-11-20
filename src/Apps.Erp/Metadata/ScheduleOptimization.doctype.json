@@ -127,6 +127,17 @@
       "column": 2
     },
     {
+      "name": "w_overstaff",
+      "type": "Int",
+      "label": "Above-target staffing weight",
+      "default": 60,
+      "min": 0,
+      "max": 1000,
+      "section": "Optimization Weights",
+      "column": 2,
+      "description": "Cost of each shift scheduled above the target headcount. Keep it above the fairness weight and 5 x the preference weight."
+    },
+    {
       "name": "status",
       "type": "Select",
       "label": "Status",
@@ -171,6 +182,14 @@
       "label": "Shortage slots",
       "readOnlyWhen": "true",
       "inListView": true,
+      "section": "Result",
+      "column": 2
+    },
+    {
+      "name": "overstaff_slots",
+      "type": "Int",
+      "label": "Shifts above target",
+      "readOnlyWhen": "true",
       "section": "Result",
       "column": 2
     },

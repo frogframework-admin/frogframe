@@ -763,7 +763,11 @@ sealed partial class Tests
         // Self-approval guard: PM-B requesting on PRJ-MATRIX falls back to SPONSOR
         var pmDoc = (await m.GetAsync("Employee", "PM-B", CancellationToken.None))!;
         var rSelf = await Hr.ResolveApproversAsync(m, pmDoc, "PRJ-MATRIX", new DateOnly(2026, 12, 10), CancellationToken.None);
-        Assert.Equal("SPONSOR", rSelf.ProjectApprover, "Self-approval prevented: PM-B falls back to project sponsor");
+        // PM-B cannot approve their own request; the sponsor would be next, but the sponsor is also PM-B's line
+        // manager, so the project stage is dropped instead of asking the same person twice.
+        Assert.True(rSelf.ProjectApprover != "PM-B", "Self-approval prevented: PM-B is not the project approver of their own request");
+        Assert.Equal("SPONSOR", rSelf.LineApprover, "Line approver of PM-B is the sponsor");
+        Assert.Equal(null, rSelf.ProjectApprover, "Project stage dropped: same person as the line approver");
 
         // 2. OvertimeRequest WITH project routes through Pending Project Approval -> Pending Approval -> Approved
         var staffUser = new UserContext("u-staff", "Staff A", "acme", new HashSet<string> { "Employee" }, new Dictionary<string, string> { ["employee"] = "STAFF-A" });

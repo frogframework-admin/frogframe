@@ -10,7 +10,7 @@ Aturan yang dijalankan kode saat dokumen Position (Position) disimpan, di-submit
 
 ## Validasi (dokumen ditolak): Saat simpan/submit (validasi)
 
-- `status`: "The position is still filled by {holder.Name}; move the employee first" — terjadi bila `holder is not null && status is "Closed" or "Frozen"` (PositionHook, HrHooks.cs:453)
+- `status`: "The position is still filled by {holder.Name}; move the employee first" — terjadi bila `holder is not null && status is "Closed" or "Frozen"` (PositionHook, HrHooks.cs:455)
 
 ## Aturan bersama yang juga berlaku
 

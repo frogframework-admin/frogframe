@@ -25,8 +25,8 @@ for p in glob.glob(os.path.join(META, "*.doctype.json")) + glob.glob(os.path.joi
     for s in d.get("states", []): values.add(s["name"])
     for t in d.get("transitions", []): values.add(t["action"])
 
-# Literal yang memang bukan nilai opsi (nama job, role, dsb.).
-ALLOW = {"System Manager", "Finance", "HR", "Manager", "Sales", "IT", "General Affairs"}
+# Literal yang memang bukan nilai opsi (nama job, role, aksi audit, dsb.).
+ALLOW = {"System Manager", "Finance", "HR", "Manager", "Sales", "IT", "General Affairs", "Approver delegated"}
 PAT = re.compile(r'(?:==|!=|\bis|\bor|\bnot|=>|\]\s*=|const string \w+\s*=|,\s*\w+\s*=)\s*\(?"([A-Z][^"{}\n]*)"')
 problems = []
 for path in sorted(glob.glob(os.path.join(ROOT, "src", "Apps.Erp", "**", "*.cs"), recursive=True)):

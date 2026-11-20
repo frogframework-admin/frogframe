@@ -557,7 +557,7 @@ h1:focus {
   min-height: 100dvh !important;
   min-width: 0 !important;
   max-width: 100% !important;
-  overflow-x: hidden !important;
+  overflow-x: clip !important;
   display: flex !important;
   flex-direction: column !important;
 }
@@ -1458,10 +1458,78 @@ aside[data-state="collapsed"] .sidebar-user .who,
   background: var(--card);
 }
 
+/* Natural (content-driven) layout until the user resizes a column. No !important on width so the
+   inline width written by the column-resize script (table-columns.js / desk.js) wins. */
 .table-wrap table {
   table-layout: auto !important;
-  width: max-content !important;
-  min-width: 100% !important;
+  width: max-content;
+  min-width: 100%;
+}
+
+/* Once a column has been resized the table carries an inline pixel width: switch to fixed layout so
+   the <col> widths are honoured exactly (wider and narrower). */
+.table-wrap table[style*="width"] {
+  table-layout: fixed !important;
+}
+
+.table-wrap table[style*="width"] td {
+  max-width: none;
+}
+
+/* ---------- Column header hover/focus, resize and reorder affordances ---------- */
+.table-wrap thead th[data-column-id] {
+  transition: background-color .12s ease, box-shadow .12s ease;
+}
+
+.table-wrap thead th[data-column-id]:hover,
+.table-wrap thead th[data-column-id]:focus-within,
+.table-wrap thead th[data-column-id]:focus-visible,
+.table-wrap thead th[data-column-id].ff-col-resizing {
+  background-color: color-mix(in srgb, var(--table-header-bg, var(--muted)) 82%, var(--brand-ink, #1e3a8a) 18%) !important;
+  box-shadow: inset 1px 0 0 var(--brand-label, var(--primary)), inset -1px 0 0 var(--brand-label, var(--primary));
+}
+
+.dark .table-wrap thead th[data-column-id]:hover,
+.dark .table-wrap thead th[data-column-id]:focus-within,
+.dark .table-wrap thead th[data-column-id]:focus-visible,
+.dark .table-wrap thead th[data-column-id].ff-col-resizing {
+  background-color: #2b3a52 !important;
+  box-shadow: inset 1px 0 0 var(--dk-accent, #60a5fa), inset -1px 0 0 var(--dk-accent, #60a5fa);
+}
+
+.table-wrap thead th[draggable="true"] {
+  cursor: grab;
+}
+
+.table-wrap thead th[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.table-wrap thead [data-resize-handle] {
+  cursor: col-resize;
+}
+
+.table-wrap thead [data-resize-handle]:hover,
+.table-wrap thead th.ff-col-resizing [data-resize-handle] {
+  background-color: var(--brand-icon, var(--primary)) !important;
+  opacity: 1 !important;
+}
+
+.dark .table-wrap thead [data-resize-handle]:hover,
+.dark .table-wrap thead th.ff-col-resizing [data-resize-handle] {
+  background-color: var(--dk-accent, #60a5fa) !important;
+}
+
+/* table-columns.js styles its drop indicator / drag ghost with hsl(var(--x)), which is invalid for
+   the OKLCH theme tokens, so the browser drops those declarations. Restore them here. */
+div[style*="width: 2px"][style*="pointer-events: none"][style*="z-index: 50"] {
+  background: var(--brand-icon, var(--primary)) !important;
+}
+
+body > div[style*="position: fixed"][style*="pointer-events: none"][style*="z-index: 9999"] {
+  background: var(--card) !important;
+  color: var(--foreground) !important;
+  border: 1px solid var(--border) !important;
 }
 
 .table-wrap table th,

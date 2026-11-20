@@ -169,11 +169,10 @@ internal static class Hr
     /// <summary>Returns true if <paramref name="employeeId"/> has an Approved LeaveApplication covering <paramref name="asOfDate"/>.</summary>
     public static async Task<bool> IsOnApprovedLeaveAsync(Masters m, string employeeId, DateOnly asOfDate, CancellationToken ct)
     {
-        var leaves = await m.QueryAsync("LeaveApplication", [new FilterClause("employee", "=", employeeId)], ct, take: 200);
-        return leaves.Any(l =>
-            (l.WorkflowState == Approval.Approved || l.DocStatus == DocStatus.Submitted)
-            && l.WorkflowState != "Cancelled" && l.WorkflowState != "Rejected"
-            && Overlaps(asOfDate, asOfDate, l.Data.Date("from_date"), l.Data.Date("to_date")));
+        // Only approved leave: a request still "Pending Approval" is also submitted (docstatus 1) but the person is not away yet.
+        var leaves = await m.QueryAsync("LeaveApplication",
+            [new FilterClause("employee", "=", employeeId), new FilterClause("workflow_state", "=", Approval.Approved)], ct, take: 200);
+        return leaves.Any(l => Overlaps(asOfDate, asOfDate, l.Data.Date("from_date"), l.Data.Date("to_date")));
     }
 
     /// <summary>Finds an active Acting (Plt.) employee substituting for <paramref name="managerId"/> (or their position) on <paramref name="asOfDate"/>.</summary>
@@ -272,6 +271,9 @@ internal static class Hr
                 }
             }
         }
+
+        // The same person on both stages would approve twice: the line approval covers it.
+        if (projectApprover is not null && projectApprover == resolvedLine) projectApprover = null;
 
         return new ResolvedApprovers(resolvedLine, projectApprover, delegated, origLine);
     }
@@ -923,7 +925,7 @@ internal static class LeaveMath
 /// Leave application: calculated &amp; validated on save and before approval transition.
 /// When approved, updates materialized EmployeeDailySchedule rows to LEAVE and checks shift manpower coverage.
 /// </summary>
-public sealed class LeaveApplicationHook(IDocumentStore store)
+public sealed class LeaveApplicationHook(IDocumentStore store, TimeProvider clock)
     : IBeforeValidate<LeaveApplication>, IBeforeTransition<LeaveApplication>, IAfterSave<LeaveApplication>, IOnCancel<LeaveApplication>
 {
     private async Task CheckAsync(HookContext c, CancellationToken ct)
@@ -937,9 +939,9 @@ public sealed class LeaveApplicationHook(IDocumentStore store)
         if (from is null || to is null || to < from) return;
         if (c.Doc.DocStatus == DocStatus.Draft)
         {
-            var resolved = await Hr.ResolveApproversAsync(m, emp, null, from.Value, ct, "leave_approver");
-            if (resolved.LineDelegated || d.Str("leave_approver") is null)
-                d["leave_approver"] = resolved.LineApprover;
+            // Who can approve is decided by who is available now, not on the first day of the leave.
+            var resolved = await Hr.ResolveApproversAsync(m, emp, null, DateOnly.FromDateTime(clock.GetLocalNow().Date), ct, "leave_approver");
+            d["leave_approver"] = resolved.LineApprover;
         }
 
         var gender = type.Data.Str("applicable_gender");

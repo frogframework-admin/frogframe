@@ -64,6 +64,16 @@
       "section": "Fatigue & Rest Constraints"
     },
     {
+      "name": "max_work_days_per_7_days",
+      "type": "Int",
+      "label": "Max working days in any 7 days",
+      "default": 7,
+      "min": 1,
+      "max": 7,
+      "section": "Fatigue & Rest Constraints",
+      "description": "For example 5 for a 5-day week or 6 for a 6-day week. 7 = only the consecutive-day limit applies. Used by the schedule optimizer."
+    },
+    {
       "name": "min_rest_hours_between_shifts",
       "type": "Float",
       "label": "Min rest between shifts (hours)",

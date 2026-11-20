@@ -1322,9 +1322,8 @@ public sealed class ApprovalDelegationRefreshJob : IScheduledJob
 
         foreach (var (docType, approverField, requesterField, pendingState) in Targets)
         {
-            var docs = (await m.QueryAsync(docType, [], ct, take: 1000))
-                .Where(d => d.WorkflowState == pendingState)
-                .ToList();
+            // Filter on the state in the query: the pending documents are a small part of all documents.
+            var docs = await m.QueryAsync(docType, [new FilterClause("workflow_state", "=", pendingState)], ct, take: 10_000);
 
             foreach (var doc in docs)
             {
@@ -1348,7 +1347,20 @@ public sealed class ApprovalDelegationRefreshJob : IScheduledJob
 
                 var uow = new UnitOfWork();
                 uow.Upserts.Add((clone, doc.Version));
-                await store.CommitAsync(uow, ct);
+                uow.Audits.Add(new AuditEntry
+                {
+                    TenantId = doc.TenantId,
+                    DocType = doc.DocType,
+                    DocName = doc.Name,
+                    Action = "Approver delegated",
+                    Actor = "system",
+                    At = now,
+                    Changes = [new FieldChange(approverField, curApprover, acting)],
+                    Comment = $"{curApprover} is unavailable on {D.Iso(today)}; delegated to Acting (Plt.) {acting}",
+                    SchemaVersion = doc.SchemaVersion,
+                });
+                try { await store.CommitAsync(uow, ct); }
+                catch (ConcurrencyException) { continue; } // changed meanwhile (e.g. just approved): the next run looks again
 
                 if (users is not null && inbox is not null)
                 {

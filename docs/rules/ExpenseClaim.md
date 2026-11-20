@@ -10,27 +10,27 @@ Aturan yang dijalankan kode saat dokumen Expense Claim (ExpenseClaim) disimpan, 
 
 ## Validasi (dokumen ditolak): Pemeriksaan AdvanceAsync
 
-- `advance_settled`: "Choose the advance being settled" — terjadi bila `settle != 0` (ExpenseClaimHook, EmployeeFinanceHooks.cs:107)
-- `employee_advance`: "{adv.Name} belongs to another employee" — terjadi bila `adv.Data.Str("employee") != d.Str("employee")` (ExpenseClaimHook, EmployeeFinanceHooks.cs:108)
-- `employee_advance`: "{adv.Name} is not approved" — terjadi bila `adv.WorkflowState != Approval.Approved` (ExpenseClaimHook, EmployeeFinanceHooks.cs:109)
-- `advance_settled`: "The advance deduction cannot exceed the total claimed; return the unused advance through a Payment Entry" — terjadi bila `settle > total` (ExpenseClaimHook, EmployeeFinanceHooks.cs:110)
-- `advance_settled`: "Exceeds the open balance of advance {adv.Name} ({(open is null ? 0m : open.NetBase):N2})" — terjadi bila `settle > 0 && (open is null || settle > open.NetBase)` (ExpenseClaimHook, EmployeeFinanceHooks.cs:112)
+- `advance_settled`: "Choose the advance being settled" — terjadi bila `settle != 0` (ExpenseClaimHook, EmployeeFinanceHooks.cs:106)
+- `employee_advance`: "{adv.Name} belongs to another employee" — terjadi bila `adv.Data.Str("employee") != d.Str("employee")` (ExpenseClaimHook, EmployeeFinanceHooks.cs:107)
+- `employee_advance`: "{adv.Name} is not approved" — terjadi bila `adv.WorkflowState != Approval.Approved` (ExpenseClaimHook, EmployeeFinanceHooks.cs:108)
+- `advance_settled`: "The advance deduction cannot exceed the total claimed; return the unused advance through a Payment Entry" — terjadi bila `settle > total` (ExpenseClaimHook, EmployeeFinanceHooks.cs:109)
+- `advance_settled`: "Exceeds the open balance of advance {adv.Name} ({(open is null ? 0m : open.NetBase):N2})" — terjadi bila `settle > 0 && (open is null || settle > open.NetBase)` (ExpenseClaimHook, EmployeeFinanceHooks.cs:111)
 
 ## Validasi (dokumen ditolak): Saat cancel
 
-- `name`: "{c.Doc.Name} has been paid; cancel the payment first" — terjadi bila `await OpenItems.HasSettlementAsync(ledger, c.Doc.TenantId, c.Doc.DocType, c.Doc.Name, ct)` (ExpenseClaimHook, EmployeeFinanceHooks.cs:186)
+- `name`: "{c.Doc.Name} has been paid; cancel the payment first" — terjadi bila `await OpenItems.HasSettlementAsync(ledger, c.Doc.TenantId, c.Doc.DocType, c.Doc.Name, ct)` (ExpenseClaimHook, EmployeeFinanceHooks.cs:184)
 
 ## Validasi (dokumen ditolak): Saat simpan/submit (validasi)
 
-- `{p}.receipt`: "{type.Name} requires a receipt" — terjadi bila `!(type is null) && type.Data.Bool("requires_receipt") && r.Str("receipt") is null` (ExpenseClaimHook, EmployeeFinanceHooks.cs:141)
-- `{p}.amount`: "Exceeds the {type.Name} limit ({max})" — terjadi bila `!(type is null) && max > 0 && r.Dec("amount") > max` (ExpenseClaimHook, EmployeeFinanceHooks.cs:143)
-- `{p}.amount`: "Amount must be greater than 0" — terjadi bila `!(type is null) && r.Dec("amount") <= 0` (ExpenseClaimHook, EmployeeFinanceHooks.cs:144)
+- `{p}.receipt`: "{type.Name} requires a receipt" — terjadi bila `!(type is null) && type.Data.Bool("requires_receipt") && r.Str("receipt") is null` (ExpenseClaimHook, EmployeeFinanceHooks.cs:139)
+- `{p}.amount`: "Exceeds the {type.Name} limit ({max})" — terjadi bila `!(type is null) && max > 0 && r.Dec("amount") > max` (ExpenseClaimHook, EmployeeFinanceHooks.cs:141)
+- `{p}.amount`: "Amount must be greater than 0" — terjadi bila `!(type is null) && r.Dec("amount") <= 0` (ExpenseClaimHook, EmployeeFinanceHooks.cs:142)
 
 ## Validasi (dokumen ditolak): Setelah simpan/submit (posting, efek ke dokumen lain)
 
-- `payable_account`: "The employee payable account is not set" — terjadi bila `!(!Approval.JustApproved(c))` (ExpenseClaimHook, EmployeeFinanceHooks.cs:165)
-- `items`: "The line expense account is not set" — terjadi bila `g.Key.Acc tidak ditemukan/kosong` (ExpenseClaimHook, EmployeeFinanceHooks.cs:170)
-- `employee_advance`: "The advance account is not set" — terjadi bila `!(!Approval.JustApproved(c)) && settle > 0 && adv is not null` (ExpenseClaimHook, EmployeeFinanceHooks.cs:176)
+- `payable_account`: "The employee payable account is not set" — terjadi bila `!(!Approval.JustApproved(c))` (ExpenseClaimHook, EmployeeFinanceHooks.cs:163)
+- `items`: "The line expense account is not set" — terjadi bila `g.Key.Acc tidak ditemukan/kosong` (ExpenseClaimHook, EmployeeFinanceHooks.cs:168)
+- `employee_advance`: "The advance account is not set" — terjadi bila `!(!Approval.JustApproved(c)) && settle > 0 && adv is not null` (ExpenseClaimHook, EmployeeFinanceHooks.cs:174)
 
 ## Aturan bersama yang juga berlaku
 

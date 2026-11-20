@@ -46,10 +46,10 @@
       "name": "leave_approver",
       "type": "Data",
       "label": "Approver",
-      "fetchFrom": "employee.leave_approver",
+      "readOnlyWhen": "true",
       "inListView": true,
       "section": "Request",
-      "description": "Taken from the employee record; decides who can approve"
+      "description": "Set when the draft is saved: the employee's line approver, or the Acting (Plt.) holder while that approver is on approved leave or the post is vacant; decides who can approve"
     },
     {
       "name": "leave_type",

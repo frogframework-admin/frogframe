@@ -13,8 +13,8 @@ Aturan yang dijalankan kode saat dokumen Schedule Optimization (ScheduleOptimiza
 
 ## Validasi (dokumen ditolak): Saat simpan/submit (validasi)
 
-- `to_date`: "The end date must be on or after the start date" — terjadi bila `!(from is null || to is null) && to < from` (ScheduleOptimizationHook, WsmOptimizer.cs:931)
-- `to_date`: "A single optimization run cannot exceed {MaxOptimizationDays} days (requested {span} days)" — terjadi bila `!(from is null || to is null) && !(to < from) && span > MaxOptimizationDays` (ScheduleOptimizationHook, WsmOptimizer.cs:934)
+- `to_date`: "The end date must be on or after the start date" — terjadi bila `!(from is null || to is null) && to < from` (ScheduleOptimizationHook, WsmOptimizer.cs:1146)
+- `to_date`: "A single optimization run cannot exceed {MaxOptimizationDays} days (requested {span} days)" — terjadi bila `!(from is null || to is null) && !(to < from) && span > MaxOptimizationDays` (ScheduleOptimizationHook, WsmOptimizer.cs:1149)
 
 ## Tombol aksi: Run Optimizer (CP-SAT)
 
@@ -32,4 +32,5 @@ Tombol **Discard Proposal** di form Schedule Optimization hanya tampil bila `(us
 
 - Approval: lihat `_shared-Approval.md`
 - Masters: lihat `_shared-Masters.md`
+- Overtime: lihat `_shared-Overtime.md`
 - WsmOptimizationService: lihat `_shared-WsmOptimizationService.md`

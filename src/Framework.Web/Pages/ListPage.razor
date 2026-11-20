@@ -109,6 +109,7 @@ else if (meta is not null)
                     RowClass="@(row => selectedItems.Contains((string)row["name"]!) ? "clickable selected" : "clickable")"
                     State="@gridState"
                     Resizable="true"
+                    Reorderable="true"
                     OnColumnResize="HandleColumnResize"
                     StateChanged="OnGridStateChanged"
                     GroupsCollapsedByDefault="@groupCollapsed"
@@ -270,7 +271,8 @@ else if (meta is not null)
                 <BbDataGridPropertyColumn TData="Dictionary<string, object?>" TProp="object?"
                                           Id="name" Title="@(T["Number"])" Hideable="false" Resizable="true" Sortable="true"
                                           Property="@nameAccessor" SortAndFilterBy="@nameAccessor" Filterable="true" FilterType="BlazorBlueprint.Primitives.Filtering.FilterFieldType.Text"
-                                          Width="@GetColWidth("name")">
+                                          Width="@GetColWidth("name")"
+                                          Order="@GetColOrder("name")">
                     <CellTemplate Context="row">
                         <a class="doc-link" href="/app/@meta.Name/@((string)row["name"]!)">@((string)row["name"]!)</a>
                     </CellTemplate>
@@ -296,7 +298,8 @@ else if (meta is not null)
                                               Filterable="@colFilterable" FilterType="@MapFilterType(cf)"
                                               Pinned="@colPinned" Groupable="true"
                                               Width="@GetColWidth(colKey)"
-                                              Visible="@IsColVisible(colKey)">
+                                              Visible="@IsColVisible(colKey)"
+                                              Order="@GetColOrder(colKey)">
                         <CellTemplate Context="row">
                             @if (cf?.Type.Editor == "image")
                             {
@@ -323,7 +326,8 @@ else if (meta is not null)
                                               Id="status" Title="@(T["Status"])" Resizable="true" Sortable="true"
                                               Property="@statusAccessor" SortAndFilterBy="@statusAccessor" Filterable="true"
                                               Width="@GetColWidth("status")"
-                                              Visible="@IsColVisible("status")">
+                                              Visible="@IsColVisible("status")"
+                                              Order="@GetColOrder("status")">
                         <CellTemplate Context="row">
                             @{
                                 var st = row.GetValueOrDefault("workflow_state") as string;
@@ -338,7 +342,8 @@ else if (meta is not null)
                                           Id="modified" Title="@(T["Modified"])" Resizable="true" Sortable="true"
                                           Property="@modifiedAccessor" SortAndFilterBy="@modifiedAccessor" Filterable="true" FilterType="BlazorBlueprint.Primitives.Filtering.FilterFieldType.DateTime"
                                           Width="@GetColWidth("modified")"
-                                          Visible="@IsColVisible("modified")">
+                                          Visible="@IsColVisible("modified")"
+                                          Order="@GetColOrder("modified")">
                     <CellTemplate Context="row">
                         <span class="muted nowrap">@Fmt.When((DateTimeOffset)row["modified"]!)</span>
                     </CellTemplate>
@@ -1416,6 +1421,30 @@ else if (meta is not null)
     private bool IsColVisible(string colId) =>
         gridPref.Columns.TryGetValue(colId, out var pref) ? pref.Visible : GetDefaultColVisible(colId);
 
+    private int? GetColOrder(string colId) =>
+        gridPref.Columns.TryGetValue(colId, out var pref) ? pref.Order : null;
+
+    private List<string> DefaultDataColumnSequence()
+    {
+        var seq = new List<string> { "name" };
+        if (result is not null)
+        {
+            foreach (var c in result.Columns)
+            {
+                if (string.Equals(c, "name", StringComparison.OrdinalIgnoreCase) ||
+                    (HasStatus && string.Equals(c, "status", StringComparison.OrdinalIgnoreCase)) ||
+                    string.Equals(c, "modified", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+                seq.Add(c);
+            }
+        }
+        if (HasStatus) seq.Add("status");
+        seq.Add("modified");
+        return seq;
+    }
+
     private void HandleColumnResize((string ColumnId, string Width) args)
     {
         if (string.IsNullOrWhiteSpace(args.ColumnId)) return;
@@ -1431,19 +1460,43 @@ else if (meta is not null)
     private void OnGridStateChanged(BlazorBlueprint.Primitives.DataGrid.DataGridState<Dictionary<string, object?>> state)
     {
         if (state?.Columns?.Entries is null) return;
+
+        bool hasSavedOrder = gridPref.Columns.Values.Any(v => v.Order.HasValue);
+        bool orderChanged;
+        if (hasSavedOrder)
+        {
+            orderChanged = state.Columns.Entries.Any(e =>
+                !string.IsNullOrEmpty(e.ColumnId) &&
+                e.ColumnId != "_select" &&
+                gridPref.Columns.TryGetValue(e.ColumnId, out var p) &&
+                p.Order != e.Order);
+        }
+        else
+        {
+            var defaultSeq = DefaultDataColumnSequence();
+            var defaultSet = defaultSeq.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var currentSeq = state.Columns.Entries
+                .Where(e => !string.IsNullOrEmpty(e.ColumnId) && defaultSet.Contains(e.ColumnId))
+                .OrderBy(e => e.Order)
+                .Select(e => e.ColumnId)
+                .ToList();
+            orderChanged = !currentSeq.SequenceEqual(defaultSeq, StringComparer.OrdinalIgnoreCase);
+        }
+
         bool changed = false;
         foreach (var entry in state.Columns.Entries)
         {
-            if (string.IsNullOrEmpty(entry.ColumnId)) continue;
+            if (string.IsNullOrEmpty(entry.ColumnId) || entry.ColumnId == "_select") continue;
             var defaultVisible = GetDefaultColVisible(entry.ColumnId);
             if (!gridPref.Columns.TryGetValue(entry.ColumnId, out var pref))
             {
-                if (entry.Visible != defaultVisible || !string.IsNullOrWhiteSpace(entry.Width))
+                if (entry.Visible != defaultVisible || !string.IsNullOrWhiteSpace(entry.Width) || orderChanged)
                 {
                     gridPref.Columns[entry.ColumnId] = new Framework.Preferences.GridColumnPreference
                     {
                         Visible = entry.Visible,
-                        Width = entry.Width
+                        Width = entry.Width,
+                        Order = orderChanged ? entry.Order : null
                     };
                     changed = true;
                 }
@@ -1451,9 +1504,15 @@ else if (meta is not null)
             else
             {
                 var widthToSave = !string.IsNullOrWhiteSpace(entry.Width) ? entry.Width : pref.Width;
-                if (pref.Visible != entry.Visible || pref.Width != widthToSave)
+                var orderToSave = orderChanged || hasSavedOrder ? entry.Order : pref.Order;
+                if (pref.Visible != entry.Visible || pref.Width != widthToSave || pref.Order != orderToSave)
                 {
-                    gridPref.Columns[entry.ColumnId] = pref with { Visible = entry.Visible, Width = widthToSave };
+                    gridPref.Columns[entry.ColumnId] = pref with
+                    {
+                        Visible = entry.Visible,
+                        Width = widthToSave,
+                        Order = orderToSave
+                    };
                     changed = true;
                 }
             }

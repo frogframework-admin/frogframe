@@ -10,12 +10,12 @@ Aturan yang dijalankan kode saat dokumen Employee Separation (EmployeeSeparation
 
 ## Validasi (dokumen ditolak): Saat cancel
 
-- `name`: "The separation has already been applied; reactivate the employee through HR (status) before cancelling" — terjadi bila `emp?.Data.Str("status") == Hr.Left` (EmployeeSeparationHook, HrHooks.cs:816)
+- `name`: "The separation has already been applied; reactivate the employee through HR (status) before cancelling" — terjadi bila `emp?.Data.Str("status") == Hr.Left` (EmployeeSeparationHook, HrHooks.cs:818)
 
 ## Validasi (dokumen ditolak): Saat simpan/submit (validasi)
 
-- `last_working_date`: "The last working date is before the date of joining" — terjadi bila `d.Date("last_working_date") is { } last && emp.Data.Date("hire_date") is { } hire && last < hire` (EmployeeSeparationHook, HrHooks.cs:796)
-- `employee`: "Separation {other.Name} already exists" — terjadi bila `!(d.Date("last_working_date") is { } last && emp.Data.Date("hire_date") is { } hire && last < hire) && other is not null` (EmployeeSeparationHook, HrHooks.cs:799)
+- `last_working_date`: "The last working date is before the date of joining" — terjadi bila `d.Date("last_working_date") is { } last && emp.Data.Date("hire_date") is { } hire && last < hire` (EmployeeSeparationHook, HrHooks.cs:798)
+- `employee`: "Separation {other.Name} already exists" — terjadi bila `!(d.Date("last_working_date") is { } last && emp.Data.Date("hire_date") is { } hire && last < hire) && other is not null` (EmployeeSeparationHook, HrHooks.cs:801)
 
 ## Aturan bersama yang juga berlaku
 

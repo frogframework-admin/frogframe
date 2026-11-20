@@ -10,7 +10,7 @@ Aturan yang dijalankan kode saat dokumen Shift Preference (ShiftPreference) disi
 
 ## Validasi (dokumen ditolak): Saat simpan/submit (validasi)
 
-- `to_date`: "The end date must be on or after the start date" — terjadi bila `from is not null && to is not null && to < from` (ShiftPreferenceHook, WsmOptimizer.cs:913)
+- `to_date`: "The end date must be on or after the start date" — terjadi bila `from is not null && to is not null && to < from` (ShiftPreferenceHook, WsmOptimizer.cs:1128)
 
 ## Aturan bersama yang juga berlaku
 
