@@ -699,8 +699,10 @@ All migrations live in `src/Framework.Persistence.PostgreSql/Migrations/` and ar
 | `ConnectionStrings:FrogFrame` | `Host=localhost;...` | Primary read-write PostgreSQL connection (World 1) |
 | `ConnectionStrings:FrogFrameReadOnly` | `""` | Read-only PostgreSQL connection (`frogframe_ro`) for SQL Dashboards, OpenXML Reports, and Query APIs |
 | `ConnectionStrings:FrogFrameAnalytics` | `""` | Optional logical replica connection string for World 2 analytical queries |
-| `Demo:SeedData` | `false` (`true` in Dev) | Seeds 8 demo accounts and sample Procurement/HR documents when DB is empty |
-| `Demo:Password` | `"FrogFrame#2026"` | Password for seeded demo accounts |
+| `Demo:SeedData` | `false` (`true` in Dev) | Seeds the demo accounts and sample documents. Outside Development the app refuses to start with it on unless `Demo:AllowOutsideDevelopment` is `true` |
+| `Demo:ShowAccounts` | `false` (`true` in Dev) | Lists the demo accounts and their password on the login page (same start-up rule as `Demo:SeedData`) |
+| `Demo:Password` | `""` (= `"FrogFrame#2026"` in Dev) | Password for seeded demo accounts. Outside Development it must be set, not the public default, and 12+ characters |
+| `Demo:AllowOutsideDevelopment` | `false` | Allow demo mode on a dedicated demo server outside Development |
 | `Bootstrap:AdminUserName` | `""` | Production bootstrap admin username (used only when 0 accounts exist) |
 | `Bootstrap:AdminPassword` | `""` | Production bootstrap admin password (min 10 chars, upper/lower/digit) |
 | `Bootstrap:TenantId` | `"default"` | Tenant ID assigned to the bootstrap admin account |

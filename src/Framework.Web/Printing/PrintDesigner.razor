@@ -1,0 +1,523 @@
+@page "/admin/print-designs"
+@*
+    Letterhead & print format designer. Left: the design; right: a live preview rendered with the same PrintDocument
+    component and PrintService used for printing and PDF, so what you see is what prints. Letterheads preview on a
+    sample page; formats preview on a real document of the DocType (read with your own permissions).
+*@
+@using System.Text.Json
+@using Framework.Printing
+@inject PrintDesignService Designs
+@inject PrintService Printer
+@inject DocumentService Docs
+@inject IMetadataProvider Metadata
+@inject CurrentUser Current
+@inject ToastService Toasts
+@inject DialogService Dialogs
+
+<PageTitle>Letterheads & print formats · FrogFrame</PageTitle>
+<style>@((MarkupString)PrintStyles.Css)</style>
+
+@if (!IsManager)
+{
+    <ErrorState StatusCode="403" Description="Letterheads and print formats can only be changed by a System Manager." />
+}
+else
+{
+<header class="page-head">
+    <div>
+        <h1>Letterheads & print formats</h1>
+        <p>Design the company letterhead and how each document type prints. The preview uses the same renderer as Print and PDF.</p>
+    </div>
+</header>
+
+<BbTabs Value="@tab" ValueChanged="v => tab = v ?? tab">
+    <BbTabsList>
+        <BbTabsTrigger Value="letterheads" Style="gap:.5rem"><LucideIcon Name="stamp" Size="15" /> Letterheads</BbTabsTrigger>
+        <BbTabsTrigger Value="formats" Style="gap:.5rem"><LucideIcon Name="file-text" Size="15" /> Print formats</BbTabsTrigger>
+    </BbTabsList>
+
+    @* ---------------- letterheads ---------------- *@
+    <BbTabsContent Value="letterheads">
+        <div class="pd">
+            <aside class="pd-edit">
+                <div class="pd-list">
+                    @foreach (var l in letterheads)
+                    {
+                        var item = l;
+                        <button type="button" class="pd-item @(lhId == item.Id ? "is-active" : "")" @onclick="() => EditLetterhead(item)">
+                            @item.Design.Name @if (item.Design.IsDefault) { <BbBadge Variant="BadgeVariant.Outline">default</BbBadge> }
+                        </button>
+                    }
+                    <button type="button" class="pd-item is-new" @onclick="NewLetterhead">+ New letterhead</button>
+                </div>
+
+                <div class="pd-grid">
+                    <label>Name<BbInput Value="@lh.Name" ValueChanged="v => lh = lh with { Name = v ?? string.Empty }" /></label>
+                    <label class="pd-check"><input type="checkbox" checked="@lh.IsDefault" @onchange="e => lh = lh with { IsDefault = e.Value is true }" /> Default letterhead</label>
+                    <label>Company name<BbInput Value="@lh.CompanyName" ValueChanged="v => lh = lh with { CompanyName = v ?? string.Empty }" /></label>
+                    <label>Address<textarea class="pd-text" rows="2" @onchange="e => lh = lh with { Address = (string?)e.Value }">@lh.Address</textarea></label>
+                    <label>Contact (phone, email, website)<BbInput Value="@lh.Contact" ValueChanged="v => lh = lh with { Contact = v }" /></label>
+                    <label>Tax ID (NPWP)<BbInput Value="@lh.TaxId" ValueChanged="v => lh = lh with { TaxId = v }" /></label>
+                    <div>
+                        <span class="pd-label">Logo (PNG, JPEG, WebP or SVG, max @(PrintDesignService.MaxLogoBytes / 1024) KB)</span>
+                        <div class="row" style="gap:.5rem;align-items:center">
+                            @if (lh.LogoDataUri is { } logo) { <img src="@logo" alt="Logo" class="pd-logo" /> }
+                            <InputFile accept="image/png,image/jpeg,image/webp,image/svg+xml" OnChange="OnLogo" />
+                            @if (lh.LogoDataUri is not null) { <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="() => lh = lh with { LogoDataUri = null }">Remove</BbButton> }
+                        </div>
+                    </div>
+                    <div class="pd-row3">
+                        <label>Alignment
+                            <select class="pd-native" value="@lh.Align" @onchange="e => lh = lh with { Align = (string)e.Value! }">
+                                <option value="left">Left</option><option value="center">Center</option><option value="right">Right</option>
+                            </select>
+                        </label>
+                        <label>Colour<input type="color" class="pd-color" value="@lh.Accent" @onchange="e => lh = lh with { Accent = (string)e.Value! }" /></label>
+                        <label class="pd-check"><input type="checkbox" checked="@lh.Rule" @onchange="e => lh = lh with { Rule = e.Value is true }" /> Line below</label>
+                    </div>
+                    <label>Footer on every page (optional)<textarea class="pd-text" rows="2" @onchange="e => lh = lh with { FooterText = (string?)e.Value }">@lh.FooterText</textarea></label>
+                </div>
+                @if (lhErrors.Count > 0) { <ul class="error-list pd-errors">@foreach (var e in lhErrors) { <li>@e</li> }</ul> }
+                <div class="row" style="gap:.5rem">
+                    <BbButton Disabled="@busy" OnClick="SaveLetterhead"><LucideIcon Name="save" Size="16" /> Save letterhead</BbButton>
+                    @if (lhId is { } lid) { <BbButton Variant="ButtonVariant.Ghost" Disabled="@busy" OnClick="() => DeleteAsync(lid, lh.Name)"><LucideIcon Name="trash-2" Size="16" /> Delete</BbButton> }
+                </div>
+            </aside>
+            <section class="pd-preview" aria-label="Letterhead preview"><PrintDocument Model="LetterheadSample" /></section>
+        </div>
+    </BbTabsContent>
+
+    @* ---------------- print formats ---------------- *@
+    <BbTabsContent Value="formats">
+        <div class="pd">
+            <aside class="pd-edit">
+                <label>Document type
+                    <select class="pd-native" value="@(docType ?? "")" @onchange="e => SelectDocTypeAsync((string?)e.Value)">
+                        <option value="">Choose…</option>
+                        @foreach (var m in PrintableDocTypes) { <option value="@m.Name">@m.Title</option> }
+                    </select>
+                </label>
+
+                @if (Meta is { } meta && fmt is not null)
+                {
+                    <div class="pd-list">
+                        @foreach (var f in formats)
+                        {
+                            var item = f;
+                            <button type="button" class="pd-item @(fmtId == item.Id ? "is-active" : "")" @onclick="() => EditFormatAsync(item)">
+                                @item.Design.Name @if (item.Design.IsDefault) { <BbBadge Variant="BadgeVariant.Outline">default</BbBadge> }
+                            </button>
+                        }
+                        <button type="button" class="pd-item is-new" @onclick="NewFormatAsync">+ New format</button>
+                    </div>
+
+                    <details open class="pd-group">
+                        <summary>Page</summary>
+                        <div class="pd-grid">
+                            <label>Format name<BbInput Value="@fmt.Name" ValueChanged="v => Change(fmt with { Name = v ?? string.Empty })" /></label>
+                            <label class="pd-check"><input type="checkbox" checked="@fmt.IsDefault" @onchange="e => Change(fmt with { IsDefault = e.Value is true })" /> Default format for @meta.Title</label>
+                            <div class="pd-row3">
+                                <label>Paper
+                                    <select class="pd-native" value="@fmt.Paper" @onchange="e => Change(fmt with { Paper = (string)e.Value! })">
+                                        @foreach (var p in new[] { "A4", "A5", "Letter", "Legal" }) { <option value="@p">@p</option> }
+                                    </select>
+                                </label>
+                                <label class="pd-check"><input type="checkbox" checked="@fmt.Landscape" @onchange="e => Change(fmt with { Landscape = e.Value is true })" /> Landscape</label>
+                                <label>Colour<input type="color" class="pd-color" value="@fmt.Accent" @onchange="e => Change(fmt with { Accent = (string)e.Value! })" /></label>
+                            </div>
+                            <div class="pd-row3">
+                                <label class="pd-check"><input type="checkbox" checked="@fmt.ShowLetterhead" @onchange="e => Change(fmt with { ShowLetterhead = e.Value is true })" /> Letterhead</label>
+                                <label>Which
+                                    <select class="pd-native" value="@(fmt.Letterhead ?? "")" disabled="@(!fmt.ShowLetterhead)" @onchange="e => Change(fmt with { Letterhead = (string?)e.Value is { Length: > 0 } s ? s : null })">
+                                        <option value="">Default</option>
+                                        @foreach (var l in letterheads) { <option value="@l.Design.Name">@l.Design.Name</option> }
+                                    </select>
+                                </label>
+                                <label>Fields per row
+                                    <select class="pd-native" value="@fmt.FieldColumns" @onchange="e => Change(fmt with { FieldColumns = int.Parse((string)e.Value!) })">
+                                        <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+                                    </select>
+                                </label>
+                            </div>
+                            <label>Title on paper<BbInput Value="@fmt.Format.Title" Placeholder="@meta.Title" ValueChanged="v => Edit(f => f.Title = string.IsNullOrWhiteSpace(v) ? null : v)" /></label>
+                            <label class="pd-check"><input type="checkbox" checked="@fmt.Format.Watermark" @onchange="e => Edit(f => f.Watermark = e.Value is true)" /> DRAFT / NOT APPROVED watermark on unfinished documents</label>
+                        </div>
+                    </details>
+
+                    <details open class="pd-group">
+                        <summary>Field blocks</summary>
+                        @for (var si = 0; si < Sections.Count; si++)
+                        {
+                            var idx = si; var sec = Sections[si];
+                            <div class="pd-block">
+                                <div class="pd-block-head">
+                                    <BbInput Value="@sec.Title" Placeholder="Block title (optional)" ValueChanged="v => Edit(_ => sec.Title = string.IsNullOrWhiteSpace(v) ? null : v)" />
+                                    <button type="button" class="pd-icon" title="Move up" disabled="@(idx == 0)" @onclick="() => Edit(_ => Swap(Sections, idx, idx - 1))">↑</button>
+                                    <button type="button" class="pd-icon" title="Move down" disabled="@(idx == Sections.Count - 1)" @onclick="() => Edit(_ => Swap(Sections, idx, idx + 1))">↓</button>
+                                    <button type="button" class="pd-icon" title="Remove block" @onclick="() => Edit(_ => Sections.RemoveAt(idx))">✕</button>
+                                </div>
+                                @FieldChips(sec.Fields, f => Label(meta, f), BlockFieldChoices(meta, sec))
+                            </div>
+                        }
+                        <button type="button" class="pd-add" @onclick="() => Edit(_ => Sections.Add(new PrintSectionDef()))">+ Add block</button>
+                    </details>
+
+                    @if (meta.TableFields.Any())
+                    {
+                        <details open class="pd-group">
+                            <summary>Tables</summary>
+                            @foreach (var tf in meta.TableFields)
+                            {
+                                var table = tf;
+                                var child = Metadata.Current.Get(table.Def.ChildDocType!);
+                                var hidden = fmt.HiddenTables.Contains(table.Name);
+                                <div class="pd-block">
+                                    <label class="pd-check"><input type="checkbox" checked="@(!hidden)" @onchange="e => ToggleTable(table.Name, e.Value is true)" /> <strong>@table.Label</strong></label>
+                                    @if (!hidden)
+                                    {
+                                        var cols = Columns(table.Name, child);
+                                        @FieldChips(cols, c => child.ByName.TryGetValue(c, out var cf) ? cf.Label : c,
+                                            child.Fields.Where(c => !c.IsLayout && !cols.Contains(c.Name)).Select(c => (c.Name, c.Label)).ToList())
+                                    }
+                                </div>
+                            }
+                        </details>
+                    }
+
+                    <details class="pd-group" open="@(fmt.Format.TotalFields.Count > 0 || fmt.Format.AmountInWordsField is not null)">
+                        <summary>Totals</summary>
+                        @FieldChips(fmt.Format.TotalFields, f => Label(meta, f), NumberFields(meta).Where(f => !fmt.Format.TotalFields.Contains(f.Name)).ToList())
+                        <label>Amount in words (Rupiah)
+                            <select class="pd-native" value="@(fmt.Format.AmountInWordsField ?? "")" @onchange="e => Edit(f => f.AmountInWordsField = (string?)e.Value is { Length: > 0 } s ? s : null)">
+                                <option value="">None</option>
+                                @foreach (var (n, l) in NumberFields(meta)) { <option value="@n">@l</option> }
+                            </select>
+                        </label>
+                    </details>
+
+                    @if (meta.Workflow is { } wfMeta)
+                    {
+                        <details class="pd-group" open="@(fmt.Format.Signatures.Count > 0)">
+                            <summary>Signatures (from workflow approvals)</summary>
+                            @for (var gi = 0; gi < fmt.Format.Signatures.Count; gi++)
+                            {
+                                var gidx = gi; var sg = fmt.Format.Signatures[gi];
+                                <div class="pd-block">
+                                    <div class="pd-block-head">
+                                        <BbInput Value="@sg.Label" Placeholder="e.g. Approved by" ValueChanged="v => Edit(_ => sg.Label = v ?? string.Empty)" />
+                                        <button type="button" class="pd-icon" title="Remove" @onclick="() => Edit(f => f.Signatures.RemoveAt(gidx))">✕</button>
+                                    </div>
+                                    <div class="pd-states">
+                                        <span class="pd-label">Signed by whoever moved the document to:</span>
+                                        @foreach (var st in wfMeta.Def.States)
+                                        {
+                                            var stName = st.Name;
+                                            <label class="pd-check"><input type="checkbox" checked="@sg.ToStates.Contains(stName)"
+                                                   @onchange="e => Edit(_ => { if (e.Value is true) { if (!sg.ToStates.Contains(stName)) sg.ToStates.Add(stName); } else sg.ToStates.Remove(stName); })" /> @stName</label>
+                                        }
+                                    </div>
+                                    <label class="pd-check"><input type="checkbox" checked="@sg.Optional" @onchange="e => Edit(_ => sg.Optional = e.Value is true)" /> Hide when never signed and the document is finished</label>
+                                </div>
+                            }
+                            <button type="button" class="pd-add" @onclick="AddSignature">+ Add signature box</button>
+                        </details>
+                    }
+
+                    <label>Note at the bottom (optional)<textarea class="pd-text" rows="2" @onchange="e => Edit(f => f.FooterNote = string.IsNullOrWhiteSpace((string?)e.Value) ? null : (string?)e.Value)">@fmt.Format.FooterNote</textarea></label>
+
+                    @if (fmtErrors.Count > 0) { <ul class="error-list pd-errors">@foreach (var e in fmtErrors) { <li>@e</li> }</ul> }
+                    <div class="row" style="gap:.5rem;flex-wrap:wrap">
+                        <BbButton Disabled="@busy" OnClick="SaveFormat"><LucideIcon Name="save" Size="16" /> Save format</BbButton>
+                        @if (fmtId is { } fid)
+                        {
+                            <BbButton Variant="ButtonVariant.Ghost" Disabled="@busy" OnClick="() => DeleteAsync(fid, fmt.Name)"><LucideIcon Name="trash-2" Size="16" /> Delete</BbButton>
+                        }
+                    </div>
+                }
+            </aside>
+
+            <section class="pd-preview" aria-label="Print preview">
+                @if (Meta is not null && fmt is not null)
+                {
+                    <div class="pd-preview-bar">
+                        <span class="muted small">Preview with</span>
+                        <select class="pd-native" value="@(sampleName ?? "")" @onchange="e => SelectSampleAsync((string?)e.Value)" aria-label="Sample document">
+                            @foreach (var (n, t) in samples) { <option value="@n">@t</option> }
+                        </select>
+                        @if (fmtId is not null && sampleName is not null)
+                        {
+                            <a class="small" target="_blank" href="@($"/print/{docType}/{sampleName}?format={Uri.EscapeDataString(fmt.Name)}")">Open print view (saved version) ↗</a>
+                        }
+                    </div>
+                    @if (previewError is not null) { <BbAlert Variant="AlertVariant.Warning"><BbAlertDescription>@previewError</BbAlertDescription></BbAlert> }
+                    else if (preview is not null) { <PrintDocument Model="preview" /> }
+                }
+                else
+                {
+                    <BbEmpty Title="Choose a document type" Description="Its print formats and a live preview appear here." />
+                }
+            </section>
+        </div>
+    </BbTabsContent>
+</BbTabs>
+}
+
+@code {
+    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+    private string tab = "letterheads";
+    private bool busy;
+
+    // letterheads
+    private IReadOnlyList<Stored<LetterheadDesign>> letterheads = [];
+    private Guid? lhId; private int? lhVersion;
+    private LetterheadDesign lh = new() { Name = "Main", CompanyName = "" };
+    private List<string> lhErrors = [];
+
+    // formats
+    private string? docType;
+    private IReadOnlyList<Stored<PrintFormatDesign>> formats = [];
+    private Guid? fmtId; private int? fmtVersion;
+    private PrintFormatDesign? fmt;
+    private List<string> fmtErrors = [];
+    private List<(string Name, string Title)> samples = [];
+    private string? sampleName;
+    private PrintModel? preview;
+    private string? previewError;
+
+    private UserContext User => Current.Required;
+    private bool IsManager => User.Roles.Contains(UserContext.SystemManager) || User.Roles.Contains(UserContext.Administrator);
+    private CompiledDocType? Meta => docType is not null && Metadata.Current.TryGet(docType, out var m) ? m : null;
+    private List<PrintSectionDef> Sections => fmt!.Format.Sections ??= [];
+
+    private IEnumerable<CompiledDocType> PrintableDocTypes => Metadata.Current.DocTypes.Values
+        .Where(m => !m.Def.IsChild && !m.Def.IsSingle).OrderBy(m => m.Title, StringComparer.CurrentCultureIgnoreCase);
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!IsManager) return;
+        await ReloadLetterheadsAsync();
+        if (letterheads.FirstOrDefault(l => l.Design.IsDefault) is { } d) EditLetterhead(d);
+        else lh = new LetterheadDesign { Name = "Main", CompanyName = "", IsDefault = true };
+    }
+
+    // ---------------- letterheads ----------------
+
+    private async Task ReloadLetterheadsAsync() => letterheads = await Designs.LetterheadsAsync(User.TenantId);
+
+    private void EditLetterhead(Stored<LetterheadDesign> s) { lhId = s.Id; lhVersion = s.Version; lh = s.Design; lhErrors = []; }
+
+    private void NewLetterhead()
+    {
+        lhId = null; lhVersion = null; lhErrors = [];
+        var name = "Letterhead";
+        for (var i = 2; letterheads.Any(l => l.Design.Name == name); i++) name = $"Letterhead {i}";
+        lh = new LetterheadDesign { Name = name, CompanyName = letterheads.FirstOrDefault()?.Design.CompanyName ?? "" };
+    }
+
+    private async Task OnLogo(InputFileChangeEventArgs e)
+    {
+        lhErrors = [];
+        var file = e.File;
+        var types = new[] { "image/png", "image/jpeg", "image/webp", "image/svg+xml" };
+        if (!types.Contains(file.ContentType)) { lhErrors.Add("Logo must be a PNG, JPEG, WebP or SVG image."); return; }
+        if (file.Size > PrintDesignService.MaxLogoBytes) { lhErrors.Add($"Logo is larger than {PrintDesignService.MaxLogoBytes / 1024} KB."); return; }
+        using var ms = new MemoryStream();
+        await file.OpenReadStream(PrintDesignService.MaxLogoBytes).CopyToAsync(ms);
+        lh = lh with { LogoDataUri = $"data:{file.ContentType};base64,{Convert.ToBase64String(ms.ToArray())}" };
+    }
+
+    private async Task SaveLetterhead()
+    {
+        busy = true; lhErrors = [];
+        try
+        {
+            var saved = await Designs.SaveLetterheadAsync(User, lhId, lh, lhVersion);
+            await ReloadLetterheadsAsync();
+            EditLetterhead(letterheads.First(l => l.Id == saved.Id));
+            Toasts.Success($"Letterhead “{saved.Design.Name}” saved.", "Saved");
+            await RefreshPreviewAsync();
+        }
+        catch (ValidationFailedException v) { lhErrors = v.Errors.Select(x => x.Message).ToList(); }
+        catch (ConcurrencyException) { lhErrors = ["Someone else changed this letterhead. Reload the page and try again."]; }
+        catch (PermissionDeniedException ex) { lhErrors = [ex.Message]; }
+        finally { busy = false; }
+    }
+
+    /// <summary>Sample page for the letterhead preview (no real document needed).</summary>
+    private PrintModel LetterheadSample => new()
+    {
+        Letterhead = Letterhead.From(lh with { CompanyName = string.IsNullOrWhiteSpace(lh.CompanyName) ? "Company name" : lh.CompanyName }),
+        Title = "Sample document", DocName = "DOC-2026-00001", DocType = "Sample", StateTone = "neutral", Created = DateTimeOffset.Now,
+        Sections = [new PrintSection("Details", [new PrintField("Customer", "PT Contoh Sejahtera"), new PrintField("Date", DateTime.Today.ToString("d MMM yyyy")),
+            new PrintField("Reference", "PO-7781"), new PrintField("Payment terms", "30 days")])],
+        Tables = [new PrintTable("Items", [new PrintColumn("Item", false), new PrintColumn("Qty", true), new PrintColumn("Amount", true)],
+            [["Consulting", "2", "Rp5.000.000"], ["Support", "1", "Rp1.500.000"]])],
+        Totals = [new PrintField("Total", "Rp6.500.000")], Signatures = [], PrintedBy = User.FullName, PrintedAt = DateTimeOffset.Now,
+        VerificationCode = "0000-0000-0000", Version = 1,
+    };
+
+    // ---------------- formats ----------------
+
+    private async Task SelectDocTypeAsync(string? value)
+    {
+        docType = string.IsNullOrEmpty(value) ? null : value;
+        fmt = null; fmtId = null; preview = null; previewError = null; samples = []; sampleName = null;
+        if (Meta is not { } meta) return;
+        formats = await Designs.FormatsAsync(User.TenantId, meta.Name);
+        try
+        {
+            var list = await Docs.ListAsync(User, meta.Name, new ListRequest(PageSize: 20));
+            samples = list.Items.Select(i => ((string)i["name"]!, i.GetValueOrDefault("_title") is { } t && t.ToString() is { Length: > 0 } ts ? $"{i["name"]} · {ts}" : (string)i["name"]!)).ToList();
+        }
+        catch (PermissionDeniedException) { samples = []; }
+        sampleName = samples.FirstOrDefault().Name;
+        if (formats.FirstOrDefault(f => f.Design.IsDefault) is { } d) await EditFormatAsync(d);
+        else await NewFormatAsync();
+    }
+
+    private async Task EditFormatAsync(Stored<PrintFormatDesign> s)
+    {
+        fmtId = s.Id; fmtVersion = s.Version;
+        fmt = Clone(s.Design);
+        await ChangedAsync();
+    }
+
+    /// <summary>A new format starts from the DocType's built-in print format (or its form layout), so nothing is lost.</summary>
+    private async Task NewFormatAsync()
+    {
+        var meta = Meta!;
+        var name = formats.Count == 0 ? "Standard" : "Format";
+        for (var i = 2; formats.Any(f => f.Design.Name == name); i++) name = $"Format {i}";
+        var pf = meta.Def.PrintFormat is { } basePf
+            ? JsonSerializer.Deserialize<PrintFormatDef>(JsonSerializer.Serialize(basePf, Json), Json)!
+            : new PrintFormatDef();
+        pf.Sections ??= meta.Layout.SelectMany(t => t.Sections)
+            .Select(s => new PrintSectionDef
+            {
+                Title = s.SubTab is null ? s.Title : string.IsNullOrWhiteSpace(s.ParentTitle) ? s.SubTab : $"{s.ParentTitle} · {s.SubTab}",
+                Fields = s.Columns.SelectMany(c => c.Fields).Where(f => f.Def.Type is not ("Table" or "Password") && !f.IsLayout).Select(f => f.Name).ToList(),
+            }).Where(s => s.Fields.Count > 0).ToList();
+        if (meta.Workflow is null) pf.Signatures = [];
+        fmtId = null; fmtVersion = null;
+        fmt = new PrintFormatDesign { DocType = meta.Name, Name = name, IsDefault = formats.Count == 0, Format = pf };
+        await ChangedAsync();
+    }
+
+    private void AddSignature() => Edit(f => f.Signatures.Add(new PrintSignatureDef { Label = "Approved by" }));
+
+    private async Task SelectSampleAsync(string? name) { sampleName = name; await RefreshPreviewAsync(); }
+
+    private void Change(PrintFormatDesign next) { fmt = next; _ = ChangedAsync(); }
+
+    private void Edit(Action<PrintFormatDef> change) { change(fmt!.Format); _ = ChangedAsync(); }
+
+    private async Task ChangedAsync()
+    {
+        fmtErrors = fmt is null ? [] : Designs.Validate(fmt).Select(e => e.Message).ToList();
+        await RefreshPreviewAsync();
+        StateHasChanged();
+    }
+
+    private async Task RefreshPreviewAsync()
+    {
+        previewError = null;
+        if (fmt is null || docType is null) { preview = null; return; }
+        if (sampleName is null) { preview = null; previewError = "There is no document of this type you can see yet; create one to preview."; return; }
+        if (fmtErrors.Count > 0) { previewError = "Fix the problems on the left to update the preview."; return; }
+        try { preview = await Printer.BuildPreviewAsync(User, docType, sampleName, fmt); }
+        catch (Exception ex) when (ex is DocumentNotFoundException or PermissionDeniedException or KeyNotFoundException) { preview = null; previewError = ex.Message; }
+    }
+
+    private async Task SaveFormat()
+    {
+        busy = true;
+        try
+        {
+            var saved = await Designs.SaveFormatAsync(User, fmtId, fmt!, fmtVersion);
+            formats = await Designs.FormatsAsync(User.TenantId, saved.Design.DocType);
+            await EditFormatAsync(formats.First(f => f.Id == saved.Id));
+            Toasts.Success($"Print format “{saved.Design.Name}” saved.", "Saved");
+        }
+        catch (ValidationFailedException v) { fmtErrors = v.Errors.Select(x => x.Message).ToList(); }
+        catch (ConcurrencyException) { fmtErrors = ["Someone else changed this format. Reload the page and try again."]; }
+        catch (PermissionDeniedException ex) { fmtErrors = [ex.Message]; }
+        finally { busy = false; }
+    }
+
+    private async Task DeleteAsync(Guid id, string name)
+    {
+        var ok = await Dialogs.ConfirmAsync($"Delete “{name}”?", "Prints that used it fall back to the default.",
+            new ConfirmDialogOptions { Destructive = true, ConfirmText = "Delete", CancelText = "Cancel" });
+        if (!ok.Confirmed) return;
+        await Designs.DeleteAsync(User, id);
+        Toasts.Success($"“{name}” deleted.", "Deleted");
+        await ReloadLetterheadsAsync();
+        if (tab == "letterheads")
+        {
+            if (letterheads.FirstOrDefault(l => l.Design.IsDefault) is { } d) EditLetterhead(d); else NewLetterhead();
+        }
+        else await SelectDocTypeAsync(docType);
+    }
+
+    // ---------------- helpers ----------------
+
+    private RenderFragment FieldChips(List<string> list, Func<string, string> label, IReadOnlyList<(string Name, string Label)> choices) => __builder =>
+    {
+        <div class="pd-chips">
+            @for (var i = 0; i < list.Count; i++)
+            {
+                var idx = i;
+                <span class="pd-chip">
+                    @label(list[idx])
+                    <button type="button" title="Move earlier" disabled="@(idx == 0)" @onclick="() => Edit(_ => Swap(list, idx, idx - 1))">‹</button>
+                    <button type="button" title="Move later" disabled="@(idx == list.Count - 1)" @onclick="() => Edit(_ => Swap(list, idx, idx + 1))">›</button>
+                    <button type="button" title="Remove" @onclick="() => Edit(_ => list.RemoveAt(idx))">✕</button>
+                </span>
+            }
+            @if (choices.Count > 0)
+            {
+                <select class="pd-native pd-addsel" value="" @onchange="e => { if ((string?)e.Value is { Length: > 0 } v) Edit(_ => list.Add(v)); }" aria-label="Add field">
+                    <option value="">+ Add…</option>
+                    @foreach (var (n, l) in choices) { <option value="@n">@l</option> }
+                </select>
+            }
+        </div>
+    };
+
+    private List<(string Name, string Label)> BlockFieldChoices(CompiledDocType meta, PrintSectionDef sec)
+    {
+        var used = Sections.SelectMany(s => s.Fields).ToHashSet();
+        return meta.Fields.Where(f => !f.IsLayout && f.Def.Type is not ("Table" or "Password") && !used.Contains(f.Name))
+            .Select(f => (f.Name, f.Label))
+            .Concat(new[] { (StandardFields.Name, "Document number"), (StandardFields.Owner, "Created by"), (StandardFields.Created, "Created on"), (StandardFields.Modified, "Last modified") }
+                .Where(s => !used.Contains(s.Item1)))
+            .ToList();
+    }
+
+    private static List<(string Name, string Label)> NumberFields(CompiledDocType meta) =>
+        meta.Fields.Where(f => !f.IsLayout && f.Type.Editor == "number").Select(f => (f.Name, f.Label)).ToList();
+
+    private List<string> Columns(string table, CompiledDocType child)
+    {
+        var map = fmt!.Format.TableColumns ??= new();
+        if (!map.TryGetValue(table, out var cols)) map[table] = cols = child.Fields.Where(c => !c.IsLayout).Select(c => c.Name).ToList();
+        return cols;
+    }
+
+    private void ToggleTable(string table, bool show)
+    {
+        var hidden = fmt!.HiddenTables.ToList();
+        if (show) hidden.Remove(table); else if (!hidden.Contains(table)) hidden.Add(table);
+        Change(fmt with { HiddenTables = hidden });
+    }
+
+    private static string Label(CompiledDocType meta, string field) => meta.ByName.TryGetValue(field, out var f) ? f.Label : field switch
+    {
+        StandardFields.Name => "Document number", StandardFields.Owner => "Created by", StandardFields.Created => "Created on",
+        StandardFields.Modified => "Last modified", _ => field,
+    };
+
+    private static void Swap<T>(List<T> list, int a, int b) { if (a < 0 || b < 0 || a >= list.Count || b >= list.Count) return; (list[a], list[b]) = (list[b], list[a]); }
+
+    private static PrintFormatDesign Clone(PrintFormatDesign d) => JsonSerializer.Deserialize<PrintFormatDesign>(JsonSerializer.Serialize(d, Json), Json)!;
+}

@@ -309,6 +309,12 @@ public sealed class WorkflowStateDef
     /// <summary>0 = Draft (dapat diubah), 1 = Submitted (terkunci), 2 = Cancelled.</summary>
     public int DocStatus { get; set; }
     public string Tone { get; set; } = "neutral";
+    /// <summary>
+    /// Position of the state in the visual workflow editor (diagram units). Layout only: ignored by the workflow
+    /// engine. Without positions the diagram is laid out automatically.
+    /// </summary>
+    public double? X { get; set; }
+    public double? Y { get; set; }
 }
 
 public sealed class WorkflowTransitionDef

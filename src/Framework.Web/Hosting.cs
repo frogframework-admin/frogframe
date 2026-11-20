@@ -160,6 +160,9 @@ public static class ServiceCollectionExtensions
         // Ad-hoc report builder (/reports/builder): saved reports in frogframe_adhoc_reports.
         services.TryAddSingleton<Framework.Reports.IAdHocReportStore, Framework.Reports.InMemoryAdHocReportStore>();
         services.AddSingleton<Framework.Reports.AdHocReportService>();
+        // Print designer (/admin/print-designs): letterheads and print formats in frogframe_print_designs.
+        services.TryAddSingleton<Framework.Printing.IPrintDesignStore, Framework.Printing.InMemoryPrintDesignStore>();
+        services.AddSingleton<Framework.Printing.PrintDesignService>();
         services.TryAddSingleton<IUserPreferenceStore, InMemoryUserPreferenceStore>();
         // Multi-bahasa (Indonesia/Inggris): kamus framework + aplikasi + terjemahan per tenant.
         Framework.Localization.LocalizationSetup.AddFrogFrameLocalization(services, options.Translations);

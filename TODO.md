@@ -33,9 +33,9 @@ For full architectural context and runbooks, refer to [Production Readiness Guid
 
 ## 🔴 P0 — Pre-Production Critical (Must Complete Before Production Go-Live)
 
-- [ ] **Decouple Demo Configuration from Production**:
-  - Separate `docker-compose.yml` (production-ready) from `docker-compose.demo.yml` (demo seeds).
-  - Ensure `Demo:SeedData` and `Demo:ShowAccounts` are disabled by default in production.
+- [x] **Decouple Demo Configuration from Production**:
+  - `docker-compose.yml` defaults to Development (demo on) during development; `ASPNETCORE_ENVIRONMENT=Production` turns demo mode off by itself.
+  - `Demo:SeedData` and `Demo:ShowAccounts` are off by default, and the app refuses to start outside Development while they are on (unless explicitly allowed for a demo server).
 - [ ] **Secret Management & External Store Integration**:
   - Move hardcoded database passwords and bootstrap admin credentials to `.env` or external secret stores (Docker secrets, Key Vault, HashiCorp Vault).
   - Provide `.env.example` template with production guidelines.

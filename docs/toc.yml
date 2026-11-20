@@ -18,6 +18,10 @@
   items:
     - name: DocTypes & Visual Workflows
       href: guides/doctype-and-workflows.md
+    - name: Deployment Checks
+      href: guides/deployment-checks.md
+    - name: Visual Workflow Editor
+      href: guides/visual-workflow-editor.md
     - name: DocType & Workflow Catalog
       href: guides/doctype-and-workflow-catalog.md
     - name: DocType Data Entry Sequence
@@ -28,6 +32,8 @@
       href: guides/row-sharing.md
     - name: Ad-hoc Report Builder
       href: guides/report-builder.md
+    - name: Letterheads & Print Formats
+      href: guides/print-designer.md
     - name: SQL Dashboards & Widgets
       href: guides/sql-dashboards.md
     - name: KPI Catalog & Analytics Dashboards

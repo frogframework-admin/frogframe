@@ -4,6 +4,8 @@
 @inject DocumentService Docs
 @inject CurrentUser Current
 @inject IJSRuntime JS
+@inject Framework.Printing.PrintDesignService Designs
+@inject NavigationManager Nav
 
 <PageTitle>Print @Name · FrogFrame</PageTitle>
 
@@ -34,8 +36,15 @@ else if (model is not null)
     <div class="print-toolbar">
         <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" Href="@($"/app/{DocType}/{Name}")"><LucideIcon Name="arrow-left" Size="16" /> Back</BbButton>
         <span class="t">@model.Title @model.DocName</span>
+        @if (formats.Count > 1)
+        {
+            <div style="min-width:12rem">
+                <BbSelect TValue="string" Value="@(model.FormatName ?? "")" ValueChanged="ChangeFormat" AriaLabel="Print format"
+                          Options="@(formats.Select(f => new SelectOption<string>(f.Design.Name, f.Design.IsDefault ? $"{f.Design.Name} (default)" : f.Design.Name)).ToList())" />
+            </div>
+        }
         <BbButton OnClick="PrintNow"><LucideIcon Name="printer" Size="16" /> Print</BbButton>
-        <BbButton Variant="ButtonVariant.Outline" Href="@($"/api/print/{DocType}/{Name}/pdf")"><LucideIcon Name="file-down" Size="16" /> Download PDF</BbButton>
+        <BbButton Variant="ButtonVariant.Outline" Href="@PdfHref"><LucideIcon Name="file-down" Size="16" /> Download PDF</BbButton>
     </div>
     <div class="print-stage"><PrintDocument Model="model" /></div>
 }
@@ -47,7 +56,15 @@ else
 @code {
     [Parameter] public string DocType { get; set; } = "";
     [Parameter] public string Name { get; set; } = "";
+    /// <summary>Designed print format to use (default format when empty or unknown).</summary>
+    [SupplyParameterFromQuery(Name = "format")] public string? Format { get; set; }
     private PrintModel? model;
+    private IReadOnlyList<Framework.Printing.Stored<Framework.Printing.PrintFormatDesign>> formats = [];
+
+    private string PdfHref => $"/api/print/{DocType}/{Name}/pdf" + (model?.FormatName is { } f ? $"?format={Uri.EscapeDataString(f)}" : "");
+
+    private void ChangeFormat(string? value) =>
+        Nav.NavigateTo(Nav.GetUriWithQueryParameter("format", string.IsNullOrEmpty(value) ? null : value), replace: true);
     private string? error;
 
     // Blazor memanggil OnParametersSet setiap kali layout induk dirender ulang (mis. jumlah notifikasi berubah).
@@ -55,11 +72,15 @@ else
     private string? loadedKey = "\0";
     protected override async Task OnParametersSetAsync()
     {
-        var key = $"{DocType}/{Name}";
+        var key = $"{DocType}/{Name}/{Format}";
         if (key == loadedKey) return;
         loadedKey = key;
         if (Current.User is null) return;
-        try { model = await Printer.BuildAsync(Current.User, DocType, Name); }
+        try
+        {
+            formats = await Designs.FormatsAsync(Current.User.TenantId, DocType);
+            model = await Printer.BuildAsync(Current.User, DocType, Name, Format);
+        }
         catch (Exception ex) when (ex is DocumentNotFoundException or PermissionDeniedException or KeyNotFoundException) { error = ex.Message; }
     }
 

@@ -75,6 +75,11 @@ var migrateOnStartup = builder.Configuration.GetValue("Persistence:MigrateOnStar
 
 var app = builder.Build();
 
+// Refuse to start with an unsafe configuration (e.g. demo accounts with a known password outside Development),
+// before anything is migrated or seeded. See Framework.Hosting.DeploymentChecks.
+Framework.Hosting.DeploymentChecks.ThrowIfInvalid(app.Environment.IsDevelopment(), k => app.Configuration[k]);
+var demoMode = Framework.Hosting.DemoMode.Resolve(app.Environment.IsDevelopment(), k => app.Configuration[k]);
+
 if (migrateOnly)
 {
     if (usePostgres)
@@ -199,12 +204,12 @@ async Task InitializeDatabaseAndSeedAsync(CancellationToken ct)
     // Akun awal dari konfigurasi "Bootstrap" (pilot / production).
     await BootstrapAdmin.EnsureAsync(app.Services, app.Configuration);
 
-    // Pastikan sample demo users ter-seed / tersinkronisasi bila Demo:SeedData aktif atau di Development
-    if (app.Environment.IsDevelopment() || app.Configuration.GetValue("Demo:SeedData", false))
+    // Demo users and sample data only in demo mode (always in Development; elsewhere only when explicitly allowed).
+    if (demoMode.SeedData)
     {
         try
         {
-            await Framework.Web.Services.DemoUsers.EnsureDemoUsersAsync(app.Services, app.Configuration["Demo:Password"]);
+            await Framework.Web.Services.DemoUsers.EnsureDemoUsersAsync(app.Services, demoMode.Password);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

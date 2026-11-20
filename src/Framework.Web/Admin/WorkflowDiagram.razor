@@ -1,7 +1,14 @@
-@* State machine diagram from WorkflowDef (SVG). Automatic layout: column = shortest distance from initial state. *@
+@* State machine diagram from WorkflowDef (SVG). Saved state positions (x/y) are used when present; other states are
+   laid out automatically (column = longest path from the initial state). With Editable the diagram is the visual
+   workflow editor: drag states, drag from a state's handle to another state to add a transition, double-click empty
+   space to add a state, arrow keys move the selected state. Pointer handling runs in desk.js (frogframe.wfCanvas). *@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
 
-<div class="wf-diagram" role="img" aria-label="@($"Workflow diagram {Workflow.Name}: {Workflow.States.Count} states, {Workflow.Transitions.Count} transitions")">
-    <svg viewBox="0 0 @width @height" width="100%" style="max-width:@(width)px" preserveAspectRatio="xMinYMin meet" xmlns="http://www.w3.org/2000/svg">
+<div class="wf-diagram @(Editable ? "is-editable" : "")" role="@(Editable ? "application" : "img")"
+     aria-label="@($"Workflow diagram {Workflow.Name}: {Workflow.States.Count} states, {Workflow.Transitions.Count} transitions")">
+    <svg @ref="svgRef" viewBox="0 0 @F(width) @F(height)" width="100%" style="@(Editable ? $"min-width:{F(width)}px" : $"max-width:{F(width)}px")"
+         preserveAspectRatio="xMinYMin meet" xmlns="http://www.w3.org/2000/svg">
         <defs>
             <marker id="wf-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
                 <path d="M 0 0 L 10 5 L 0 10 z" class="wf-arrowhead" />
@@ -9,11 +16,21 @@
             <marker id="wf-arrow-sel" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
                 <path d="M 0 0 L 10 5 L 0 10 z" class="wf-arrowhead selected" />
             </marker>
+            @if (Editable)
+            {
+                <pattern id="wf-grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                    <circle cx="1" cy="1" r="1" class="wf-grid-dot" />
+                </pattern>
+            }
         </defs>
+        @if (Editable)
+        {
+            <rect class="wf-bg" data-wf-bg x="0" y="0" width="@F(width)" height="@F(height)" fill="url(#wf-grid)" />
+        }
         @for (var i = 0; i < edges.Count; i++)
         {
             var e = edges[i]; var idx = e.Index;
-            <g class="wf-edge @(idx == SelectedTransition ? "selected" : "")" @onclick="() => OnSelectTransition.InvokeAsync(idx)">
+            <g class="wf-edge @(idx == SelectedTransition ? "selected" : "") @(WarnTransitions.Contains(idx) ? "is-warn" : "")" @onclick="() => OnSelectTransition.InvokeAsync(idx)">
                 <path d="@e.Path" marker-end="@(idx == SelectedTransition ? "url(#wf-arrow-sel)" : "url(#wf-arrow)")" />
                 <rect x="@F(e.LabelX - e.LabelW / 2)" y="@F(e.LabelY - 9)" width="@F(e.LabelW)" height="18" rx="4" class="wf-label-bg" />
                 <text x="@F(e.LabelX)" y="@F(e.LabelY + 4)" text-anchor="middle" class="wf-label">@e.Label</text>
@@ -21,10 +38,25 @@
         }
         @foreach (var n in nodes.Values)
         {
-            <g class="wf-node tone-@n.Tone @(n.Name == Workflow.InitialState ? "initial" : "")">
-                <rect x="@n.X" y="@n.Y" width="@NodeW" height="@NodeH" rx="8" />
-                <text x="@(n.X + NodeW / 2)" y="@(n.Y + 19)" text-anchor="middle" class="wf-node-name">@Trim(n.Name, 18)</text>
-                <text x="@(n.X + NodeW / 2)" y="@(n.Y + 34)" text-anchor="middle" class="wf-node-meta">@StatusLabel(n.DocStatus)@(n.Name == Workflow.InitialState ? " · initial" : "")</text>
+            var node = n;
+            <g class="wf-node tone-@n.Tone @(n.Name == Workflow.InitialState ? "initial" : "") @(n.Name == SelectedState ? "selected" : "") @(WarnStates.Contains(n.Name) ? "is-warn" : "")"
+               data-wf-state="@(Editable ? n.Name : null)" data-x="@F(n.X)" data-y="@F(n.Y)"
+               tabindex="@(Editable ? "0" : null)" role="@(Editable ? "button" : null)"
+               aria-label="@(Editable ? $"State {n.Name}" : null)" aria-pressed="@(Editable ? (n.Name == SelectedState ? "true" : "false") : null)"
+               @onkeydown="@(e => OnNodeKeyAsync(e, node))">
+                <rect x="@F(n.X)" y="@F(n.Y)" width="@NodeW" height="@NodeH" rx="8" />
+                <text x="@F(n.X + NodeW / 2.0)" y="@F(n.Y + 19)" text-anchor="middle" class="wf-node-name">@Trim(n.Name, 18)</text>
+                <text x="@F(n.X + NodeW / 2.0)" y="@F(n.Y + 34)" text-anchor="middle" class="wf-node-meta">@StatusLabel(n.DocStatus)@(n.Name == Workflow.InitialState ? " · initial" : "")</text>
+                @if (WarnStates.Contains(n.Name))
+                {
+                    <circle cx="@F(n.X + 10)" cy="@F(n.Y + 10)" r="4" class="wf-warn-dot" />
+                }
+                @if (Editable)
+                {
+                    <circle class="wf-handle" data-wf-connect="@n.Name" cx="@F(n.X + NodeW)" cy="@F(n.Y + NodeH / 2.0)" r="6">
+                        <title>Drag to another state to add a transition</title>
+                    </circle>
+                }
             </g>
         }
     </svg>
@@ -35,14 +67,77 @@
     [Parameter] public int? SelectedTransition { get; set; }
     [Parameter] public EventCallback<int> OnSelectTransition { get; set; }
 
-    private const int NodeW = 140, NodeH = 44, ColGap = 120, RowGap = 34, Pad = 20;
-    private sealed record Node(string Name, int DocStatus, string Tone, int X, int Y);
+    // ---- editor mode ----
+    [Parameter] public bool Editable { get; set; }
+    [Parameter] public string? SelectedState { get; set; }
+    [Parameter] public EventCallback<string> OnSelectState { get; set; }
+    /// <summary>A state was dropped at a new position (top-left corner, diagram units, snapped to the grid).</summary>
+    [Parameter] public EventCallback<(string State, double X, double Y)> OnMoveState { get; set; }
+    /// <summary>A transition was drawn from the first state to the second.</summary>
+    [Parameter] public EventCallback<(string From, string To)> OnConnect { get; set; }
+    /// <summary>Empty space was double-clicked: add a state there.</summary>
+    [Parameter] public EventCallback<(double X, double Y)> OnAddState { get; set; }
+    /// <summary>States and transitions to flag (design warnings).</summary>
+    [Parameter] public IReadOnlySet<string> WarnStates { get; set; } = new HashSet<string>();
+    [Parameter] public IReadOnlySet<int> WarnTransitions { get; set; } = new HashSet<int>();
+
+    public const int NodeW = 140, NodeH = 44;
+    private const int ColGap = 120, RowGap = 34, Pad = 20;
+    private sealed record Node(string Name, int DocStatus, string Tone, double X, double Y);
     private sealed record Edge(int Index, string Path, string Label, double LabelX, double LabelY, double LabelW);
     private Dictionary<string, Node> nodes = new();
     private List<Edge> edges = [];
-    private int width = 400, height = 120;
+    private double width = 400, height = 120;
+    private ElementReference svgRef;
+    private DotNetObjectReference<WorkflowDiagram>? selfRef;
+    private bool jsReady;
 
     protected override void OnParametersSet() => Layout();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!Editable || jsReady) return;
+        jsReady = true;
+        selfRef = DotNetObjectReference.Create(this);
+        try { await JS.InvokeVoidAsync("frogframe.wfCanvas.init", svgRef, selfRef); }
+        catch (JSDisconnectedException) { }
+        catch (InvalidOperationException) { jsReady = false; } // prerendering: try again on the interactive render
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (jsReady)
+        {
+            try { await JS.InvokeVoidAsync("frogframe.wfCanvas.dispose", svgRef); }
+            catch (JSDisconnectedException) { }
+            catch (InvalidOperationException) { }
+        }
+        selfRef?.Dispose();
+    }
+
+    /// <summary>Current top-left position of every state (saved or automatic), to freeze the layout on the first move.</summary>
+    public IReadOnlyDictionary<string, (double X, double Y)> Positions => nodes.ToDictionary(kv => kv.Key, kv => (kv.Value.X, kv.Value.Y));
+
+    [JSInvokable] public Task SelectState(string name) => OnSelectState.InvokeAsync(name);
+    [JSInvokable] public Task MoveState(string name, double x, double y) =>
+        OnMoveState.InvokeAsync((name, Math.Max(0, WorkflowGraph.Snap(x)), Math.Max(0, WorkflowGraph.Snap(y))));
+    [JSInvokable] public Task Connect(string from, string to) => OnConnect.InvokeAsync((from, to));
+    [JSInvokable] public Task AddStateAt(double x, double y) =>
+        OnAddState.InvokeAsync((Math.Max(0, x - NodeW / 2.0), Math.Max(0, y - NodeH / 2.0)));
+
+    private async Task OnNodeKeyAsync(KeyboardEventArgs e, Node n)
+    {
+        if (!Editable) return;
+        var step = e.ShiftKey ? 50 : WorkflowGraph.Grid;
+        (double dx, double dy) = e.Key switch
+        {
+            "ArrowLeft" => (-step, 0d), "ArrowRight" => (step, 0d), "ArrowUp" => (0d, -step), "ArrowDown" => (0d, step), _ => (0d, 0d),
+        };
+        if (e.Key is "Enter" or " ") { await OnSelectState.InvokeAsync(n.Name); return; }
+        if (dx == 0 && dy == 0) return;
+        if (n.Name != SelectedState) await OnSelectState.InvokeAsync(n.Name);
+        await OnMoveState.InvokeAsync((n.Name, Math.Max(0, n.X + dx), Math.Max(0, n.Y + dy)));
+    }
 
     private void Layout()
     {
@@ -103,6 +198,16 @@
         width = Pad * 2 + cols * NodeW + (cols - 1) * ColGap;
         height = Pad * 2 + maxRows * NodeH + (maxRows - 1) * RowGap + 50 + (skipTop ? topRoom : 0);
 
+        // Saved positions (visual editor) win over the automatic layout.
+        foreach (var st in states.Where(s => s.X is not null && s.Y is not null))
+            nodes[st.Name] = nodes[st.Name] with { X = st.X!.Value, Y = st.Y!.Value };
+        if (nodes.Count > 0)
+        {
+            width = Math.Max(width, nodes.Values.Max(n => n.X) + NodeW + Pad + 60);
+            height = Math.Max(height, nodes.Values.Max(n => n.Y) + NodeH + Pad + 60);
+        }
+        if (Editable) { width = Math.Max(width + 240, 720); height = Math.Max(height + 160, 360); } // room to drag and add states
+
         edges = [];
         var pairCount = new Dictionary<(string, string), int>();
         var arcCount = new Dictionary<string, int>();
@@ -123,12 +228,22 @@
                 path = $"M {F(x1)} {F(y1)} C {F(x1)} {F(top)}, {F(x2)} {F(top)}, {F(x2)} {F(y2 - 2)}";
                 lx = (x1 + x2) / 2; ly = top + 8;
             }
-            else if (b.X > a.X)
+            else if (b.X > a.X && !(Math.Abs(b.X - a.X) < NodeW && Math.Abs(b.Y - a.Y) > NodeH + 10))
             {
                 double x1 = a.X + NodeW, y1 = a.Y + NodeH / 2.0 + offset / 2.0, x2 = b.X, y2 = b.Y + NodeH / 2.0 + offset / 2.0;
                 var dx = (x2 - x1) / 2;
                 path = $"M {F(x1)} {F(y1)} C {F(x1 + dx)} {F(y1)}, {F(x2 - dx)} {F(y2)}, {F(x2 - 2)} {F(y2)}";
                 lx = (x1 + x2) / 2; ly = (y1 + y2) / 2 - 2;
+            }
+            else if (Math.Abs(b.X - a.X) < NodeW && Math.Abs(b.Y - a.Y) > NodeH + 10)
+            {
+                // States placed above/below each other (manual layout): connect bottom → top (or top → bottom).
+                var down = b.Y > a.Y;
+                double x1 = a.X + NodeW / 2.0 + offset / 2.0, y1 = down ? a.Y + NodeH : a.Y;
+                double x2 = b.X + NodeW / 2.0 + offset / 2.0, y2 = down ? b.Y : b.Y + NodeH;
+                var dy = (y2 - y1) / 2;
+                path = $"M {F(x1)} {F(y1)} C {F(x1)} {F(y1 + dy)}, {F(x2)} {F(y2 - dy)}, {F(x2)} {F(y2 + (down ? -2 : 2))}";
+                lx = (x1 + x2) / 2; ly = (y1 + y2) / 2;
             }
             else if (a.Name == b.Name)
             {

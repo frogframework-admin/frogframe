@@ -50,9 +50,9 @@ The following baseline pillars are already implemented, tested, and passing:
 
 ### P0 — Pre-Production Critical (Must Complete Before Production Go-Live)
 
-- [ ] **Decouple Demo Credentials & Production Configuration**:
-  - `docker-compose.yml` currently runs with `ASPNETCORE_ENVIRONMENT=Production` while hardcoding `Demo__SeedData=true`, `Demo__ShowAccounts=true`, and default passwords.
-  - **Action**: Split compose files into `docker-compose.yml` (production baseline) and `docker-compose.demo.yml` (demo overrides). Ensure demo seeding and account display are strictly disabled in production.
+- [x] **Decouple Demo Credentials & Production Configuration**:
+  - `docker-compose.yml` defaults to Development during the development phase (demo mode on). Setting `ASPNETCORE_ENVIRONMENT=Production` turns demo mode off by itself: the `FROGFRAME_DEMO_*` switches default to `false` and there is no default demo password outside Development. `docker-compose.demo.yml` additionally publishes the PostgreSQL/S3 ports on localhost.
+  - Outside Development the application refuses to start while demo mode is on, unless `Demo:AllowOutsideDevelopment=true` with a non-default password of 12+ characters (dedicated demo servers). See `docs/guides/deployment-checks.md`.
 - [ ] **Secret Management & External Secret Stores**:
   - Database credentials (`frogframe`, `frogframe_ro`), bootstrap admin passwords, and API encryption keys are present in compose and sample files.
   - **Action**: Migrate all sensitive values to `.env` files (excluded from git), Docker Secrets, Azure Key Vault, or HashiCorp Vault.

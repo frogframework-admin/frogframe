@@ -3,18 +3,21 @@
 @using System.Globalization
 
 @* Page footer on each page: text is inserted into @page margin box (supported by Chrome/Edge). *@
-<style>@((MarkupString)$"@page {{ @bottom-left {{ content: \"{CssString(FooterText)}\"; font: 7.5pt 'Public Sans', 'Segoe UI', Arial, 'Liberation Sans', 'DejaVu Sans', sans-serif; color: #6b7280; }} }}")</style>
+<style>@((MarkupString)$"@page {{ size: {PageSize}; @bottom-left {{ content: \"{CssString(PageFooter)}\"; white-space: pre-wrap; font: 7.5pt 'Public Sans', 'Segoe UI', Arial, 'Liberation Sans', 'DejaVu Sans', sans-serif; color: #6b7280; }} }}")</style>
 
-<div class="pf">
+<div class="pf" style="@DesignStyle">
     <div class="sheet">
         @if (Model.Watermark is not null)
         {
             <div class="watermark" aria-hidden="true"><span style="font-size:@(WatermarkSize)pt">@Model.Watermark</span></div>
         }
         <div class="content">
-            <header class="lh">
-                <div class="lh-logo">
-                    @if (Model.Letterhead.LogoSvg is { } svg) { @((MarkupString)svg) }
+            @if (Model.ShowLetterhead)
+            {
+            <header class="lh align-@(Model.Letterhead.Align) @(Model.Letterhead.Rule ? "" : "no-rule")">
+                <div class="lh-logo @(Model.Letterhead.LogoDataUri is null ? "" : "is-image")">
+                    @if (Model.Letterhead.LogoDataUri is { } logo) { <img src="@logo" alt="" /> }
+                    else if (Model.Letterhead.LogoSvg is { } svg) { @((MarkupString)svg) }
                     else
                     {
                         <svg viewBox="0 0 44 44" aria-hidden="true"><rect x="3" y="3" width="38" height="38" rx="6" fill="none" stroke="#111827" stroke-width="3" transform="rotate(-6 22 22)" /><text x="22" y="29" text-anchor="middle" font-size="20" font-weight="800" font-family="Arial, sans-serif" fill="#111827">@Initial</text></svg>
@@ -26,6 +29,7 @@
                     <div class="lh-meta">@string.Join(" · ", new[] { Model.Letterhead.Contact, Model.Letterhead.TaxId }.Where(x => !string.IsNullOrEmpty(x)))</div>
                 </div>
             </header>
+            }
 
             <div class="head">
                 <div>
@@ -43,7 +47,7 @@
             {
                 <section class="sec">
                     @if (s.Title is not null) { <h2 class="sec-title">@s.Title</h2> }
-                    <div class="kv">
+                    <div class="kv" style="@KvStyle">
                         @foreach (var f in s.Fields)
                         {
                             <div class="row @(f.Wide ? "wide" : "")"><span class="k">@f.Label</span><span class="v">@f.Value</span></div>
@@ -112,6 +116,7 @@
 
             @if (Model.FooterNote is not null) { <p class="note">@Model.FooterNote</p> }
 
+            @if (Model.ShowLetterhead && Model.Letterhead.FooterText is { } lhFoot) { <div class="running lh-foot">@lhFoot</div> }
             <div class="running">@FooterText</div>
         </div>
     </div>
@@ -125,6 +130,30 @@
 
     private string FooterText =>
         $"{Model.DocName} · Verification code {Model.VerificationCode} · Printed by {Model.PrintedBy}, {Model.PrintedAt.ToLocalTime().ToString("d MMM yyyy HH:mm", CultureInfo.InvariantCulture)}";
+
+    /// <summary>Page footer: letterhead footer line (if any) above the document line.</summary>
+    private string PageFooter => Model.ShowLetterhead && Model.Letterhead.FooterText is { Length: > 0 } f ? f.Replace('\n', ' ') + "\n" + FooterText : FooterText;
+
+    private string PageSize => $"{Model.Paper} {(Model.Landscape ? "landscape" : "portrait")}";
+
+    /// <summary>Sheet size on screen (mm) and colours from the design; colours are validated #rrggbb values.</summary>
+    private string DesignStyle
+    {
+        get
+        {
+            var (w, h) = Model.Paper switch { "A5" => (148, 210), "Letter" => (216, 279), "Legal" => (216, 356), _ => (210, 297) };
+            if (Model.Landscape) (w, h) = (h, w);
+            var style = $"--sheet-w:{w}mm;--sheet-h:{h}mm;";
+            if (Safe(Model.Accent) is { } a) style += $"--accent:{a};--title:{a};";
+            if (Safe(Model.Letterhead.Accent) is { } la) style += $"--lh-accent:{la};";
+            return style;
+        }
+    }
+
+    private string KvStyle => Model.FieldColumns == 2 ? "" : $"grid-template-columns: repeat({Math.Clamp(Model.FieldColumns, 1, 3)}, minmax(0, 1fr))";
+
+    private static string? Safe(string? color) =>
+        color is { Length: 7 } && color[0] == '#' && color.Skip(1).All(Uri.IsHexDigit) ? color : null;
 
     /// <summary>Huruf logo default: huruf pertama nama perusahaan setelah bentuk badan usaha (PT, CV, …).</summary>
     private string Initial

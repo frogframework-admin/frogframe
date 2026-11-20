@@ -134,10 +134,103 @@ else
         <BbTabsContent Value="designer">
             <BbCard Class="props-block" Style="margin-top:.75rem">
                 <BbCardHeader>
-                    <BbCardTitle Class="card-title">Flow diagram</BbCardTitle>
-                    <BbCardDescription>Click an arrow to edit its transition. Thick line = initial state.</BbCardDescription>
+                    <BbCardTitle Class="card-title">Flow designer</BbCardTitle>
+                    <BbCardDescription>Drag states to arrange them. Drag the dot on a state's right edge onto another state to add a transition. Double-click empty space to add a state. Arrow keys move the selected state (Shift = larger steps); Ctrl+Z undoes. Thick border = initial state.</BbCardDescription>
                 </BbCardHeader>
-                <BbCardContent><WorkflowDiagram Workflow="wf" SelectedTransition="selected" OnSelectTransition="i => selected = i" /></BbCardContent>
+                <BbCardContent>
+                    <div class="wf-toolbar" @onkeydown="OnDesignerKey">
+                        <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick="AddState"><LucideIcon Name="plus" Size="15" /> Add state</BbButton>
+                        <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Disabled="@(history.Count == 0)" OnClick="Undo"><LucideIcon Name="undo-2" Size="15" /> Undo</BbButton>
+                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" Disabled="@(wf.States.All(s => s.X is null))" OnClick="AutoLayout"
+                                  Title="Forget the manual positions and arrange the states automatically"><LucideIcon Name="layout-grid" Size="15" /> Auto layout</BbButton>
+                        @if (designWarnings.Count > 0)
+                        {
+                            <BbBadge Variant="BadgeVariant.Warning">@designWarnings.Count design warning(s)</BbBadge>
+                        }
+                    </div>
+                    <div class="wf-designer" @onkeydown="OnDesignerKey">
+                        <WorkflowDiagram @ref="diagram" Workflow="wf" Editable="true"
+                                         SelectedTransition="selected" OnSelectTransition="SelectTransition"
+                                         SelectedState="selectedState" OnSelectState="SelectState"
+                                         OnMoveState="MoveState" OnConnect="ConnectStates" OnAddState="AddStateAt"
+                                         WarnStates="WarnStates" WarnTransitions="WarnTransitions" />
+                        <aside class="wf-inspector" aria-live="polite">
+                            @if (SelectedStateDef is { } sst)
+                            {
+                                <h3>State</h3>
+                                <BbField>
+                                    <BbFieldLabel>Name</BbFieldLabel>
+                                    <BbInput Value="@sst.Name" ValueChanged="v => { RenameState(sst, v); selectedState = sst.Name; }" AriaLabel="State name" />
+                                </BbField>
+                                <BbField>
+                                    <BbFieldLabel>Document status</BbFieldLabel>
+                                    <BbSelect TValue="string" Value="@sst.DocStatus.ToString()" ValueChanged="v => Mutate(() => sst.DocStatus = int.Parse(v!))" Options="DocStatusOptions" AriaLabel="Document status" />
+                                </BbField>
+                                <BbField>
+                                    <BbFieldLabel>Color</BbFieldLabel>
+                                    <BbSelect TValue="string" Value="@sst.Tone" ValueChanged="v => SetTone(sst, v)" Options="ToneOptions" AriaLabel="Color" />
+                                </BbField>
+                                <div class="label-row">
+                                    <BbCheckbox Id="sel-initial" Checked="@(wf.InitialState == sst.Name)" Disabled="@(wf.InitialState == sst.Name)"
+                                                CheckedChanged="v => { if (v) Mutate(() => wf.InitialState = sst.Name); }" />
+                                    <BbLabel For="sel-initial">Initial state (new documents start here)</BbLabel>
+                                </div>
+                                <p class="muted small" style="margin:0">
+                                    @wf.Transitions.Count(t => t.From == sst.Name) action(s) out, @wf.Transitions.Count(t => t.To == sst.Name) in.
+                                </p>
+                                <div class="row" style="gap:.4rem">
+                                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="() => RemoveState(sst)"><LucideIcon Name="trash-2" Size="14" /> Delete state</BbButton>
+                                </div>
+                            }
+                            else if (selected is int si && si < wf.Transitions.Count)
+                            {
+                                var st = wf.Transitions[si];
+                                <h3>Transition</h3>
+                                <p class="muted small" style="margin:0">@st.From → @st.To</p>
+                                <BbField>
+                                    <BbFieldLabel>Action name (button label)</BbFieldLabel>
+                                    <BbInput Value="@st.Action" ValueChanged="v => Mutate(() => st.Action = (v ?? string.Empty).Trim())" AriaLabel="Action name" />
+                                </BbField>
+                                <div>
+                                    <div class="props-sub" style="margin-bottom:.35rem">Roles permitted to execute</div>
+                                    <div class="wf-roles">
+                                        @foreach (var role in Roles)
+                                        {
+                                            var r = role;
+                                            <div class="label-row"><BbCheckbox Id="@($"sel-{r}")" Checked="st.AllowedRoles.Contains(r)" CheckedChanged="v => Mutate(() => ToggleRole(st, r, v))" /><BbLabel For="@($"sel-{r}")">@r</BbLabel></div>
+                                        }
+                                    </div>
+                                </div>
+                                <BbField>
+                                    <BbFieldLabel>Condition (optional)</BbFieldLabel>
+                                    <BbInput Class="code-input" Value="@st.Condition" ValueChanged="v => Mutate(() => st.Condition = string.IsNullOrWhiteSpace(v) ? null : v.Trim())" AriaLabel="Condition" />
+                                </BbField>
+                                <div class="label-row"><BbCheckbox Id="sel-comment" Checked="st.RequireComment" CheckedChanged="v => Mutate(() => st.RequireComment = v)" /><BbLabel For="sel-comment">Requires comment</BbLabel></div>
+                                <div class="row" style="gap:.4rem">
+                                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="() => Mutate(() => { wf.Transitions.RemoveAt(si); selected = null; })"><LucideIcon Name="trash-2" Size="14" /> Delete transition</BbButton>
+                                </div>
+                            }
+                            else
+                            {
+                                <h3>Nothing selected</h3>
+                                <p class="muted small" style="margin:0">Click a state or an arrow to edit it here. All details are also in the lists below.</p>
+                            }
+                            @if (designWarnings.Count > 0)
+                            {
+                                <div>
+                                    <div class="props-sub" style="margin-bottom:.3rem">Design warnings</div>
+                                    <ul class="wf-warnings">
+                                        @foreach (var w in designWarnings)
+                                        {
+                                            var warn = w;
+                                            <li><button type="button" @onclick="() => FocusWarning(warn)">@warn.Message</button></li>
+                                        }
+                                    </ul>
+                                </div>
+                            }
+                        </aside>
+                    </div>
+                </BbCardContent>
             </BbCard>
 
             <BbCard Class="props-block">
@@ -177,7 +270,7 @@ else
                         {
                             var idx = i; var t = wf.Transitions[i];
                             var condErr = errors.FirstOrDefault(e => e.Path.StartsWith($"transitions.{t.From}->{t.To}") && e.Path.EndsWith(".condition"));
-                            <div class="wf-transition @(selected == idx ? "selected" : "")" @onclick="() => selected = idx">
+                            <div class="wf-transition @(selected == idx ? "selected" : "")" @onclick="() => SelectTransition(idx)">
                                 <div class="wf-transition-head">
                                     <BbSelect TValue="string" Value="@t.From" ValueChanged="v => Mutate(() => t.From = v ?? string.Empty)" Options="StateOptions" AriaLabel="From state" />
                                     <LucideIcon Name="arrow-right" Size="16" />
@@ -238,6 +331,15 @@ else
     private bool originalAttach;
     private bool isNew, attach, dirty, ack;
     private int? selected;
+    private string? selectedState;
+    private WorkflowDiagram? diagram;
+    /// <summary>Undo history: JSON snapshots taken before each change (newest last).</summary>
+    private readonly List<string> history = [];
+    private const int MaxHistory = 50;
+    private IReadOnlyList<WorkflowGraph.Warning> designWarnings = [];
+    private IReadOnlySet<string> WarnStates => designWarnings.Where(w => w.State is not null).Select(w => w.State!).ToHashSet();
+    private IReadOnlySet<int> WarnTransitions => designWarnings.Where(w => w.Transition is not null).Select(w => w.Transition!.Value).ToHashSet();
+    private WorkflowStateDef? SelectedStateDef => selectedState is null ? null : wf?.States.FirstOrDefault(s => s.Name == selectedState);
     private string? loadError;
     private IReadOnlyList<MetadataError> errors = [];
     private PublishPreview? preview;
@@ -269,7 +371,7 @@ else
 
     private void Init()
     {
-        loadError = null; preview = null; ack = false; selected = null;
+        loadError = null; preview = null; ack = false; selected = null; selectedState = null; history.Clear();
         targetDocType = null;
         if (WorkflowName is not null)
         {
@@ -323,6 +425,7 @@ else
 
     private void Recompile()
     {
+        designWarnings = wf is null ? [] : WorkflowGraph.Warnings(wf);
         (_, errors) = Registry.CompileWorkflowDraft(DraftForCompile(), attach, RoleCatalogSvc.Scope(Current.Required.TenantId));
         dirty = isNew || MetadataJson.Serialize(wf) != originalJson || targetDocType != originalTargetDocType || attach != originalAttach;
         preview = null; ack = false;
@@ -342,7 +445,75 @@ else
         Recompile();
     }
 
-    private void Mutate(Action change) { change(); Recompile(); }
+    private void Mutate(Action change)
+    {
+        Remember();
+        change();
+        Recompile();
+    }
+
+    private void Remember()
+    {
+        var snapshot = MetadataJson.Serialize(wf!);
+        if (history.Count > 0 && history[^1] == snapshot) return;
+        history.Add(snapshot);
+        if (history.Count > MaxHistory) history.RemoveAt(0);
+    }
+
+    private void Undo()
+    {
+        if (history.Count == 0) return;
+        var json = history[^1];
+        history.RemoveAt(history.Count - 1);
+        wf = MetadataJson.ParseWorkflow(json);
+        if (selected is int i && i >= wf.Transitions.Count) selected = null;
+        if (selectedState is not null && wf.States.All(s => s.Name != selectedState)) selectedState = null;
+        Recompile();
+    }
+
+    private void OnDesignerKey(KeyboardEventArgs e)
+    {
+        if ((e.CtrlKey || e.MetaKey) && !e.ShiftKey && e.Key is "z" or "Z") Undo();
+    }
+
+    private void SelectState(string name) { selectedState = name; selected = null; }
+    private void SelectTransition(int index) { selected = index; selectedState = null; }
+
+    /// <summary>The first manual move freezes the automatic positions of all states, so the rest of the diagram stays put.</summary>
+    private void FreezeLayout()
+    {
+        if (diagram is null || wf!.States.All(s => s.X is not null)) return;
+        foreach (var (name, (x, y)) in diagram.Positions)
+            if (wf.States.FirstOrDefault(s => s.Name == name) is { X: null } st) { st.X = x; st.Y = y; }
+    }
+
+    private void MoveState((string State, double X, double Y) move) => Mutate(() =>
+    {
+        FreezeLayout();
+        if (wf!.States.FirstOrDefault(s => s.Name == move.State) is { } st) { st.X = move.X; st.Y = move.Y; }
+        selectedState = move.State; selected = null;
+    });
+
+    private void ConnectStates((string From, string To) c) => Mutate(() =>
+    {
+        var i = WorkflowGraph.Connect(wf!, c.From, c.To);
+        if (i >= 0) { selected = i; selectedState = null; }
+    });
+
+    private void AddStateAt((double X, double Y) at) => Mutate(() =>
+    {
+        FreezeLayout();
+        var st = WorkflowGraph.AddState(wf!, at.X, at.Y);
+        selectedState = st.Name; selected = null;
+    });
+
+    private void AutoLayout() => Mutate(() => WorkflowGraph.ClearLayout(wf!));
+
+    private void FocusWarning(WorkflowGraph.Warning w)
+    {
+        if (w.State is not null) SelectState(w.State);
+        else if (w.Transition is int i) SelectTransition(i);
+    }
 
     private void RenameState(WorkflowStateDef st, string? value)
     {
@@ -365,9 +536,19 @@ else
 
     private void AddState()
     {
-        var name = "New State";
-        for (var i = 2; wf!.States.Any(s => s.Name == name); i++) name = $"New State {i}";
-        Mutate(() => wf!.States.Add(new WorkflowStateDef { Name = name, DocStatus = 1, Tone = "pending" }));
+        var name = WorkflowGraph.UniqueStateName(wf!);
+        Mutate(() =>
+        {
+            // With a manual layout, place the new state below the others so it is visible.
+            double? x = null, y = null;
+            if (wf!.States.Any(s => s.X is not null))
+            {
+                x = wf.States.Min(s => s.X ?? 0);
+                y = WorkflowGraph.Snap(wf.States.Max(s => s.Y ?? 0) + WorkflowDiagram.NodeH + 40);
+            }
+            wf.States.Add(new WorkflowStateDef { Name = name, DocStatus = 1, Tone = "pending", X = x, Y = y });
+            selectedState = name; selected = null;
+        });
     }
 
     private async Task RemoveState(WorkflowStateDef st)
@@ -384,7 +565,7 @@ else
             wf.Transitions.RemoveAll(t => t.From == st.Name || t.To == st.Name);
             wf.States.Remove(st);
             if (wf.InitialState == st.Name) wf.InitialState = wf.States.FirstOrDefault(s => s.DocStatus == 0)?.Name ?? "";
-            selected = null;
+            selected = null; selectedState = null;
         });
     }
 
@@ -423,8 +604,9 @@ else
             next.DocType = wf.DocType;
         }
 
+        Remember();
         wf = next;
-        selected = null;
+        selected = null; selectedState = null;
         attach = attach || (isNew && CanAttach);
         Recompile();
 

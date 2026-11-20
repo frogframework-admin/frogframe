@@ -1,14 +1,15 @@
-# DEMO override. Do not use in production.
+# DEMO override for a local machine. Do not use in production.
 #
 #   docker compose -f docker-compose.yml -f docker-compose.demo.yml up -d
 #
-# Adds sample data, demo accounts shown on the login page, and publishes the PostgreSQL port and the
-# SeaweedFS S3 port on localhost only (for "dotnet run" with Persistence:Provider=PostgreSql and
-# Storage:Provider=S3, Storage:S3:ServiceUrl=http://localhost:8333).
+# Runs as Development with sample data and the demo accounts shown on the login page (password: FROGFRAME_DEMO_PASSWORD,
+# default FrogFrame#2026), and publishes the PostgreSQL port and the SeaweedFS S3 port on localhost only (for
+# "dotnet run" with Persistence:Provider=PostgreSql and Storage:Provider=S3, Storage:S3:ServiceUrl=http://localhost:8333).
 
 services:
   app:
     environment:
+      - ASPNETCORE_ENVIRONMENT=Development
       - Demo__SeedData=true
       - Demo__ShowAccounts=true
       - Demo__Password=${FROGFRAME_DEMO_PASSWORD:-FrogFrame#2026}

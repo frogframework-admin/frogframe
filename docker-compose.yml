@@ -1,13 +1,14 @@
 name: frogframe
 
-# Baseline configuration. Defaults to Development with demo data and demo accounts listed on the login page.
-# For Production set ASPNETCORE_ENVIRONMENT=Production and FROGFRAME_DEMO_*=false in .env.
+# Defaults to Development (development phase): demo data and demo accounts listed on the login page.
+# Going live: set ASPNETCORE_ENVIRONMENT=Production in .env; demo mode then turns off by itself, and the application
+# refuses to start if demo mode is still switched on (see docs/guides/deployment-checks.md).
 # All secrets come from a .env file (not tracked by git): copy .env.example to .env and fill it in.
 #
 #   cp .env.example .env
 #   docker compose up -d
 #
-# Demo mode (sample data + demo accounts + PostgreSQL port on localhost):
+# Local demo with the PostgreSQL/S3 ports published on localhost (for "dotnet run" against the containers):
 #   docker compose -f docker-compose.yml -f docker-compose.demo.yml up -d
 
 services:
@@ -31,11 +32,13 @@ services:
       - Persistence__MigrateOnStartup=${FROGFRAME_MIGRATE_ON_STARTUP:-true}
       - ConnectionStrings__FrogFrame=Host=postgres;Port=5432;Database=frogframe;Username=frogframe;Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       - ConnectionStrings__FrogFrameReadOnly=Host=postgres;Port=5432;Database=frogframe;Username=frogframe_ro;Password=${FROGFRAME_RO_PASSWORD:?Set FROGFRAME_RO_PASSWORD in .env}
-      # Demo mode (default for Development): creates demo accounts + sample data and lists the accounts on the login page.
-      # For Production set FROGFRAME_DEMO_SEED_DATA=false and FROGFRAME_DEMO_SHOW_ACCOUNTS=false in .env.
-      - Demo__SeedData=${FROGFRAME_DEMO_SEED_DATA:-true}
-      - Demo__ShowAccounts=${FROGFRAME_DEMO_SHOW_ACCOUNTS:-true}
-      - Demo__Password=${FROGFRAME_DEMO_PASSWORD:-FrogFrame#2026}
+      # Demo mode is always on in Development and off elsewhere. These switches only matter outside Development: demo
+      # seeding creates accounts such as 'admin' (System Manager) with a shared password, so outside Development it only
+      # starts when FROGFRAME_DEMO_ALLOW_OUTSIDE_DEVELOPMENT=true and FROGFRAME_DEMO_PASSWORD is your own long password.
+      - Demo__SeedData=${FROGFRAME_DEMO_SEED_DATA:-false}
+      - Demo__ShowAccounts=${FROGFRAME_DEMO_SHOW_ACCOUNTS:-false}
+      - Demo__Password=${FROGFRAME_DEMO_PASSWORD:-}
+      - Demo__AllowOutsideDevelopment=${FROGFRAME_DEMO_ALLOW_OUTSIDE_DEVELOPMENT:-false}
       # Initial admin. Only created when the account does not exist yet; change the password after first login.
       - Bootstrap__AdminUserName=${FROGFRAME_ADMIN_USER:-admin}
       - Bootstrap__AdminPassword=${FROGFRAME_ADMIN_PASSWORD:?Set FROGFRAME_ADMIN_PASSWORD in .env}

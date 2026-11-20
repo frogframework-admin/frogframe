@@ -851,6 +851,9 @@ public static class WorkflowDiff
         }
         foreach (var (key, nt) in newT.Where(kv => !oldT.ContainsKey(kv.Key)))
             changes.Add(new(ChangeRisk.Safe, $"transitions.{key}", $"Transisi baru \"{nt.Action}\": {nt.From} → {nt.To}"));
+        // Diagram positions are layout only: the engine ignores them, so moving states is always safe.
+        var moved = newStates.Count(kv => oldStates.TryGetValue(kv.Key, out var o) && (o.X != kv.Value.X || o.Y != kv.Value.Y));
+        if (moved > 0) changes.Add(new(ChangeRisk.Safe, "layout", $"Diagram layout changed ({moved} state(s) moved); no effect on documents"));
         return changes;
     }
 }

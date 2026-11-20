@@ -492,9 +492,9 @@ public static class DocApi
         }));
 
         // ---------- Cetak ----------
-        api.MapGet("/print/{doctype}/{name}/pdf", (HttpContext http, string doctype, string name, bool? inline) => Run(http, $"doc:{doctype}:read", async (user, sp) =>
+        api.MapGet("/print/{doctype}/{name}/pdf", (HttpContext http, string doctype, string name, bool? inline, string? format) => Run(http, $"doc:{doctype}:read", async (user, sp) =>
         {
-            var model = await sp.GetRequiredService<PrintService>().BuildAsync(user, doctype, name, http.RequestAborted);
+            var model = await sp.GetRequiredService<PrintService>().BuildAsync(user, doctype, name, format, http.RequestAborted);
             var html = await sp.GetRequiredService<PrintHtmlRenderer>().RenderAsync(model);
             var pdf = await sp.GetRequiredService<IPdfRenderer>().RenderAsync(html, http.RequestAborted);
             await Docs(sp).LogPrintAsync(user, doctype, name, "PDF", http.RequestAborted);

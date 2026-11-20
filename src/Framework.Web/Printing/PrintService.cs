@@ -17,7 +17,22 @@ namespace Framework.Web.Printing;
 
 // ---------- Model cetak (hasil olahan; komponen hanya menampilkan) ----------
 
-public sealed record Letterhead(string CompanyName, string? Address = null, string? Contact = null, string? TaxId = null, string? LogoSvg = null);
+public sealed record Letterhead(string CompanyName, string? Address = null, string? Contact = null, string? TaxId = null, string? LogoSvg = null)
+{
+    /// <summary>Logo image from the letterhead designer (data URI), printed as &lt;img&gt;.</summary>
+    public string? LogoDataUri { get; init; }
+    /// <summary>left, center or right.</summary>
+    public string Align { get; init; } = "left";
+    /// <summary>Colour of the company name and rule (#rrggbb); null = default ink.</summary>
+    public string? Accent { get; init; }
+    public bool Rule { get; init; } = true;
+    /// <summary>Printed at the bottom of every page.</summary>
+    public string? FooterText { get; init; }
+
+    public static Letterhead From(Framework.Printing.LetterheadDesign d) =>
+        new(d.CompanyName, d.Address, d.Contact, d.TaxId)
+        { LogoDataUri = d.LogoDataUri, Align = d.Align, Accent = d.Accent, Rule = d.Rule, FooterText = d.FooterText };
+}
 
 public sealed record PrintField(string Label, string Value, bool Wide = false);
 public sealed record PrintSection(string? Title, IReadOnlyList<PrintField> Fields);
@@ -46,6 +61,18 @@ public sealed record PrintModel
     /// <summary>Kode verifikasi dokumen: berubah bila isi/versi dokumen berubah.</summary>
     public required string VerificationCode { get; init; }
     public int Version { get; init; }
+
+    // ---- page design (print format designer); defaults reproduce the built-in layout ----
+    public bool ShowLetterhead { get; init; } = true;
+    /// <summary>A4, A5, Letter or Legal.</summary>
+    public string Paper { get; init; } = "A4";
+    public bool Landscape { get; init; }
+    /// <summary>Accent colour (#rrggbb) for the title and highlights; null = built-in colours.</summary>
+    public string? Accent { get; init; }
+    /// <summary>Label/value pairs per row in field blocks.</summary>
+    public int FieldColumns { get; init; } = 2;
+    /// <summary>Name of the designed print format used, if any.</summary>
+    public string? FormatName { get; init; }
 }
 
 /// <summary>Kop surat per tenant. Ganti implementasinya untuk membaca dari pengaturan/database.</summary>
@@ -66,14 +93,35 @@ public sealed class ConfigLetterheadProvider(IConfiguration config) : ILetterhea
 // ---------- Penyusun model cetak ----------
 
 public sealed class PrintService(DocumentService docs, IMetadataProvider metadata, IPermissionService permissions,
-    ILetterheadProvider letterheads, TimeProvider clock)
+    ILetterheadProvider letterheads, TimeProvider clock, Framework.Printing.PrintDesignService? designs = null)
 {
-    public async Task<PrintModel> BuildAsync(UserContext user, string docType, string name, CancellationToken ct = default)
+    /// <summary>Print with the DocType's default designed format (or its metadata print format).</summary>
+    public Task<PrintModel> BuildAsync(UserContext user, string docType, string name, CancellationToken ct = default) =>
+        BuildAsync(user, docType, name, (string?)null, ct);
+
+    /// <summary>Print with a designed format by name; unknown or null names use the default format.</summary>
+    public async Task<PrintModel> BuildAsync(UserContext user, string docType, string name, string? format, CancellationToken ct = default)
+    {
+        var design = designs is null ? null : await designs.FormatAsync(user.TenantId, docType, format, ct);
+        return await BuildCoreAsync(user, docType, name, design, ct);
+    }
+
+    /// <summary>Live preview of an unsaved format in the designer (the document is still read with the user's permissions).</summary>
+    public Task<PrintModel> BuildPreviewAsync(UserContext user, string docType, string name, Framework.Printing.PrintFormatDesign draft, CancellationToken ct = default) =>
+        BuildCoreAsync(user, docType, name, draft, ct);
+
+    private async Task<Letterhead> LetterheadAsync(UserContext user, string? name, CancellationToken ct)
+    {
+        if (designs is not null && await designs.LetterheadAsync(user.TenantId, name, ct) is { } d) return Letterhead.From(d);
+        return letterheads.For(user.TenantId);
+    }
+
+    private async Task<PrintModel> BuildCoreAsync(UserContext user, string docType, string name, Framework.Printing.PrintFormatDesign? design, CancellationToken ct)
     {
         // GetAsync menegakkan permission, scope, tenant, dan redaksi field — field terbatas tidak ikut tercetak.
         var doc = await docs.GetAsync(user, docType, name, ct);
         var meta = metadata.Current.Get(docType);
-        var pf = meta.Def.PrintFormat ?? new PrintFormatDef();
+        var pf = design?.Format ?? meta.Def.PrintFormat ?? new PrintFormatDef();
         var titles = new Dictionary<(string, string), string?>();
 
         async Task<string> Display(CompiledField f, object? v)
@@ -127,11 +175,12 @@ public sealed class PrintService(DocumentService docs, IMetadataProvider metadat
 
         // Child table
         var tables = new List<PrintTable>();
-        foreach (var tf in meta.TableFields.Where(Readable))
+        foreach (var tf in meta.TableFields.Where(Readable).Where(t => design is null || !design.HiddenTables.Contains(t.Name)))
         {
             var child = metadata.Current.Get(tf.Def.ChildDocType!);
-            var colNames = pf.TableColumns?.GetValueOrDefault(tf.Name) ?? child.Fields.Select(c => c.Name).ToList();
-            var cols = colNames.Select(n => child.ByName[n]).ToList();
+            var colNames = pf.TableColumns?.GetValueOrDefault(tf.Name) ?? child.Fields.Where(c => !c.IsLayout).Select(c => c.Name).ToList();
+            // A designed format may name a column that was removed from the DocType later: skip it.
+            var cols = colNames.Where(child.ByName.ContainsKey).Select(n => child.ByName[n]).ToList();
             var rows = new List<IReadOnlyList<string>>();
             foreach (var r in doc.Data.GetValueOrDefault(tf.Name) as List<Dictionary<string, object?>> ?? [])
             {
@@ -173,7 +222,13 @@ public sealed class PrintService(DocumentService docs, IMetadataProvider metadat
 
         return new PrintModel
         {
-            Letterhead = letterheads.For(user.TenantId),
+            Letterhead = await LetterheadAsync(user, design?.Letterhead, ct),
+            ShowLetterhead = design?.ShowLetterhead ?? true,
+            Paper = design?.Paper ?? "A4",
+            Landscape = design?.Landscape ?? false,
+            Accent = design?.Accent,
+            FieldColumns = design?.FieldColumns ?? 2,
+            FormatName = design?.Name,
             Title = pf.Title ?? meta.Title,
             DocName = doc.Name,
             DocType = docType,

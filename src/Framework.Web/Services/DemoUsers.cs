@@ -17,7 +17,7 @@ public sealed record DemoPersona(
 
 public static class DemoUsers
 {
-    public const string DefaultPassword = "FrogFrame#2026";
+    public const string DefaultPassword = Framework.Hosting.DemoMode.PublicPassword;
 
     public static readonly IReadOnlyList<DemoPersona> All =
     [

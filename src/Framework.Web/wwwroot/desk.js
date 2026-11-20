@@ -349,3 +349,112 @@ window.frogframe = window.frogframe || {};
         if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].indexOf(e.key) >= 0) e.preventDefault();
     }, true);
 })();
+
+// Visual workflow editor (WorkflowDiagram with Editable): drag states, draw transitions from the handle, double-click
+// empty space to add a state. Moves happen here without server round trips; C# is called once the pointer is released.
+(function () {
+    var canvases = new WeakMap();
+
+    function point(svg, e) {
+        var p = svg.createSVGPoint();
+        p.x = e.clientX; p.y = e.clientY;
+        var m = svg.getScreenCTM();
+        return m ? p.matrixTransform(m.inverse()) : { x: 0, y: 0 };
+    }
+
+    window.frogframe.wfCanvas = {
+        init: function (svg, dotnet) {
+            if (!svg || canvases.has(svg)) return;
+            var state = null; // { kind: 'move'|'connect', name, start, node, line, moved, ox, oy }
+
+            function down(e) {
+                if (e.button !== 0) return;
+                var handle = e.target.closest('[data-wf-connect]');
+                var node = e.target.closest('[data-wf-state]');
+                var p = point(svg, e);
+                if (handle) {
+                    var line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    line.setAttribute('class', 'wf-connecting');
+                    line.setAttribute('marker-end', 'url(#wf-arrow-sel)');
+                    svg.appendChild(line);
+                    state = { kind: 'connect', name: handle.getAttribute('data-wf-connect'), start: { x: +handle.getAttribute('cx'), y: +handle.getAttribute('cy') }, line: line };
+                } else if (node) {
+                    state = { kind: 'move', name: node.getAttribute('data-wf-state'), start: p, node: node, moved: false,
+                              ox: +node.getAttribute('data-x'), oy: +node.getAttribute('data-y') };
+                } else {
+                    return;
+                }
+                svg.setPointerCapture(e.pointerId);
+                e.preventDefault();
+            }
+
+            function move(e) {
+                if (!state) return;
+                var p = point(svg, e);
+                if (state.kind === 'move') {
+                    var dx = p.x - state.start.x, dy = p.y - state.start.y;
+                    if (!state.moved && Math.abs(dx) + Math.abs(dy) < 4) return;
+                    state.moved = true;
+                    state.node.setAttribute('transform', 'translate(' + dx + ' ' + dy + ')');
+                    state.node.classList.add('is-dragging');
+                } else {
+                    var s = state.start;
+                    var mx = (s.x + p.x) / 2;
+                    state.line.setAttribute('d', 'M ' + s.x + ' ' + s.y + ' C ' + mx + ' ' + s.y + ', ' + mx + ' ' + p.y + ', ' + p.x + ' ' + p.y);
+                    svg.querySelectorAll('.wf-node.is-target').forEach(function (n) { n.classList.remove('is-target'); });
+                    var over = document.elementFromPoint(e.clientX, e.clientY);
+                    var target = over && over.closest ? over.closest('[data-wf-state]') : null;
+                    if (target) target.classList.add('is-target');
+                }
+            }
+
+            function up(e) {
+                if (!state) return;
+                var s = state; state = null;
+                try { svg.releasePointerCapture(e.pointerId); } catch (_) { }
+                if (s.kind === 'move') {
+                    if (!s.moved) { dotnet.invokeMethodAsync('SelectState', s.name); return; }
+                    var p = point(svg, e);
+                    dotnet.invokeMethodAsync('MoveState', s.name, s.ox + p.x - s.start.x, s.oy + p.y - s.start.y)
+                        .finally(function () { s.node.removeAttribute('transform'); s.node.classList.remove('is-dragging'); });
+                } else {
+                    s.line.remove();
+                    svg.querySelectorAll('.wf-node.is-target').forEach(function (n) { n.classList.remove('is-target'); });
+                    var over = document.elementFromPoint(e.clientX, e.clientY);
+                    var target = over && over.closest ? over.closest('[data-wf-state]') : null;
+                    if (target) dotnet.invokeMethodAsync('Connect', s.name, target.getAttribute('data-wf-state'));
+                }
+            }
+
+            function dbl(e) {
+                if (!e.target.hasAttribute || !e.target.hasAttribute('data-wf-bg')) return;
+                var p = point(svg, e);
+                dotnet.invokeMethodAsync('AddStateAt', p.x, p.y);
+            }
+
+            function cancel() {
+                if (!state) return;
+                if (state.line) state.line.remove();
+                if (state.node) { state.node.removeAttribute('transform'); state.node.classList.remove('is-dragging'); }
+                state = null;
+            }
+
+            svg.addEventListener('pointerdown', down);
+            svg.addEventListener('pointermove', move);
+            svg.addEventListener('pointerup', up);
+            svg.addEventListener('pointercancel', cancel);
+            svg.addEventListener('dblclick', dbl);
+            canvases.set(svg, { down: down, move: move, up: up, cancel: cancel, dbl: dbl });
+        },
+        dispose: function (svg) {
+            var h = svg && canvases.get(svg);
+            if (!h) return;
+            svg.removeEventListener('pointerdown', h.down);
+            svg.removeEventListener('pointermove', h.move);
+            svg.removeEventListener('pointerup', h.up);
+            svg.removeEventListener('pointercancel', h.cancel);
+            svg.removeEventListener('dblclick', h.dbl);
+            canvases.delete(svg);
+        }
+    };
+})();

@@ -126,13 +126,13 @@ cp .env.example .env   # fill in passwords, FROGFRAME_PUBLIC_BASE_URL and FROGFR
 # Default (Development): demo data + demo accounts listed on the login page, PostgreSQL not exposed to the host
 docker compose up -d
 
-# Demo override: same as above plus PostgreSQL on 127.0.0.1:5432
+# Demo override: same as above plus PostgreSQL/S3 on 127.0.0.1 (for "dotnet run" against the containers)
 docker compose -f docker-compose.yml -f docker-compose.demo.yml up -d
 ```
 
-For Production, set `ASPNETCORE_ENVIRONMENT=Production`, `FROGFRAME_DEMO_SEED_DATA=false`, and `FROGFRAME_DEMO_SHOW_ACCOUNTS=false` in `.env`. The demo account list is shown on the login page only in Development or when `Demo:ShowAccounts` is `true`.
+Going live: set `ASPNETCORE_ENVIRONMENT=Production` in `.env`. Demo mode is always on in Development and off elsewhere, so the demo accounts disappear from the login page and are no longer seeded; if `FROGFRAME_DEMO_SEED_DATA` or `FROGFRAME_DEMO_SHOW_ACCOUNTS` is still `true`, the application refuses to start.
 
-Outside the Development environment the application refuses to start unless `App:PublicBaseUrl` is an absolute URL and `AllowedHosts` lists explicit host names (not `*`).
+Outside the Development environment the application refuses to start unless `App:PublicBaseUrl` is an absolute URL, `AllowedHosts` lists explicit host names (not `*`), and demo mode is off (or explicitly allowed for a dedicated demo server with its own password). See [Deployment checks](docs/guides/deployment-checks.md).
 
 ---
 

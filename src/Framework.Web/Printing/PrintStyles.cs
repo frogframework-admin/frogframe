@@ -15,13 +15,18 @@ public static class PrintStyles
   color: var(--ink); font-size: 9.5pt; line-height: 1.45; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .pf * { box-sizing: border-box; }
 .pf .sheet { position: relative; background: #fff; }
-.pf .lh { display: flex; align-items: center; gap: 12px; padding-bottom: 10px; border-bottom: 2px solid var(--ink); }
+.pf .lh { display: flex; align-items: center; gap: 12px; padding-bottom: 10px; border-bottom: 2px solid var(--lh-accent, var(--ink)); }
+.pf .lh.no-rule { border-bottom: 0; }
+.pf .lh.align-center { flex-direction: column; text-align: center; gap: 6px; }
+.pf .lh.align-right { flex-direction: row-reverse; text-align: right; }
 .pf .lh-logo { width: 44px; height: 44px; flex-shrink: 0; }
 .pf .lh-logo svg { width: 100%; height: 100%; }
-.pf .lh-name { font-size: 13pt; font-weight: 800; letter-spacing: .01em; }
+.pf .lh-logo.is-image { width: auto; height: 52px; max-width: 180px; }
+.pf .lh-logo img { height: 100%; max-width: 180px; object-fit: contain; display: block; }
+.pf .lh-name { font-size: 13pt; font-weight: 800; letter-spacing: .01em; color: var(--lh-accent, var(--ink)); }
 .pf .lh-meta { font-size: 8pt; color: var(--muted); }
 .pf .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin: 16px 0 14px; }
-.pf .title { font-size: 15pt; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; margin: 0; }
+.pf .title { font-size: 15pt; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; margin: 0; color: var(--title, var(--ink)); }
 .pf .docno { font-size: 10.5pt; font-weight: 600; margin-top: 2px; }
 .pf .docmeta { font-size: 8.5pt; color: var(--muted); margin-top: 2px; }
 .pf .stamp { display: inline-block; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; font-size: 9.5pt;
@@ -34,6 +39,7 @@ public static class PrintStyles
 .pf .kv { display: grid; grid-template-columns: 1fr 1fr; column-gap: 24px; row-gap: 4px; }
 .pf .kv .row { display: grid; grid-template-columns: 38% 62%; gap: 8px; }
 .pf .kv .row.wide { grid-column: 1 / -1; grid-template-columns: 19% 81%; }
+.pf .lh-foot { white-space: pre-wrap; }
 .pf .kv .k { color: var(--muted); }
 .pf .kv .v { font-weight: 500; white-space: pre-wrap; }
 .pf table.items { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; margin-top: 2px; }
@@ -62,7 +68,7 @@ public static class PrintStyles
 .pf .watermark span { font-size: 82pt; font-weight: 800; letter-spacing: .08em; color: rgba(17, 24, 39, .06); transform: rotate(-30deg); white-space: nowrap; }
 .pf .content { position: relative; z-index: 1; }
 @media screen {
-  .pf .sheet { width: 210mm; min-height: 297mm; margin: 0 auto 24px; padding: 16mm 15mm 18mm; box-shadow: 0 2px 6px rgba(0,0,0,.08), 0 12px 32px rgba(0,0,0,.10); }
+  .pf .sheet { width: var(--sheet-w, 210mm); min-height: var(--sheet-h, 297mm); margin: 0 auto 24px; padding: 16mm 15mm 18mm; box-shadow: 0 2px 6px rgba(0,0,0,.08), 0 12px 32px rgba(0,0,0,.10); }
   .pf .watermark { position: absolute; }
   .pf .running { display: block; margin-top: 18px; padding-top: 6px; border-top: 1px dashed var(--line); }
 }
