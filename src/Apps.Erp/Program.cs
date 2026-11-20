@@ -69,7 +69,32 @@ builder.Services.Configure<Microsoft.AspNetCore.Authentication.BearerToken.Beare
 // Hardening HTTP production: ForwardedHeaders & HSTS
 builder.Services.AddFrogFrameHttpHardening(builder.Configuration);
 
+var migrateOnly = args.Any(a => string.Equals(a, "--migrate-only", StringComparison.OrdinalIgnoreCase)
+    || string.Equals(a, "--migrate", StringComparison.OrdinalIgnoreCase));
+var migrateOnStartup = builder.Configuration.GetValue("Persistence:MigrateOnStartup", true);
+
 var app = builder.Build();
+
+if (migrateOnly)
+{
+    if (usePostgres)
+    {
+        app.Logger.LogInformation("Running decoupled database migration (--migrate-only)...");
+        await app.Services.MigrateFrogFrameworkDatabaseAsync(CancellationToken.None);
+        await app.Services.SyncDocumentIndexesAsync(CancellationToken.None);
+        if (useReporting)
+        {
+            await app.Services.SyncReportingSchemaAsync(CancellationToken.None);
+            _ = await app.Services.CheckReportingConnectionAsync(CancellationToken.None);
+        }
+        app.Logger.LogInformation("Database migration complete.");
+    }
+    else
+    {
+        app.Logger.LogInformation("Persistence:Provider is not PostgreSql; nothing to migrate.");
+    }
+    return;
+}
 
 // 1. Reverse proxy forwarded headers (Docker, Traefik, Nginx, ALB)
 app.UseForwardedHeaders();
@@ -114,18 +139,25 @@ async Task InitializeDatabaseAndSeedAsync(CancellationToken ct)
 {
     if (usePostgres)
     {
-        await app.Services.MigrateFrogFrameworkDatabaseAsync(ct);
-        // Indeks dari metadata dibangun di latar belakang (CONCURRENTLY): startup tidak menunggu pembangunan indeks
-        // pada tabel besar, dan tabel tetap bisa ditulis selama proses. Diperbarui otomatis setiap metadata dipublikasikan.
-        _ = Task.Run(async () =>
+        if (migrateOnStartup)
         {
-            try { await app.Services.SyncDocumentIndexesAsync(ct); }
-            catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
-            catch (Exception ex) { app.Logger.LogError(ex, "Sinkronisasi indeks dokumen gagal"); }
-        }, ct);
+            await app.Services.MigrateFrogFrameworkDatabaseAsync(ct);
+            // Indeks dari metadata dibangun di latar belakang (CONCURRENTLY): startup tidak menunggu pembangunan indeks
+            // pada tabel besar, dan tabel tetap bisa ditulis selama proses. Diperbarui otomatis setiap metadata dipublikasikan.
+            _ = Task.Run(async () =>
+            {
+                try { await app.Services.SyncDocumentIndexesAsync(ct); }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+                catch (Exception ex) { app.Logger.LogError(ex, "Sinkronisasi indeks dokumen gagal"); }
+            }, ct);
+        }
+        else
+        {
+            await app.Services.EnsureFrogFrameworkDatabaseMigratedAsync(ct);
+        }
     }
     // View pelaporan dibuat dari metadata aktif (dan diperbarui otomatis setiap publish).
-    if (useReporting)
+    if (useReporting && migrateOnStartup)
     {
         await app.Services.SyncReportingSchemaAsync(ct);
         // Peringatan di log bila user read-only belum siap. Aplikasi tetap berjalan; dashboard menampilkan pesannya.

@@ -20,6 +20,16 @@ public sealed class AllowedHostsSettings
     public string[] Hosts { get; set; } = [];
 }
 
+/// <summary>Production safety invariants validated on startup outside Development.</summary>
+public sealed class ProductionSafetySettings
+{
+    public bool DemoSeedData { get; set; }
+    public bool DemoShowAccounts { get; set; }
+    public string? BootstrapAdminPassword { get; set; }
+    public string? PersistenceProvider { get; set; }
+    public string? ConnectionString { get; set; }
+}
+
 public static class HttpHardeningExtensions
 {
     /// <summary>
@@ -50,6 +60,33 @@ public static class HttpHardeningExtensions
                 (o, env) => env.IsDevelopment() || (o.Hosts.Length > 0 && !o.Hosts.Contains("*")),
                 "AllowedHosts must list the application's host names (separated by ';', e.g. \"erp.example.com;localhost\") " +
                 "outside Development environments. The value \"*\" accepts any Host header.")
+            .ValidateOnStart();
+
+        // Fail on startup if demo mode or placeholder/default credentials are active outside Development.
+        services.AddOptions<ProductionSafetySettings>()
+            .Configure<IConfiguration>((o, cfg) =>
+            {
+                o.DemoSeedData = cfg.GetValue("Demo:SeedData", false);
+                o.DemoShowAccounts = cfg.GetValue("Demo:ShowAccounts", false);
+                o.BootstrapAdminPassword = cfg["Bootstrap:AdminPassword"];
+                o.PersistenceProvider = cfg["Persistence:Provider"];
+                o.ConnectionString = cfg["ConnectionStrings:FrogFrame"];
+            })
+            .Validate<IHostEnvironment>(
+                (o, env) => env.IsDevelopment() || (!o.DemoSeedData && !o.DemoShowAccounts),
+                "Demo:SeedData and Demo:ShowAccounts must be false outside Development environments.")
+            .Validate<IHostEnvironment>(
+                (o, env) => env.IsDevelopment() || string.IsNullOrWhiteSpace(o.BootstrapAdminPassword)
+                    || !o.BootstrapAdminPassword.StartsWith("change-me-", StringComparison.OrdinalIgnoreCase),
+                "Bootstrap:AdminPassword must not use a placeholder 'change-me-*' value outside Development environments.")
+            .Validate<IHostEnvironment>(
+                (o, env) => env.IsDevelopment()
+                    || !string.Equals(o.PersistenceProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase)
+                    || string.IsNullOrWhiteSpace(o.ConnectionString)
+                    || (!o.ConnectionString.Contains("change-me-", StringComparison.OrdinalIgnoreCase)
+                        && !o.ConnectionString.Contains("Password=frogframe;", StringComparison.OrdinalIgnoreCase)
+                        && !o.ConnectionString.EndsWith("Password=frogframe", StringComparison.OrdinalIgnoreCase)),
+                "ConnectionStrings:FrogFrame must not use default or placeholder passwords outside Development environments.")
             .ValidateOnStart();
 
         services.AddHsts(options =>

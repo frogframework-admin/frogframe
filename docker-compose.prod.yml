@@ -1,0 +1,50 @@
+# PRODUCTION override. Hardens the stack for production deployments:
+# - Forces ASPNETCORE_ENVIRONMENT=Production
+# - Disables Demo:SeedData and Demo:ShowAccounts
+# - Decouples database schema migrations into a one-shot pre-start 'migrator' container
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Prerequisites in .env:
+#   ASPNETCORE_ENVIRONMENT=Production
+#   FROGFRAME_PUBLIC_BASE_URL=https://erp.example.com
+#   FROGFRAME_ALLOWED_HOSTS=erp.example.com
+#   Strong non-default passwords for POSTGRES_PASSWORD, FROGFRAME_RO_PASSWORD,
+#   FROGFRAME_ADMIN_PASSWORD, FROGFRAME_S3_ACCESS_KEY, and FROGFRAME_S3_SECRET_KEY.
+
+services:
+  migrator:
+    image: frogframe-app:latest
+    container_name: frogframe-migrator
+    command: ["dotnet", "Apps.Erp.dll", "--migrate-only"]
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - App__PublicBaseUrl=${FROGFRAME_PUBLIC_BASE_URL:?Set FROGFRAME_PUBLIC_BASE_URL in .env}
+      - AllowedHosts=${FROGFRAME_ALLOWED_HOSTS:?Set FROGFRAME_ALLOWED_HOSTS in .env}
+      - Persistence__Provider=PostgreSql
+      - Persistence__MigrateOnStartup=true
+      - ConnectionStrings__FrogFrame=Host=postgres;Port=5432;Database=frogframe;Username=frogframe;Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      - ConnectionStrings__FrogFrameReadOnly=Host=postgres;Port=5432;Database=frogframe;Username=frogframe_ro;Password=${FROGFRAME_RO_PASSWORD:?Set FROGFRAME_RO_PASSWORD in .env}
+      - Demo__SeedData=false
+      - Demo__ShowAccounts=false
+      - Bootstrap__AdminPassword=${FROGFRAME_ADMIN_PASSWORD:?Set FROGFRAME_ADMIN_PASSWORD in .env}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  app:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - Demo__SeedData=false
+      - Demo__ShowAccounts=false
+      - Demo__Password=
+      - Persistence__MigrateOnStartup=false
+    depends_on:
+      postgres:
+        condition: service_healthy
+      seaweedfs:
+        condition: service_started
+      migrator:
+        condition: service_completed_successfully

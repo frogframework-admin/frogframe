@@ -927,4 +927,7 @@ public static class PostgreSqlServiceCollectionExtensions
 
     public static Task MigrateFrogFrameworkDatabaseAsync(this IServiceProvider services, CancellationToken ct = default) =>
         services.GetRequiredService<SchemaMigrator>().MigrateAsync(ct);
+
+    public static Task EnsureFrogFrameworkDatabaseMigratedAsync(this IServiceProvider services, CancellationToken ct = default) =>
+        services.GetRequiredService<SchemaMigrator>().EnsureMigratedAsync(ct);
 }

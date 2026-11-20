@@ -1,4 +1,4 @@
-﻿# Backup & Disaster Recovery Runbook
+# Backup & Disaster Recovery Runbook
 
 Operational guide for backing up and restoring FrogFramework environments in production.
 
@@ -72,3 +72,21 @@ Retention policy:
    docker compose up -d
    ```
 6. Verify service health via `/healthz`.
+
+---
+
+## 5. Automated Restore Verification Drill
+
+To prove backup integrity and measure actual RTO without risking the live database, run the automated restore verification drill script:
+
+```powershell
+# PowerShell (Windows / Docker)
+./deploy/scripts/verify-restore-drill.ps1
+```
+
+```bash
+# Bash (Linux / macOS)
+./deploy/scripts/verify-restore-drill.sh
+```
+
+The script automatically captures a compressed `pg_dump -Fc` snapshot (or accepts an existing dump path), restores it into a throwaway database (`frogframe_drill_<timestamp>`), verifies schema migration counts, compares row counts across all `public` tables, validates deterministic content checksums on core tables, reports the measured RTO, and drops the throwaway database.

@@ -28,6 +28,7 @@ services:
       # When deployed behind a reverse proxy, set the proxy CIDR so X-Forwarded-* headers are trusted, e.g. 172.18.0.0/16.
       - ForwardedHeaders__KnownNetworks__0=${FROGFRAME_TRUSTED_PROXY_CIDR:-}
       - Persistence__Provider=PostgreSql
+      - Persistence__MigrateOnStartup=${FROGFRAME_MIGRATE_ON_STARTUP:-true}
       - ConnectionStrings__FrogFrame=Host=postgres;Port=5432;Database=frogframe;Username=frogframe;Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       - ConnectionStrings__FrogFrameReadOnly=Host=postgres;Port=5432;Database=frogframe;Username=frogframe_ro;Password=${FROGFRAME_RO_PASSWORD:?Set FROGFRAME_RO_PASSWORD in .env}
       # Demo mode (default for Development): creates demo accounts + sample data and lists the accounts on the login page.
