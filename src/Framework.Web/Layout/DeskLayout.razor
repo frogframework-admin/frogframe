@@ -526,7 +526,13 @@
                                 <LucideIcon Name="@(string.IsNullOrWhiteSpace(mod.Icon) ? "layout-grid" : mod.Icon)" Size="18" />
                             </BbItemMedia>
                             <BbItemContent Class="module-horizontal-content">
-                                <BbItemTitle Class="module-horizontal-title">@T[mod.Name]</BbItemTitle>
+                                <BbItemTitle Class="module-horizontal-title">
+                                    @T[mod.Name]
+                                    @if (!string.IsNullOrWhiteSpace(mod.ApplicationId) && navApplications.FirstOrDefault(a => a.Id == mod.ApplicationId) is { } parentApp)
+                                    {
+                                        <span class="muted small" style="margin-left:.4rem;font-weight:normal;font-size:0.75rem">(@parentApp.Name)</span>
+                                    }
+                                </BbItemTitle>
                             </BbItemContent>
                             @if (isCurrent)
                             {
@@ -552,6 +558,7 @@
     private int openTasksCount;
     private PeriodicTimer? timer;
     private IDisposable? liveNotifSub;
+    private IReadOnlyList<NavigationApplication> navApplications = [];
     private IReadOnlyList<NavigationModule> navModules = [];
     private IReadOnlyList<NavigationMenuGroup> navGroups = [];
     private IReadOnlyList<NavigationMenuItem> navMenus = [];
@@ -687,6 +694,7 @@
         {
             try
             {
+                navApplications = await MenuStore.ListApplicationsAsync(u.TenantId, onlyActive: true);
                 navModules = await MenuStore.ListModulesAsync(u.TenantId, onlyActive: true);
                 navGroups = await MenuStore.ListGroupsAsync(u.TenantId, onlyActive: true);
                 navMenus = await MenuStore.ListAsync(u.TenantId, onlyActive: true);

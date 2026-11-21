@@ -7,13 +7,30 @@ namespace Framework.Persistence.PostgreSql;
 
 public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvider clock) : INavigationMenuStore
 {
-    private const string ModuleCols = "id, tenant_id, name, description, icon, sort_order, allowed_roles, is_system, is_active, created_at, updated_at, code";
+    private const string ApplicationCols = "id, tenant_id, code, name, description, icon, sort_order, allowed_roles, is_system, is_active, created_at, updated_at";
+    private const string ModuleCols = "id, tenant_id, name, description, icon, sort_order, allowed_roles, is_system, is_active, created_at, updated_at, code, application_id";
     private const string GroupCols = "id, tenant_id, module_id, name, icon, sort_order, is_system, is_active, created_at, updated_at";
     private const string MenuCols = "id, tenant_id, title, href, icon, group_id, group_name, sort_order, allowed_roles, is_system, is_active, badge_key, created_at, updated_at";
 
     private readonly ConcurrentDictionary<string, bool> seededTenants = new(StringComparer.OrdinalIgnoreCase);
 
     public event Action? Changed;
+
+    private static NavigationApplication ReadApplication(NpgsqlDataReader r) => new()
+    {
+        Id = r.GetString(0),
+        TenantId = r.GetString(1),
+        Code = r.GetString(2),
+        Name = r.GetString(3),
+        Description = r.IsDBNull(4) ? null : r.GetString(4),
+        Icon = r.GetString(5),
+        SortOrder = r.GetInt32(6),
+        AllowedRoles = r.GetFieldValue<string[]>(7).ToList(),
+        IsSystem = r.GetBoolean(8),
+        IsActive = r.GetBoolean(9),
+        CreatedAt = r.GetFieldValue<DateTimeOffset>(10),
+        UpdatedAt = r.GetFieldValue<DateTimeOffset>(11)
+    };
 
     private static NavigationModule ReadModule(NpgsqlDataReader r) => new()
     {
@@ -28,7 +45,8 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
         IsActive = r.GetBoolean(8),
         CreatedAt = r.GetFieldValue<DateTimeOffset>(9),
         UpdatedAt = r.GetFieldValue<DateTimeOffset>(10),
-        Code = r.IsDBNull(11) ? "" : r.GetString(11)
+        Code = r.IsDBNull(11) ? "" : r.GetString(11),
+        ApplicationId = r.IsDBNull(12) ? null : r.GetString(12)
     };
 
     private static NavigationMenuGroup ReadGroup(NpgsqlDataReader r) => new()
@@ -68,6 +86,84 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
         if (seededTenants.ContainsKey(tenantId)) return;
         await EnsureDefaultMenusAsync(tenantId, ct);
         seededTenants[tenantId] = true;
+    }
+
+    public async Task<IReadOnlyList<NavigationApplication>> ListApplicationsAsync(string tenantId, bool onlyActive = false, CancellationToken ct = default)
+    {
+        await EnsureSeededOnceAsync(tenantId, ct);
+        var sql = onlyActive
+            ? $"SELECT {ApplicationCols} FROM frogframe_navigation_applications WHERE tenant_id = $1 AND is_active = true ORDER BY sort_order, name"
+            : $"SELECT {ApplicationCols} FROM frogframe_navigation_applications WHERE tenant_id = $1 ORDER BY sort_order, name";
+
+        await using var cmd = db.CreateCommand(sql);
+        cmd.Parameters.AddWithValue(tenantId);
+
+        var list = new List<NavigationApplication>();
+        await using var r = await cmd.ExecuteReaderAsync(ct);
+        while (await r.ReadAsync(ct)) list.Add(ReadApplication(r));
+        return list;
+    }
+
+    public async Task<NavigationApplication?> GetApplicationAsync(string id, string tenantId, CancellationToken ct = default)
+    {
+        await using var cmd = db.CreateCommand($"SELECT {ApplicationCols} FROM frogframe_navigation_applications WHERE id = $1 AND tenant_id = $2");
+        cmd.Parameters.AddWithValue(id);
+        cmd.Parameters.AddWithValue(tenantId);
+        await using var r = await cmd.ExecuteReaderAsync(ct);
+        return await r.ReadAsync(ct) ? ReadApplication(r) : null;
+    }
+
+    public async Task SaveApplicationAsync(NavigationApplication application, CancellationToken ct = default)
+    {
+        application.UpdatedAt = clock.GetUtcNow();
+        if (application.CreatedAt == default) application.CreatedAt = application.UpdatedAt;
+        if (string.IsNullOrWhiteSpace(application.Id)) application.Id = Guid.NewGuid().ToString("N");
+        application.Code = NavigationApplication.NormalizeCode(application.Code);
+
+        await using (var cur = db.CreateCommand("SELECT code FROM frogframe_navigation_applications WHERE id = $1 AND tenant_id = $2"))
+        {
+            cur.Parameters.AddWithValue(application.Id);
+            cur.Parameters.AddWithValue(application.TenantId);
+            if (await cur.ExecuteScalarAsync(ct) is string existingCode && existingCode.Length > 0 && existingCode != application.Code)
+                throw new InvalidOperationException($"Application code '{existingCode}' cannot be changed once created.");
+        }
+
+        await using var cmd = db.CreateCommand(
+            $"INSERT INTO frogframe_navigation_applications ({ApplicationCols}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) " +
+            "ON CONFLICT (id) DO UPDATE SET code=$3, name=$4, description=$5, icon=$6, sort_order=$7, allowed_roles=$8, is_system=$9, is_active=$10, updated_at=$12");
+
+        cmd.Parameters.AddWithValue(application.Id);
+        cmd.Parameters.AddWithValue(application.TenantId);
+        cmd.Parameters.AddWithValue(application.Code);
+        cmd.Parameters.AddWithValue(application.Name);
+        cmd.Parameters.AddWithValue((object?)application.Description ?? DBNull.Value);
+        cmd.Parameters.AddWithValue(application.Icon);
+        cmd.Parameters.AddWithValue(application.SortOrder);
+        cmd.Parameters.AddWithValue(application.AllowedRoles.ToArray());
+        cmd.Parameters.AddWithValue(application.IsSystem);
+        cmd.Parameters.AddWithValue(application.IsActive);
+        cmd.Parameters.AddWithValue(application.CreatedAt);
+        cmd.Parameters.AddWithValue(application.UpdatedAt);
+
+        try { await cmd.ExecuteNonQueryAsync(ct); }
+        catch (PostgresException ex) when (ex.SqlState == "23505")
+        {
+            throw new InvalidOperationException($"Application code '{application.Code}' is already in use.");
+        }
+        Changed?.Invoke();
+    }
+
+    public async Task DeleteApplicationAsync(string id, string tenantId, CancellationToken ct = default)
+    {
+        var app = await GetApplicationAsync(id, tenantId, ct);
+        if (app is null) return;
+        if (app.IsSystem) throw new InvalidOperationException("System applications cannot be deleted.");
+
+        await using var cmd = db.CreateCommand("DELETE FROM frogframe_navigation_applications WHERE id = $1 AND tenant_id = $2");
+        cmd.Parameters.AddWithValue(id);
+        cmd.Parameters.AddWithValue(tenantId);
+        await cmd.ExecuteNonQueryAsync(ct);
+        Changed?.Invoke();
     }
 
     public async Task<IReadOnlyList<NavigationModule>> ListModulesAsync(string tenantId, bool onlyActive = false, CancellationToken ct = default)
@@ -111,8 +207,8 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
         }
 
         await using var cmd = db.CreateCommand(
-            $"INSERT INTO frogframe_navigation_modules ({ModuleCols}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) " +
-            "ON CONFLICT (id) DO UPDATE SET name=$3, description=$4, icon=$5, sort_order=$6, allowed_roles=$7, is_system=$8, is_active=$9, updated_at=$11, code=$12");
+            $"INSERT INTO frogframe_navigation_modules ({ModuleCols}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) " +
+            "ON CONFLICT (id) DO UPDATE SET name=$3, description=$4, icon=$5, sort_order=$6, allowed_roles=$7, is_system=$8, is_active=$9, updated_at=$11, code=$12, application_id=$13");
 
         cmd.Parameters.AddWithValue(module.Id);
         cmd.Parameters.AddWithValue(module.TenantId);
@@ -126,6 +222,7 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
         cmd.Parameters.AddWithValue(module.CreatedAt);
         cmd.Parameters.AddWithValue(module.UpdatedAt);
         cmd.Parameters.AddWithValue(module.Code);
+        cmd.Parameters.AddWithValue((object?)module.ApplicationId ?? DBNull.Value);
 
         try { await cmd.ExecuteNonQueryAsync(ct); }
         catch (PostgresException ex) when (ex.SqlState == "23505")
@@ -319,6 +416,31 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
         var now = clock.GetUtcNow();
         var added = false;
 
+        // 0. Seed default applications
+        var existingAppIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var existingAppCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        await using (var chkApp = db.CreateCommand("SELECT id, code FROM frogframe_navigation_applications WHERE tenant_id = $1"))
+        {
+            chkApp.Parameters.AddWithValue(tenantId);
+            await using var r = await chkApp.ExecuteReaderAsync(ct);
+            while (await r.ReadAsync(ct))
+            {
+                existingAppIds.Add(r.GetString(0));
+                existingAppCodes.Add(r.GetString(1));
+            }
+        }
+
+        foreach (var defApp in NavigationMenuDefaults.CreateDefaultApplications(tenantId, now))
+        {
+            if (!existingAppIds.Contains(defApp.Id) && !existingAppCodes.Contains(defApp.Code))
+            {
+                await SaveApplicationInternalAsync(defApp, ct);
+                existingAppIds.Add(defApp.Id);
+                existingAppCodes.Add(defApp.Code);
+                added = true;
+            }
+        }
+
         // 1. Seed default modules
         var existingModIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var existingModNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -341,6 +463,16 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
                 existingModIds.Add(defMod.Id);
                 existingModNames.Add(defMod.Name);
                 added = true;
+            }
+            else if (!string.IsNullOrWhiteSpace(defMod.ApplicationId))
+            {
+                await using var updModApp = db.CreateCommand(
+                    "UPDATE frogframe_navigation_modules SET application_id = $2 WHERE tenant_id = $1 AND (id = $3 OR name = $4) AND (application_id IS NULL OR application_id = '')");
+                updModApp.Parameters.AddWithValue(tenantId);
+                updModApp.Parameters.AddWithValue(defMod.ApplicationId);
+                updModApp.Parameters.AddWithValue(defMod.Id);
+                updModApp.Parameters.AddWithValue(defMod.Name);
+                if (await updModApp.ExecuteNonQueryAsync(ct) > 0) added = true;
             }
         }
 
@@ -533,10 +665,30 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
         if (added) Changed?.Invoke();
     }
 
+    private async Task SaveApplicationInternalAsync(NavigationApplication application, CancellationToken ct)
+    {
+        await using var cmd = db.CreateCommand(
+            $"INSERT INTO frogframe_navigation_applications ({ApplicationCols}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) ON CONFLICT DO NOTHING");
+        cmd.Parameters.AddWithValue(application.Id);
+        cmd.Parameters.AddWithValue(application.TenantId);
+        cmd.Parameters.AddWithValue(application.Code);
+        cmd.Parameters.AddWithValue(application.Name);
+        cmd.Parameters.AddWithValue((object?)application.Description ?? DBNull.Value);
+        cmd.Parameters.AddWithValue(application.Icon);
+        cmd.Parameters.AddWithValue(application.SortOrder);
+        cmd.Parameters.AddWithValue(application.AllowedRoles.ToArray());
+        cmd.Parameters.AddWithValue(application.IsSystem);
+        cmd.Parameters.AddWithValue(application.IsActive);
+        cmd.Parameters.AddWithValue(application.CreatedAt);
+        cmd.Parameters.AddWithValue(application.UpdatedAt);
+        await cmd.ExecuteNonQueryAsync(ct);
+    }
+
     private async Task SaveModuleInternalAsync(NavigationModule module, CancellationToken ct)
     {
         await using var cmd = db.CreateCommand(
-            $"INSERT INTO frogframe_navigation_modules ({ModuleCols}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) ON CONFLICT DO NOTHING");
+            $"INSERT INTO frogframe_navigation_modules ({ModuleCols}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) " +
+            "ON CONFLICT (id) DO UPDATE SET application_id = EXCLUDED.application_id WHERE frogframe_navigation_modules.application_id IS NULL OR frogframe_navigation_modules.application_id = ''");
         cmd.Parameters.AddWithValue(module.Id);
         cmd.Parameters.AddWithValue(module.TenantId);
         cmd.Parameters.AddWithValue(module.Name);
@@ -549,6 +701,7 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
         cmd.Parameters.AddWithValue(module.CreatedAt);
         cmd.Parameters.AddWithValue(module.UpdatedAt);
         cmd.Parameters.AddWithValue(module.Code);
+        cmd.Parameters.AddWithValue((object?)module.ApplicationId ?? DBNull.Value);
         await cmd.ExecuteNonQueryAsync(ct);
     }
 

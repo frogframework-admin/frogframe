@@ -21,6 +21,8 @@ public sealed class NavigationModule
 
     public string Id { get; set; } = "";
     public string TenantId { get; set; } = "default";
+    /// <summary>Parent application identifier (<see cref="NavigationApplication.Id"/>), e.g. HRM, Finance, Accounting, IT.</summary>
+    public string? ApplicationId { get; set; }
     /// <summary>Kode unik per tenant (huruf besar), mis. HR, PROCUREMENT. Dipakai DocType.module sebagai referensi.</summary>
     public string Code { get; set; } = "";
     public string Name { get; set; } = "";

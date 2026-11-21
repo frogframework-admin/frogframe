@@ -2,8 +2,20 @@ namespace Framework.Navigation;
 
 public interface INavigationMenuStore
 {
-    /// <summary>Triggered whenever modules, menu groups, or menu items change so the UI can refresh immediately.</summary>
+    /// <summary>Triggered whenever applications, modules, menu groups, or menu items change so the UI can refresh immediately.</summary>
     event Action? Changed;
+
+    /// <summary>Lists all navigation applications for the given tenant, ordered by sort_order.</summary>
+    Task<IReadOnlyList<NavigationApplication>> ListApplicationsAsync(string tenantId, bool onlyActive = false, CancellationToken ct = default);
+
+    /// <summary>Gets a single navigation application by id and tenant.</summary>
+    Task<NavigationApplication?> GetApplicationAsync(string id, string tenantId, CancellationToken ct = default);
+
+    /// <summary>Saves a new or existing navigation application.</summary>
+    Task SaveApplicationAsync(NavigationApplication application, CancellationToken ct = default);
+
+    /// <summary>Deletes a custom navigation application (system applications cannot be deleted).</summary>
+    Task DeleteApplicationAsync(string id, string tenantId, CancellationToken ct = default);
 
     /// <summary>Lists all navigation modules for the given tenant, ordered by sort_order.</summary>
     Task<IReadOnlyList<NavigationModule>> ListModulesAsync(string tenantId, bool onlyActive = false, CancellationToken ct = default);

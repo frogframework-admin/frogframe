@@ -2,6 +2,7 @@
 CREATE TABLE IF NOT EXISTS frogframe_navigation_modules (
     id            text        PRIMARY KEY,
     tenant_id     text        NOT NULL,
+    application_id text,
     name          text        NOT NULL,
     description   text,
     icon          text        NOT NULL DEFAULT 'layout-grid',

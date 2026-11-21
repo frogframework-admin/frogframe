@@ -4,6 +4,7 @@ namespace Framework.Navigation;
 
 public sealed class InMemoryNavigationMenuStore(TimeProvider clock) : INavigationMenuStore
 {
+    private readonly ConcurrentDictionary<string, NavigationApplication> applications = new();
     private readonly ConcurrentDictionary<string, NavigationModule> modules = new();
     private readonly ConcurrentDictionary<string, NavigationMenuGroup> groups = new();
     private readonly ConcurrentDictionary<string, NavigationMenuItem> items = new();
@@ -14,6 +15,15 @@ public sealed class InMemoryNavigationMenuStore(TimeProvider clock) : INavigatio
     {
         var now = clock.GetUtcNow();
         var modified = false;
+
+        foreach (var defApp in NavigationMenuDefaults.CreateDefaultApplications(tenantId, now))
+        {
+            if (!applications.Values.Any(x => x.TenantId == tenantId && (x.Id == defApp.Id || string.Equals(x.Code, defApp.Code, StringComparison.OrdinalIgnoreCase))))
+            {
+                applications[defApp.Id] = defApp;
+                modified = true;
+            }
+        }
 
         // Remove deprecated system modules (such as ANALYTICS) and their groups
         foreach (var mod in modules.Values.Where(m => m.TenantId == tenantId && m.IsSystem && (m.Code == "ANALYTICS" || m.Id.EndsWith("_analytics"))).ToList())
@@ -29,9 +39,15 @@ public sealed class InMemoryNavigationMenuStore(TimeProvider clock) : INavigatio
 
         foreach (var defMod in NavigationMenuDefaults.CreateDefaultModules(tenantId, now))
         {
-            if (!modules.Values.Any(x => x.TenantId == tenantId && (x.Id == defMod.Id || string.Equals(x.Name, defMod.Name, StringComparison.OrdinalIgnoreCase))))
+            var existingMod = modules.Values.FirstOrDefault(x => x.TenantId == tenantId && (x.Id == defMod.Id || string.Equals(x.Name, defMod.Name, StringComparison.OrdinalIgnoreCase)));
+            if (existingMod is null)
             {
                 modules[defMod.Id] = defMod;
+                modified = true;
+            }
+            else if (string.IsNullOrWhiteSpace(existingMod.ApplicationId) && !string.IsNullOrWhiteSpace(defMod.ApplicationId))
+            {
+                existingMod.ApplicationId = defMod.ApplicationId;
                 modified = true;
             }
         }
@@ -83,6 +99,46 @@ public sealed class InMemoryNavigationMenuStore(TimeProvider clock) : INavigatio
         }
 
         if (modified) Changed?.Invoke();
+        return Task.CompletedTask;
+    }
+
+    public async Task<IReadOnlyList<NavigationApplication>> ListApplicationsAsync(string tenantId, bool onlyActive = false, CancellationToken ct = default)
+    {
+        await EnsureDefaultMenusAsync(tenantId, ct);
+        return applications.Values
+            .Where(x => x.TenantId == tenantId && (!onlyActive || x.IsActive))
+            .OrderBy(x => x.SortOrder)
+            .ThenBy(x => x.Name)
+            .ToList();
+    }
+
+    public Task<NavigationApplication?> GetApplicationAsync(string id, string tenantId, CancellationToken ct = default) =>
+        Task.FromResult(applications.TryGetValue(id, out var app) && app.TenantId == tenantId ? app : null);
+
+    public Task SaveApplicationAsync(NavigationApplication application, CancellationToken ct = default)
+    {
+        application.UpdatedAt = clock.GetUtcNow();
+        if (application.CreatedAt == default) application.CreatedAt = application.UpdatedAt;
+        if (string.IsNullOrWhiteSpace(application.Id)) application.Id = Guid.NewGuid().ToString("N");
+        application.Code = NavigationApplication.NormalizeCode(application.Code);
+        if (applications.Values.Any(a => a.TenantId == application.TenantId && a.Id != application.Id && string.Equals(a.Code, application.Code, StringComparison.OrdinalIgnoreCase)))
+            throw new InvalidOperationException($"Application code '{application.Code}' is already in use.");
+        if (applications.TryGetValue(application.Id, out var existing) && !string.IsNullOrEmpty(existing.Code) && existing.Code != application.Code)
+            throw new InvalidOperationException($"Application code '{existing.Code}' cannot be changed once created.");
+
+        applications[application.Id] = application;
+        Changed?.Invoke();
+        return Task.CompletedTask;
+    }
+
+    public Task DeleteApplicationAsync(string id, string tenantId, CancellationToken ct = default)
+    {
+        if (applications.TryGetValue(id, out var app) && app.TenantId == tenantId)
+        {
+            if (app.IsSystem) throw new InvalidOperationException("System applications cannot be deleted.");
+            applications.TryRemove(id, out _);
+            Changed?.Invoke();
+        }
         return Task.CompletedTask;
     }
 

@@ -31,7 +31,7 @@ else
                 <LucideIcon Name="pencil" Size="16" /> Bulk Edit @(gridMgr.SelectedCount > 0 ? $"({gridMgr.SelectedCount})" : "")
             </BbButton>
             <BbButton Variant="ButtonVariant.Outline" Disabled="@(gridMgr.SelectedCount == 0 || busy)" OnClick="() => BulkSetStatusAsync(AutoRepeatStatus.Active)">
-                <LucideIcon Name="play-circle" Size="16" /> Resume @(gridMgr.SelectedCount > 0 ? $"({gridMgr.SelectedCount})" : "")
+                <LucideIcon Name="circle-play" Size="16" /> Resume @(gridMgr.SelectedCount > 0 ? $"({gridMgr.SelectedCount})" : "")
             </BbButton>
             <BbButton Variant="ButtonVariant.Outline" Disabled="@(gridMgr.SelectedCount == 0 || busy)" OnClick="() => BulkSetStatusAsync(AutoRepeatStatus.Paused)">
                 <LucideIcon Name="pause" Size="16" /> Pause @(gridMgr.SelectedCount > 0 ? $"({gridMgr.SelectedCount})" : "")
@@ -141,7 +141,7 @@ else
                             <LucideIcon Name="pencil" Size="14" />
                         </BbButton>
                         <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="@(() => ToggleStatus(r))" Title="@(r.Status == AutoRepeatStatus.Active ? "Pause" : "Resume")">
-                            <LucideIcon Name="@(r.Status == AutoRepeatStatus.Active ? "pause" : "play-circle")" Size="14" />
+                            <LucideIcon Name="@(r.Status == AutoRepeatStatus.Active ? "pause" : "circle-play")" Size="14" />
                         </BbButton>
                         <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" OnClick="@(() => ConfirmDelete(r))" Title="Delete Auto Repeat">
                             <LucideIcon Name="trash" Size="14" />

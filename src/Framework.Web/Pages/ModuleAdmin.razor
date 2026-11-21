@@ -30,10 +30,10 @@ else
                 <LucideIcon Name="pencil" Size="16" /> Bulk Edit @(gridMgr.SelectedCount > 0 ? $"({gridMgr.SelectedCount})" : "")
             </BbButton>
             <BbButton Variant="ButtonVariant.Outline" Disabled="@(gridMgr.SelectedCount == 0 || busy)" OnClick="() => BulkSetActiveAsync(true)">
-                <LucideIcon Name="check-circle" Size="16" /> Activate @(gridMgr.SelectedCount > 0 ? $"({gridMgr.SelectedCount})" : "")
+                <LucideIcon Name="circle-check" Size="16" /> Activate @(gridMgr.SelectedCount > 0 ? $"({gridMgr.SelectedCount})" : "")
             </BbButton>
             <BbButton Variant="ButtonVariant.Outline" Disabled="@(gridMgr.SelectedCount == 0 || busy)" OnClick="() => BulkSetActiveAsync(false)">
-                <LucideIcon Name="x-circle" Size="16" /> Deactivate @(gridMgr.SelectedCount > 0 ? $"({gridMgr.SelectedCount})" : "")
+                <LucideIcon Name="circle-x" Size="16" /> Deactivate @(gridMgr.SelectedCount > 0 ? $"({gridMgr.SelectedCount})" : "")
             </BbButton>
             <BbButton Variant="ButtonVariant.Destructive" Disabled="@(gridMgr.SelectedCount == 0 || busy)" OnClick="BulkDeleteAsync">
                 <LucideIcon Name="trash-2" Size="16" /> Delete @(gridMgr.SelectedCount > 0 ? $"({gridMgr.SelectedCount})" : "")
@@ -85,6 +85,26 @@ else
                     </div>
                 </CellTemplate>
             </BbDataGridPropertyColumn>
+
+            <BbDataGridTemplateColumn TData="NavigationModule" Id="application" Title="Application"
+                                      Width="@gridMgr.GetWidth("application", "10rem")" Visible="@gridMgr.IsVisible("application")" Resizable="true" Sortable="true" SortBy="m => ApplicationName(m.ApplicationId)">
+                <ChildContent Context="item">
+                    @{
+                        var app = applications.FirstOrDefault(a => a.Id == item.ApplicationId);
+                    }
+                    @if (app is not null)
+                    {
+                        <div class="row" style="gap:.4rem;align-items:center;flex-wrap:nowrap">
+                            <LucideIcon Name="@(string.IsNullOrWhiteSpace(app.Icon) ? "app-window" : app.Icon)" Size="14" Class="muted" />
+                            <span>@app.Name</span>
+                        </div>
+                    }
+                    else
+                    {
+                        <span class="muted small">—</span>
+                    }
+                </ChildContent>
+            </BbDataGridTemplateColumn>
 
             <BbDataGridTemplateColumn TData="NavigationModule" Id="menu_groups" Title="Menu Groups"
                                       Width="@gridMgr.GetWidth("menu_groups", "9rem")" Visible="@gridMgr.IsVisible("menu_groups")" Resizable="true">
@@ -171,23 +191,34 @@ else
                     <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@error</BbAlertDescription></BbAlert>
                 }
 
-                <div class="form-cols cols-2">
-                    <BbField>
-                        <BbFieldLabel For="mod-name">Module Name</BbFieldLabel>
-                        <FormTextInput Id="mod-name" Immediate="true" @bind-Value="edit.Name" Placeholder="e.g. Human Resources, Finance, Inventory" />
-                    </BbField>
-                    <BbField>
-                        <BbFieldLabel For="mod-code">Module Code (required, unique)</BbFieldLabel>
-                        <FormTextInput Id="mod-code" @bind-Value="edit.Code" Disabled="!isNew" Placeholder="e.g. HR, PROCUREMENT, FINANCE" />
-                        <BbFieldDescription>Used by DocTypes as the Module identifier. Uppercase letters, numbers, or underscores. Cannot be changed once created.</BbFieldDescription>
-                    </BbField>
+                <BbField>
+                    <BbFieldLabel For="mod-name">Module Name</BbFieldLabel>
+                    <FormTextInput Id="mod-name" Immediate="true" @bind-Value="edit.Name" Placeholder="e.g. Human Resources, Finance, Inventory" />
+                </BbField>
 
-                    <BbField>
-                        <BbFieldLabel For="mod-order">Order (Sort Order)</BbFieldLabel>
-                        <FormTextInput Id="mod-order" Type="number" Immediate="true" Value="@edit.SortOrder.ToString()" ValueChanged="v => edit.SortOrder = int.TryParse(v, out var n) ? n : edit.SortOrder" />
-                        <BbFieldDescription>Lower numbers appear earlier (e.g. 10, 20, 30).</BbFieldDescription>
-                    </BbField>
-                </div>
+                <BbField>
+                    <BbFieldLabel For="mod-code">Module Code (required, unique)</BbFieldLabel>
+                    <FormTextInput Id="mod-code" @bind-Value="edit.Code" Disabled="!isNew" Placeholder="e.g. HR, PROCUREMENT, FINANCE" />
+                    <BbFieldDescription>Used by DocTypes as the Module identifier. Uppercase letters, numbers, or underscores. Cannot be changed once created.</BbFieldDescription>
+                </BbField>
+
+                <BbField>
+                    <BbFieldLabel For="mod-order">Order (Sort Order)</BbFieldLabel>
+                    <FormTextInput Id="mod-order" Type="number" Immediate="true" Value="@edit.SortOrder.ToString()" ValueChanged="v => edit.SortOrder = int.TryParse(v, out var n) ? n : edit.SortOrder" />
+                    <BbFieldDescription>Lower numbers appear earlier (e.g. 10, 20, 30).</BbFieldDescription>
+                </BbField>
+
+                <BbField>
+                    <BbFieldLabel For="mod-app">Parent Application</BbFieldLabel>
+                    <select id="mod-app" class="auth-input" value="@(edit.ApplicationId ?? "")" @onchange="e => edit.ApplicationId = string.IsNullOrWhiteSpace(e.Value as string) ? null : e.Value as string">
+                        <option value="">— None —</option>
+                        @foreach (var a in applications)
+                        {
+                            <option value="@a.Id">@a.Name (@a.Code)</option>
+                        }
+                    </select>
+                    <BbFieldDescription>The top-level application that this module belongs to (e.g. HRM, Finance, Accounting, IT).</BbFieldDescription>
+                </BbField>
 
                 <BbField>
                     <BbFieldLabel For="mod-desc">Description</BbFieldLabel>
@@ -252,6 +283,7 @@ else
     /// <summary>Configurable drawer width multiplier (default 2.0 = 2x normal width for Module form).</summary>
     [Parameter] public double DrawerWidthScale { get; set; } = 2.0;
 
+    private IReadOnlyList<NavigationApplication> applications = [];
     private IReadOnlyList<NavigationModule> modules = [];
     private IReadOnlyList<NavigationMenuGroup> groups = [];
     private IReadOnlyList<RoleDef> storedRoles = [];
@@ -263,9 +295,12 @@ else
     private string? error;
     private Framework.Web.Services.DataGridPreferenceManager<NavigationModule> gridMgr = default!;
 
+    private string ApplicationName(string? appId) => applications.FirstOrDefault(a => a.Id == appId)?.Name ?? string.Empty;
+
     private IReadOnlyList<GridExportColumn<NavigationModule>> ExportColumns =>
     [
         new("order", "Order", m => m.SortOrder),
+        new("application", "Application", m => ApplicationName(m.ApplicationId)),
         new("module", "Module", m => m.Name),
         new("module", "Code", m => m.Code),
         new("module", "Description", m => m.Description),
@@ -310,6 +345,7 @@ else
     private async Task Reload()
     {
         var tenantId = Current.Required.TenantId;
+        applications = await MenuStore.ListApplicationsAsync(tenantId, onlyActive: false);
         modules = await MenuStore.ListModulesAsync(tenantId, onlyActive: false);
         groups = await MenuStore.ListGroupsAsync(tenantId, onlyActive: false);
         gridMgr.RetainSelection(modules);
@@ -405,6 +441,7 @@ else
         {
             Id = Guid.NewGuid().ToString("N"),
             TenantId = Current.Required.TenantId,
+            ApplicationId = applications.FirstOrDefault()?.Id,
             Name = "",
             Code = "",
             Description = "",
@@ -425,6 +462,7 @@ else
         {
             Id = item.Id,
             TenantId = item.TenantId,
+            ApplicationId = item.ApplicationId,
             Name = item.Name,
             Code = item.Code,
             Description = item.Description,

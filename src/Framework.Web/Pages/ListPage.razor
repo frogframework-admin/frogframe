@@ -50,7 +50,7 @@ else if (meta is not null)
                               Class="btn-action-bulk-submit"
                               Disabled="@(selectedItems.Count == 0 || busy)"
                               OnClick="SubmitSelected">
-                        <LucideIcon Name="check-circle" Size="16" /> @T["Submit"] @(selectedItems.Count > 0 ? $"({selectedItems.Count})" : "")
+                        <LucideIcon Name="circle-check" Size="16" /> @T["Submit"] @(selectedItems.Count > 0 ? $"({selectedItems.Count})" : "")
                     </BbButton>
                 }
                 @if (CanBulkCancel)
@@ -59,7 +59,7 @@ else if (meta is not null)
                               Class="btn-action-bulk-cancel"
                               Disabled="@(selectedItems.Count == 0 || busy)"
                               OnClick="CancelSelected">
-                        <LucideIcon Name="x-circle" Size="16" /> @T["Cancel"] @(selectedItems.Count > 0 ? $"({selectedItems.Count})" : "")
+                        <LucideIcon Name="circle-x" Size="16" /> @T["Cancel"] @(selectedItems.Count > 0 ? $"({selectedItems.Count})" : "")
                     </BbButton>
                 }
                 @if (CanBulkDelete)

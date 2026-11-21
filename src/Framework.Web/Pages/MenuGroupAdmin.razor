@@ -26,10 +26,10 @@ else
                 <LucideIcon Name="pencil" Size="16" /> Bulk Edit @(gridMgr.SelectedCount > 0 ? $"({gridMgr.SelectedCount})" : "")
             </BbButton>
             <BbButton Variant="ButtonVariant.Outline" Disabled="@(gridMgr.SelectedCount == 0 || busy)" OnClick="() => BulkSetActiveAsync(true)">
-                <LucideIcon Name="check-circle" Size="16" /> Activate @(gridMgr.SelectedCount > 0 ? $"({gridMgr.SelectedCount})" : "")
+                <LucideIcon Name="circle-check" Size="16" /> Activate @(gridMgr.SelectedCount > 0 ? $"({gridMgr.SelectedCount})" : "")
             </BbButton>
             <BbButton Variant="ButtonVariant.Outline" Disabled="@(gridMgr.SelectedCount == 0 || busy)" OnClick="() => BulkSetActiveAsync(false)">
-                <LucideIcon Name="x-circle" Size="16" /> Deactivate @(gridMgr.SelectedCount > 0 ? $"({gridMgr.SelectedCount})" : "")
+                <LucideIcon Name="circle-x" Size="16" /> Deactivate @(gridMgr.SelectedCount > 0 ? $"({gridMgr.SelectedCount})" : "")
             </BbButton>
             <BbButton Variant="ButtonVariant.Destructive" Disabled="@(gridMgr.SelectedCount == 0 || busy)" OnClick="BulkDeleteAsync">
                 <LucideIcon Name="trash-2" Size="16" /> Delete @(gridMgr.SelectedCount > 0 ? $"({gridMgr.SelectedCount})" : "")

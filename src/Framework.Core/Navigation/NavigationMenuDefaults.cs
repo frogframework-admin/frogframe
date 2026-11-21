@@ -63,12 +63,26 @@ public static class NavigationMenuDefaults
         string.IsNullOrWhiteSpace(code) ? null
         : modules.FirstOrDefault(m => string.Equals(m.Code, code.Trim(), StringComparison.OrdinalIgnoreCase));
 
+    public static string AppHrmId(string tenantId) => $"app_{tenantId}_hrm";
+    public static string AppFinanceId(string tenantId) => $"app_{tenantId}_finance";
+    public static string AppAccountingId(string tenantId) => $"app_{tenantId}_accounting";
+    public static string AppItId(string tenantId) => $"app_{tenantId}_it";
+
+    public static IReadOnlyList<NavigationApplication> CreateDefaultApplications(string tenantId, DateTimeOffset now) =>
+    [
+        new() { Id = AppHrmId(tenantId), TenantId = tenantId, Code = "HRM", Name = "HRM", Description = "Human Resource Management", Icon = "users", SortOrder = 10, AllowedRoles = [], IsSystem = true, IsActive = true, CreatedAt = now, UpdatedAt = now },
+        new() { Id = AppFinanceId(tenantId), TenantId = tenantId, Code = "FINANCE", Name = "Finance", Description = "Finance Management", Icon = "wallet", SortOrder = 20, AllowedRoles = [], IsSystem = true, IsActive = true, CreatedAt = now, UpdatedAt = now },
+        new() { Id = AppAccountingId(tenantId), TenantId = tenantId, Code = "ACCOUNTING", Name = "Accounting", Description = "Accounting & General Ledger", Icon = "calculator", SortOrder = 30, AllowedRoles = [], IsSystem = true, IsActive = true, CreatedAt = now, UpdatedAt = now },
+        new() { Id = AppItId(tenantId), TenantId = tenantId, Code = "IT", Name = "IT", Description = "Information Technology", Icon = "laptop", SortOrder = 40, AllowedRoles = [], IsSystem = true, IsActive = true, CreatedAt = now, UpdatedAt = now }
+    ];
+
     public static IReadOnlyList<NavigationModule> CreateDefaultModules(string tenantId, DateTimeOffset now) =>
     [
         new()
         {
             Id = ModuleCoreId(tenantId),
             TenantId = tenantId,
+            ApplicationId = AppItId(tenantId),
             Code = "CORE",
             Name = "Core",
             Description = "Master data, companies, parties, and global settings",
@@ -84,6 +98,7 @@ public static class NavigationMenuDefaults
         {
             Id = ModuleHrId(tenantId),
             TenantId = tenantId,
+            ApplicationId = AppHrmId(tenantId),
             Code = "HR",
             Name = "Human Resources",
             Description = "Employee records, attendance, payroll, and recruitment",
@@ -99,6 +114,7 @@ public static class NavigationMenuDefaults
         {
             Id = ModuleProcurementId(tenantId),
             TenantId = tenantId,
+            ApplicationId = AppFinanceId(tenantId),
             Code = "PROCUREMENT",
             Name = "Procurement",
             Description = "Purchase requests, orders, and supplier receipts",
@@ -114,6 +130,7 @@ public static class NavigationMenuDefaults
         {
             Id = ModuleAccountingId(tenantId),
             TenantId = tenantId,
+            ApplicationId = AppAccountingId(tenantId),
             Code = "ACCOUNTING",
             Name = "Accounting",
             Description = "Chart of accounts, periods, closing, and general ledger",
@@ -129,6 +146,7 @@ public static class NavigationMenuDefaults
         {
             Id = ModuleFinanceId(tenantId),
             TenantId = tenantId,
+            ApplicationId = AppFinanceId(tenantId),
             Code = "FINANCE",
             Name = "Finance",
             Description = "Invoicing, payments, banking, tax, and fixed assets",
@@ -144,6 +162,7 @@ public static class NavigationMenuDefaults
         {
             Id = ModuleCrmId(tenantId),
             TenantId = tenantId,
+            ApplicationId = AppFinanceId(tenantId),
             Code = "CRM",
             Name = "CRM",
             Description = "Leads, opportunities, quotations, sales orders, and customer relations",
@@ -159,6 +178,7 @@ public static class NavigationMenuDefaults
         {
             Id = ModuleStockId(tenantId),
             TenantId = tenantId,
+            ApplicationId = AppFinanceId(tenantId),
             Code = "STOCK",
             Name = "Stock",
             Description = "Warehouses, stock movements, and inventory reconciliation",
@@ -174,6 +194,7 @@ public static class NavigationMenuDefaults
         {
             Id = ModuleAdminId(tenantId),
             TenantId = tenantId,
+            ApplicationId = AppItId(tenantId),
             Code = "ADMINISTRATION",
             Name = "Administration",
             Description = "Manage users, roles, modules, menus, DocType metadata, and API integrations",
@@ -430,6 +451,7 @@ public static class NavigationMenuDefaults
             new() { Id = $"menu_{tenantId}_email_accounts", TenantId = tenantId, Title = "Email Accounts", Href = "admin/email-accounts", Icon = "mail", GroupId = GroupAdminIntegrationsId(tenantId), GroupName = "Integration & Settings", SortOrder = 40, AllowedRoles = [UserContext.SystemManager, UserContext.Administrator], IsSystem = true, IsActive = true, CreatedAt = now, UpdatedAt = now },
             new() { Id = $"menu_{tenantId}_notifications", TenantId = tenantId, Title = "Notification Rules", Href = "admin/notifications", Icon = "bell", GroupId = GroupAdminIntegrationsId(tenantId), GroupName = "Integration & Settings", SortOrder = 50, AllowedRoles = [UserContext.SystemManager, UserContext.Administrator], IsSystem = true, IsActive = true, CreatedAt = now, UpdatedAt = now },
             new() { Id = $"menu_{tenantId}_translations", TenantId = tenantId, Title = "Translations", Href = "admin/translations", Icon = "languages", GroupId = GroupAdminIntegrationsId(tenantId), GroupName = "Integration & Settings", SortOrder = 60, AllowedRoles = [UserContext.SystemManager, UserContext.Administrator], IsSystem = true, IsActive = true, CreatedAt = now, UpdatedAt = now },
+            new() { Id = $"menu_{tenantId}_application_admin", TenantId = tenantId, Title = "Master Application", Href = "admin/applications", Icon = "app-window", GroupId = GroupAdminIntegrationsId(tenantId), GroupName = "Integration & Settings", SortOrder = 65, AllowedRoles = [UserContext.SystemManager, UserContext.Administrator], IsSystem = true, IsActive = true, CreatedAt = now, UpdatedAt = now },
             new() { Id = $"menu_{tenantId}_module_admin", TenantId = tenantId, Title = "Master Modules", Href = "admin/modules", Icon = "boxes", GroupId = GroupAdminIntegrationsId(tenantId), GroupName = "Integration & Settings", SortOrder = 70, AllowedRoles = [UserContext.SystemManager, UserContext.Administrator], IsSystem = true, IsActive = true, CreatedAt = now, UpdatedAt = now },
             new() { Id = $"menu_{tenantId}_menu_group_admin", TenantId = tenantId, Title = "Menu Groups", Href = "admin/menu-groups", Icon = "folders", GroupId = GroupAdminIntegrationsId(tenantId), GroupName = "Integration & Settings", SortOrder = 80, AllowedRoles = [UserContext.SystemManager, UserContext.Administrator], IsSystem = true, IsActive = true, CreatedAt = now, UpdatedAt = now },
             new() { Id = $"menu_{tenantId}_menu_admin", TenantId = tenantId, Title = "Manage Menus", Href = "admin/menus", Icon = "panel-left", GroupId = GroupAdminIntegrationsId(tenantId), GroupName = "Integration & Settings", SortOrder = 90, AllowedRoles = [UserContext.SystemManager, UserContext.Administrator], IsSystem = true, IsActive = true, CreatedAt = now, UpdatedAt = now }

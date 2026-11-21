@@ -65,6 +65,24 @@ sealed partial class Tests
 
         var errorLogs = items.FirstOrDefault(x => x.Href == "admin/error-logs");
         Assert.True(errorLogs is not null && errorLogs.IsSystem && errorLogs.AllowedRoles.Contains(UserContext.SystemManager), "Error Log harus di-seed");
+
+        var masterApps = items.FirstOrDefault(x => x.Href == "admin/applications");
+        var masterModules = items.FirstOrDefault(x => x.Href == "admin/modules");
+        Assert.True(masterApps is not null && masterApps.Title == "Master Application" && masterApps.IsSystem && masterApps.AllowedRoles.Contains(UserContext.SystemManager), "Master Application harus di-seed");
+        Assert.True(masterModules is not null && masterApps!.SortOrder < masterModules.SortOrder, "Master Application harus diletakkan di atas Master Modules");
+        Assert.Equal("Integration & Settings", masterApps!.GroupName, "Master Application harus berada di grup Integration & Settings");
+
+        var apps = await NavMenus.ListApplicationsAsync(tenantId, onlyActive: false);
+        Assert.True(apps.Select(a => a.Name).SequenceEqual(["HRM", "Finance", "Accounting", "IT"]), "Default applications harus HRM, Finance, Accounting, IT");
+
+        var modules = await NavMenus.ListModulesAsync(tenantId, onlyActive: false);
+        var hrModule = modules.FirstOrDefault(m => m.Code == "HR");
+        var hrmApp = apps.FirstOrDefault(a => a.Code == "HRM");
+        Assert.True(hrModule is not null && hrModule.ApplicationId == hrmApp?.Id, "HR module harus memiliki parent HRM application");
+
+        var accModule = modules.FirstOrDefault(m => m.Code == "ACCOUNTING");
+        var accApp = apps.FirstOrDefault(a => a.Code == "ACCOUNTING");
+        Assert.True(accModule is not null && accModule.ApplicationId == accApp?.Id, "ACCOUNTING module harus memiliki parent Accounting application");
     }
 
     [Test]
