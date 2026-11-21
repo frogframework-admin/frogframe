@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <RootNamespace>Framework.Web</RootNamespace>
-    <BlazorBlueprintVersion>4.1.0</BlazorBlueprintVersion>
+    <BlazorBlueprintVersion>4.2.0</BlazorBlueprintVersion>
   </PropertyGroup>
 
   <!-- Kamus terjemahan framework (UI Inggris → Indonesia, pesan Indonesia → Inggris). -->
@@ -14,8 +14,8 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="..\Framework.Core\Framework.Core.csproj" />
     <ProjectReference Include="..\Framework.Scripting\Framework.Scripting.csproj" />
-    <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.20.1" />
-    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.20.1" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.21.0" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.21.0" />
     <!-- Monaco editor files for the Server Script editor (served from _content/BlazorMonaco, loaded lazily by
          wwwroot/script-editor.js). Only the static files are used, not the BlazorMonaco components. -->
     <PackageReference Include="BlazorMonaco" Version="3.5.0" />
@@ -34,15 +34,15 @@
   <!-- AI designer: Microsoft Agent Framework on Azure OpenAI (Microsoft Foundry) through the OpenAI v1 endpoint. -->
   <ItemGroup>
     <PackageReference Include="Microsoft.Agents.AI" Version="1.28.0" />
-    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="10.11.0" />
-    <PackageReference Include="OpenAI" Version="2.14.0" />
+    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="10.11.1" />
+    <PackageReference Include="OpenAI" Version="2.15.0" />
     <PackageReference Include="Azure.Identity" Version="1.21.0" />
-    <PackageReference Include="Markdig" Version="0.37.0" />
+    <PackageReference Include="Markdig" Version="0.45.0" />
   </ItemGroup>
 
   <!-- Object storage (Storage:Provider = S3): S3-compatible servers such as SeaweedFS, MinIO, Ceph RGW, AWS S3. -->
   <ItemGroup>
-    <PackageReference Include="AWSSDK.S3" Version="4.0.104.8" />
+    <PackageReference Include="AWSSDK.S3" Version="4.1.2" />
   </ItemGroup>
 
 </Project>
