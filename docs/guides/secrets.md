@@ -6,7 +6,8 @@ FrogFrame reads every secret from configuration: environment variables (the `.en
 
 | Setting | `.env` variable | Used for |
 |---|---|---|
-| `ConnectionStrings:FrogFrame` (password) | `POSTGRES_PASSWORD` | application database user `frogframe` |
+| `ConnectionStrings:FrogFrameSchema` (password) | `POSTGRES_PASSWORD` | schema owner `frogframe` (migrations, indexes, reporting views) |
+| `ConnectionStrings:FrogFrame` (password), `Database:AppRolePassword` | `FROGFRAME_APP_PASSWORD` | runtime role `frogframe_app` that serves requests (see [Database roles](database-roles.md)) |
 | `ConnectionStrings:FrogFrameReadOnly` (password) | `FROGFRAME_RO_PASSWORD` | read-only user `frogframe_ro` for SQL dashboards |
 | `Bootstrap:AdminPassword` | `FROGFRAME_ADMIN_PASSWORD` | initial admin, created once if it does not exist |
 | `Storage:S3:AccessKey`, `Storage:S3:SecretKey` | `FROGFRAME_S3_ACCESS_KEY`, `FROGFRAME_S3_SECRET_KEY` | object storage (bundled SeaweedFS or another S3 store) |
@@ -57,6 +58,7 @@ Rotate a secret when someone who knew it leaves, after a suspected leak, and on 
 | Secret | How to rotate |
 |---|---|
 | Database password | `ALTER ROLE frogframe PASSWORD '<new>';` (as a superuser), update `POSTGRES_PASSWORD` (or the secret file), restart the app. The `postgres` container keeps the old `POSTGRES_PASSWORD` value only for first-time initialisation, so changing `.env` alone does not change the role's password. |
+| Application role password | Update `FROGFRAME_APP_PASSWORD` and run `docker compose up -d`: the migrate step sets the new password before the app restarts with it. |
 | Read-only password | `ALTER ROLE frogframe_ro PASSWORD '<new>';`, update `FROGFRAME_RO_PASSWORD`, restart the app. |
 | Admin password | Change it in the application (profile), then clear `FROGFRAME_ADMIN_PASSWORD`. The bootstrap value is only used when the admin account does not exist. |
 | S3 keys (bundled SeaweedFS) | Update both `FROGFRAME_S3_*` values and recreate the containers (`docker compose up -d`); SeaweedFS writes its identity file from the environment at start. For an external store, add the new key there first, switch the app, then delete the old key. |

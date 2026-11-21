@@ -100,6 +100,9 @@ if (MigrationCommand.Requested(args))
     try
     {
         Environment.ExitCode = await MigrationCommand.RunAsync(app.Services.GetRequiredService<SchemaMigrator>(), args, Console.Out);
+        // Database:AppRole: create/update the restricted runtime role and grant it access to the (new) tables.
+        if (Environment.ExitCode == 0 && args.Contains(MigrationCommand.MigrateOnly))
+            await app.Services.EnsureFrogFrameworkAppRoleAsync(app.Configuration["Database:AppRole"], app.Configuration["Database:AppRolePassword"]);
     }
     catch (Exception ex)
     {
@@ -139,7 +142,7 @@ app.UseAuthentication();
 app.UseFrogFrameLocalization();
 app.UseAuthorization();
 app.UseFrogFrameTwoFactorRequirement(); // Security:TwoFactor:RequiredForRoles (no-op when empty)
-app.UseRateLimiter(); // batas permintaan /api per kunci API / pengguna (Api:RateLimitPerMinute)
+app.UseRateLimiter(); // tiered limits: sign-in and password reset per IP; API read/write/heavy per user or key (docs/guides/rate-limiting.md)
 app.UseAntiforgery();
 app.MapStaticAssets();
 
@@ -156,9 +159,24 @@ async Task InitializeDatabaseAndSeedAsync(CancellationToken ct)
 {
     if (usePostgres)
     {
-        if (migrateOnStartup) await app.Services.MigrateFrogFrameworkDatabaseAsync(ct);
+        if (migrateOnStartup)
+        {
+            await app.Services.MigrateFrogFrameworkDatabaseAsync(ct);
+            await app.Services.EnsureFrogFrameworkAppRoleAsync(app.Configuration["Database:AppRole"], app.Configuration["Database:AppRolePassword"], ct);
+        }
         else await app.Services.WaitForFrogFrameworkMigrationsAsync(
             TimeSpan.FromSeconds(app.Configuration.GetValue("Database:WaitForMigrationsSeconds", 600)), ct);
+        // Database role segregation (docs/guides/database-roles.md): warn when requests run as a superuser or the table owner.
+        try
+        {
+            var runtimeRole = await app.Services.InspectFrogFrameworkRuntimeRoleAsync(ct);
+            if (!runtimeRole.IsSegregated)
+                app.Logger.Log(app.Environment.IsDevelopment() ? LogLevel.Information : LogLevel.Warning,
+                    "The application connects to PostgreSQL as {Role} (superuser: {Super}, owns tables: {Owner}, can create objects: {Create}). " +
+                    "Use a separate data-only role in production: see docs/guides/database-roles.md.",
+                    runtimeRole.Role, runtimeRole.IsSuperuser, runtimeRole.OwnsSchemaTables, runtimeRole.CanCreateInSchema);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException) { app.Logger.LogWarning(ex, "Could not check the database role of the application"); }
         // Indeks dari metadata dibangun di latar belakang (CONCURRENTLY): startup tidak menunggu pembangunan indeks
         // pada tabel besar, dan tabel tetap bisa ditulis selama proses. Diperbarui otomatis setiap metadata dipublikasikan.
         _ = Task.Run(async () =>

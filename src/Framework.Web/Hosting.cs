@@ -253,33 +253,27 @@ public static class ServiceCollectionExtensions
         services.AddHostedService<BackgroundTaskWorker>();
         services.AddRateLimiter(o =>
         {
+            // Tiers (see RateLimitTiers and docs/guides/rate-limiting.md): sign-in and password reset per client IP for
+            // the whole app; API reads, writes and heavy queries per user or API key, each with its own budget.
+            o.GlobalLimiter = RateLimitTiers.CreateGlobalLimiter();
+            o.AddPolicy(ApiRateLimit, RateLimitTiers.ApiPolicy);
             o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
             o.OnRejected = async (ctx, ct) =>
             {
-                ctx.HttpContext.Response.Headers.RetryAfter = "60";
-                await ctx.HttpContext.Response.WriteAsJsonAsync(new { title = "Terlalu banyak permintaan", detail = "Batas permintaan per menit terlampaui. Coba lagi sebentar lagi.", status = 429 }, ct);
-            };
-            o.AddPolicy(ApiRateLimit, http =>
-            {
-                var who = http.User.FindFirst(Framework.Web.Identity.ApiKeyDefaults.KeyIdClaim)?.Value is { } k ? "k:" + k
-                        : http.User.FindFirst(ClaimTypes.NameIdentifier)?.Value is { } u ? "u:" + u
-                        : "ip:" + http.Connection.RemoteIpAddress;
-                var cfg = http.RequestServices.GetService<IConfiguration>();
-                var limit = cfg?.GetValue("Api:RateLimitPerMinute", 300) ?? 300;
-                // Login/refresh requests are unauthenticated and keyed by IP. Because many employees behind a shared office Wi-Fi
-                // or carrier NAT log in concurrently at shift start, auth endpoints use a dedicated higher rate limit; brute-force
-                // password guessing remains mitigated by per-account lockout (5 failed attempts / 15 minutes).
-                if (who.StartsWith("ip:", StringComparison.Ordinal) && http.Request.Path.StartsWithSegments("/api/auth"))
+                var http = ctx.HttpContext;
+                var retry = ctx.Lease.TryGetMetadata(MetadataName.RetryAfter, out var after) ? (int)Math.Ceiling(after.TotalSeconds) : 60;
+                http.Response.Headers.RetryAfter = Math.Max(1, retry).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                var tier = RateLimitTiers.Classify(http, http.RequestServices.GetService<IConfiguration>()).Tier;
+                http.RequestServices.GetService<ILoggerFactory>()?.CreateLogger("Framework.Web.RateLimiting")
+                    .LogWarning("Rate limit ({Tier}) exceeded for {Path} from {Ip}", tier, http.Request.Path, http.Connection.RemoteIpAddress);
+                if (http.Request.Path.StartsWithSegments("/api"))
+                    await http.Response.WriteAsJsonAsync(new { title = "Too many requests", detail = $"The per-minute limit for {tier.ToString().ToLowerInvariant()} requests was exceeded. Try again in {retry} seconds.", status = 429, tier = tier.ToString().ToLowerInvariant() }, ct);
+                else
                 {
-                    who = "auth-" + who;
-                    limit = cfg?.GetValue("Api:AuthRateLimitPerMinute", 1200) ?? 1200;
+                    http.Response.ContentType = "text/plain; charset=utf-8";
+                    await http.Response.WriteAsync($"Too many attempts from your network. Please wait {retry} seconds and try again.", ct);
                 }
-                // The counter lives in each node's memory. With N nodes behind a load balancer that spreads API calls
-                // evenly, Cluster:Nodes = N keeps the total close to Api:RateLimitPerMinute.
-                var nodes = Math.Max(1, cfg?.GetValue("Cluster:Nodes", 1) ?? 1);
-                limit = Math.Max(1, limit / nodes);
-                return RateLimitPartition.GetFixedWindowLimiter(who, _ => new FixedWindowRateLimiterOptions { PermitLimit = limit, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 });
-            });
+            };
         });
         services.AddSingleton<ReportDownloads>();
         services.AddSingleton(sp =>

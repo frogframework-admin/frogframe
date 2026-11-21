@@ -467,11 +467,12 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
             else if (!string.IsNullOrWhiteSpace(defMod.ApplicationId))
             {
                 await using var updModApp = db.CreateCommand(
-                    "UPDATE frogframe_navigation_modules SET application_id = $2 WHERE tenant_id = $1 AND (id = $3 OR name = $4) AND (application_id IS NULL OR application_id = '')");
+                    "UPDATE frogframe_navigation_modules SET application_id = $2 WHERE tenant_id = $1 AND (id = $3 OR name = $4 OR code = $5) AND (application_id IS NULL OR application_id = '' OR (is_system = true AND application_id <> $2))");
                 updModApp.Parameters.AddWithValue(tenantId);
                 updModApp.Parameters.AddWithValue(defMod.ApplicationId);
                 updModApp.Parameters.AddWithValue(defMod.Id);
                 updModApp.Parameters.AddWithValue(defMod.Name);
+                updModApp.Parameters.AddWithValue(defMod.Code);
                 if (await updModApp.ExecuteNonQueryAsync(ct) > 0) added = true;
             }
         }
@@ -523,6 +524,17 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
                 await SaveMenuInternalAsync(defItem, ct);
                 existingHrefs.Add(defItem.Href);
                 added = true;
+            }
+            else if (defItem.IsSystem)
+            {
+                await using var updTitleCmd = db.CreateCommand(
+                    "UPDATE frogframe_navigation_menus SET title = $3, sort_order = $4, updated_at = $5 WHERE tenant_id = $1 AND href = $2 AND is_system = true AND (title <> $3 OR sort_order <> $4)");
+                updTitleCmd.Parameters.AddWithValue(tenantId);
+                updTitleCmd.Parameters.AddWithValue(defItem.Href);
+                updTitleCmd.Parameters.AddWithValue(defItem.Title);
+                updTitleCmd.Parameters.AddWithValue(defItem.SortOrder);
+                updTitleCmd.Parameters.AddWithValue(now);
+                if (await updTitleCmd.ExecuteNonQueryAsync(ct) > 0) added = true;
             }
         }
 

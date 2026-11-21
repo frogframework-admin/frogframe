@@ -44,6 +44,10 @@
       href: guides/background-jobs.md
     - name: Two-Factor Authentication & SSO
       href: guides/two-factor-and-sso.md
+    - name: Rate Limiting
+      href: guides/rate-limiting.md
+    - name: Database Roles
+      href: guides/database-roles.md
     - name: Ad-hoc Report Builder
       href: guides/report-builder.md
     - name: Letterheads & Print Formats

@@ -1,5 +1,9 @@
 -- FrogFrame: pemisahan peran database (lapis 2 append-only buku besar).
 --
+-- With Docker Compose this is automatic: the migrate step creates frogframe_app and applies these grants
+-- (Database:AppRole / Database:AppRolePassword, see docs/guides/database-roles.md). Use this script only for databases
+-- managed outside FrogFrame.
+--
 --   FrogFrame        = PEMILIK skema. Dipakai migrasi & sinkronisasi indeks (ConnectionStrings:FrogFrameSchema).
 --   frogframe_app    = peran RUNTIME aplikasi (ConnectionStrings:FrogFrame). Bukan pemilik: tidak bisa ALTER TABLE,
 --                     tidak bisa mematikan trigger, dan tidak punya UPDATE/DELETE/TRUNCATE pada buku besar.

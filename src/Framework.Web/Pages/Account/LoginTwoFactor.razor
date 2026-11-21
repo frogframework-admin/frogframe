@@ -4,9 +4,11 @@
 @using System.ComponentModel.DataAnnotations
 @using Microsoft.AspNetCore.Identity
 @using Framework.Web.Identity
+@using Microsoft.Extensions.Logging
 @inject SignInManager<UserAccount> SignIn
 @inject NavigationManager Nav
 @inject TimeProvider Clock
+@inject ILogger<LoginTwoFactor> Log
 
 <PageTitle>Two-factor authentication · FrogFrame</PageTitle>
 
@@ -47,17 +49,21 @@
         if (user is null) { Nav.NavigateTo("/account/login", forceLoad: true); return; }
 
         var code = TwoFactorSetup.Normalize(Input.Code);
-        var result = TwoFactorSetup.LooksLikeAuthenticatorCode(code)
+        var usesApp = TwoFactorSetup.LooksLikeAuthenticatorCode(code);
+        var result = usesApp
             ? await SignIn.TwoFactorAuthenticatorSignInAsync(code, RememberMe, Input.RememberDevice)
             : await SignIn.TwoFactorRecoveryCodeSignInAsync(code);
         if (result.Succeeded)
         {
+            if (!usesApp)
+                Log.LogWarning("User {User} signed in with a recovery code; {Left} left", user.Id, await SignIn.UserManager.CountRecoveryCodesAsync(user));
             user.LastLoginAt = Clock.GetUtcNow();
             await SignIn.UserManager.UpdateAsync(user);
             Nav.NavigateTo(SafeReturnUrl, forceLoad: true);
             return;
         }
         // Wrong codes count towards the same lockout as wrong passwords.
+        Log.LogWarning("Failed two-factor code for user {User} ({Kind}){Locked}", user.Id, usesApp ? "app" : "recovery", result.IsLockedOut ? ", account locked" : "");
         error = result.IsLockedOut ? "Account is temporarily locked due to too many failed attempts. Try again in 15 minutes."
               : result.IsNotAllowed ? "This account is inactive. Please contact the administrator."
               : "Invalid code. Check that the time on your phone is correct, or use a recovery code.";

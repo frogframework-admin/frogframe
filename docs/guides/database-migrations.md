@@ -20,7 +20,7 @@ dotnet Apps.Erp.dll --migration-status   # lists pending migrations; exit code 0
 dotnet Apps.Erp.dll --migrate-only       # applies pending migrations; exit code 0 = up to date, 1 = failed
 ```
 
-Both use the normal configuration (`Persistence:Provider=PostgreSql`, `ConnectionStrings:FrogFrame`, or `ConnectionStrings:FrogFrameSchema` when the schema owner is a separate role), and the same startup checks as the application. While PostgreSQL is still starting they wait for it; a configuration error such as a wrong password or an unknown database fails at once.
+Both use the normal configuration (`Persistence:Provider=PostgreSql`, `ConnectionStrings:FrogFrame`, or `ConnectionStrings:FrogFrameSchema` when the schema owner is a separate role; after migrating, `--migrate-only` also creates or updates the runtime role `Database:AppRole` and its grants, see [Database roles](database-roles.md)), and the same startup checks as the application. While PostgreSQL is still starting they wait for it; a configuration error such as a wrong password or an unknown database fails at once.
 
 ## Docker Compose
 

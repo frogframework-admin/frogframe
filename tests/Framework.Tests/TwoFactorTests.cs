@@ -331,3 +331,26 @@ sealed partial class Tests
         await repo.DeleteAsync(user.Id);
     }
 }
+
+sealed partial class Tests
+{
+    [Test]
+    public async Task Two_factor_password_confirmation_counts_towards_lockout()
+    {
+        await using var sp = BuildIdentityProvider();
+        var (scope, _) = IdentityRequest(sp);
+        await using var _s = scope;
+        var signIn = scope.ServiceProvider.GetRequiredService<SignInManager<UserAccount>>();
+        var user = await CreateIdentityUserAsync(signIn.UserManager, "tf-confirm");
+        await EnrolAsync(signIn.UserManager, user);
+
+        Assert.Equal<string?>(null, await TwoFactorSetup.ConfirmPasswordAsync(signIn, user, "Correct-Horse-42"), "right password accepted");
+        Assert.Equal("Current password is incorrect.", await TwoFactorSetup.ConfirmPasswordAsync(signIn, user, "wrong"), "wrong password refused");
+        for (var i = 0; i < 3; i++) await TwoFactorSetup.ConfirmPasswordAsync(signIn, user, "wrong");
+        var fifth = await TwoFactorSetup.ConfirmPasswordAsync(signIn, user, "wrong");
+        Assert.True(fifth?.StartsWith("Too many failed attempts") == true, "fifth wrong password locks the account: " + fifth);
+        Assert.True(await signIn.UserManager.IsLockedOutAsync(user), "account locked");
+        Assert.True(await TwoFactorSetup.ConfirmPasswordAsync(signIn, user, "Correct-Horse-42") is not null, "even the right password is refused while locked");
+        Assert.True((await signIn.PasswordSignInAsync("tf-confirm", "Correct-Horse-42", false, true)).IsLockedOut, "and the login is locked too");
+    }
+}

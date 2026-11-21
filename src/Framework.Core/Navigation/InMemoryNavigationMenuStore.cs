@@ -45,7 +45,7 @@ public sealed class InMemoryNavigationMenuStore(TimeProvider clock) : INavigatio
                 modules[defMod.Id] = defMod;
                 modified = true;
             }
-            else if (string.IsNullOrWhiteSpace(existingMod.ApplicationId) && !string.IsNullOrWhiteSpace(defMod.ApplicationId))
+            else if (existingMod.IsSystem && !string.IsNullOrWhiteSpace(defMod.ApplicationId) && existingMod.ApplicationId != defMod.ApplicationId)
             {
                 existingMod.ApplicationId = defMod.ApplicationId;
                 modified = true;
@@ -77,8 +77,9 @@ public sealed class InMemoryNavigationMenuStore(TimeProvider clock) : INavigatio
                 items[defItem.Id] = defItem;
                 modified = true;
             }
-            else if (existing.IsSystem && (existing.GroupId != defItem.GroupId || existing.GroupName != defItem.GroupName || existing.Href != defItem.Href || existing.SortOrder != defItem.SortOrder || !existing.AllowedRoles.SequenceEqual(defItem.AllowedRoles)))
+            else if (existing.IsSystem && (existing.Title != defItem.Title || existing.GroupId != defItem.GroupId || existing.GroupName != defItem.GroupName || existing.Href != defItem.Href || existing.SortOrder != defItem.SortOrder || !existing.AllowedRoles.SequenceEqual(defItem.AllowedRoles)))
             {
+                existing.Title = defItem.Title;
                 existing.GroupId = defItem.GroupId;
                 existing.GroupName = defItem.GroupName;
                 existing.Href = defItem.Href;

@@ -421,7 +421,7 @@ DocType schema metadata: `GET /api/meta/OvertimeRequest` (also `ExpenseClaim`, `
 ## 10. Capacity & Operational Architecture
 
 - Punch ingestion = single lean `INSERT` statement into `ess_attendance_punches` (bypassing heavy DocType lifecycle hooks, series number generators, and audit log pipelines). Benchmark on PostgreSQL 16 (32 concurrent connections): ~9,000 punches/second. A morning rush peak of 6,000 employees punching within a 5-minute window operates well within capacity; scaling considerations primarily involve application container replicas and DB connection pooling rather than table lock contention.
-- Per-user rate limiting: `Api:RateLimitPerMinute` (default 300/min). Login/refresh endpoints are throttled per IP with a higher threshold `Api:AuthRateLimitPerMinute` (default 1,200/min per node) to accommodate multiple employees sharing corporate office Wi-Fi or carrier CGNAT IPs.
+- Per-user rate limiting by tier: reads `Api:RateLimitPerMinute` (300/min), writes `Api:WriteRateLimitPerMinute` (120/min); see `rate-limiting.md`. Login/refresh endpoints are throttled per IP with a higher threshold `Api:AuthRateLimitPerMinute` (default 1,200/min per node) to accommodate multiple employees sharing corporate office Wi-Fi or carrier CGNAT IPs.
 - Background aggregator batch size: `Ess:AggregationBatchSize` (default 1,000 employee-days per 5-minute cycle).
 - Time zone: `Ess:TimeZone` (defaults to system application zone, `Asia/Jakarta`).
 - Go-live load testing recommendation: Execute load simulation (e.g. k6) simulating 6,000 punches within 5 minutes plus a 17:00 clock-out surge, including replay retries and intermittent offline network drops.

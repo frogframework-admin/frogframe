@@ -34,6 +34,7 @@ The following baseline pillars are already implemented, tested, and passing:
   - Security headers middleware (CSP, HSTS, X-Frame-Options, X-Content-Type-Options).
   - Anti-tamper form protection, IDOR mitigation, SQL injection prevention, and tenant isolation checks.
   - Two-factor authentication (authenticator app, recovery codes, optional per-role requirement) and Google / Entra ID single sign-on (`docs/guides/two-factor-and-sso.md`). Before go-live, decide which roles must use 2FA (`FROGFRAME_2FA_REQUIRED_ROLES`).
+  - Database role segregation: requests run as the data-only role `frogframe_app`, migrations and other DDL as the owner (`docs/guides/database-roles.md`). Before upgrading, add `FROGFRAME_APP_PASSWORD` to `.env`.
 - [x] **Distributed Concurrency & Locking**:
   - PostgreSQL advisory lock implementation (`PostgresDistributedLock`) for multi-tenant background cron tasks.
   - Optimistic concurrency control (`version = @expected`) on document updates.
@@ -81,24 +82,20 @@ The following baseline pillars are already implemented, tested, and passing:
 - [x] **Automated Release & CD Pipeline**:
   - `release.yml` builds the image, smoke-tests it in Production mode with the real compose file, and publishes it to GHCR. It then deploys to staging and, after approval by the required reviewers of the `production` environment, to production.
   - `deploy.yml` runs `deploy/scripts/deploy.sh` (db-backup → migrate → app) and `deploy/scripts/smoke-test.sh`. When the smoke test fails, it rolls back to the previous image automatically. See `docs/guides/release.md`.
-- [ ] **Fail-Fast Startup Configuration Validation**:
-  - **Action**: Add startup validation in `Hosting.cs` to verify that when `ASPNETCORE_ENVIRONMENT=Production`:
-    - `Demo:SeedData` is `false`.
-    - `Bootstrap:AdminPassword` is not empty and not the default fallback.
-    - Connection strings point to valid, non-default credentials.
-    - Halts application execution immediately with a clear diagnostic error if invariants fail.
+- [x] **Fail-Fast Startup Configuration Validation**:
+  - Outside Development, `DeploymentChecks` stops the application before migrating or seeding when demo seeding is on, a secret (database, `Bootstrap:AdminPassword`, S3, AI) is a placeholder, a repository default or too short, `App:PublicBaseUrl` is missing, or `AllowedHosts` is `*`. See `docs/guides/deployment-checks.md`.
 - [ ] **End-to-End Observability & Alerting**:
-  - OpenTelemetry instrumentation is implemented, but operational backend connectivity and alerting need standardization.
+  - OpenTelemetry instrumentation and the OTLP exporter (`OpenTelemetry:OtlpEndpoint`) are implemented; alert rules and a reference dashboard are still open.
   - **Action**: Configure standard OTLP exporters (Prometheus, Grafana, Jaeger, or Azure Monitor). Define alert thresholds for:
     - HTTP error rate > 1%
     - p95 latency > 500 ms
     - Deadlock occurrences & connection pool exhaustion
     - Health check probe failures
 - [ ] **Automated Post-Deployment Smoke Tests**:
-  - **Action**: Create an automated end-to-end smoke test script validating authentication, basic DocType CRUD, workflow state transition, and tenant boundary enforcement after deployment.
-- [ ] **Granular Tiered Rate Limiting**:
-  - `Api__RateLimitPerMinute=10000` is currently a single flat threshold.
-  - **Action**: Differentiate rate limit policies per endpoint type (e.g. strict rate limiting for login/auth endpoints, moderate for document writes, higher for cached read queries).
+  - Done: `deploy/scripts/smoke-test.sh` runs after every deploy (health, readiness, API login, login page) and triggers automatic rollback.
+  - **Action** (open): extend it with DocType CRUD, a workflow state transition and tenant boundary enforcement.
+- [x] **Granular Tiered Rate Limiting**:
+  - Tiers with separate budgets: sign-in (1200/min per IP, including the browser login and 2FA forms), password reset (20/min per IP), and per user or API key heavy (60), write (120) and read (300). `429` with `Retry-After`; rejections are logged. See `docs/guides/rate-limiting.md`.
 - [x] **Automated Dependency Management**:
   - `.github/dependabot.yml` opens weekly grouped pull requests for NuGet, the .NET SDK, GitHub Actions, the Dockerfile and the compose images.
 

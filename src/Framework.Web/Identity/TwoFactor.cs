@@ -92,6 +92,20 @@ public static class TwoFactorSetup
         return await users.UpdateSecurityStampAsync(user);
     }
 
+    /// <summary>
+    /// Re-checks the current password before a sensitive change (new recovery codes, turning 2FA off). Wrong passwords
+    /// count towards the normal lockout (5 attempts, 15 minutes), so a borrowed session cannot be used to guess it.
+    /// Returns null when the password is right, otherwise the message to show.
+    /// </summary>
+    public static async Task<string?> ConfirmPasswordAsync(SignInManager<UserAccount> signIn, UserAccount user, string? password)
+    {
+        var result = await signIn.CheckPasswordSignInAsync(user, password ?? "", lockoutOnFailure: true);
+        return result.Succeeded ? null
+             : result.IsLockedOut ? "Too many failed attempts. The account is locked for 15 minutes."
+             : result.IsNotAllowed ? "This account is inactive."
+             : "Current password is incorrect.";
+    }
+
     /// <summary>True when the signed-in principal satisfies the "two-factor required" rule for its roles.</summary>
     public static bool Satisfies(ClaimsPrincipal user, TwoFactorOptions options)
     {

@@ -33,6 +33,9 @@ Releases are tagged `vMAJOR.MINOR.PATCH` on `main`. Add every user-visible chang
 - DocType `indexes` (PostgreSQL): composite and prefix indexes declared in metadata. Added for `EmployeeDailySchedule` (employee + work date) and `OrganizationUnit` (`materialized_path` prefix).
 - `startswith` filter operator (case-sensitive prefix) in the API, list filters and the report builder.
 - Tags, bookmarks and follow on documents: shared colour-coded tags (filterable in lists, `?tag=`), personal bookmarks and a `/bookmarks` page, and follow with in-app notifications of other users' changes.
+- Database role segregation (see `docs/guides/database-roles.md`): requests run as `frogframe_app`, which can only read and write data (no DDL, no TRUNCATE, ledger append-only); the owner `frogframe` runs migrations, indexes and reporting views. The migrate step creates the role and its grants (`Database:AppRole`, `Database:AppRolePassword`); startup logs a warning when the runtime role is a superuser or owns tables.
+  - **Upgrade:** add `FROGFRAME_APP_PASSWORD` to `.env` before the next `docker compose up` (Compose refuses to start without it).
+- Tiered rate limits (see `docs/guides/rate-limiting.md`): sign-in (now also the browser login and 2FA forms) and password reset per client IP; API reads, writes and heavy requests (reports, saved queries, print) per user or API key, each with its own budget. New settings `Api:WriteRateLimitPerMinute` (120), `Api:HeavyRateLimitPerMinute` (60), `Api:PasswordResetRateLimitPerMinute` (20); `429` responses carry the real `Retry-After` and the tier, and are logged.
 - Two-factor authentication and single sign-on (see `docs/guides/two-factor-and-sso.md`):
   - authenticator-app codes with QR enrolment and ten one-time recovery codes (`/account/two-factor`), also on `POST /api/auth/login` (`twoFactorCode`, `twoFactorRecoveryCode`);
   - `Security:TwoFactor:RequiredForRoles` makes it mandatory for roles; administrators can reset it for a user who lost their phone;
@@ -40,6 +43,7 @@ Releases are tagged `vMAJOR.MINOR.PATCH` on `main`. Add every user-visible chang
   - migration `042_two_factor.sql`.
 
 ### Changed
+- `TODO.md` and the production-readiness checklist now match the code: fail-fast startup checks, report builder, row sharing, board/calendar/tree views, visual workflow editor and print designer are marked done; observability and post-deploy smoke tests are marked partly done.
 - Write performance (PostgreSQL):
   - each application instance uses a connection pool of 30 unless the connection string sets `Maximum Pool Size` (was Npgsql's 100);
   - master documents are read once per save;
@@ -51,6 +55,7 @@ Releases are tagged `vMAJOR.MINOR.PATCH` on `main`. Add every user-visible chang
 
 ### Security
 - Authenticator secrets are encrypted with Data Protection and recovery codes are stored as SHA-256 hashes. Only the authenticator app counts as a second factor (the e-mail and SMS code providers are off).
+- Two-factor security events are logged (enable, disable, new recovery codes, recovery-code sign-in, failed codes, administrator reset), and the password confirmation on `/account/two-factor` counts towards the account lockout.
 - Outside Development the application refuses to start when demo mode is on, unless a dedicated demo server opts in with its own password.
 - Outside Development the application refuses to start while a secret in use is a `change-me` placeholder, a repository default, or shorter than 12 characters.
 

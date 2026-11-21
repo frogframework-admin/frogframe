@@ -271,7 +271,10 @@
 
         if (!string.IsNullOrEmpty(item.Href))
         {
-            Nav.NavigateTo(item.Href);
+            var isStaticOrExternal = item.Href.StartsWith("/account/", StringComparison.OrdinalIgnoreCase)
+                                  || item.Href.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+                                  || item.Href.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
+            Nav.NavigateTo(item.Href, forceLoad: isStaticOrExternal);
             return;
         }
 

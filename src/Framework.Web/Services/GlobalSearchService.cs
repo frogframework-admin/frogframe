@@ -365,6 +365,19 @@ public sealed class GlobalSearchService(
             ));
         }
 
+        if ("two-factor 2fa mfa authenticator otp recovery codes keamanan security verifikasi dua langkah".Contains(q, StringComparison.OrdinalIgnoreCase))
+        {
+            results.Add(new AwesomebarItem(
+                Id: "cmd_two_factor",
+                Title: "Two-Factor Authentication",
+                Subtitle: "Set up an authenticator app or manage recovery codes",
+                Category: AwesomebarCategory.Command,
+                Href: "/account/two-factor",
+                Icon: "shield-check",
+                Badge: "Security"
+            ));
+        }
+
         if ("logout keluar sign out signout".Contains(q, StringComparison.OrdinalIgnoreCase))
         {
             results.Add(new AwesomebarItem(

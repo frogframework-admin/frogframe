@@ -120,7 +120,7 @@ This document summarizes the current development status of FrogFramework, includ
 - **Advanced Authentication (SSO & 2FA)** (implemented): authenticator-app two-factor authentication with recovery codes, optionally required per role, and Google / Microsoft Entra ID single sign-on for existing accounts. See `docs/guides/two-factor-and-sso.md`.
 - **Generic Document Rename:** Document identifier renaming engine that automatically cascades updates to all Link foreign keys in child tables and related documents.
 - **Ad-Hoc Background Jobs (`FrogFrame.enqueue`)** (implemented): queue with live progress, cancel and notifications on `/jobs`; large imports and bulk actions use it. See `docs/guides/background-jobs.md`.
-- **Database Role Segregation:** Separation of database migration owner role from runtime application connection role for append-only audit enforcement.
+- **Database Role Segregation** (implemented): requests run as the data-only role `frogframe_app`; the owner runs migrations, indexes and reporting views. See `docs/guides/database-roles.md`.
 - **Dynamic Workflows:** Visual state machine transition editor with conditional approvals.
 
 ### Priority 3: Specialized Views & Value-Add Enhancements (P3)

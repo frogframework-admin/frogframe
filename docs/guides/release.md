@@ -26,6 +26,7 @@ A manual run (Actions → Release → Run workflow) builds and publishes `sha-<c
 
 On the host, `deploy/scripts/deploy.sh deploy <image>`:
 
+0. checks that `docker-compose.yml` loads with the host's `.env` (`docker compose config -q`). When a release adds a required setting, the deployment stops here with the variable's name, before anything changes. Example: `FROGFRAME_APP_PASSWORD` for [Database roles](database-roles.md).
 1. remembers the running image as `FROGFRAME_PREVIOUS_IMAGE` in `.env` and sets `FROGFRAME_IMAGE`;
 2. `docker compose pull app migrate`;
 3. `docker compose up -d --no-build`, which runs `db-backup` (snapshot), `migrate` (pending migrations) and then the app.

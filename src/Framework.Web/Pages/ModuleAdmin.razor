@@ -12,7 +12,7 @@
 @inject Framework.Preferences.IUserPreferenceStore UserPrefs
 @implements IDisposable
 
-<PageTitle>Master Modules · FrogFrame</PageTitle>
+<PageTitle>Workspace Modules · FrogFrame</PageTitle>
 
 @if (!Current.Required.IsAdmin)
 {
@@ -22,8 +22,8 @@ else
 {
     <header class="page-head">
         <div>
-            <h1>Master Modules</h1>
-            <p>Manage primary application modules and module access permissions based on user roles. Each module consists of one or more menu groups.</p>
+            <h1>Workspace Modules</h1>
+            <p>Manage primary workspace modules and module access permissions based on user roles. Each module consists of one or more menu groups.</p>
         </div>
         <div class="row" style="gap:.5rem;flex-wrap:wrap">
             <BbButton Variant="ButtonVariant.Outline" Disabled="@(gridMgr.SelectedCount == 0 || busy)" OnClick="() => bulkEditOpen = true">

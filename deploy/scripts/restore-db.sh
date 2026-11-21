@@ -60,4 +60,4 @@ if ! pg_restore \
 fi
 
 echo "${LOG_PREFIX} Database restored successfully."
-echo "${LOG_PREFIX} Next: re-apply deploy/sql/reporting-readonly-user.sql and start the app so SchemaMigrator runs."
+echo "${LOG_PREFIX} Next: re-apply deploy/sql/reporting-readonly-user.sql, then run the migrate step (docker compose up, or docker compose run --rm migrate): it re-grants the application role (frogframe_app), whose grants are not restored (--no-privileges)."

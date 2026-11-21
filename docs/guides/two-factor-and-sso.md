@@ -16,7 +16,7 @@ FrogFrame supports two sign-in additions on top of username and password:
 
 After that, signing in asks for the password and then for a code (`/account/login-2fa`). The same box accepts a recovery code. *Don't ask again on this device* skips the code on that browser for 14 days.
 
-On the same page you can generate new recovery codes (the old ones stop working) or turn two-factor authentication off. Both need your current password.
+On the same page you can generate new recovery codes (the old ones stop working) or turn two-factor authentication off. Both need your current password; wrong passwords there count towards the normal lockout. The page is also in the search bar (type `2fa`).
 
 If codes are always refused, the phone's clock is usually wrong: set the time to automatic.
 
@@ -63,6 +63,8 @@ A signed-in user with one of these roles who has not enrolled is sent to `/accou
 Migration `042_two_factor.sql` adds the columns. Data Protection keys are already persisted in PostgreSQL. If they are lost, enrolled users cannot use app codes (sign-in still asks for a second factor; recovery codes still work) until an administrator resets their two-factor authentication.
 
 Only the authenticator app counts as a second factor. The default e-mail and SMS code providers of ASP.NET Core Identity are switched off. Wrong codes count towards the same lockout as wrong passwords (5 attempts, 15 minutes).
+
+Security events are written to the application log (and so to the central log, if configured): 2FA turned on or off by the user, new recovery codes, sign-in with a recovery code (with the number left), failed codes, an administrator reset (with the administrator's ID), and SSO sign-ins and refusals.
 
 The QR code is drawn on the server as SVG by `Framework.Web.Identity.QrCode`, so the secret is never sent to an outside QR service.
 

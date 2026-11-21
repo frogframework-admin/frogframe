@@ -297,6 +297,11 @@
                                         <LucideIcon Name="key-round" Size="15" />
                                         <span>@T["Change Password"]</span>
                                     </a>
+                                    <a href="/account/two-factor" class="header-logout-btn" style="color:var(--popover-foreground, #0f172a);text-decoration:none;justify-content:flex-start;padding:0.45rem 0.6rem;width:100%;font-weight:400;"
+                                       @onclick="CloseUserDropdown">
+                                        <LucideIcon Name="shield-check" Size="15" />
+                                        <span>@T["Two-Factor Authentication"]</span>
+                                    </a>
                                     <div style="height:1px;background:var(--border, #e2e8f0);margin:0.2rem 0;"></div>
                                     <button type="button" class="header-logout-btn" style="color:var(--destructive, #ef4444);justify-content:flex-start;padding:0.45rem 0.6rem;width:100%;font-weight:500;"
                                             @onclick="LogoutFromDropdown">

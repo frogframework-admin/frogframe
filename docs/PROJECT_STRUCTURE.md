@@ -720,8 +720,11 @@ All migrations live in `src/Framework.Persistence.PostgreSql/Migrations/` and ar
 | `Reports:MaxRowsWord` | `5000` | Maximum detail rows allowed when generating a `.docx` report |
 | `Import:MaxRows` | `10000` | Maximum rows allowed per Excel/CSV import |
 | `Import:MaxFileMb` | `10` | Maximum file upload size (MB) for Excel/CSV import |
-| `Api:RateLimitPerMinute` | `300` | Per-minute request limit per API key / user / IP across `/api/*` |
-| `Api:AuthRateLimitPerMinute` | `1200` | Per-minute request limit for `/api/auth/login` and `/api/auth/refresh` per IP address |
+| `Api:RateLimitPerMinute` | `300` | Per-minute API reads (GET/HEAD) per API key / user / IP |
+| `Api:AuthRateLimitPerMinute` | `1200` | Per-minute sign-in limit per IP: `/api/auth/login`, `/api/auth/refresh`, login and 2FA form posts, SSO start |
+| `Api:WriteRateLimitPerMinute` | `120` | Per-minute API writes (POST/PUT/PATCH/DELETE) per API key / user / IP |
+| `Api:HeavyRateLimitPerMinute` | `60` | Per-minute reports, report templates, saved queries and print/PDF per API key / user / IP |
+| `Api:PasswordResetRateLimitPerMinute` | `20` | Per-minute forgot/reset password requests per IP |
 | `Ess:RefreshTokenDays` | `30` | Lifespan in days for ESS mobile refresh tokens |
 | `Ess:TimeZone` | `"Asia/Jakarta"` | Application time zone for mobile work calendar and punch date evaluation |
 | `Ess:AggregationBatchSize` | `1000` | Maximum employee-days processed per 5-minute attendance aggregation run |

@@ -20,6 +20,9 @@ env_set() {
 
 [ -f docker-compose.yml ] || { echo "Run this in the directory with docker-compose.yml." >&2; exit 2; }
 touch .env
+# Stop before changing anything when .env lacks a required value (e.g. FROGFRAME_APP_PASSWORD, added in this
+# release): docker compose reports the missing variable by name.
+docker compose config -q || { echo "[deploy] docker-compose.yml cannot be loaded with this .env; nothing was changed." >&2; exit 1; }
 case "${1:-}" in
   deploy)
     image="${2:?Usage: deploy.sh deploy <image>}"

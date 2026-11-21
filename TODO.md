@@ -57,14 +57,16 @@ For full architectural context and runbooks, refer to [Production Readiness Guid
 - [x] **Release CD Pipeline (GitHub Actions)**:
   - `release.yml`: image build, image smoke test, GHCR publish, staging, production behind required reviewers.
   - `deploy.yml`: deploy, smoke test, automatic rollback. See `docs/guides/release.md`.
-- [ ] **Fail-Fast Startup Configuration Validation**:
-  - Add runtime validation on boot: abort startup immediately if production environment runs with demo seeds or default credentials.
-- [ ] **End-to-End Observability & Alerting**:
-  - Configure OTLP exporters for Prometheus/Grafana/Jaeger; establish alerting rules for error rates, latency spikes, and DB deadlocks.
-- [ ] **Automated Post-Deployment Smoke Tests**:
-  - Automate post-deployment health, login, CRUD, workflow, and tenant boundary verification.
-- [ ] **Tiered Endpoint Rate Limiting**:
-  - Transition from single global rate limit (`Api:RateLimitPerMinute=10000`) to route-specific policies (stricter for auth/write, higher for query APIs).
+- [x] **Fail-Fast Startup Configuration Validation**:
+  - Outside Development the app stops at startup on demo seeding, placeholder/default/short secrets (database, bootstrap admin, S3, AI), a missing public URL or `AllowedHosts=*`. See `docs/guides/deployment-checks.md`.
+- [ ] **End-to-End Observability & Alerting** (partly done):
+  - Done: OpenTelemetry traces and metrics with an OTLP exporter (`OpenTelemetry:OtlpEndpoint` / `OTEL_EXPORTER_OTLP_ENDPOINT`).
+  - Open: alerting rules (error rate, p95 latency, deadlocks, pool exhaustion, failing health probes) and a reference dashboard.
+- [ ] **Automated Post-Deployment Smoke Tests** (partly done):
+  - Done: `deploy/scripts/smoke-test.sh` after every deploy (health, readiness, API login, `/login`), with automatic rollback.
+  - Open: CRUD, workflow transition and tenant-boundary checks against the deployed instance.
+- [x] **Tiered Endpoint Rate Limiting**:
+  - Sign-in and password reset per client IP (also the browser login form); API read, write and heavy (reports, saved queries, print) per user or API key, each with its own budget. See `docs/guides/rate-limiting.md`.
 - [x] **Automated Dependency Management**:
   - `.github/dependabot.yml`: weekly grouped updates for NuGet, the .NET SDK (`global.json`), GitHub Actions, the Dockerfile and the compose images (no PostgreSQL major upgrades).
 
@@ -119,29 +121,29 @@ For full architectural context and runbooks, refer to [Production Readiness Guid
   - Outbox-driven document event payload dispatcher to external webhook URLs with HMAC signatures and auto-retries (`027_webhooks.sql`).
 - [x] **Auto Repeat & C# Roslyn Server Scripting**:
   - Recurring documents (`028_auto_repeat.sql`), sandboxed C# Server & Client Scripts (`029_server_scripts.sql`, `034_client_scripts.sql`), and Inbound/Outbound Email Communications (`030_communications.sql`).
-- [ ] **Ad-Hoc Report Builder**:
-  - Self-service builder for non-technical users to select columns, sort, filter, and group data into custom saved reports.
-- [ ] **Dynamic Row-Level Security (User Permissions per Record)**:
-  - Granular per-document access sharing to specific users or roles directly from the interface.
+- [x] **Ad-Hoc Report Builder**:
+  - Columns, sort, filter, group and saved reports. See `docs/guides/report-builder.md`.
+- [x] **Dynamic Row-Level Security (User Permissions per Record)**:
+  - Per-document shares to users or roles from the **Share** button (`037_doc_shares`). See `docs/guides/row-sharing.md`.
 - [x] **Advanced Authentication (SSO & 2FA)**:
   - Authenticator-app 2FA with recovery codes, required per role if configured; Google and Microsoft Entra ID sign-in for existing accounts. See `docs/guides/two-factor-and-sso.md`.
-- [ ] **Generic Document Rename**:
+- [ ] **Generic Document Rename** (postponed):
   - Rename document keys with automated cascading updates across all foreign Link references in parent and child tables.
 - [x] **Ad-Hoc Background Jobs (`frappe.enqueue`)**:
   - `BackgroundTaskService.EnqueueAsync` + `IBackgroundTaskHandler`; imports and bulk actions; `/jobs` with live progress, cancel and run again. See `docs/guides/background-jobs.md`.
-- [ ] **Dynamic Visual Workflows**:
-  - Visual state machine transition editor with conditional approval branches.
-- [ ] **Database Role Segregation**:
-  - Separation of migration owner role from runtime application connection role.
+- [x] **Dynamic Visual Workflows**:
+  - Flow designer canvas (drag states, draw transitions, conditions, roles, required comments; publish drafts). See `docs/guides/visual-workflow-editor.md`.
+- [x] **Database Role Segregation**:
+  - Requests run as `frogframe_app` (data only, no DDL, ledger append-only); the owner runs migrations, indexes and reporting views. The migrate step creates and grants the role; startup warns when the runtime role is privileged. See `docs/guides/database-roles.md`.
 
 ### Priority 3: Specialized Views & Value-Add Enhancements (P3)
 
-- [ ] **Alternate Views**:
+- [x] **Alternate Views**: see `docs/guides/list-views-board-and-calendar.md`.
   - Kanban board (workflow state columns with drag-and-drop progression).
   - Calendar view (date-based document schedules and due dates).
   - Tree view (hierarchical structure navigation for Chart of Accounts and Cost Centers).
-- [ ] **Visual Print Format Builder & Letterhead UI**:
-  - Interactive corporate letterhead manager and visual print template layout editor.
+- [x] **Visual Print Format Builder & Letterhead UI**:
+  - Letterheads and print formats per tenant with a live preview (`/admin/print-designs`, form-based, no drag-and-drop). See `docs/guides/print-designer.md`.
 - [x] **Social Features**:
   - Colour-coded document tags (filterable in lists), personal bookmarks, and Follow with change notifications. See `docs/guides/tags-bookmarks-follow.md`.
 - [x] **Dynamic Multi-Language (i18n)**:

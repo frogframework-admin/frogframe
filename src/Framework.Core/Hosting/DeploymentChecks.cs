@@ -42,7 +42,7 @@ public static class DeploymentChecks
     /// <summary>Values that ship in the repository or are commonly guessed; never accepted outside Development.</summary>
     private static readonly HashSet<string> KnownWeak = new(StringComparer.OrdinalIgnoreCase)
     {
-        DemoMode.PublicPassword, "frogframe", "postgres", "password", "admin", "secret", "changeme", "change-me",
+        DemoMode.PublicPassword, "frogframe", "frogframe_app", "postgres", "password", "admin", "secret", "changeme", "change-me",
         "ganti-password-ini", "123456", "12345678", "123456789012", "password1234", "admin1234567",
     };
 
@@ -80,7 +80,11 @@ public static class DeploymentChecks
     {
         if (string.Equals(config("Persistence:Provider"), "PostgreSql", StringComparison.OrdinalIgnoreCase))
             CheckSecret(ConnectionPassword(config("ConnectionStrings:FrogFrame")),
-                "The database password in ConnectionStrings:FrogFrame", "POSTGRES_PASSWORD", errors);
+                "The database password in ConnectionStrings:FrogFrame", "FROGFRAME_APP_PASSWORD (or POSTGRES_PASSWORD)", errors);
+        CheckSecret(ConnectionPassword(config("ConnectionStrings:FrogFrameSchema")),
+            "The schema owner password in ConnectionStrings:FrogFrameSchema", "POSTGRES_PASSWORD", errors);
+        CheckSecret(config("Database:AppRolePassword"),
+            "Database:AppRolePassword (application database role)", "FROGFRAME_APP_PASSWORD", errors);
         CheckSecret(ConnectionPassword(config("ConnectionStrings:FrogFrameReadOnly")),
             "The read-only database password in ConnectionStrings:FrogFrameReadOnly", "FROGFRAME_RO_PASSWORD", errors);
         CheckSecret(config("Bootstrap:AdminPassword"),

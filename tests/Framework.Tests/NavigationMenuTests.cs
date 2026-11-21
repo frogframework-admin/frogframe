@@ -68,17 +68,25 @@ sealed partial class Tests
 
         var masterApps = items.FirstOrDefault(x => x.Href == "admin/applications");
         var masterModules = items.FirstOrDefault(x => x.Href == "admin/modules");
-        Assert.True(masterApps is not null && masterApps.Title == "Master Application" && masterApps.IsSystem && masterApps.AllowedRoles.Contains(UserContext.SystemManager), "Master Application harus di-seed");
-        Assert.True(masterModules is not null && masterApps!.SortOrder < masterModules.SortOrder, "Master Application harus diletakkan di atas Master Modules");
-        Assert.Equal("Integration & Settings", masterApps!.GroupName, "Master Application harus berada di grup Integration & Settings");
+        var navGroups = items.FirstOrDefault(x => x.Href == "admin/menu-groups");
+        var navMenus = items.FirstOrDefault(x => x.Href == "admin/menus");
+        Assert.True(masterApps is not null && masterApps.Title == "Applications" && masterApps.IsSystem && masterApps.AllowedRoles.Contains(UserContext.SystemManager), "Applications menu harus di-seed");
+        Assert.True(masterModules is not null && masterModules.Title == "Workspace Modules" && masterApps!.SortOrder < masterModules.SortOrder, "Applications harus diletakkan di atas Workspace Modules");
+        Assert.True(navGroups is not null && navGroups.Title == "Navigation Menu Groups", "Navigation Menu Groups harus di-seed");
+        Assert.True(navMenus is not null && navMenus.Title == "Navigation Menus", "Navigation Menus harus di-seed");
+        Assert.Equal("Integration & Settings", masterApps!.GroupName, "Applications harus berada di grup Integration & Settings");
 
         var apps = await NavMenus.ListApplicationsAsync(tenantId, onlyActive: false);
-        Assert.True(apps.Select(a => a.Name).SequenceEqual(["HRM", "Finance", "Accounting", "IT"]), "Default applications harus HRM, Finance, Accounting, IT");
+        Assert.True(apps.Select(a => a.Name).SequenceEqual(["HRM", "CRM", "Finance", "Accounting", "IT"]), "Default applications harus HRM, CRM, Finance, Accounting, IT");
 
         var modules = await NavMenus.ListModulesAsync(tenantId, onlyActive: false);
         var hrModule = modules.FirstOrDefault(m => m.Code == "HR");
         var hrmApp = apps.FirstOrDefault(a => a.Code == "HRM");
         Assert.True(hrModule is not null && hrModule.ApplicationId == hrmApp?.Id, "HR module harus memiliki parent HRM application");
+
+        var crmModule = modules.FirstOrDefault(m => m.Code == "CRM");
+        var crmApp = apps.FirstOrDefault(a => a.Code == "CRM");
+        Assert.True(crmModule is not null && crmModule.ApplicationId == crmApp?.Id, "CRM module harus memiliki parent CRM application");
 
         var accModule = modules.FirstOrDefault(m => m.Code == "ACCOUNTING");
         var accApp = apps.FirstOrDefault(a => a.Code == "ACCOUNTING");

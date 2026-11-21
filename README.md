@@ -191,6 +191,12 @@ Authentication is powered by **ASP.NET Core Identity** (cookie-based for browser
 
 Claims missing a tenant are rejected immediately (fail-closed). Accounts lock automatically for 15 minutes after 5 consecutive failed attempts.
 
+**Two-factor authentication and single sign-on** (see [docs/guides/two-factor-and-sso.md](docs/guides/two-factor-and-sso.md)):
+
+- Users can turn on authenticator-app codes (QR enrolment, ten one-time recovery codes) from the profile menu → **Two-factor**. `Security:TwoFactor:RequiredForRoles` makes it mandatory for chosen roles; administrators can reset it for a lost phone.
+- `POST /api/auth/login` accepts `twoFactorCode` or `twoFactorRecoveryCode` for accounts with 2FA.
+- "Continue with Google" / "Continue with Microsoft" (Entra ID, one directory) appear on the login page when `Authentication:Google:*` / `Authentication:Microsoft:*` are set. SSO signs in existing accounts matched by verified e-mail; it never creates accounts or changes roles.
+
 ---
 
 ## SQL Dashboards & Saved Query APIs

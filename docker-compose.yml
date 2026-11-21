@@ -38,7 +38,13 @@ services:
       # When deployed behind a reverse proxy, set the proxy CIDR so X-Forwarded-* headers are trusted, e.g. 172.18.0.0/16.
       - ForwardedHeaders__KnownNetworks__0=${FROGFRAME_TRUSTED_PROXY_CIDR:-}
       - Persistence__Provider=PostgreSql
-      - ConnectionStrings__FrogFrame=Host=postgres;Port=5432;Database=frogframe;Username=frogframe;Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      # Two database roles (docs/guides/database-roles.md): requests run as frogframe_app, which can only read and write
+      # data; migrations and other schema changes (indexes, reporting views) use the owner frogframe. The migrate step
+      # creates frogframe_app and grants it access to every table (Database__AppRole / Database__AppRolePassword).
+      - ConnectionStrings__FrogFrame=Host=postgres;Port=5432;Database=frogframe;Username=frogframe_app;Password=${FROGFRAME_APP_PASSWORD:?Set FROGFRAME_APP_PASSWORD in .env}
+      - ConnectionStrings__FrogFrameSchema=Host=postgres;Port=5432;Database=frogframe;Username=frogframe;Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      - Database__AppRole=frogframe_app
+      - Database__AppRolePassword=${FROGFRAME_APP_PASSWORD:?Set FROGFRAME_APP_PASSWORD in .env}
       - ConnectionStrings__FrogFrameReadOnly=Host=postgres;Port=5432;Database=frogframe;Username=frogframe_ro;Password=${FROGFRAME_RO_PASSWORD:?Set FROGFRAME_RO_PASSWORD in .env}
       # Demo mode is always on in Development and off elsewhere. These switches only matter outside Development: demo
       # seeding creates accounts such as 'admin' (System Manager) with a shared password, so outside Development it only
@@ -50,7 +56,13 @@ services:
       # Initial admin. Only created when the account does not exist yet; change the password after first login.
       - Bootstrap__AdminUserName=${FROGFRAME_ADMIN_USER:-admin}
       - Bootstrap__AdminPassword=${FROGFRAME_ADMIN_PASSWORD:?Set FROGFRAME_ADMIN_PASSWORD in .env}
+      # Per-minute limits (docs/guides/rate-limiting.md): API reads, writes and heavy queries per user or API key;
+      # sign-in and password reset per client IP.
       - Api__RateLimitPerMinute=${FROGFRAME_API_RATE_LIMIT:-300}
+      - Api__WriteRateLimitPerMinute=${FROGFRAME_API_WRITE_RATE_LIMIT:-120}
+      - Api__HeavyRateLimitPerMinute=${FROGFRAME_API_HEAVY_RATE_LIMIT:-60}
+      - Api__AuthRateLimitPerMinute=${FROGFRAME_AUTH_RATE_LIMIT:-1200}
+      - Api__PasswordResetRateLimitPerMinute=${FROGFRAME_PASSWORD_RESET_RATE_LIMIT:-20}
       # Two-factor authentication and single sign-on. See docs/guides/two-factor-and-sso.md.
       - Security__TwoFactor__Issuer=${FROGFRAME_2FA_ISSUER:-FrogFrame}
       - Security__TwoFactor__RequiredForRoles__0=${FROGFRAME_2FA_REQUIRED_ROLES:-}
