@@ -749,7 +749,7 @@ public sealed class ScheduleGenerationRunAction(IDocumentStore store) : IFormAct
     public string Tone => "primary";
 
     public bool IsVisible(UserContext user, Document doc) =>
-        user.HasRole("HR") || user.IsAdmin;
+        user.HasRole(ErpRoles.HrTimeAttendance);
 
     public async Task<FormActionResult> ExecuteAsync(FormActionContext ctx, CancellationToken ct)
     {

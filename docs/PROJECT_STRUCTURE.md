@@ -450,7 +450,7 @@ Implemented in [Expressions.cs](file:///d:/Side%20Projects/DocFrame/src/Framewor
    - `BlazorIdentityRevalidator` checks the user's `SecurityStamp` every 60 seconds so role changes, department transfers, or account deactivation take effect in open browser tabs without waiting for cookie expiration.
 2. **Master Roles (`IRoleStore`)**:
    - Managed at `/admin/roles` and persisted in `frogframe_roles` (`014_roles.sql`).
-   - System roles (`IsSystem = true`)—specifically **`Administrator`** (`System Manager`) and **`User`** (`Employee`)—are seeded automatically and **cannot be deleted**. Sample business roles (`HR`, `Purchasing`, `Manager`, `Finance`, `Procurement`) are also seeded.
+   - System roles (`IsSystem = true`)—specifically **`Administrator`** (`System Manager`) and **`User`** (`Employee`)—are seeded automatically and **cannot be deleted**. Sample business roles (`HR`, `Purchasing`, `Manager`, `Finance`, `Procurement`) are also seeded, plus the granular ERP roles registered by the application (`RoleDefaults.RegisterAppRoles`). The former broad roles act as role groups (`RoleGroups`); see `docs/guides/roles.md`.
    - `UserContext.IsAdmin` returns `true` when the user holds either `Administrator` or `System Manager`.
 3. **3-Tier Permission Evaluation (`PermissionService`)**:
    - **Tier 1 — Action Check**: Does at least one of the user's roles grant the requested `DocAction` (`Read`, `Create`, `Write`, `Delete`, `Submit`, `Cancel`, `Amend`, `Report`, `Export`) on the DocType?

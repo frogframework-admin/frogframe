@@ -252,7 +252,7 @@ internal static class InvoiceCore
         if (open + thisInvoice <= limit) return;
 
         var msg = $"Receivable of {customer.Name} becomes {open + thisInvoice:N2}, exceeding the credit limit of {limit:N2}";
-        if ((await m.SingleAsync("FinanceSettings", ct)).Str("credit_limit_action") == "Block" && !c.User.HasRole("Finance"))
+        if ((await m.SingleAsync("FinanceSettings", ct)).Str("credit_limit_action") == "Block" && !c.User.HasRole(ErpRoles.FinanceAdmin))
             throw Errors.One("customer", msg);
         c.Messages.Add(msg);
     }

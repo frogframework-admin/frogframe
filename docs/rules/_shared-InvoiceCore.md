@@ -25,8 +25,8 @@ Logika bersama SalesInvoice, SalesCreditNote, PurchaseInvoice, PurchaseDebitNote
 - `{k.PartyAccountField}`: "The receivable/payable account is required" — terjadi bila `d.Str(k.PartyAccountField) tidak ditemukan/kosong` (InvoiceCore, InvoiceHooks.cs:210)
 - `vat_code`: "The VAT account is not set on the tax code" — terjadi bila `t.Vat != 0 && vatAccount is null` (InvoiceCore, InvoiceHooks.cs:214)
 - `wht_code`: "The withholding tax account is not set on the tax code" — terjadi bila `!(t.Vat != 0 && vatAccount is null) && t.Wht != 0 && whtAccount is null` (InvoiceCore, InvoiceHooks.cs:215)
-- `customer`: "Receivable of {customer.Name} becomes {open + thisInvoice}, exceeding the credit limit of {limit}" — terjadi bila `!(customer is null || limit <= 0) && !(open + thisInvoice <= limit) && (await m.SingleAsync("FinanceSettings", ct)).Str("credit_limit_action") == "Block" && !c.User.HasRole("Finance")` (InvoiceCore, InvoiceHooks.cs:256)
+- `customer`: "Receivable of {customer.Name} becomes {open + thisInvoice}, exceeding the credit limit of {limit}" — terjadi bila `!(customer is null || limit <= 0) && !(open + thisInvoice <= limit) && (await m.SingleAsync("FinanceSettings", ct)).Str("credit_limit_action") == "Block" && !c.User.HasRole(ErpRoles.FinanceAdmin)` (InvoiceCore, InvoiceHooks.cs:256)
 
 ## Peringatan
 
-- "Receivable of {customer.Name} becomes {open + thisInvoice}, exceeding the credit limit of {limit}" — terjadi bila `!(customer is null || limit <= 0) && !(open + thisInvoice <= limit) && !((await m.SingleAsync("FinanceSettings", ct)).Str("credit_limit_action") == "Block" && !c.User.HasRole("Finance"))` (InvoiceCore, InvoiceHooks.cs:257)
+- "Receivable of {customer.Name} becomes {open + thisInvoice}, exceeding the credit limit of {limit}" — terjadi bila `!(customer is null || limit <= 0) && !(open + thisInvoice <= limit) && !((await m.SingleAsync("FinanceSettings", ct)).Str("credit_limit_action") == "Block" && !c.User.HasRole(ErpRoles.FinanceAdmin))` (InvoiceCore, InvoiceHooks.cs:257)

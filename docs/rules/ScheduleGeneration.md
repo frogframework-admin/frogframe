@@ -16,7 +16,7 @@ Aturan yang dijalankan kode saat dokumen Schedule Generation (ScheduleGeneration
 
 ## Tombol aksi: Generate daily schedules
 
-Tombol **Generate daily schedules** di form Schedule Generation hanya tampil bila `user.HasRole("HR") || user.IsAdmin` (WorkflowState = state workflow, DocStatus = Draft/Submitted, HasRole = peran user). Form action on ScheduleGeneration to re-run daily schedule materialization for its configured scope and period.
+Tombol **Generate daily schedules** di form Schedule Generation hanya tampil bila `user.HasRole(ErpRoles.HrTimeAttendance)` (WorkflowState = state workflow, DocStatus = Draft/Submitted, HasRole = peran user). Form action on ScheduleGeneration to re-run daily schedule materialization for its configured scope and period.
 
 ## Aturan bersama yang juga berlaku
 

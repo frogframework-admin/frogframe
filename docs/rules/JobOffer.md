@@ -22,7 +22,7 @@ Aturan yang dijalankan kode saat dokumen Job Offer (JobOffer) disimpan, di-submi
 
 ## Tombol aksi: Create employee
 
-Tombol **Create employee** di form Job Offer hanya tampil bila `doc.WorkflowState == "Accepted" && (user.HasRole("HR") || user.IsAdmin)` (WorkflowState = state workflow, DocStatus = Draft/Submitted, HasRole = peran user). Aksi "Create employee" (Workday Hire): dari penawaran Accepted dibuat Employee (data pelamar + jabatan penawaran), lalu Salary Assignment gaji pokok bila komponennya diatur di Payroll Settings, dan pelamar ditandai Hired. Employee dibuat sebagai user HR (izin berlaku).
+Tombol **Create employee** di form Job Offer hanya tampil bila `doc.WorkflowState == "Accepted" && (user.HasRole(ErpRoles.HrRecruitment) || user.HasRole(ErpRoles.HrEmployeeManagement))` (WorkflowState = state workflow, DocStatus = Draft/Submitted, HasRole = peran user). Aksi "Create employee" (Workday Hire): dari penawaran Accepted dibuat Employee (data pelamar + jabatan penawaran), lalu Salary Assignment gaji pokok bila komponennya diatur di Payroll Settings, dan pelamar ditandai Hired. Employee dibuat sebagai user HR (izin berlaku).
 
 ## Aturan bersama yang juga berlaku
 

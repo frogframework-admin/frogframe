@@ -23,10 +23,9 @@ Aturan yang dijalankan kode saat dokumen Purchase Order (PurchaseOrder) disimpan
 
 ## Tombol aksi: Receive
 
-Tombol **Receive** di form Purchase Order hanya tampil bila `doc.DocStatus == DocStatus.Submitted && doc.Data.Str("receipt_status") != "Fully received" && (user.HasRole("Purchasing") || user.HasRole("Stock") || user.IsAdmin)` (WorkflowState = state workflow, DocStatus = Draft/Submitted, HasRole = peran user). Aksi "Receive" pada PO: draft goods receipt berisi semua sisa qty.
+Tombol **Receive** di form Purchase Order hanya tampil bila `doc.DocStatus == DocStatus.Submitted && doc.Data.Str("receipt_status") != "Fully received" && (user.HasRole(ErpRoles.ProcurementReceiving) || user.HasRole(ErpRoles.StockKeeper))` (WorkflowState = state workflow, DocStatus = Draft/Submitted, HasRole = peran user). Aksi "Receive" pada PO: draft goods receipt berisi semua sisa qty.
 
 ## Aturan bersama yang juga berlaku
 
 - Approval: lihat `_shared-Approval.md`
 - Masters: lihat `_shared-Masters.md`
-- Stock: lihat `_shared-Stock.md`

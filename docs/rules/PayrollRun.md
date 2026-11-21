@@ -30,11 +30,11 @@ Aturan yang dijalankan kode saat dokumen Payroll Run (PayrollRun) disimpan, di-s
 
 ## Tombol aksi: Create payslips
 
-Tombol **Create payslips** di form Payroll Run hanya tampil bila `doc.DocStatus == DocStatus.Draft && (user.HasRole("Payroll") || user.HasRole("Finance") || user.IsAdmin)` (WorkflowState = state workflow, DocStatus = Draft/Submitted, HasRole = peran user). Aksi "Create payslips": draft payslip untuk setiap karyawan aktif perusahaan (dan unit) yang punya penugasan gaji. Idempoten.
+Tombol **Create payslips** di form Payroll Run hanya tampil bila `doc.DocStatus == DocStatus.Draft && user.HasRole(ErpRoles.HrPayroll)` (WorkflowState = state workflow, DocStatus = Draft/Submitted, HasRole = peran user). Aksi "Create payslips": draft payslip untuk setiap karyawan aktif perusahaan (dan unit) yang punya penugasan gaji. Idempoten.
 
 ## Tombol aksi: Submit payslips
 
-Tombol **Submit payslips** di form Payroll Run hanya tampil bila `doc.DocStatus == DocStatus.Draft && (user.HasRole("Payroll") || user.HasRole("Finance") || user.IsAdmin)` (WorkflowState = state workflow, DocStatus = Draft/Submitted, HasRole = peran user). Aksi "Submit payslips": submit semua payslip draft run ini sebelum run di-submit.
+Tombol **Submit payslips** di form Payroll Run hanya tampil bila `doc.DocStatus == DocStatus.Draft && user.HasRole(ErpRoles.HrPayroll)` (WorkflowState = state workflow, DocStatus = Draft/Submitted, HasRole = peran user). Aksi "Submit payslips": submit semua payslip draft run ini sebelum run di-submit.
 
 ## Aturan bersama yang juga berlaku
 

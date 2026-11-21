@@ -24,7 +24,7 @@ Aturan yang dijalankan kode saat dokumen Lead (Lead) disimpan, di-submit, dibata
 
 ## Tombol aksi: Convert to customer
 
-Tombol **Convert to customer** di form Lead hanya tampil bila `doc.Data.Str("status") is not (Crm.Converted or "Unqualified") && (user.HasRole("Sales") || user.HasRole("Manager"))` (WorkflowState = state workflow, DocStatus = Draft/Submitted, HasRole = peran user). Aksi "Convert to customer" (Salesforce Lead Convert): Customer (+ lead), Contact (tertaut ke Customer), Opportunity opsional, lalu Lead → Converted. Berjalan sebagai user yang menekan tombol (izin & scope Sales berlaku). Framework tidak punya transaksi multi-dokumen dari form action, jadi bila gagal di tengah dipakai kompensasi: dokumen yang sudah dibuat dihapus lagi (urutan terbalik, sebagai user sistem). Bila penghapusan itu sendiri gagal, pesan menyebutkan dokumen yang tertinggal.
+Tombol **Convert to customer** di form Lead hanya tampil bila `doc.Data.Str("status") is not (Crm.Converted or "Unqualified") && (user.HasRole(ErpRoles.CrmLeadManagement) || user.HasRole(ErpRoles.CrmSales) || user.HasRole(ErpRoles.Manager))` (WorkflowState = state workflow, DocStatus = Draft/Submitted, HasRole = peran user). Aksi "Convert to customer" (Salesforce Lead Convert): Customer (+ lead), Contact (tertaut ke Customer), Opportunity opsional, lalu Lead → Converted. Berjalan sebagai user yang menekan tombol (izin & scope Sales berlaku). Framework tidak punya transaksi multi-dokumen dari form action, jadi bila gagal di tengah dipakai kompensasi: dokumen yang sudah dibuat dihapus lagi (urutan terbalik, sebagai user sistem). Bila penghapusan itu sendiri gagal, pesan menyebutkan dokumen yang tertinggal.
 
 ## Aturan bersama yang juga berlaku
 

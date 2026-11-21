@@ -151,7 +151,16 @@
   ],
   "permissions": [
     {
-      "role": "Stock",
+      "role": "Stock-Admin",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Stock-Keeper",
       "actions": [
         "read",
         "create",
@@ -165,21 +174,131 @@
       "scope": "all"
     },
     {
-      "role": "Purchasing",
+      "role": "Stock-Opname",
       "actions": [
         "read",
-        "create",
-        "write",
-        "submit",
-        "cancel",
-        "amend",
         "report",
         "export"
       ],
       "scope": "all"
     },
     {
-      "role": "Finance",
+      "role": "Procurement-Admin",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Procurement-Buyer",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Procurement-Receiving",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Finance-Admin",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Finance-Cashier",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Finance-Receivable",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Finance-Payable",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Finance-Treasury",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Finance-Tax",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Accounting-Admin",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Accounting-General-Ledger",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Accounting-Fixed-Assets",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Accounting-Budget-Costing",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Accounting-Closing",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Accounting-Audit",
       "actions": [
         "read",
         "report"
@@ -195,7 +314,31 @@
       "scope": "all"
     },
     {
-      "role": "Sales",
+      "role": "CRM-Admin",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "CRM-Lead-Management",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "CRM-Sales",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "CRM-Marketing",
       "actions": [
         "read",
         "report"

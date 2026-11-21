@@ -16,7 +16,7 @@ Aturan yang dijalankan kode saat dokumen Purchase Request (PurchaseRequest) disi
 
 ## Tombol aksi: Create purchase order
 
-Tombol **Create purchase order** di form Purchase Request hanya tampil bila `doc.WorkflowState == Approval.Approved && (user.HasRole("Purchasing") || user.IsAdmin)` (WorkflowState = state workflow, DocStatus = Draft/Submitted, HasRole = peran user). Aksi "Create purchase order" dari purchase request yang disetujui (role Purchasing).
+Tombol **Create purchase order** di form Purchase Request hanya tampil bila `doc.WorkflowState == Approval.Approved && user.HasRole(ErpRoles.ProcurementBuyer)` (WorkflowState = state workflow, DocStatus = Draft/Submitted, HasRole = peran user). Aksi "Create purchase order" dari purchase request yang disetujui (role Purchasing).
 
 ## Aturan bersama yang juga berlaku
 

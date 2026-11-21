@@ -1160,7 +1160,7 @@ public sealed class ScheduleOptimizationRunAction(IDocumentStore store) : IFormA
     public string Tone => "primary";
 
     public bool IsVisible(UserContext user, Document doc) =>
-        (user.HasRole("HR") || user.HasRole("Manager") || user.IsAdmin)
+        (user.HasRole(ErpRoles.HrTimeAttendance) || user.HasRole(ErpRoles.Manager))
         && doc.Data.Str("status") is null or "Draft" or "Proposed" or "Failed";
 
     public async Task<FormActionResult> ExecuteAsync(FormActionContext ctx, CancellationToken ct)
@@ -1179,7 +1179,7 @@ public sealed class ScheduleOptimizationApplyAction(IDocumentStore store) : IFor
     public string Tone => "primary";
 
     public bool IsVisible(UserContext user, Document doc) =>
-        (user.HasRole("HR") || user.IsAdmin)
+        user.HasRole(ErpRoles.HrTimeAttendance)
         && doc.Data.Str("status") == "Proposed";
 
     public async Task<FormActionResult> ExecuteAsync(FormActionContext ctx, CancellationToken ct)
@@ -1198,7 +1198,7 @@ public sealed class ScheduleOptimizationDiscardAction(IDocumentStore store) : IF
     public string Tone => "danger";
 
     public bool IsVisible(UserContext user, Document doc) =>
-        (user.HasRole("HR") || user.HasRole("Manager") || user.IsAdmin)
+        (user.HasRole(ErpRoles.HrTimeAttendance) || user.HasRole(ErpRoles.Manager))
         && doc.Data.Str("status") == "Proposed";
 
     public async Task<FormActionResult> ExecuteAsync(FormActionContext ctx, CancellationToken ct)

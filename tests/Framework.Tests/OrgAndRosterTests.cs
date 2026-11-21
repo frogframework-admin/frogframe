@@ -558,7 +558,7 @@ sealed partial class Tests
         });
         await docs.RunActionAsync(sys, "LeaveAllocation", alloc.Name, DocActions.Submit, alloc.Version, null);
 
-        var hrUser = new UserContext("hr01", "HR Officer", "acme", new HashSet<string> { "HR", "Employee" }, new Dictionary<string, string>());
+        var hrUser = new UserContext("hr01", "HR Officer", "acme", RoleGroups.Expand(["HR", "Employee"]) /* former broad role: a group since the role split */, new Dictionary<string, string>());
         // Operator A takes leave on 2026-12-02 (when Operator A was scheduled for Morning 06-14)
         var leaveApp = await docs.InsertAsync(hrUser, "LeaveApplication", new Dictionary<string, object?>
         {
@@ -799,7 +799,7 @@ sealed partial class Tests
 
         // 4. MGR-A takes approved leave on 2026-12-15 -> Resolver + Delegation Refresh Job delegate to PLT-A!
         await docs.InsertAsync(sys, "LeaveType", new Dictionary<string, object?> { ["leave_type_name"] = "Annual", ["is_annual_quota"] = false, ["is_paid"] = true, ["max_consecutive_days"] = 10 });
-        var hrUser = new UserContext("u-hr", "HR", "acme", new HashSet<string> { "HR", "Employee" }, new Dictionary<string, string>());
+        var hrUser = new UserContext("u-hr", "HR", "acme", RoleGroups.Expand(["HR", "Employee"]) /* former broad role: a group since the role split */, new Dictionary<string, string>());
         var mgrLeave = await docs.InsertAsync(hrUser, "LeaveApplication", new Dictionary<string, object?>
         {
             ["employee"] = "MGR-A", ["leave_type"] = "Annual",

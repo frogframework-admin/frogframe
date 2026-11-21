@@ -42,9 +42,9 @@
       "action": "Submit for peer acceptance",
       "allowedRoles": [
         "Employee",
-        "HR"
+        "HR-Time-Attendance"
       ],
-      "condition": "requester == user.employee || has_role('HR') || has_role('System Manager')"
+      "condition": "requester == user.employee || has_role('HR-Time-Attendance') || has_role('System Manager')"
     },
     {
       "from": "Pending Peer Approval",
@@ -52,9 +52,9 @@
       "action": "Accept swap",
       "allowedRoles": [
         "Employee",
-        "HR"
+        "HR-Time-Attendance"
       ],
-      "condition": "target_employee == user.employee || has_role('HR') || has_role('System Manager')"
+      "condition": "target_employee == user.employee || has_role('HR-Time-Attendance') || has_role('System Manager')"
     },
     {
       "from": "Pending Peer Approval",
@@ -62,9 +62,9 @@
       "action": "Decline swap",
       "allowedRoles": [
         "Employee",
-        "HR"
+        "HR-Time-Attendance"
       ],
-      "condition": "target_employee == user.employee || has_role('HR') || has_role('System Manager')",
+      "condition": "target_employee == user.employee || has_role('HR-Time-Attendance') || has_role('System Manager')",
       "requireComment": true
     },
     {
@@ -73,9 +73,9 @@
       "action": "Withdraw",
       "allowedRoles": [
         "Employee",
-        "HR"
+        "HR-Time-Attendance"
       ],
-      "condition": "requester == user.employee || has_role('HR') || has_role('System Manager')"
+      "condition": "requester == user.employee || has_role('HR-Time-Attendance') || has_role('System Manager')"
     },
     {
       "from": "Pending Manager Approval",
@@ -84,9 +84,9 @@
       "allowedRoles": [
         "Employee",
         "Manager",
-        "HR"
+        "HR-Time-Attendance"
       ],
-      "condition": "approver == user.employee || has_role('Manager') || has_role('HR') || has_role('System Manager')"
+      "condition": "approver == user.employee || has_role('Manager') || has_role('HR-Time-Attendance') || has_role('System Manager')"
     },
     {
       "from": "Pending Manager Approval",
@@ -95,9 +95,9 @@
       "allowedRoles": [
         "Employee",
         "Manager",
-        "HR"
+        "HR-Time-Attendance"
       ],
-      "condition": "approver == user.employee || has_role('Manager') || has_role('HR') || has_role('System Manager')",
+      "condition": "approver == user.employee || has_role('Manager') || has_role('HR-Time-Attendance') || has_role('System Manager')",
       "requireComment": true
     },
     {
@@ -105,7 +105,7 @@
       "to": "Cancelled",
       "action": "Cancel",
       "allowedRoles": [
-        "HR"
+        "HR-Time-Attendance"
       ],
       "requireComment": true
     }

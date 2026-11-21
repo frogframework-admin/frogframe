@@ -214,7 +214,25 @@
   ],
   "permissions": [
     {
-      "role": "HR",
+      "role": "HR-Admin",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Recruitment",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Employee-Management",
       "actions": [
         "read",
         "create",
@@ -222,6 +240,24 @@
         "submit",
         "cancel",
         "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Time-Attendance",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Talent",
+      "actions": [
+        "read",
         "report",
         "export"
       ],

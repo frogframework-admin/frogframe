@@ -286,7 +286,36 @@
   ],
   "permissions": [
     {
-      "role": "Sales",
+      "role": "CRM-Admin",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "match:sales_rep=employee"
+    },
+    {
+      "role": "CRM-Lead-Management",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "match:sales_rep=employee"
+    },
+    {
+      "role": "CRM-Sales",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "match:sales_rep=employee"
+    },
+    {
+      "role": "CRM-Marketing",
       "actions": [
         "read",
         "create",
@@ -308,7 +337,95 @@
       "scope": "match:organization_unit=department"
     },
     {
-      "role": "Finance",
+      "role": "Finance-Admin",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Finance-Cashier",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Finance-Receivable",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Finance-Payable",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Finance-Treasury",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Finance-Tax",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Accounting-Admin",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Accounting-General-Ledger",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Accounting-Fixed-Assets",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Accounting-Budget-Costing",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Accounting-Closing",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Accounting-Audit",
       "actions": [
         "read",
         "report"

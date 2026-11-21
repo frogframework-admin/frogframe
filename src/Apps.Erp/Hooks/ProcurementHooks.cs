@@ -190,7 +190,7 @@ public sealed class PurchaseRequestMakeOrderAction : IFormAction<PurchaseRequest
     public string Label => "Create purchase order";
     public string Icon => "shopping-cart";
 
-    public bool IsVisible(UserContext user, Document doc) => doc.WorkflowState == Approval.Approved && (user.HasRole("Purchasing") || user.IsAdmin);
+    public bool IsVisible(UserContext user, Document doc) => doc.WorkflowState == Approval.Approved && user.HasRole(ErpRoles.ProcurementBuyer);
 
     public async Task<FormActionResult> ExecuteAsync(FormActionContext ctx, CancellationToken ct)
     {
@@ -219,7 +219,7 @@ public sealed class PurchaseOrderReceiveAction : IFormAction<PurchaseOrder>
     public string Icon => "package-check";
 
     public bool IsVisible(UserContext user, Document doc) =>
-        doc.DocStatus == DocStatus.Submitted && doc.Data.Str("receipt_status") != "Fully received" && (user.HasRole("Purchasing") || user.HasRole("Stock") || user.IsAdmin);
+        doc.DocStatus == DocStatus.Submitted && doc.Data.Str("receipt_status") != "Fully received" && (user.HasRole(ErpRoles.ProcurementReceiving) || user.HasRole(ErpRoles.StockKeeper));
 
     public async Task<FormActionResult> ExecuteAsync(FormActionContext ctx, CancellationToken ct)
     {

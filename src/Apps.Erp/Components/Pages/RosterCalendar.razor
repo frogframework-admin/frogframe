@@ -21,7 +21,7 @@
         <a class="bb-btn bb-btn-outline" href="/app/ShiftSwapRequest/new" style="text-decoration:none;padding:.45rem .85rem;border:1px solid var(--border,#cbd5e1);border-radius:.375rem;font-size:.875rem">
             Request Shift Swap
         </a>
-        @if (Current.Required.HasRole("HR") || Current.Required.HasRole("Manager") || Current.Required.IsAdmin)
+        @if (Current.Required.HasRole(ErpRoles.HrTimeAttendance) || Current.Required.HasRole(ErpRoles.Manager))
         {
             <a class="bb-btn bb-btn-outline" href="/app/ShiftOverride/new" style="text-decoration:none;padding:.45rem .85rem;border:1px solid var(--border,#cbd5e1);border-radius:.375rem;font-size:.875rem">
                 New Shift Override
@@ -378,7 +378,7 @@ else
     private List<string> SlotShifts = [];
 
     private bool CanGenerate =>
-        (Current.Required.HasRole("HR") || Current.Required.IsAdmin)
+        Current.Required.HasRole(ErpRoles.HrTimeAttendance)
         && Metadata.Current.TryGet("ScheduleGeneration", out var meta) && Perms.Can(Current.Required, meta, DocActions.Create);
 
     private bool CanExport =>
@@ -391,7 +391,7 @@ else
         try
         {
             orgUnits = await Docs.QueryForReportAsync(Current.Required, "OrganizationUnit", [], DocActions.Read);
-            if (Current.Required.HasRole("HR") || Current.Required.HasRole("Manager") || Current.Required.IsAdmin)
+            if (Current.Required.HasRole(ErpRoles.HrTimeAttendance) || Current.Required.HasRole(ErpRoles.Manager))
             {
                 shiftGroups = await Docs.QueryForReportAsync(Current.Required, "ShiftGroup", [], DocActions.Read);
                 requirements = await Docs.QueryForReportAsync(Current.Required, "ShiftRequirement", [], DocActions.Read);

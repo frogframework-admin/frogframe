@@ -108,7 +108,7 @@ public sealed class QuotationMakeSalesOrderAction : IFormAction<Quotation>
     public string Label => "Create sales order";
     public string Icon => "clipboard-check";
 
-    public bool IsVisible(UserContext user, Document doc) => doc.WorkflowState == "Accepted" && (user.HasRole("Sales") || user.HasRole("Manager"));
+    public bool IsVisible(UserContext user, Document doc) => doc.WorkflowState == "Accepted" && (user.HasRole(ErpRoles.CrmSales) || user.HasRole(ErpRoles.Manager));
 
     public async Task<FormActionResult> ExecuteAsync(FormActionContext ctx, CancellationToken ct)
     {
@@ -136,7 +136,7 @@ public sealed class SalesOrderMakeInvoiceAction(TimeProvider clock) : IFormActio
     public string Icon => "receipt";
 
     public bool IsVisible(UserContext user, Document doc) =>
-        doc.DocStatus == DocStatus.Submitted && doc.Data.Str("billing_status") != "Fully billed" && (user.HasRole("Finance") || user.IsAdmin);
+        doc.DocStatus == DocStatus.Submitted && doc.Data.Str("billing_status") != "Fully billed" && user.HasRole(ErpRoles.FinanceReceivable);
 
     public async Task<FormActionResult> ExecuteAsync(FormActionContext ctx, CancellationToken ct)
     {

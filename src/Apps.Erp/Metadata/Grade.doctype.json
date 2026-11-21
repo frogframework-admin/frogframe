@@ -59,11 +59,47 @@
   ],
   "permissions": [
     {
-      "role": "HR",
+      "role": "HR-Admin",
       "actions": [
         "read",
         "create",
         "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Recruitment",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Employee-Management",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Time-Attendance",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Talent",
+      "actions": [
+        "read",
         "report",
         "export"
       ],
@@ -89,10 +125,26 @@
       "scope": "all"
     },
     {
-      "role": "HR",
+      "role": "HR-Admin",
       "actions": [
         "read",
         "write"
+      ],
+      "scope": "all",
+      "permLevel": 1
+    },
+    {
+      "role": "HR-Comben",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Comben",
+      "actions": [
+        "read"
       ],
       "scope": "all",
       "permLevel": 1

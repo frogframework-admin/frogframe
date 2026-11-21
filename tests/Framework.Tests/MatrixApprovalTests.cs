@@ -49,7 +49,7 @@ sealed partial class Tests
     }
 
     private static UserContext MatrixUser(string employee, params string[] roles) =>
-        new($"u-{employee}", employee, "acme", new HashSet<string>(roles.Length > 0 ? roles : ["Employee"]), new Dictionary<string, string> { ["employee"] = employee });
+        new($"u-{employee}", employee, "acme", RoleGroups.Expand(roles.Length > 0 ? roles : ["Employee"]), new Dictionary<string, string> { ["employee"] = employee });
 
     private static async Task<Document> LeaveForAsync(DocumentService docs, string employee, DateOnly from, DateOnly to, bool approve)
     {

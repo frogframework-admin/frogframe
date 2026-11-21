@@ -149,8 +149,8 @@ else if (optDoc is not null)
     private Dictionary<string, Dictionary<DateOnly, Dictionary<string, object?>>> grid = new(StringComparer.Ordinal);
 
     private string Status => optDoc?.Data.Str("status") ?? "Draft";
-    private bool CanRun => Current.Required.HasRole("HR") || Current.Required.HasRole("Manager") || Current.Required.IsAdmin;
-    private bool CanApply => Current.Required.HasRole("HR") || Current.Required.IsAdmin;
+    private bool CanRun => Current.Required.HasRole(ErpRoles.HrTimeAttendance) || Current.Required.HasRole(ErpRoles.Manager);
+    private bool CanApply => Current.Required.HasRole(ErpRoles.HrTimeAttendance);
 
     private static string? Str(Document d, string f) => d.Data.GetValueOrDefault(f) as string;
     private static decimal Dec(Document d, string f) => d.Data.TryGetValue(f, out var v) && v is not null ? Convert.ToDecimal(v, CultureInfo.InvariantCulture) : 0m;

@@ -654,7 +654,7 @@ public sealed class OrganizationUnitActivateAction(IDocumentStore store, TimePro
     public string Tone => "positive";
 
     public bool IsVisible(UserContext user, Document doc) =>
-        doc.Data.Str("status") == "Planned" && (user.HasRole("HR") || user.IsAdmin);
+        doc.Data.Str("status") == "Planned" && user.HasRole(ErpRoles.HrEmployeeManagement);
 
     public async Task<FormActionResult> ExecuteAsync(FormActionContext ctx, CancellationToken ct)
     {

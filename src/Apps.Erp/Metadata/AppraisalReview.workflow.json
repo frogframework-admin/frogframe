@@ -32,9 +32,9 @@
       "action": "Submit self review",
       "allowedRoles": [
         "Employee",
-        "HR"
+        "HR-Talent"
       ],
-      "condition": "employee == user.employee || has_role('HR')"
+      "condition": "employee == user.employee || has_role('HR-Talent')"
     },
     {
       "from": "Self review done",
@@ -42,9 +42,9 @@
       "action": "Return to employee",
       "allowedRoles": [
         "Employee",
-        "HR"
+        "HR-Talent"
       ],
-      "condition": "reviewer == user.employee || has_role('HR')",
+      "condition": "reviewer == user.employee || has_role('HR-Talent')",
       "requireComment": true
     },
     {
@@ -53,16 +53,16 @@
       "action": "Complete review",
       "allowedRoles": [
         "Employee",
-        "HR"
+        "HR-Talent"
       ],
-      "condition": "(reviewer == user.employee && employee != user.employee) || has_role('HR')"
+      "condition": "(reviewer == user.employee && employee != user.employee) || has_role('HR-Talent')"
     },
     {
       "from": "Completed",
       "to": "Cancelled",
       "action": "Cancel",
       "allowedRoles": [
-        "HR"
+        "HR-Talent"
       ],
       "requireComment": true
     }

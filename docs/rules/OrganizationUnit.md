@@ -22,7 +22,7 @@ Aturan yang dijalankan kode saat dokumen Organization Unit (OrganizationUnit) di
 
 ## Tombol aksi: Activate planned structure
 
-Tombol **Activate planned structure** di form Organization Unit hanya tampil bila `doc.Data.Str("status") == "Planned" && (user.HasRole("HR") || user.IsAdmin)` (WorkflowState = state workflow, DocStatus = Draft/Submitted, HasRole = peran user). Form action on a Planned OrganizationUnit to activate it on its effective date, close its predecessor version, and migrate active Positions.
+Tombol **Activate planned structure** di form Organization Unit hanya tampil bila `doc.Data.Str("status") == "Planned" && user.HasRole(ErpRoles.HrEmployeeManagement)` (WorkflowState = state workflow, DocStatus = Draft/Submitted, HasRole = peran user). Form action on a Planned OrganizationUnit to activate it on its effective date, close its predecessor version, and migrate active Positions.
 
 ## Aturan bersama yang juga berlaku
 

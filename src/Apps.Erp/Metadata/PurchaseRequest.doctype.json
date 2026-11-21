@@ -182,7 +182,25 @@
       "scope": "match:project_approver=employee"
     },
     {
-      "role": "Purchasing",
+      "role": "Procurement-Admin",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Procurement-Buyer",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Procurement-Receiving",
       "actions": [
         "read",
         "report",

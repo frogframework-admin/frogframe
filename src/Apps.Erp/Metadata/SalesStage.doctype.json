@@ -106,7 +106,32 @@
       "scope": "all"
     },
     {
-      "role": "Sales",
+      "role": "CRM-Admin",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "CRM-Lead-Management",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "CRM-Sales",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "CRM-Marketing",
       "actions": [
         "read"
       ],

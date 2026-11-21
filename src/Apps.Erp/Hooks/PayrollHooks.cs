@@ -467,7 +467,7 @@ public sealed class PayrollRunCreatePayslipsAction(IDocumentStore store) : IForm
     public string Icon => "users";
     public string Tone => "primary";
 
-    public bool IsVisible(UserContext user, Document doc) => doc.DocStatus == DocStatus.Draft && (user.HasRole("Payroll") || user.HasRole("Finance") || user.IsAdmin);
+    public bool IsVisible(UserContext user, Document doc) => doc.DocStatus == DocStatus.Draft && user.HasRole(ErpRoles.HrPayroll);
 
     public async Task<FormActionResult> ExecuteAsync(FormActionContext ctx, CancellationToken ct)
     {
@@ -524,7 +524,7 @@ public sealed class PayrollRunSubmitPayslipsAction(IDocumentStore store) : IForm
     public string Icon => "check";
     public string Tone => "positive";
 
-    public bool IsVisible(UserContext user, Document doc) => doc.DocStatus == DocStatus.Draft && (user.HasRole("Payroll") || user.HasRole("Finance") || user.IsAdmin);
+    public bool IsVisible(UserContext user, Document doc) => doc.DocStatus == DocStatus.Draft && user.HasRole(ErpRoles.HrPayroll);
 
     public async Task<FormActionResult> ExecuteAsync(FormActionContext ctx, CancellationToken ct)
     {

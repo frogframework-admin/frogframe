@@ -246,10 +246,10 @@ Workflows model formal approval gates and document lifecycles. When a workflow i
 
 | Current State | Action Button | Target State | Allowed Roles | Guard Condition |
 |---|---|---|---|---|
-| `Draft` | **Submit self review** | `Self review done` | Employee, HR | `employee == user.employee || has_role('HR')` |
-| `Self review done` | **Return to employee** | `Draft` | Employee, HR | `reviewer == user.employee || has_role('HR')` |
-| `Self review done` | **Complete review** | `Completed` | Employee, HR | `(reviewer == user.employee && employee != user.employee) || has_role('HR')` |
-| `Completed` | **Cancel** | `Cancelled` | HR | None |
+| `Draft` | **Submit self review** | `Self review done` | Employee, HR-Talent | `employee == user.employee || has_role('HR')` |
+| `Self review done` | **Return to employee** | `Draft` | Employee, HR-Talent | `reviewer == user.employee || has_role('HR')` |
+| `Self review done` | **Complete review** | `Completed` | Employee, HR-Talent | `(reviewer == user.employee && employee != user.employee) || has_role('HR')` |
+| `Completed` | **Cancel** | `Cancelled` | HR-Talent | None |
 
 
 ### Workflow: EmployeeAdvanceApproval
@@ -278,9 +278,9 @@ Workflows model formal approval gates and document lifecycles. When a workflow i
 | `Pending Manager` | **Approve** | `Pending Finance` | Employee | `expense_approver == user.employee && employee != user.employee` |
 | `Pending Manager` | **Reject** | `Rejected` | Employee | `expense_approver == user.employee && employee != user.employee` |
 | `Pending Manager` | **Withdraw** | `Cancelled` | Employee | `employee == user.employee` |
-| `Pending Finance` | **Approve** | `Approved` | Finance | `employee != user.employee` |
-| `Pending Finance` | **Reject** | `Rejected` | Finance | None |
-| `Approved` | **Cancel** | `Cancelled` | Finance | None |
+| `Pending Finance` | **Approve** | `Approved` | Finance-Payable | `employee != user.employee` |
+| `Pending Finance` | **Reject** | `Rejected` | Finance-Payable | None |
+| `Approved` | **Cancel** | `Cancelled` | Finance-Payable | None |
 
 
 ### Workflow: ExpenseClaimApproval
@@ -309,9 +309,9 @@ Workflows model formal approval gates and document lifecycles. When a workflow i
 | `Pending Manager` | **Approve** | `Pending Finance Review` | Employee | `expense_approver == user.employee && employee != user.employee` |
 | `Pending Manager` | **Reject** | `Rejected` | Employee | `expense_approver == user.employee && employee != user.employee` |
 | `Pending Manager` | **Withdraw** | `Cancelled` | Employee | `employee == user.employee` |
-| `Pending Finance Review` | **Verify** | `Approved` | Finance | `employee != user.employee` |
-| `Pending Finance Review` | **Reject** | `Rejected` | Finance | None |
-| `Approved` | **Cancel** | `Cancelled` | Finance | None |
+| `Pending Finance Review` | **Verify** | `Approved` | Finance-Payable | `employee != user.employee` |
+| `Pending Finance Review` | **Reject** | `Rejected` | Finance-Payable | None |
+| `Approved` | **Cancel** | `Cancelled` | Finance-Payable | None |
 
 
 ### Workflow: JobOfferLifecycle
@@ -336,11 +336,11 @@ Workflows model formal approval gates and document lifecycles. When a workflow i
 
 | Current State | Action Button | Target State | Allowed Roles | Guard Condition |
 |---|---|---|---|---|
-| `Draft` | **Send to candidate** | `Sent` | HR | None |
-| `Sent` | **Candidate accepted** | `Accepted` | HR | None |
-| `Sent` | **Candidate declined** | `Declined` | HR | None |
-| `Sent` | **Mark expired** | `Expired` | HR | None |
-| `Sent` | **Withdraw offer** | `Cancelled` | HR | None |
+| `Draft` | **Send to candidate** | `Sent` | HR-Recruitment | None |
+| `Sent` | **Candidate accepted** | `Accepted` | HR-Recruitment | None |
+| `Sent` | **Candidate declined** | `Declined` | HR-Recruitment | None |
+| `Sent` | **Mark expired** | `Expired` | HR-Recruitment | None |
+| `Sent` | **Withdraw offer** | `Cancelled` | HR-Recruitment | None |
 
 
 ### Workflow: LeaveApproval
@@ -364,12 +364,12 @@ Workflows model formal approval gates and document lifecycles. When a workflow i
 
 | Current State | Action Button | Target State | Allowed Roles | Guard Condition |
 |---|---|---|---|---|
-| `Draft` | **Submit for approval** | `Pending Approval` | Employee, HR | `employee == user.employee || has_role('HR')` |
+| `Draft` | **Submit for approval** | `Pending Approval` | Employee, HR-Time-Attendance | `employee == user.employee || has_role('HR')` |
 | `Pending Approval` | **Approve** | `Approved` | Employee | `leave_approver == user.employee && employee != user.employee` |
 | `Pending Approval` | **Reject** | `Rejected` | Employee | `leave_approver == user.employee && employee != user.employee` |
-| `Pending Approval` | **Approve (HR)** | `Approved` | HR | `employee != user.employee` |
+| `Pending Approval` | **Approve (HR)** | `Approved` | HR-Time-Attendance | `employee != user.employee` |
 | `Pending Approval` | **Withdraw** | `Cancelled` | Employee | `employee == user.employee` |
-| `Approved` | **Cancel** | `Cancelled` | HR | None |
+| `Approved` | **Cancel** | `Cancelled` | HR-Time-Attendance | None |
 
 
 ### Workflow: OvertimeApproval
@@ -393,12 +393,12 @@ Workflows model formal approval gates and document lifecycles. When a workflow i
 
 | Current State | Action Button | Target State | Allowed Roles | Guard Condition |
 |---|---|---|---|---|
-| `Draft` | **Submit for approval** | `Pending Approval` | Employee, HR | `employee == user.employee || has_role('HR')` |
+| `Draft` | **Submit for approval** | `Pending Approval` | Employee, HR-Time-Attendance | `employee == user.employee || has_role('HR')` |
 | `Pending Approval` | **Approve** | `Approved` | Employee | `approver == user.employee && employee != user.employee` |
 | `Pending Approval` | **Reject** | `Rejected` | Employee | `approver == user.employee && employee != user.employee` |
-| `Pending Approval` | **Approve (HR)** | `Approved` | HR | `employee != user.employee` |
+| `Pending Approval` | **Approve (HR)** | `Approved` | HR-Time-Attendance | `employee != user.employee` |
 | `Pending Approval` | **Withdraw** | `Cancelled` | Employee | `employee == user.employee` |
-| `Approved` | **Cancel** | `Cancelled` | HR | None |
+| `Approved` | **Cancel** | `Cancelled` | HR-Time-Attendance | None |
 
 
 ### Workflow: PurchaseRequestApproval
@@ -426,7 +426,7 @@ Workflows model formal approval gates and document lifecycles. When a workflow i
 | `Pending Approval` | **Approve** | `Approved` | Employee | `approver == user.employee && requested_by != user.employee` |
 | `Pending Approval` | **Reject** | `Rejected` | Employee | `approver == user.employee && requested_by != user.employee` |
 | `Pending Approval` | **Withdraw** | `Cancelled` | Employee | `requested_by == user.employee` |
-| `Approved` | **Cancel** | `Cancelled` | Purchasing | None |
+| `Approved` | **Cancel** | `Cancelled` | Procurement-Buyer | None |
 
 
 ### Workflow: QuotationLifecycle
@@ -452,10 +452,10 @@ Workflows model formal approval gates and document lifecycles. When a workflow i
 
 | Current State | Action Button | Target State | Allowed Roles | Guard Condition |
 |---|---|---|---|---|
-| `Draft` | **Send to customer** | `Sent` | Sales, Manager | `sales_rep == user.employee || has_role('Manager')` |
-| `Sent` | **Customer accepted** | `Accepted` | Sales, Manager | `sales_rep == user.employee || has_role('Manager')` |
-| `Sent` | **Customer rejected** | `Rejected` | Sales, Manager | `sales_rep == user.employee || has_role('Manager')` |
+| `Draft` | **Send to customer** | `Sent` | CRM-Sales, Manager | `sales_rep == user.employee || has_role('Manager')` |
+| `Sent` | **Customer accepted** | `Accepted` | CRM-Sales, Manager | `sales_rep == user.employee || has_role('Manager')` |
+| `Sent` | **Customer rejected** | `Rejected` | CRM-Sales, Manager | `sales_rep == user.employee || has_role('Manager')` |
 | `Sent` | **Mark expired** | `Expired` | System Manager, Manager | None |
-| `Accepted` | **Mark billed** | `Billed` | System Manager, Finance | None |
+| `Accepted` | **Mark billed** | `Billed` | System Manager, Finance-Receivable | None |
 | `Accepted` | **Cancel** | `Cancelled` | Manager | None |
 

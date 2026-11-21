@@ -164,7 +164,7 @@ public sealed class PaymentRunGetItemsAction(ILedgerReader ledger, IDocumentStor
     public string Icon => "list";
     public string Tone => "primary";
 
-    public bool IsVisible(UserContext user, Document doc) => doc.DocStatus == DocStatus.Draft && (user.HasRole("Finance") || user.IsAdmin);
+    public bool IsVisible(UserContext user, Document doc) => doc.DocStatus == DocStatus.Draft && user.HasRole(ErpRoles.FinanceTreasury);
 
     public async Task<FormActionResult> ExecuteAsync(FormActionContext ctx, CancellationToken ct)
     {

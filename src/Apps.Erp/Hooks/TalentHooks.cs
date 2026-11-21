@@ -26,7 +26,7 @@ public sealed class AppraisalHook(IDocumentStore store) : IBeforeValidate<Apprai
             .FirstOrDefault(x => x.Name != c.Doc.Name && x.DocStatus != DocStatus.Cancelled && x.Name != d.Str("amended_from"));
         if (dup is not null) throw Errors.One("appraisal_cycle", $"{d.Str("employee")} already has appraisal {dup.Name} in this cycle");
 
-        var isHr = c.User.HasRole("HR") || c.User.IsAdmin;
+        var isHr = c.User.HasRole(ErpRoles.HrTalent);
         var me = c.User.Attr("employee");
         if (!isHr && c.Previous is not null)
         {

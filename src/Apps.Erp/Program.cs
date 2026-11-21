@@ -213,6 +213,11 @@ async Task InitializeDatabaseAndSeedAsync(CancellationToken ct)
         app.Logger.LogWarning(ex, "Gagal seed awal navigasi menu/role");
     }
 
+    // Role split (docs/guides/roles.md): active metadata that still names a broad role (group) gives all of its members
+    // the group's full rights; typically a DocType or workflow an administrator published before the split.
+    foreach (var use in ErpRoles.FindGroupUses(app.Services.GetRequiredService<Framework.Metadata.IMetadataProvider>().Current))
+        app.Logger.LogWarning("Permissions still name a role group, which gives every member its full rights: {Use}. Change them to granular roles (docs/guides/roles.md).", use);
+
     // Audit metadata terhadap master role & modul tiap tenant yang dipantau (Metadata:AuditTenants).
     // Hanya melaporkan ke log; tidak mengubah metadata. Mencegah masalah baru ketahuan saat publish ulang.
     {

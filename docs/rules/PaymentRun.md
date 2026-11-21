@@ -35,7 +35,7 @@ Aturan yang dijalankan kode saat dokumen Payment Run (PaymentRun) disimpan, di-s
 
 ## Tombol aksi: Get open items
 
-Tombol **Get open items** di form Payment Run hanya tampil bila `doc.DocStatus == DocStatus.Draft && (user.HasRole("Finance") || user.IsAdmin)` (WorkflowState = state workflow, DocStatus = Draft/Submitted, HasRole = peran user). Aksi "Get open items": utang jatuh tempo per pemilihan run (faktur pemasok, klaim & uang muka disetujui, gaji dari Payroll Run).
+Tombol **Get open items** di form Payment Run hanya tampil bila `doc.DocStatus == DocStatus.Draft && user.HasRole(ErpRoles.FinanceTreasury)` (WorkflowState = state workflow, DocStatus = Draft/Submitted, HasRole = peran user). Aksi "Get open items": utang jatuh tempo per pemilihan run (faktur pemasok, klaim & uang muka disetujui, gaji dari Payroll Run).
 
 ## Aturan bersama yang juga berlaku
 

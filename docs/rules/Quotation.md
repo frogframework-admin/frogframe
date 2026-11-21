@@ -18,11 +18,11 @@ Aturan yang dijalankan kode saat dokumen Quotation (Quotation) disimpan, di-subm
 
 ## Tombol aksi: Create sales order
 
-Tombol **Create sales order** di form Quotation hanya tampil bila `doc.WorkflowState == "Accepted" && (user.HasRole("Sales") || user.HasRole("Manager"))` (WorkflowState = state workflow, DocStatus = Draft/Submitted, HasRole = peran user). Aksi "Create sales order" dari penawaran Accepted.
+Tombol **Create sales order** di form Quotation hanya tampil bila `doc.WorkflowState == "Accepted" && (user.HasRole(ErpRoles.CrmSales) || user.HasRole(ErpRoles.Manager))` (WorkflowState = state workflow, DocStatus = Draft/Submitted, HasRole = peran user). Aksi "Create sales order" dari penawaran Accepted.
 
 ## Tombol aksi: Create Sales Invoice
 
-Tombol **Create Sales Invoice** di form Quotation hanya tampil bila `doc.WorkflowState == "Accepted" && user.HasRole("Finance")` (WorkflowState = state workflow, DocStatus = Draft/Submitted, HasRole = peran user). Aksi "Buat Faktur" dari penawaran yang diterima (role Finance, karena Sales tidak membuat faktur).
+Tombol **Create Sales Invoice** di form Quotation hanya tampil bila `doc.WorkflowState == "Accepted" && user.HasRole(ErpRoles.FinanceReceivable)` (WorkflowState = state workflow, DocStatus = Draft/Submitted, HasRole = peran user). Aksi "Buat Faktur" dari penawaran yang diterima (role Finance, karena Sales tidak membuat faktur).
 
 ## Aturan bersama yang juga berlaku
 

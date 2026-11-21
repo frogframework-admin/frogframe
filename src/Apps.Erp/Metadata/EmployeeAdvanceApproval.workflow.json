@@ -78,7 +78,7 @@
       "to": "Approved",
       "action": "Approve",
       "allowedRoles": [
-        "Finance"
+        "Finance-Payable"
       ],
       "condition": "employee != user.employee"
     },
@@ -87,7 +87,7 @@
       "to": "Rejected",
       "action": "Reject",
       "allowedRoles": [
-        "Finance"
+        "Finance-Payable"
       ],
       "requireComment": true
     },
@@ -96,7 +96,7 @@
       "to": "Cancelled",
       "action": "Cancel",
       "allowedRoles": [
-        "Finance"
+        "Finance-Payable"
       ],
       "requireComment": true
     }

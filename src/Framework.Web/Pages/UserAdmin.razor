@@ -217,10 +217,19 @@ else
                         var self = !isNew && edit.Id == Current.Required.Id && (r == UserContext.SystemManager || r == UserContext.Administrator);
                         <div class="label-row">
                             <BbCheckbox Id="@($"r-{r}")" Checked="edit.Roles.Contains(r)" Disabled="self" CheckedChanged="v => ToggleRole(r, v)" />
-                            <BbLabel For="@($"r-{r}")">@r@(self ? " (yourself)" : "")</BbLabel>
+                            <BbLabel For="@($"r-{r}")" title="@(RoleGroups.IsGroup(r) ? "Group: grants " + string.Join(", ", RoleGroups.MembersOf(r)) : null)">@r@(RoleGroups.IsGroup(r) ? " (group)" : "")@(self ? " (yourself)" : "")</BbLabel>
                         </div>
                     }
                 </div>
+                @if (RoleGroups.FindConflicts(edit.Roles) is { Count: > 0 } conflicts)
+                {
+                    <div class="muted" role="alert" style="margin-top:.5rem;padding:.5rem .75rem;border:1px solid var(--destructive, #dc2626);border-radius:6px;font-size:.8rem">
+                        <strong>Segregation of duties:</strong> this person would hold roles that should be separated.
+                        <ul style="margin:.25rem 0 0 1rem">
+                            @foreach (var c in conflicts) { <li>@c</li> }
+                        </ul>
+                    </div>
+                }
 
                 @if (!isNew)
                 {

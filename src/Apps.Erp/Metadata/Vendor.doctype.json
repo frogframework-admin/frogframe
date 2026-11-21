@@ -245,7 +245,8 @@
       "label": "Bank account",
       "childDocType": "PartyBankAccount",
       "tab": "Commercial",
-      "section": "Bank Account"
+      "section": "Bank Account",
+      "permLevel": 1
     }
   ],
   "rules": [
@@ -258,7 +259,7 @@
   ],
   "permissions": [
     {
-      "role": "Finance",
+      "role": "Finance-Admin",
       "actions": [
         "read",
         "create",
@@ -269,11 +270,128 @@
       "scope": "all"
     },
     {
-      "role": "Purchasing",
+      "role": "Finance-Cashier",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Finance-Receivable",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Finance-Payable",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Finance-Treasury",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Finance-Tax",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Accounting-Admin",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Accounting-General-Ledger",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Accounting-Fixed-Assets",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Accounting-Budget-Costing",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Accounting-Closing",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Accounting-Audit",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Procurement-Admin",
       "actions": [
         "read",
         "create",
         "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Procurement-Buyer",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Procurement-Receiving",
+      "actions": [
+        "read",
         "report",
         "export"
       ],
@@ -297,6 +415,72 @@
         "export"
       ],
       "scope": "all"
+    },
+    {
+      "role": "Finance-Admin",
+      "actions": [
+        "read",
+        "write"
+      ],
+      "scope": "all",
+      "permLevel": 1
+    },
+    {
+      "role": "Finance-Payable",
+      "actions": [
+        "read"
+      ],
+      "scope": "all",
+      "permLevel": 1
+    },
+    {
+      "role": "Finance-Treasury",
+      "actions": [
+        "read"
+      ],
+      "scope": "all",
+      "permLevel": 1
+    },
+    {
+      "role": "Finance-Cashier",
+      "actions": [
+        "read"
+      ],
+      "scope": "all",
+      "permLevel": 1
+    },
+    {
+      "role": "Accounting-Audit",
+      "actions": [
+        "read"
+      ],
+      "scope": "all",
+      "permLevel": 1
+    },
+    {
+      "role": "Procurement-Admin",
+      "actions": [
+        "read"
+      ],
+      "scope": "all",
+      "permLevel": 1
+    },
+    {
+      "role": "Procurement-Buyer",
+      "actions": [
+        "read"
+      ],
+      "scope": "all",
+      "permLevel": 1
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "write"
+      ],
+      "scope": "all",
+      "permLevel": 1
     }
   ],
   "listView": {

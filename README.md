@@ -189,6 +189,8 @@ Authentication is powered by **ASP.NET Core Identity** (cookie-based for browser
 | `frogframe:department` | Department Code | `Attributes["department"]` |
 | `frogframe:employee` | Linked Employee ID | `Attributes["employee"]` |
 
+ERP permissions use granular roles per module (for example `Finance-Payable`, `HR-Time-Attendance`); the former broad roles (`HR`, `Finance`, `Sales`, …) are role groups that grant all of their roles. See [Roles](docs/guides/roles.md).
+
 Claims missing a tenant are rejected immediately (fail-closed). Accounts lock automatically for 15 minutes after 5 consecutive failed attempts.
 
 **Two-factor authentication and single sign-on** (see [docs/guides/two-factor-and-sso.md](docs/guides/two-factor-and-sso.md)):

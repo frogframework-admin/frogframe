@@ -18,15 +18,15 @@ Aturan yang dijalankan kode saat dokumen Schedule Optimization (ScheduleOptimiza
 
 ## Tombol aksi: Run Optimizer (CP-SAT)
 
-Tombol **Run Optimizer (CP-SAT)** di form Schedule Optimization hanya tampil bila `(user.HasRole("HR") || user.HasRole("Manager") || user.IsAdmin) && doc.Data.Str("status") is null or "Draft" or "Proposed" or "Failed"` (WorkflowState = state workflow, DocStatus = Draft/Submitted, HasRole = peran user). Form action to run the OR-Tools CP-SAT optimizer on a ScheduleOptimization document.
+Tombol **Run Optimizer (CP-SAT)** di form Schedule Optimization hanya tampil bila `(user.HasRole(ErpRoles.HrTimeAttendance) || user.HasRole(ErpRoles.Manager)) && doc.Data.Str("status") is null or "Draft" or "Proposed" or "Failed"` (WorkflowState = state workflow, DocStatus = Draft/Submitted, HasRole = peran user). Form action to run the OR-Tools CP-SAT optimizer on a ScheduleOptimization document.
 
 ## Tombol aksi: Apply Proposal
 
-Tombol **Apply Proposal** di form Schedule Optimization hanya tampil bila `(user.HasRole("HR") || user.IsAdmin) && doc.Data.Str("status") == "Proposed"` (WorkflowState = state workflow, DocStatus = Draft/Submitted, HasRole = peran user). Form action to apply a Proposed ScheduleOptimization to EmployeeDailySchedule.
+Tombol **Apply Proposal** di form Schedule Optimization hanya tampil bila `user.HasRole(ErpRoles.HrTimeAttendance) && doc.Data.Str("status") == "Proposed"` (WorkflowState = state workflow, DocStatus = Draft/Submitted, HasRole = peran user). Form action to apply a Proposed ScheduleOptimization to EmployeeDailySchedule.
 
 ## Tombol aksi: Discard Proposal
 
-Tombol **Discard Proposal** di form Schedule Optimization hanya tampil bila `(user.HasRole("HR") || user.HasRole("Manager") || user.IsAdmin) && doc.Data.Str("status") == "Proposed"` (WorkflowState = state workflow, DocStatus = Draft/Submitted, HasRole = peran user). Form action to discard a Proposed ScheduleOptimization.
+Tombol **Discard Proposal** di form Schedule Optimization hanya tampil bila `(user.HasRole(ErpRoles.HrTimeAttendance) || user.HasRole(ErpRoles.Manager)) && doc.Data.Str("status") == "Proposed"` (WorkflowState = state workflow, DocStatus = Draft/Submitted, HasRole = peran user). Form action to discard a Proposed ScheduleOptimization.
 
 ## Aturan bersama yang juga berlaku
 

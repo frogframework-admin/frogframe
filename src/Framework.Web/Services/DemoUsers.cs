@@ -24,13 +24,14 @@ public static class DemoUsers
         new("admin", "admin", "Admin Sistem", "acme", "IT", null, [UserContext.Administrator, UserContext.SystemManager], "System Administrator"),
         new("it01", "it01", "IT Staff", "acme", "IT", "EMP-0001", ["Employee", "User"], "IT Staff"),
         new("it02", "it02", "IT Manager", "acme", "IT", "EMP-0003", ["Employee", "Manager"], "IT Manager"),
-        new("hr01", "hr01", "HR Staff", "acme", "HR", "EMP-0009", ["Employee", "HR"], "HR Staff"),
-        new("hr02", "hr02", "HR Manager", "acme", "HR", "EMP-0008", ["Employee", "HR", "Manager", "Payroll"], "HR Manager"),
-        new("marketing01", "marketing01", "Marketing Staff", "acme", "MARKETING", "EMP-0002", ["Employee", "Sales"], "Marketing Staff"),
-        new("marketing02", "marketing02", "Marketing Manager", "acme", "MARKETING", "EMP-0004", ["Employee", "Manager", "Sales"], "Marketing Manager"),
-        new("purchasing01", "purchasing01", "Purchasing Staff", "acme", "PURCHASING", "EMP-0006", ["Employee", "Purchasing", "Procurement"], "Purchasing & Procurement Specialist"),
-        new("warehouse01", "warehouse01", "Warehouse", "acme", "WAREHOUSE", "EMP-0010", ["Employee", "Stock"], "Warehouse Officer"),
-        new("finance01", "finance01", "Finance Staff", "acme", "FINANCE", "EMP-0005", ["Employee", "Finance"], "Finance & Accounting Specialist"),
+        new("hr01", "hr01", "HR Staff", "acme", "HR", "EMP-0009", ["Employee", "HR-Recruitment", "HR-Employee-Management", "HR-Time-Attendance"], "HR Staff"),
+        new("hr02", "hr02", "HR Manager", "acme", "HR", "EMP-0008", ["Employee", "Manager", "HR-Admin", "HR-Recruitment", "HR-Employee-Management", "HR-Time-Attendance", "HR-Talent", "HR-Payroll"], "HR Manager"),
+        new("marketing01", "marketing01", "Marketing Staff", "acme", "MARKETING", "EMP-0002", ["Employee", "CRM-Lead-Management", "CRM-Marketing"], "Marketing Staff"),
+        new("marketing02", "marketing02", "Marketing Manager", "acme", "MARKETING", "EMP-0004", ["Employee", "Manager", "CRM-Admin", "CRM-Lead-Management", "CRM-Sales"], "Marketing Manager"),
+        new("purchasing01", "purchasing01", "Purchasing Staff", "acme", "PURCHASING", "EMP-0006", ["Employee", "Procurement-Admin", "Procurement-Buyer"], "Purchasing & Procurement Specialist"),
+        new("warehouse01", "warehouse01", "Warehouse", "acme", "WAREHOUSE", "EMP-0010", ["Employee", "Stock-Admin", "Stock-Keeper", "Procurement-Receiving"], "Warehouse Officer"),
+        new("finance01", "finance01", "Finance Staff", "acme", "FINANCE", "EMP-0005", ["Employee", "Finance-Receivable", "Finance-Payable", "Finance-Tax", "Accounting-General-Ledger", "Accounting-Fixed-Assets", "Accounting-Budget-Costing"], "Finance & Accounting Specialist"),
+        new("finance02", "finance02", "Finance Treasury", "acme", "FINANCE", null, ["Employee", "Finance-Admin", "Finance-Treasury", "Finance-Cashier", "Accounting-Admin", "Accounting-Closing"], "Treasury & Finance Controller"),
     ];
 
     /// <summary>

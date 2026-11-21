@@ -42,9 +42,9 @@
       "action": "Submit for project approval",
       "allowedRoles": [
         "Employee",
-        "HR"
+        "HR-Time-Attendance"
       ],
-      "condition": "(employee == user.employee || has_role('HR')) && !empty(project_approver)"
+      "condition": "(employee == user.employee || has_role('HR-Time-Attendance')) && !empty(project_approver)"
     },
     {
       "from": "Draft",
@@ -52,9 +52,9 @@
       "action": "Submit for approval",
       "allowedRoles": [
         "Employee",
-        "HR"
+        "HR-Time-Attendance"
       ],
-      "condition": "(employee == user.employee || has_role('HR')) && empty(project_approver)"
+      "condition": "(employee == user.employee || has_role('HR-Time-Attendance')) && empty(project_approver)"
     },
     {
       "from": "Pending Project Approval",
@@ -108,7 +108,7 @@
       "to": "Approved",
       "action": "Approve (HR)",
       "allowedRoles": [
-        "HR"
+        "HR-Time-Attendance"
       ],
       "condition": "employee != user.employee",
       "requireComment": true
@@ -127,7 +127,7 @@
       "to": "Cancelled",
       "action": "Cancel",
       "allowedRoles": [
-        "HR"
+        "HR-Time-Attendance"
       ],
       "requireComment": true
     }

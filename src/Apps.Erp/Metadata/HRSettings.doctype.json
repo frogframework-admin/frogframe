@@ -170,10 +170,38 @@
   ],
   "permissions": [
     {
-      "role": "HR",
+      "role": "HR-Admin",
       "actions": [
         "read",
         "write"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Recruitment",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Employee-Management",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Time-Attendance",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Talent",
+      "actions": [
+        "read"
       ],
       "scope": "all"
     },

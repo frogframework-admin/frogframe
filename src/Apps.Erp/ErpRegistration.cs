@@ -52,6 +52,8 @@ public static class ErpRegistration
     /// </summary>
     public static IServiceCollection AddErpHooks(this IServiceCollection services)
     {
+        // Granular ERP roles and the former broad roles as groups (docs/guides/roles.md).
+        ErpRoles.Register();
         services.AddErpAccounting();
         // CORE
         services.AddDocHook<CurrencyExchangeRate, CurrencyExchangeRateRulesHook>();

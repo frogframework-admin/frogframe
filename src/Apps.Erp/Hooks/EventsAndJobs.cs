@@ -260,7 +260,7 @@ public sealed class ContractExpiryReminderJob : IScheduledJob
             if (emp is null || emp.Data.Str("status") == Hr.Left) continue;
             var subject = $"Contract of {emp.Data.Str("full_name")} ends {k.Data.Str("end_date")}";
             const string body = "Decide on renewal (create a new contract with 'Renewal of') or process a separation.";
-            await Notify.ToRoleAsync(users, inbox, context.TenantId, "HR", subject, body, "EmploymentContract", k.Name, $"contract-expiry|{k.Name}", ct);
+            await Notify.ToRoleAsync(users, inbox, context.TenantId, ErpRoles.HrEmployeeManagement, subject, body, "EmploymentContract", k.Name, $"contract-expiry|{k.Name}", ct);
             await Notify.ToEmployeesAsync(users, inbox, context.TenantId, [emp.Data.Str("reports_to")], subject, body, "EmploymentContract", k.Name, $"contract-expiry|{k.Name}", ct);
         }
     }

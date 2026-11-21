@@ -44,7 +44,8 @@ public static class ClaimsUserMapper
         yield return new Claim(FrogFrameClaims.FullName, a.FullName);
         foreach (var (attr, value) in a.Attributes())
             if (FrogFrameClaims.AttributeClaims.TryGetValue(attr, out var type)) yield return new Claim(type, value);
-        foreach (var r in a.Roles.Distinct()) yield return new Claim(ClaimTypes.Role, r);
+        // Effective roles: role groups expanded both ways (see RoleGroups), so every check sees the same set.
+        foreach (var r in RoleGroups.Expand(a.Roles)) yield return new Claim(ClaimTypes.Role, r);
     }
 
     /// <summary>Null bila tidak terautentikasi atau klaim wajib (id, tenant) tidak ada — gagal tertutup.</summary>

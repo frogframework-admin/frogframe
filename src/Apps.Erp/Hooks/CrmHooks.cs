@@ -83,7 +83,7 @@ public sealed class LeadConvertAction(IDocumentStore store, TimeProvider clock) 
     public string Tone => "positive";
 
     public bool IsVisible(UserContext user, Document doc) =>
-        doc.Data.Str("status") is not (Crm.Converted or "Unqualified") && (user.HasRole("Sales") || user.HasRole("Manager"));
+        doc.Data.Str("status") is not (Crm.Converted or "Unqualified") && (user.HasRole(ErpRoles.CrmLeadManagement) || user.HasRole(ErpRoles.CrmSales) || user.HasRole(ErpRoles.Manager));
 
     public async Task<FormActionResult> ExecuteAsync(FormActionContext ctx, CancellationToken ct)
     {
@@ -241,7 +241,7 @@ public sealed class QuotationMakeInvoiceAction(TimeProvider clock) : IFormAction
     public string Label => "Create Sales Invoice";
     public string Icon => "receipt";
 
-    public bool IsVisible(UserContext user, Document doc) => doc.WorkflowState == "Accepted" && user.HasRole("Finance");
+    public bool IsVisible(UserContext user, Document doc) => doc.WorkflowState == "Accepted" && user.HasRole(ErpRoles.FinanceReceivable);
 
     public async Task<FormActionResult> ExecuteAsync(FormActionContext ctx, CancellationToken ct)
     {

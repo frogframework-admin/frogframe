@@ -108,7 +108,7 @@ public sealed class JobOfferCreateEmployeeAction(IDocumentStore store) : IFormAc
     public string Icon => "user-plus";
     public string Tone => "positive";
 
-    public bool IsVisible(UserContext user, Document doc) => doc.WorkflowState == "Accepted" && (user.HasRole("HR") || user.IsAdmin);
+    public bool IsVisible(UserContext user, Document doc) => doc.WorkflowState == "Accepted" && (user.HasRole(ErpRoles.HrRecruitment) || user.HasRole(ErpRoles.HrEmployeeManagement));
 
     public async Task<FormActionResult> ExecuteAsync(FormActionContext ctx, CancellationToken ct)
     {

@@ -37,9 +37,9 @@
       "action": "Submit for approval",
       "allowedRoles": [
         "Employee",
-        "HR"
+        "HR-Time-Attendance"
       ],
-      "condition": "employee == user.employee || has_role('HR')"
+      "condition": "employee == user.employee || has_role('HR-Time-Attendance')"
     },
     {
       "from": "Pending Approval",
@@ -65,7 +65,7 @@
       "to": "Approved",
       "action": "Approve (HR)",
       "allowedRoles": [
-        "HR"
+        "HR-Time-Attendance"
       ],
       "condition": "employee != user.employee",
       "requireComment": true
@@ -84,7 +84,7 @@
       "to": "Cancelled",
       "action": "Cancel",
       "allowedRoles": [
-        "HR"
+        "HR-Time-Attendance"
       ],
       "requireComment": true
     }

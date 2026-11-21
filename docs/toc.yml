@@ -42,6 +42,8 @@
       href: guides/tags-bookmarks-follow.md
     - name: Background Jobs
       href: guides/background-jobs.md
+    - name: Roles
+      href: guides/roles.md
     - name: Two-Factor Authentication & SSO
       href: guides/two-factor-and-sso.md
     - name: Rate Limiting

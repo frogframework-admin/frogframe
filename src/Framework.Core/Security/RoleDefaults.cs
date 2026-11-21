@@ -2,7 +2,43 @@ namespace Framework.Security;
 
 public static class RoleDefaults
 {
-    public static IReadOnlyList<RoleDef> CreateDefaultRoles(string tenantId, DateTimeOffset now) =>
+    private static readonly object Gate = new();
+    private static (string Name, string Description)[] _appRoles = [];
+
+    /// <summary>
+    /// Roles an application adds to every tenant's role list (created if missing, see EnsureDefaultRolesAsync).
+    /// Idempotent: registering the same name again replaces its description.
+    /// </summary>
+    public static void RegisterAppRoles(IEnumerable<(string Name, string Description)> roles)
+    {
+        lock (Gate)
+        {
+            var map = _appRoles.ToDictionary(r => r.Name, r => r.Description, StringComparer.OrdinalIgnoreCase);
+            foreach (var (name, description) in roles) map[name] = description;
+            _appRoles = map.Select(kv => (kv.Key, kv.Value)).ToArray();
+        }
+    }
+
+    /// <summary>Roles registered by the application (in registration order is not guaranteed).</summary>
+    public static IReadOnlyList<(string Name, string Description)> AppRoles => _appRoles;
+
+    public static IReadOnlyList<RoleDef> CreateDefaultRoles(string tenantId, DateTimeOffset now)
+    {
+        var builtIn = BuiltIn(tenantId, now);
+        var names = builtIn.Select(r => r.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return [.. builtIn, .. _appRoles.Where(r => !names.Contains(r.Name)).Select(r => new RoleDef
+        {
+            Id = $"role_{tenantId}_{r.Name.ToLowerInvariant().Replace(' ', '_').Replace('-', '_')}",
+            TenantId = tenantId,
+            Name = r.Name,
+            Description = r.Description,
+            IsSystem = false,
+            CreatedAt = now,
+            UpdatedAt = now,
+        })];
+    }
+
+    private static List<RoleDef> BuiltIn(string tenantId, DateTimeOffset now) =>
     [
         new()
         {

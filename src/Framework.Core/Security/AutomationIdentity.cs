@@ -39,7 +39,7 @@ public sealed class AutomationIdentity(IUserAccountRepository accounts) : IAutom
             account.Id,
             account.FullName,
             account.TenantId,
-            account.Roles.ToHashSet(StringComparer.OrdinalIgnoreCase),
+            RoleGroups.Expand(account.Roles).ToHashSet(StringComparer.OrdinalIgnoreCase),
             account.Attributes());
     }
 }

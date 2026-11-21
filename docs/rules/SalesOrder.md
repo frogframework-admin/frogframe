@@ -20,7 +20,7 @@ Aturan yang dijalankan kode saat dokumen Sales Order (SalesOrder) disimpan, di-s
 
 ## Tombol aksi: Create Sales Invoice
 
-Tombol **Create Sales Invoice** di form Sales Order hanya tampil bila `doc.DocStatus == DocStatus.Submitted && doc.Data.Str("billing_status") != "Fully billed" && (user.HasRole("Finance") || user.IsAdmin)` (WorkflowState = state workflow, DocStatus = Draft/Submitted, HasRole = peran user). Aksi "Create Sales Invoice" dari sales order (sisa yang belum ditagih ditagih penuh; ubah qty di draft untuk tagihan sebagian).
+Tombol **Create Sales Invoice** di form Sales Order hanya tampil bila `doc.DocStatus == DocStatus.Submitted && doc.Data.Str("billing_status") != "Fully billed" && user.HasRole(ErpRoles.FinanceReceivable)` (WorkflowState = state workflow, DocStatus = Draft/Submitted, HasRole = peran user). Aksi "Create Sales Invoice" dari sales order (sisa yang belum ditagih ditagih penuh; ubah qty di draft untuk tagihan sebagian).
 
 ## Aturan bersama yang juga berlaku
 

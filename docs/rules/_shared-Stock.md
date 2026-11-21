@@ -2,7 +2,7 @@
 
 # Aturan bersama Stock
 
-Dipakai oleh: GoodsReceipt, PurchaseDebitNote, PurchaseInvoice, PurchaseOrder, SalesCreditNote, SalesInvoice, StockEntry, StockReconciliation.
+Dipakai oleh: GoodsReceipt, PurchaseDebitNote, PurchaseInvoice, SalesCreditNote, SalesInvoice, StockEntry, StockReconciliation.
 
 Persediaan perpetual dengan rata-rata bergerak (PSAK 14 rata-rata tertimbang). Tidak ada tabel buku stok terpisah: saldo dihitung dari dokumen mutasi yang sudah submit (Stock Entry, Goods Receipt, faktur/nota dengan Update stock, Stock Opname). Nilai tiap baris dikunci di dokumennya saat submit. Agar nilai rata-rata tidak perlu dihitung ulang: posting mundur sebelum mutasi terakhir item-gudang ditolak, dan pembatalan hanya boleh bila belum ada mutasi sesudahnya.
 
