@@ -82,6 +82,12 @@ public sealed class PrintFormatDef
     public List<PrintSectionDef>? Sections { get; set; }
     /// <summary>Kolom per child table, mis. { "items": ["item_name", "qty", "rate", "amount"] }. Default: semua kolom.</summary>
     public Dictionary<string, List<string>>? TableColumns { get; set; }
+    /// <summary>
+    /// Two-line table layout: per child table, the printed columns that go on a second line under each row (with their
+    /// labels, wrapping when they run out of room) instead of beside the others, e.g. { "items": ["description"] }.
+    /// A table that is not listed prints every column side by side.
+    /// </summary>
+    public Dictionary<string, List<string>>? TableSecondLine { get; set; }
     /// <summary>Field yang ditampilkan di blok total, mis. ["total"].</summary>
     public List<string> TotalFields { get; set; } = [];
     /// <summary>Field angka yang ditulis terbilang (Rupiah), mis. "total".</summary>

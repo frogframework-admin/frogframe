@@ -37,17 +37,30 @@ public static class PrintStyles
 .pf .sec-title { font-size: 8pt; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted);
   border-bottom: 1px solid var(--line); padding-bottom: 3px; margin: 0 0 6px; }
 .pf .kv { display: grid; grid-template-columns: 1fr 1fr; column-gap: 24px; row-gap: 4px; }
-.pf .kv .row { display: grid; grid-template-columns: 38% 62%; gap: 8px; }
-.pf .kv .row.wide { grid-column: 1 / -1; grid-template-columns: 19% 81%; }
+.pf .kv .row { display: grid; grid-template-columns: 38% minmax(0, 1fr); gap: 8px; }
+.pf .kv .row.wide { grid-column: 1 / -1; grid-template-columns: 19% minmax(0, 1fr); }
 .pf .lh-foot { white-space: pre-wrap; }
 .pf .kv .k { color: var(--muted); }
-.pf .kv .v { font-weight: 500; white-space: pre-wrap; }
+.pf .kv .v { font-weight: 500; white-space: pre-wrap; overflow-wrap: anywhere; }
 .pf table.items { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; margin-top: 2px; }
 .pf table.items th { text-align: left; font-size: 8pt; font-weight: 700; color: var(--muted); background: var(--soft);
   border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 5px 6px; }
-.pf table.items td { padding: 5px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.pf table.items td { padding: 5px 6px; border-bottom: 1px solid var(--line); vertical-align: top; overflow-wrap: anywhere; }
 .pf table.items .num { text-align: right; white-space: nowrap; }
 .pf table.items .no { width: 26px; color: var(--muted); }
+.pf table.items th { overflow-wrap: break-word; hyphens: auto; }
+.pf table.items.dense { font-size: 8.5pt; }
+.pf table.items.dense th, .pf table.items.dense td { padding: 4px 4px; }
+.pf table.items.denser { font-size: 7.6pt; }
+.pf table.items.denser th { font-size: 7pt; }
+.pf table.items.denser th, .pf table.items.denser td { padding: 3px 3px; }
+.pf table.items tbody.row-group { break-inside: avoid; page-break-inside: avoid; }
+.pf table.items tr.has-below td { border-bottom: none; padding-bottom: 1px; }
+.pf table.items tr.below td { padding-top: 0; color: var(--muted); }
+.pf table.items .below-items { display: flex; flex-wrap: wrap; column-gap: 14px; row-gap: 1px; }
+.pf table.items .below-item { overflow-wrap: anywhere; min-width: 0; }
+.pf table.items .below-k { font-weight: 600; color: var(--ink); }
+.pf table.items .below-k::after { content: ":"; }
 .pf table.items tr { break-inside: avoid; }
 .pf table.items thead { display: table-header-group; }
 .pf .totals { display: flex; justify-content: flex-end; margin-top: 6px; }

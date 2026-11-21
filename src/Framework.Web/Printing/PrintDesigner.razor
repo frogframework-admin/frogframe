@@ -178,6 +178,25 @@ else
                                         var cols = Columns(table.Name, child);
                                         @FieldChips(cols, c => child.ByName.TryGetValue(c, out var cf) ? cf.Label : c,
                                             child.Fields.Where(c => !c.IsLayout && !cols.Contains(c.Name)).Select(c => (c.Name, c.Label)).ToList())
+                                        var below = fmt.Format.TableSecondLine?.GetValueOrDefault(table.Name);
+                                        <label>Layout
+                                            <select class="pd-native" value="@(below is not null ? "two" : "side")" @onchange="e => SetTwoLine(table.Name, child, e.Value)">
+                                                <option value="side">Side by side (one line per row)</option>
+                                                <option value="two">Two lines (some columns under the row)</option>
+                                            </select>
+                                        </label>
+                                        @if (below is not null)
+                                        {
+                                            <div class="pd-states">
+                                                <span class="pd-label">On the second line (wraps when it runs out of room):</span>
+                                                @foreach (var c in cols)
+                                                {
+                                                    var col = c;
+                                                    <label class="pd-check"><input type="checkbox" checked="@below.Contains(col)" @onchange="e => ToggleSecondLine(table.Name, col, e.Value is true)" />
+                                                        @(child.ByName.TryGetValue(col, out var bf) ? bf.Label : col)</label>
+                                                }
+                                            </div>
+                                        }
                                     }
                                 </div>
                             }
@@ -413,6 +432,9 @@ else
 
     private async Task ChangedAsync()
     {
+        // A column removed from a table can no longer sit on its second line.
+        foreach (var (table, list) in fmt?.Format.TableSecondLine ?? [])
+            if (fmt!.Format.TableColumns?.GetValueOrDefault(table) is { } printed) list.RemoveAll(c => !printed.Contains(c));
         fmtErrors = fmt is null ? [] : Designs.Validate(fmt).Select(e => e.Message).ToList();
         await RefreshPreviewAsync();
         StateHasChanged();
@@ -500,9 +522,30 @@ else
     private List<string> Columns(string table, CompiledDocType child)
     {
         var map = fmt!.Format.TableColumns ??= new();
-        if (!map.TryGetValue(table, out var cols)) map[table] = cols = child.Fields.Where(c => !c.IsLayout).Select(c => c.Name).ToList();
+        if (!map.TryGetValue(table, out var cols)) map[table] = cols = PrintService.DefaultTableColumns(child);
         return cols;
     }
+
+    /// <summary>Switch a table between side-by-side and two-line layout; two lines starts with a suggested set of columns.</summary>
+    private void SetTwoLine(string table, CompiledDocType child, object? layout) => Edit(f =>
+    {
+        if (layout as string == "two")
+        {
+            f.TableSecondLine ??= new();
+            f.TableSecondLine[table] = PrintDefaults.SecondLine(child, Columns(table, child));
+        }
+        else if (f.TableSecondLine is { } map)
+        {
+            map.Remove(table);
+            if (map.Count == 0) f.TableSecondLine = null;
+        }
+    });
+
+    private void ToggleSecondLine(string table, string column, bool below) => Edit(f =>
+    {
+        if (f.TableSecondLine?.GetValueOrDefault(table) is not { } list) return;
+        if (below) { if (!list.Contains(column)) list.Add(column); } else list.Remove(column);
+    });
 
     private void ToggleTable(string table, bool show)
     {

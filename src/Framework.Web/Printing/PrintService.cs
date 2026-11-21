@@ -36,7 +36,8 @@ public sealed record Letterhead(string CompanyName, string? Address = null, stri
 
 public sealed record PrintField(string Label, string Value, bool Wide = false);
 public sealed record PrintSection(string? Title, IReadOnlyList<PrintField> Fields);
-public sealed record PrintColumn(string Label, bool Numeric);
+/// <summary>A printed table column. <paramref name="SecondLine"/>: printed on a second line under the row, with its label.</summary>
+public sealed record PrintColumn(string Label, bool Numeric, bool SecondLine = false);
 public sealed record PrintTable(string Title, IReadOnlyList<PrintColumn> Columns, IReadOnlyList<IReadOnlyList<string>> Rows);
 public sealed record PrintSignature(string Label, string? Name, DateTimeOffset? At, string? Code);
 
@@ -95,6 +96,13 @@ public sealed class ConfigLetterheadProvider(IConfiguration config) : ILetterhea
 public sealed class PrintService(DocumentService docs, IMetadataProvider metadata, IPermissionService permissions,
     ILetterheadProvider letterheads, TimeProvider clock, Framework.Printing.PrintDesignService? designs = null)
 {
+    /// <summary>
+    /// Columns of a child table when the print format names none: the value fields in form order, without yes/no flags
+    /// (rarely useful on paper) and without a "{link}_name" copy next to its Link column (the Link prints its title).
+    /// Keeps wide item tables on the page; a print format can still list any columns.
+    /// </summary>
+    public static List<string> DefaultTableColumns(CompiledDocType child) => Framework.Printing.PrintDefaults.TableColumns(child);
+
     /// <summary>Print with the DocType's default designed format (or its metadata print format).</summary>
     public Task<PrintModel> BuildAsync(UserContext user, string docType, string name, CancellationToken ct = default) =>
         BuildAsync(user, docType, name, (string?)null, ct);
@@ -178,7 +186,7 @@ public sealed class PrintService(DocumentService docs, IMetadataProvider metadat
         foreach (var tf in meta.TableFields.Where(Readable).Where(t => design is null || !design.HiddenTables.Contains(t.Name)))
         {
             var child = metadata.Current.Get(tf.Def.ChildDocType!);
-            var colNames = pf.TableColumns?.GetValueOrDefault(tf.Name) ?? child.Fields.Where(c => !c.IsLayout).Select(c => c.Name).ToList();
+            var colNames = pf.TableColumns?.GetValueOrDefault(tf.Name) ?? DefaultTableColumns(child);
             // A designed format may name a column that was removed from the DocType later: skip it.
             var cols = colNames.Where(child.ByName.ContainsKey).Select(n => child.ByName[n]).ToList();
             var rows = new List<IReadOnlyList<string>>();
@@ -188,7 +196,10 @@ public sealed class PrintService(DocumentService docs, IMetadataProvider metadat
                 foreach (var c in cols) cells.Add(await Display(c, r.GetValueOrDefault(c.Name)));
                 rows.Add(cells);
             }
-            tables.Add(new PrintTable(tf.Label, cols.Select(c => new PrintColumn(c.Label, c.Type.Editor == "number")).ToList(), rows));
+            var below = pf.TableSecondLine?.GetValueOrDefault(tf.Name) ?? [];
+            // Never move every column down: a two-line table keeps at least one column on its first line.
+            if (cols.All(c => below.Contains(c.Name))) below = [];
+            tables.Add(new PrintTable(tf.Label, cols.Select(c => new PrintColumn(c.Label, c.Type.Editor == "number", below.Contains(c.Name))).ToList(), rows));
         }
 
         var totals = pf.TotalFields.Where(t => meta.ByName.TryGetValue(t, out var f) && Readable(f))
