@@ -508,6 +508,27 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
             if (updatedUniversal > 0) added = true;
         }
 
+        // 11. Migrate deprecated Lucide icon names on existing menu items and groups
+        await using (var fixMenuIconsCmd = db.CreateCommand(
+            "UPDATE frogframe_navigation_menus SET icon = CASE icon " +
+            "  WHEN 'play-circle' THEN 'circle-play' " +
+            "  WHEN 'file-question' THEN 'file-question-mark' " +
+            "  WHEN 'check-square' THEN 'square-check-big' " +
+            "  ELSE icon END " +
+            "WHERE tenant_id = $1 AND icon IN ('play-circle', 'file-question', 'check-square')"))
+        {
+            fixMenuIconsCmd.Parameters.AddWithValue(tenantId);
+            if (await fixMenuIconsCmd.ExecuteNonQueryAsync(ct) > 0) added = true;
+        }
+
+        await using (var fixGroupIconsCmd = db.CreateCommand(
+            "UPDATE frogframe_navigation_menu_groups SET icon = 'sliders-horizontal' " +
+            "WHERE tenant_id = $1 AND icon = 'sliders'"))
+        {
+            fixGroupIconsCmd.Parameters.AddWithValue(tenantId);
+            if (await fixGroupIconsCmd.ExecuteNonQueryAsync(ct) > 0) added = true;
+        }
+
         seededTenants[tenantId] = true;
         if (added) Changed?.Invoke();
     }

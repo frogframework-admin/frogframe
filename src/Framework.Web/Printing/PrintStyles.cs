@@ -42,6 +42,18 @@ public static class PrintStyles
 .pf .lh-foot { white-space: pre-wrap; }
 .pf .kv .k { color: var(--muted); }
 .pf .kv .v { font-weight: 500; white-space: pre-wrap; overflow-wrap: anywhere; }
+.pf .kv.stacked { row-gap: 6px; }
+.pf .kv.stacked .row, .pf .kv.stacked .row.wide { display: block; padding-bottom: 5px; border-bottom: 1px solid var(--line); }
+.pf .kv.stacked .k { display: block; font-size: 7.5pt; margin-bottom: 1px; }
+.pf .kv.stacked .v { display: block; }
+.pf .sec.records { break-inside: auto; }
+.pf .record { border: 1px solid var(--line); border-radius: 3px; margin-bottom: 6px; break-inside: avoid; page-break-inside: avoid; }
+.pf .record-head { background: var(--soft); border-bottom: 1px solid var(--line); font-weight: 700; padding: 3px 6px; }
+.pf .record-row { display: grid; grid-template-columns: 30% minmax(0, 1fr); gap: 8px; padding: 2px 6px; }
+.pf .record-row .k { color: var(--muted); }
+.pf .record-row .v { white-space: pre-wrap; overflow-wrap: anywhere; }
+.pf .record-row.first .v { font-weight: 700; }
+.pf .record-empty { color: var(--muted); margin: 0; }
 .pf table.items { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; margin-top: 2px; }
 .pf table.items th { text-align: left; font-size: 8pt; font-weight: 700; color: var(--muted); background: var(--soft);
   border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 5px 6px; }
@@ -54,13 +66,6 @@ public static class PrintStyles
 .pf table.items.denser { font-size: 7.6pt; }
 .pf table.items.denser th { font-size: 7pt; }
 .pf table.items.denser th, .pf table.items.denser td { padding: 3px 3px; }
-.pf table.items tbody.row-group { break-inside: avoid; page-break-inside: avoid; }
-.pf table.items tr.has-below td { border-bottom: none; padding-bottom: 1px; }
-.pf table.items tr.below td { padding-top: 0; color: var(--muted); }
-.pf table.items .below-items { display: flex; flex-wrap: wrap; column-gap: 14px; row-gap: 1px; }
-.pf table.items .below-item { overflow-wrap: anywhere; min-width: 0; }
-.pf table.items .below-k { font-weight: 600; color: var(--ink); }
-.pf table.items .below-k::after { content: ":"; }
 .pf table.items tr { break-inside: avoid; }
 .pf table.items thead { display: table-header-group; }
 .pf .totals { display: flex; justify-content: flex-end; margin-top: 6px; }

@@ -1,4 +1,3 @@
-using Framework.Metadata;
 using Framework.Documents;
 using Framework.Printing;
 using Framework.Security;
@@ -11,8 +10,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 /// <summary>
 /// A wide child table (shaped like a sales order line) printed without a print format must fit an A4 portrait page:
 /// default columns skip Check fields and a Link's repeated *_name, wide tables get a denser type scale, and the
-/// key/value grid and table cells shrink and wrap instead of pushing past the content width. A print format can
-/// instead move chosen columns to a second line under each row (two-line layout).
+/// key/value grid and table cells shrink and wrap instead of pushing past the content width.
 /// </summary>
 sealed partial class Tests
 {
@@ -94,41 +92,20 @@ sealed partial class Tests
         });
         Assert.Equal(10, all.Tables.Single().Columns.Count, "an explicit format still prints every chosen column");
 
-        // Two-line layout: chosen columns go under the row with their labels; the first line keeps the rest.
-        var twoLine = await printer.BuildPreviewAsync(u, "FitOrder", order.Name, new PrintFormatDesign
-        {
-            DocType = "FitOrder", Name = "Two lines", Format = new() { TableSecondLine = new() { ["items"] = ["description", "uom"] } },
-        });
-        Assert.Equal("Description, UOM", string.Join(", ", twoLine.Tables.Single().Columns.Where(c => c.SecondLine).Select(c => c.Label)), "second-line columns");
-        var twoHtml = await html.RenderAsync(twoLine);
-        var tableHtml = twoHtml[twoHtml.IndexOf("<table class=\"items", StringComparison.Ordinal)..];
-        var head = tableHtml[..tableHtml.IndexOf("</thead>", StringComparison.Ordinal)];
-        Assert.True(!head.Contains(">Description<") && !head.Contains(">UOM<") && head.Contains(">Rate<"), "second-line columns are not header columns");
-        Assert.True(tableHtml.Contains("two-line") && tableHtml.Contains("class=\"below\""), "row has a second line");
-        Assert.True(tableHtml.Contains(">Description</span> Laptop kerja bisnis 14 inch"), "second line carries label and value");
-        Assert.Equal("items dense two-line", System.Text.RegularExpressions.Regex.Match(tableHtml, "<table class=\"([^\"]*)\"").Groups[1].Value.Trim(), "density follows first-line columns (6)");
+        // Layout options. Two lines: each label above its value in field blocks.
+        var stacked = await html.RenderAsync(await printer.BuildPreviewAsync(u, "FitOrder", order.Name,
+            new PrintFormatDesign { DocType = "FitOrder", Name = "Stacked", TwoLineFields = true }));
+        Assert.True(stacked.Contains("class=\"kv stacked\""), "two lines: stacked field blocks");
+        Assert.True(!page.Contains("kv stacked"), "default: label beside its value");
 
-        // Side by side stays the default; moving every column down is ignored when printing and rejected when saving.
-        Assert.True(!(await html.RenderAsync(model)).Contains("class=\"below\""), "no format: side by side");
-        var allDown = new PrintFormatDesign { DocType = "FitOrder", Name = "Bad", Format = new() { TableColumns = new() { ["items"] = ["item", "qty"] }, TableSecondLine = new() { ["items"] = ["item", "qty"] } } };
-        Assert.True((await printer.BuildPreviewAsync(u, "FitOrder", order.Name, allDown)).Tables.Single().Columns.All(c => !c.SecondLine), "at least one first-line column");
-        var designs = sp.GetRequiredService<PrintDesignService>();
-        Assert.True(designs.Validate(allDown).Any(e => e.Path == "tableSecondLine"), "all columns on the second line is rejected");
-        Assert.True(designs.Validate(new PrintFormatDesign { DocType = "FitOrder", Name = "x", Format = new() { TableSecondLine = new() { ["items"] = ["is_vat_applicable"] } } })
-            .Any(e => e.Path == "tableSecondLine"), "a second-line column must be printed");
-        Assert.True(!designs.Validate(new PrintFormatDesign { DocType = "FitOrder", Name = "ok", Format = new() { TableSecondLine = new() { ["items"] = ["description"] } } }).Any(), "valid two-line format");
-        Assert.Equal("description, uom", string.Join(", ", PrintDefaults.SecondLine(sp.GetRequiredService<Framework.Metadata.IMetadataProvider>().Current.Get("FitLine"), ["item", "description", "qty", "uom", "rate", "amount"])), "suggestion: text columns after the first");
-
-        // The same setting in DocType metadata (printFormat.tableSecondLine) is checked when metadata is compiled.
-        var registry = sp.GetRequiredService<Framework.Metadata.MetadataRegistry>();
-        DocTypeDef WithSecondLine(params string[] cols)
-        {
-            var def = Framework.Metadata.MetadataJson.ParseDocType(Framework.Metadata.MetadataJson.Serialize(registry.Current.Get("FitOrder").Def));
-            def.PrintFormat = new() { TableSecondLine = new() { ["items"] = [.. cols] } };
-            return def;
-        }
-        Assert.True(registry.Preview(WithSecondLine("description")).Valid, "metadata: valid second line");
-        Assert.True(!registry.Preview(WithSecondLine("no_such_field")).Valid, "metadata: unknown second-line field rejected");
+        // Show as records: one block per row with label/value lines; empty values show a dash; amounts are not right-aligned.
+        var records = await html.RenderAsync(await printer.BuildPreviewAsync(u, "FitOrder", order.Name,
+            new PrintFormatDesign { DocType = "FitOrder", Name = "Records", TablesAsRecords = true }));
+        Assert.True(records.Contains("<div class=\"record-head\">Line 1</div>"), "record heading per row");
+        Assert.True(!records.Contains("<table class=\"items"), "no item table in record mode");
+        Assert.True(records.Contains("<span class=\"k\">Amount</span><span class=\"v\">Rp45.000.000</span>"), "amount as a plain value line");
+        Assert.True(records.Contains("<span class=\"k\">Discount (%)</span><span class=\"v\">0%</span>"), "every printed column is a line");
+        Assert.True(page.Contains("<td class=\"num\">Rp45.000.000</td>"), "default: amounts right-aligned in the table");
 
         // Grid tracks may shrink, long values wrap: nothing pushes past the page's content width.
         Assert.True(PrintStyles.Css.Contains("minmax(0, 1fr)"), "key/value grid tracks can shrink below their content");

@@ -92,10 +92,11 @@ else
         <div class="pd">
             <aside class="pd-edit">
                 <label>Document type
-                    <select class="pd-native" value="@(docType ?? "")" @onchange="e => SelectDocTypeAsync((string?)e.Value)">
-                        <option value="">Choose…</option>
-                        @foreach (var m in PrintableDocTypes) { <option value="@m.Name">@m.Title</option> }
-                    </select>
+                    <div class="fill-trigger">
+                        <BbCombobox TValue="string" Value="@docType" ValueChanged="SelectDocTypeAsync" Options="DocTypeOptions"
+                                    Placeholder="Choose…" SearchPlaceholder="Filter document types…" EmptyMessage="No matching document type"
+                                    MatchTriggerWidth="true" AriaLabel="Document type" />
+                    </div>
                 </label>
 
                 @if (Meta is { } meta && fmt is not null)
@@ -139,6 +140,11 @@ else
                                     </select>
                                 </label>
                             </div>
+                            <div class="pd-states">
+                                <span class="pd-label">Layout (unticked: label beside its value, tables in columns with amounts right-aligned)</span>
+                                <label class="pd-check"><input type="checkbox" checked="@fmt.TwoLineFields" @onchange="e => Change(fmt with { TwoLineFields = e.Value is true })" /> Two lines: label above its value</label>
+                                <label class="pd-check"><input type="checkbox" checked="@fmt.TablesAsRecords" @onchange="e => Change(fmt with { TablesAsRecords = e.Value is true })" /> Show tables as records: one block per row</label>
+                            </div>
                             <label>Title on paper<BbInput Value="@fmt.Format.Title" Placeholder="@meta.Title" ValueChanged="v => Edit(f => f.Title = string.IsNullOrWhiteSpace(v) ? null : v)" /></label>
                             <label class="pd-check"><input type="checkbox" checked="@fmt.Format.Watermark" @onchange="e => Edit(f => f.Watermark = e.Value is true)" /> DRAFT / NOT APPROVED watermark on unfinished documents</label>
                         </div>
@@ -178,25 +184,6 @@ else
                                         var cols = Columns(table.Name, child);
                                         @FieldChips(cols, c => child.ByName.TryGetValue(c, out var cf) ? cf.Label : c,
                                             child.Fields.Where(c => !c.IsLayout && !cols.Contains(c.Name)).Select(c => (c.Name, c.Label)).ToList())
-                                        var below = fmt.Format.TableSecondLine?.GetValueOrDefault(table.Name);
-                                        <label>Layout
-                                            <select class="pd-native" value="@(below is not null ? "two" : "side")" @onchange="e => SetTwoLine(table.Name, child, e.Value)">
-                                                <option value="side">Side by side (one line per row)</option>
-                                                <option value="two">Two lines (some columns under the row)</option>
-                                            </select>
-                                        </label>
-                                        @if (below is not null)
-                                        {
-                                            <div class="pd-states">
-                                                <span class="pd-label">On the second line (wraps when it runs out of room):</span>
-                                                @foreach (var c in cols)
-                                                {
-                                                    var col = c;
-                                                    <label class="pd-check"><input type="checkbox" checked="@below.Contains(col)" @onchange="e => ToggleSecondLine(table.Name, col, e.Value is true)" />
-                                                        @(child.ByName.TryGetValue(col, out var bf) ? bf.Label : col)</label>
-                                                }
-                                            </div>
-                                        }
                                     }
                                 </div>
                             }
@@ -310,6 +297,10 @@ else
 
     private IEnumerable<CompiledDocType> PrintableDocTypes => Metadata.Current.DocTypes.Values
         .Where(m => !m.Def.IsChild && !m.Def.IsSingle).OrderBy(m => m.Title, StringComparer.CurrentCultureIgnoreCase);
+
+    /// <summary>Document type choices; the combobox filters them as you type (by title or DocType name).</summary>
+    private List<SelectOption<string>> DocTypeOptions => PrintableDocTypes
+        .Select(m => new SelectOption<string>(m.Name, m.Title == m.Name ? m.Title : $"{m.Title} ({m.Name})")).ToList();
 
     protected override async Task OnInitializedAsync()
     {
@@ -432,9 +423,6 @@ else
 
     private async Task ChangedAsync()
     {
-        // A column removed from a table can no longer sit on its second line.
-        foreach (var (table, list) in fmt?.Format.TableSecondLine ?? [])
-            if (fmt!.Format.TableColumns?.GetValueOrDefault(table) is { } printed) list.RemoveAll(c => !printed.Contains(c));
         fmtErrors = fmt is null ? [] : Designs.Validate(fmt).Select(e => e.Message).ToList();
         await RefreshPreviewAsync();
         StateHasChanged();
@@ -525,27 +513,6 @@ else
         if (!map.TryGetValue(table, out var cols)) map[table] = cols = PrintService.DefaultTableColumns(child);
         return cols;
     }
-
-    /// <summary>Switch a table between side-by-side and two-line layout; two lines starts with a suggested set of columns.</summary>
-    private void SetTwoLine(string table, CompiledDocType child, object? layout) => Edit(f =>
-    {
-        if (layout as string == "two")
-        {
-            f.TableSecondLine ??= new();
-            f.TableSecondLine[table] = PrintDefaults.SecondLine(child, Columns(table, child));
-        }
-        else if (f.TableSecondLine is { } map)
-        {
-            map.Remove(table);
-            if (map.Count == 0) f.TableSecondLine = null;
-        }
-    });
-
-    private void ToggleSecondLine(string table, string column, bool below) => Edit(f =>
-    {
-        if (f.TableSecondLine?.GetValueOrDefault(table) is not { } list) return;
-        if (below) { if (!list.Contains(column)) list.Add(column); } else list.Remove(column);
-    });
 
     private void ToggleTable(string table, bool show)
     {

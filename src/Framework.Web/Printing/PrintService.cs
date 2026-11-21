@@ -36,8 +36,7 @@ public sealed record Letterhead(string CompanyName, string? Address = null, stri
 
 public sealed record PrintField(string Label, string Value, bool Wide = false);
 public sealed record PrintSection(string? Title, IReadOnlyList<PrintField> Fields);
-/// <summary>A printed table column. <paramref name="SecondLine"/>: printed on a second line under the row, with its label.</summary>
-public sealed record PrintColumn(string Label, bool Numeric, bool SecondLine = false);
+public sealed record PrintColumn(string Label, bool Numeric);
 public sealed record PrintTable(string Title, IReadOnlyList<PrintColumn> Columns, IReadOnlyList<IReadOnlyList<string>> Rows);
 public sealed record PrintSignature(string Label, string? Name, DateTimeOffset? At, string? Code);
 
@@ -72,6 +71,10 @@ public sealed record PrintModel
     public string? Accent { get; init; }
     /// <summary>Label/value pairs per row in field blocks.</summary>
     public int FieldColumns { get; init; } = 2;
+    /// <summary>Field blocks print each label above its value.</summary>
+    public bool TwoLineFields { get; init; }
+    /// <summary>Child tables print one block per row (label/value lines) instead of columns.</summary>
+    public bool TablesAsRecords { get; init; }
     /// <summary>Name of the designed print format used, if any.</summary>
     public string? FormatName { get; init; }
 }
@@ -101,7 +104,13 @@ public sealed class PrintService(DocumentService docs, IMetadataProvider metadat
     /// (rarely useful on paper) and without a "{link}_name" copy next to its Link column (the Link prints its title).
     /// Keeps wide item tables on the page; a print format can still list any columns.
     /// </summary>
-    public static List<string> DefaultTableColumns(CompiledDocType child) => Framework.Printing.PrintDefaults.TableColumns(child);
+    public static List<string> DefaultTableColumns(CompiledDocType child) =>
+        child.Fields
+            .Where(c => !c.IsLayout && c.Def.Type is not ("Check" or "Table" or "Password" or "Image" or "Attach" or "Signature"))
+            .Where(c => !(c.Name.EndsWith("_name", StringComparison.Ordinal)
+                          && child.ByName.TryGetValue(c.Name[..^5], out var link) && link.Def.Type == "Link"))
+            .Select(c => c.Name)
+            .ToList();
 
     /// <summary>Print with the DocType's default designed format (or its metadata print format).</summary>
     public Task<PrintModel> BuildAsync(UserContext user, string docType, string name, CancellationToken ct = default) =>
@@ -196,10 +205,7 @@ public sealed class PrintService(DocumentService docs, IMetadataProvider metadat
                 foreach (var c in cols) cells.Add(await Display(c, r.GetValueOrDefault(c.Name)));
                 rows.Add(cells);
             }
-            var below = pf.TableSecondLine?.GetValueOrDefault(tf.Name) ?? [];
-            // Never move every column down: a two-line table keeps at least one column on its first line.
-            if (cols.All(c => below.Contains(c.Name))) below = [];
-            tables.Add(new PrintTable(tf.Label, cols.Select(c => new PrintColumn(c.Label, c.Type.Editor == "number", below.Contains(c.Name))).ToList(), rows));
+            tables.Add(new PrintTable(tf.Label, cols.Select(c => new PrintColumn(c.Label, c.Type.Editor == "number")).ToList(), rows));
         }
 
         var totals = pf.TotalFields.Where(t => meta.ByName.TryGetValue(t, out var f) && Readable(f))
@@ -239,6 +245,8 @@ public sealed class PrintService(DocumentService docs, IMetadataProvider metadat
             Landscape = design?.Landscape ?? false,
             Accent = design?.Accent,
             FieldColumns = design?.FieldColumns ?? 2,
+            TwoLineFields = design?.TwoLineFields ?? false,
+            TablesAsRecords = design?.TablesAsRecords ?? false,
             FormatName = design?.Name,
             Title = pf.Title ?? meta.Title,
             DocName = doc.Name,

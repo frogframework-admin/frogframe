@@ -609,21 +609,6 @@ public sealed partial class MetadataCompiler(IFieldTypeRegistry fieldTypes, Func
                     foreach (var c in cols.Where(c => ch.Fields.All(x => x.Name != c)))
                         errors.Add(new(src, "printFormat.tableColumns", $"Field '{c}' tidak ada di {ch.Name}"));
             }
-            foreach (var (table, below) in pf.TableSecondLine ?? [])
-            {
-                var tf = d.Fields.FirstOrDefault(x => x.Name == table);
-                if (tf is not { Type: "Table" }) { errors.Add(new(src, "printFormat.tableSecondLine", $"'{table}' bukan field Table")); continue; }
-                if (tf.ChildDocType is not null && defs.TryGetValue(tf.ChildDocType, out var ch))
-                    foreach (var c in below.Where(c => ch.Fields.All(x => x.Name != c)))
-                        errors.Add(new(src, "printFormat.tableSecondLine", $"Field '{c}' tidak ada di {ch.Name}"));
-                if (pf.TableColumns?.GetValueOrDefault(table) is { Count: > 0 } listed)
-                {
-                    foreach (var c in below.Where(c => !listed.Contains(c)))
-                        errors.Add(new(src, "printFormat.tableSecondLine", $"'{c}' tidak ada di tableColumns.{table}"));
-                    if (listed.All(below.Contains))
-                        errors.Add(new(src, "printFormat.tableSecondLine", $"Sisakan minimal satu kolom {table} di baris pertama"));
-                }
-            }
             foreach (var f in pf.TotalFields.Where(f => !fieldNames.Contains(f)))
                 errors.Add(new(src, "printFormat.totalFields", $"Field '{f}' tidak ada"));
             if (pf.AmountInWordsField is { } aw && d.Fields.FirstOrDefault(x => x.Name == aw) is not { Type: "Currency" or "Float" or "Int" })

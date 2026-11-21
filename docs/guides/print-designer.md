@@ -15,13 +15,15 @@ Without any designed letterhead, the one from configuration (`Print:Letterheads:
 
 A print format belongs to one DocType. A DocType can have several formats (for example *Standard* and *Customer copy*); one is the default.
 
+Pick the DocType in **Document type**; type part of its title or name to filter the list.
+
 | Part | Options |
 |---|---|
-| Page | paper (A4, A5, Letter, Legal), portrait or landscape, accent colour, fields per row (1–3) |
+| Page | paper (A4, A5, Letter, Legal), portrait or landscape, accent colour, fields per row (1–3), layout options (two lines, show tables as records) |
 | Letterhead | on or off, default or a named letterhead |
 | Title | text on paper (default: the DocType title) and the DRAFT / NOT APPROVED watermark |
 | Field blocks | titled blocks of fields, in any order; add, reorder and remove fields and blocks |
-| Tables | show or hide each child table, choose its columns and their order, and its layout: side by side or two lines |
+| Tables | show or hide each child table, and choose its columns and their order |
 | Totals | number fields shown in the totals box, plus the amount in words (Rupiah) |
 | Signatures | boxes signed by whoever moved the document to the chosen workflow states |
 | Note | text at the bottom |
@@ -32,25 +34,14 @@ A new format starts from the DocType's built-in `printFormat` (or its form layou
 
 Without a print format that lists a table's columns, the table prints its default columns: every data field of the child DocType except Check, Table, Password, Image, Attach and Signature fields, and except a `<link>_name` field next to its Link (the Link already prints its title). Tables with six or more columns use a smaller type size, and eight or more an even smaller one; long values wrap inside their cell. If a table still feels crowded, create a print format for the DocType and choose fewer columns, or switch the page to landscape.
 
-### Two-line tables
+### Layout options
 
-Each table in a print format has a **Layout** setting:
+Two checkboxes under **Page → Layout** change how values are laid out. With both unticked, the print looks as before: each label sits beside its value, and child tables print as columns with amounts right-aligned.
 
-- **Side by side** (default): every column sits next to the others, one line per row.
-- **Two lines**: the columns you tick under *On the second line* print under each row, as `Label: value`, instead of beside the other columns. When they run out of room on that line they wrap onto the next one. The header lists only the first-line columns, empty second-line values are left out, and a row and its second line stay on the same page.
+- **Two lines: label above its value.** In the field blocks each label is printed small, with its value on the line below, e.g. *Company* with *PT Acme Nusantara Teknologi (ACME)* underneath. Fields per row still applies.
+- **Show tables as records: one block per row.** Each child-table row prints as its own block headed *Line 1*, *Line 2*, …, with one label/value line per printed column. The first column is bold, empty values show a dash, and values, amounts included, are not right-aligned. A block is never split across pages. Use this for tables that have too many columns for the page width, such as journal lines.
 
-When you switch a table to two lines, the designer suggests the text columns after the first one (for example the item name, the description and the unit), so the numbers stay aligned on the first line. At least one column must stay on the first line.
-
-The same setting can be written in a DocType's metadata:
-
-```json
-"printFormat": {
-  "tableColumns": { "items": ["item", "description", "qty", "uom", "rate", "amount"] },
-  "tableSecondLine": { "items": ["description", "uom"] }
-}
-```
-
-Every `tableSecondLine` column must be a field of the child DocType and, when `tableColumns` lists the table, one of those columns.
+The two options can be combined. Labels such as *Line* stay in English.
 
 ## Printing
 

@@ -47,7 +47,7 @@
             {
                 <section class="sec">
                     @if (s.Title is not null) { <h2 class="sec-title">@s.Title</h2> }
-                    <div class="kv" style="@KvStyle">
+                    <div class="kv @(Model.TwoLineFields ? "stacked" : "")" style="@KvStyle">
                         @foreach (var f in s.Fields)
                         {
                             <div class="row @(f.Wide ? "wide" : "")"><span class="k">@f.Label</span><span class="v">@f.Value</span></div>
@@ -58,41 +58,44 @@
 
             @foreach (var t in Model.Tables)
             {
+                if (Model.TablesAsRecords)
+                {
+                    @* Show as records: one block per row, one label/value line per column; values are not right-aligned. *@
+                    <section class="sec records">
+                        <h2 class="sec-title">@t.Title</h2>
+                        @for (var i = 0; i < t.Rows.Count; i++)
+                        {
+                            <div class="record">
+                                <div class="record-head">Line @(i + 1)</div>
+                                @for (var c = 0; c < t.Columns.Count; c++)
+                                {
+                                    <div class="record-row @(c == 0 ? "first" : "")"><span class="k">@t.Columns[c].Label</span><span class="v">@(string.IsNullOrWhiteSpace(t.Rows[i][c]) ? "—" : t.Rows[i][c])</span></div>
+                                }
+                            </div>
+                        }
+                        @if (t.Rows.Count == 0) { <p class="record-empty">No rows.</p> }
+                    </section>
+                    continue;
+                }
                 <section class="sec">
                     <h2 class="sec-title">@t.Title</h2>
-                    @{
-                        var first = Enumerable.Range(0, t.Columns.Count).Where(c => !t.Columns[c].SecondLine).ToList();
-                        var second = Enumerable.Range(0, t.Columns.Count).Where(c => t.Columns[c].SecondLine).ToList();
-                    }
-                    <table class="@TableClass(first.Count, second.Count > 0)">
+                    <table class="items @Density(t.Columns.Count)">
                         <thead>
                             <tr>
                                 <th class="no">No</th>
-                                @foreach (var c in first) { <th class="@(t.Columns[c].Numeric ? "num" : "")">@t.Columns[c].Label</th> }
+                                @foreach (var c in t.Columns) { <th class="@(c.Numeric ? "num" : "")">@c.Label</th> }
                             </tr>
                         </thead>
-                        @for (var i = 0; i < t.Rows.Count; i++)
-                        {
-                            var row = t.Rows[i];
-                            var extra = second.Where(c => !string.IsNullOrWhiteSpace(row[c])).ToList();
-                            @* One tbody per row keeps a row and its second line on the same page. *@
-                            <tbody class="row-group">
-                                <tr class="@(extra.Count > 0 ? "has-below" : "")">
+                        <tbody>
+                            @for (var i = 0; i < t.Rows.Count; i++)
+                            {
+                                <tr>
                                     <td class="no">@(i + 1)</td>
-                                    @foreach (var c in first) { <td class="@(t.Columns[c].Numeric ? "num" : "")">@row[c]</td> }
+                                    @for (var c = 0; c < t.Columns.Count; c++) { <td class="@(t.Columns[c].Numeric ? "num" : "")">@t.Rows[i][c]</td> }
                                 </tr>
-                                @if (extra.Count > 0)
-                                {
-                                    <tr class="below">
-                                        <td class="no"></td>
-                                        <td colspan="@first.Count"><div class="below-items">
-                                            @foreach (var c in extra) { <span class="below-item"><span class="below-k">@t.Columns[c].Label</span> @row[c]</span> }
-                                        </div></td>
-                                    </tr>
-                                }
-                            </tbody>
-                        }
-                        @if (t.Rows.Count == 0) { <tbody><tr><td colspan="@(first.Count + 1)">No rows.</td></tr></tbody> }
+                            }
+                            @if (t.Rows.Count == 0) { <tr><td colspan="@(t.Columns.Count + 1)">No rows.</td></tr> }
+                        </tbody>
                     </table>
                 </section>
             }
@@ -151,11 +154,7 @@
     private string PageFooter => Model.ShowLetterhead && Model.Letterhead.FooterText is { Length: > 0 } f ? f.Replace('\n', ' ') + "\n" + FooterText : FooterText;
 
     /// <summary>Smaller type and padding for wide tables so they stay inside the page.</summary>
-    private static string Density(int columns) => columns >= 8 ? "denser" : columns >= 6 ? "dense" : "";
-
-    /// <summary>Table classes: density by first-line columns, plus "two-line" when some columns print under the row.</summary>
-    private static string TableClass(int firstLineColumns, bool twoLine) =>
-        string.Join(' ', new[] { "items", Density(firstLineColumns), twoLine ? "two-line" : "" }.Where(c => c.Length > 0));
+    private string Density(int columns) => columns >= 8 ? "denser" : columns >= 6 ? "dense" : "";
 
     private string PageSize => $"{Model.Paper} {(Model.Landscape ? "landscape" : "portrait")}";
 

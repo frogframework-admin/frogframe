@@ -7,33 +7,6 @@ using Framework.Security;
 
 namespace Framework.Printing;
 
-/// <summary>Print defaults shared by the print engine, the designer and design validation.</summary>
-public static class PrintDefaults
-{
-    /// <summary>
-    /// Columns of a child table when the print format names none: the value fields in form order, without yes/no flags
-    /// (rarely useful on paper) and without a "{link}_name" copy next to its Link column (the Link prints its title).
-    /// Keeps wide item tables on the page; a print format can still list any columns.
-    /// </summary>
-    public static List<string> TableColumns(CompiledDocType child) =>
-        child.Fields
-            .Where(c => !c.IsLayout && c.Def.Type is not ("Check" or "Table" or "Password" or "Image" or "Attach" or "Signature"))
-            .Where(c => !(c.Name.EndsWith("_name", StringComparison.Ordinal)
-                          && child.ByName.TryGetValue(c.Name[..^5], out var link) && link.Def.Type == "Link"))
-            .Select(c => c.Name)
-            .ToList();
-
-    /// <summary>
-    /// Suggested second-line columns when a table is switched to two lines: the text columns after the first column
-    /// (descriptions, names, units), so numbers stay aligned on the first line. Falls back to the last column.
-    /// </summary>
-    public static List<string> SecondLine(CompiledDocType child, IReadOnlyList<string> columns)
-    {
-        var text = columns.Skip(1).Where(c => child.ByName.TryGetValue(c, out var f) && f.Type.Editor != "number").ToList();
-        return text.Count > 0 ? text : columns.Count > 1 ? [columns[^1]] : [];
-    }
-}
-
 /// <summary>Company letterhead designed in /admin/print-designs. One letterhead per tenant is the default.</summary>
 public sealed record LetterheadDesign
 {
@@ -75,6 +48,11 @@ public sealed record PrintFormatDesign
     public string Accent { get; init; } = "#3f3d9a";
     /// <summary>Label/value pairs per row in the field blocks (1–3).</summary>
     public int FieldColumns { get; init; } = 2;
+    /// <summary>Two lines: in field blocks each label sits above its value instead of beside it.</summary>
+    public bool TwoLineFields { get; init; }
+    /// <summary>Show as records: each child-table row prints as its own block ("Line 1", "Line 2", …) with one
+    /// label/value line per column, instead of a table with columns side by side.</summary>
+    public bool TablesAsRecords { get; init; }
     /// <summary>Child tables left out of the print.</summary>
     public List<string> HiddenTables { get; init; } = [];
     public PrintFormatDef Format { get; init; } = new();
@@ -224,16 +202,6 @@ public sealed partial class PrintDesignService(IPrintDesignStore store, IMetadat
             foreach (var c in cols.Where(c => !child.ByName.ContainsKey(c)))
                 errors.Add(new("tableColumns", $"'{c}' is not a column of {tf.Label}."));
             if (cols.Count == 0) errors.Add(new("tableColumns", $"Choose at least one column for {tf.Label}, or hide the table."));
-        }
-        foreach (var (t, below) in d.Format.TableSecondLine ?? [])
-        {
-            if (!tables.TryGetValue(t, out var tf)) { errors.Add(new("tableSecondLine", $"'{t}' is not a table of {meta.Title}.")); continue; }
-            var child = metadata.Current.Get(tf.Def.ChildDocType!);
-            var printed = d.Format.TableColumns?.GetValueOrDefault(t) ?? PrintDefaults.TableColumns(child);
-            foreach (var c in below.Where(c => !printed.Contains(c)))
-                errors.Add(new("tableSecondLine", $"'{c}' is not a printed column of {tf.Label}."));
-            if (printed.Count > 0 && printed.All(below.Contains))
-                errors.Add(new("tableSecondLine", $"Keep at least one column of {tf.Label} on the first line."));
         }
         foreach (var f in d.Format.TotalFields.Where(f => !(meta.ByName.TryGetValue(f, out var cf) && cf.Type.Editor == "number")))
             errors.Add(new("totalFields", $"'{f}' is not a number field."));

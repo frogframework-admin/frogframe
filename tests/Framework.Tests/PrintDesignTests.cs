@@ -142,16 +142,15 @@ sealed partial class Tests
         var f1 = await designs.SaveFormatAsync(admin, null, new PrintFormatDesign
         {
             DocType = "PrintInvoice", Name = "Standard", Paper = "Letter", Landscape = true, FieldColumns = 3, HiddenTables = ["notes"],
-            Format = new PrintFormatDef { Sections = [new PrintSectionDef { Title = "Who", Fields = ["customer", "name"] }], TotalFields = ["total"],
-                TableSecondLine = new() { ["items"] = ["rate"] } },
+            TwoLineFields = true, TablesAsRecords = true,
+            Format = new PrintFormatDef { Sections = [new PrintSectionDef { Title = "Who", Fields = ["customer", "name"] }], TotalFields = ["total"] },
         }, null);
         var f2 = await designs.SaveFormatAsync(admin, null, new PrintFormatDesign { DocType = "PrintInvoice", Name = "Copy", IsDefault = true }, null);
         var listed = await designs.FormatsAsync(admin.TenantId, "PrintInvoice");
         Assert.True(listed.Single(f => f.Design.Name == "Copy").Design.IsDefault && !listed.Single(f => f.Design.Name == "Standard").Design.IsDefault, "default switched in SQL");
         var std = listed.Single(f => f.Design.Name == "Standard");
-        Assert.True(std.Design is { Paper: "Letter", Landscape: true, FieldColumns: 3 } && std.Design.HiddenTables.SequenceEqual(["notes"])
-                    && std.Design.Format.Sections![0].Fields.SequenceEqual(["customer", "name"]) && std.Version == 2
-                    && std.Design.Format.TableSecondLine!["items"].SequenceEqual(["rate"]), "format round trip (version bumped by demotion)");
+        Assert.True(std.Design is { Paper: "Letter", Landscape: true, FieldColumns: 3, TwoLineFields: true, TablesAsRecords: true } && std.Design.HiddenTables.SequenceEqual(["notes"])
+                    && std.Design.Format.Sections![0].Fields.SequenceEqual(["customer", "name"]) && std.Version == 2, "format round trip (version bumped by demotion)");
         await Assert.Throws<ConcurrencyException>(() => designs.SaveFormatAsync(admin, f1.Id, f1.Design, 1), "stale version in SQL");
         await designs.DeleteAsync(admin, f2.Id);
         Assert.True((await designs.FormatAsync(admin.TenantId, "PrintInvoice", null))?.Name == "Standard", "promotion after delete");
