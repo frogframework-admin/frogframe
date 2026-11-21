@@ -1,0 +1,74 @@
+@page "/account/login-2fa"
+@attribute [ExcludeFromInteractiveRouting]
+@layout AuthCardLayout
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Identity
+@using Framework.Web.Identity
+@inject SignInManager<UserAccount> SignIn
+@inject NavigationManager Nav
+@inject TimeProvider Clock
+
+<PageTitle>Two-factor authentication · FrogFrame</PageTitle>
+
+<h1 class="auth-title">Two-factor authentication</h1>
+<p class="auth-sub">Enter the 6-digit code from your authenticator app. Lost your phone? Enter one of your recovery codes instead.</p>
+
+@if (error is not null) { <div class="auth-alert" role="alert">@error</div> }
+
+<EditForm Model="Input" method="post" OnValidSubmit="VerifyAsync" FormName="login-2fa" class="auth-form">
+    <DataAnnotationsValidator />
+    <div class="auth-field">
+        <label for="code">Authentication code or recovery code</label>
+        <InputText id="code" class="auth-input" @bind-Value="Input.Code" autocomplete="one-time-code" inputmode="text" autofocus />
+        <ValidationMessage For="() => Input.Code" class="auth-error" />
+    </div>
+    <label class="auth-check"><InputCheckbox @bind-Value="Input.RememberDevice" /> Don't ask again on this device for 14 days</label>
+    <button type="submit" class="auth-button">Verify</button>
+    <a class="auth-link" href="/account/login" data-enhance-nav="false">Back to log in</a>
+</EditForm>
+
+@code {
+    [SupplyParameterFromForm] private CodeModel Input { get; set; } = default!;
+    [SupplyParameterFromQuery] private string? ReturnUrl { get; set; }
+    [SupplyParameterFromQuery] private bool RememberMe { get; set; }
+    private string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Input ??= new();
+        // No pending password step (cookie missing or expired after 5 minutes): start again.
+        if (await SignIn.GetTwoFactorAuthenticationUserAsync() is null)
+            Nav.NavigateTo("/account/login", forceLoad: true);
+    }
+
+    private async Task VerifyAsync()
+    {
+        var user = await SignIn.GetTwoFactorAuthenticationUserAsync();
+        if (user is null) { Nav.NavigateTo("/account/login", forceLoad: true); return; }
+
+        var code = TwoFactorSetup.Normalize(Input.Code);
+        var result = TwoFactorSetup.LooksLikeAuthenticatorCode(code)
+            ? await SignIn.TwoFactorAuthenticatorSignInAsync(code, RememberMe, Input.RememberDevice)
+            : await SignIn.TwoFactorRecoveryCodeSignInAsync(code);
+        if (result.Succeeded)
+        {
+            user.LastLoginAt = Clock.GetUtcNow();
+            await SignIn.UserManager.UpdateAsync(user);
+            Nav.NavigateTo(SafeReturnUrl, forceLoad: true);
+            return;
+        }
+        // Wrong codes count towards the same lockout as wrong passwords.
+        error = result.IsLockedOut ? "Account is temporarily locked due to too many failed attempts. Try again in 15 minutes."
+              : result.IsNotAllowed ? "This account is inactive. Please contact the administrator."
+              : "Invalid code. Check that the time on your phone is correct, or use a recovery code.";
+    }
+
+    private string SafeReturnUrl =>
+        ReturnUrl is { Length: > 0 } u && u.StartsWith('/') && !u.StartsWith("//") && !u.StartsWith("/\\") && !u.StartsWith("/account/") ? u : "/";
+
+    private sealed class CodeModel
+    {
+        [Required(ErrorMessage = "Enter a code")] public string Code { get; set; } = "";
+        public bool RememberDevice { get; set; }
+    }
+}

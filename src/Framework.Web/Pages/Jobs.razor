@@ -1,0 +1,137 @@
+@page "/jobs"
+@using Framework.Tasks
+@inject BackgroundTaskService Tasks
+@inject CurrentUser Current
+@inject ToastService Toasts
+@inject UiText T
+@implements IDisposable
+
+<PageTitle>@T["Background jobs"] · FrogFrame</PageTitle>
+
+<header class="page-head">
+    <div>
+        <h1>@T["Background jobs"]</h1>
+        <p>@T["Long imports and bulk actions run here while you keep working. You are notified when a job ends; this page updates by itself."]</p>
+    </div>
+    @if (Current.Required.IsAdmin)
+    {
+        <label class="pd-check"><input type="checkbox" checked="@allUsers" @onchange="ToggleAll" /> @T["All users"]</label>
+    }
+</header>
+
+<div class="stack">
+    @if (jobs is null)
+    {
+        <p class="muted">@T["Loading…"]</p>
+    }
+    else if (jobs.Count == 0)
+    {
+        <p class="muted">@T["No background jobs yet. Large imports can run in the background from the import wizard."]</p>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="perm-table jobs-table">
+                <thead>
+                    <tr><th>@T["Job"]</th><th>@T["Status"]</th><th style="min-width:14rem">@T["Progress"]</th><th>@T["Queued"]</th><th>@T["Finished"]</th><th></th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var job in jobs)
+                    {
+                        var j = job;
+                        <tr>
+                            <td>
+                                <strong>@j.Title</strong>
+                                @if (allUsers) { <div class="muted small">@j.UserId</div> }
+                            </td>
+                            <td><BbBadge Variant="@Badge(j.Status)">@T[j.Status]</BbBadge></td>
+                            <td>
+                                @if (j.Status == BackgroundTaskStatus.Running || j.Status == BackgroundTaskStatus.Queued)
+                                {
+                                    <div class="job-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@j.Progress"><span style="width:@(j.Progress)%"></span></div>
+                                    <div class="muted small">@(j.ProgressMessage ?? (j.Status == BackgroundTaskStatus.Queued ? T["Waiting for a worker"] : $"{j.Progress}%"))@(j.CancelRequested ? $" · {T["cancelling…"]}" : "")</div>
+                                }
+                                else
+                                {
+                                    <div class="small">@(j.Result ?? j.Error)</div>
+                                }
+                            </td>
+                            <td class="small">@j.CreatedAt.ToLocalTime().ToString("d MMM HH:mm")</td>
+                            <td class="small">@(j.FinishedAt?.ToLocalTime().ToString("d MMM HH:mm") ?? "—")</td>
+                            <td style="white-space:nowrap">
+                                @if (!BackgroundTaskStatus.IsFinished(j.Status) && !j.CancelRequested)
+                                {
+                                    <BbButton Size="ButtonSize.Small" Variant="ButtonVariant.Outline" Disabled="@busy" OnClick="() => Cancel(j)">@T["Cancel"]</BbButton>
+                                }
+                                @if (j.OutputName is not null)
+                                {
+                                    <BbButton Size="ButtonSize.Small" Variant="ButtonVariant.Outline" Href="@($"/api/jobs/{j.Id}/output")">
+                                        <LucideIcon Name="download" Size="14" /> @T["Download"]
+                                    </BbButton>
+                                }
+                                @if (BackgroundTaskStatus.IsFinished(j.Status) && j.Status != BackgroundTaskStatus.Succeeded)
+                                {
+                                    <BbButton Size="ButtonSize.Small" Variant="ButtonVariant.Ghost" Disabled="@busy" OnClick="() => RunAgain(j)">@T["Run again"]</BbButton>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@code {
+    private IReadOnlyList<BackgroundTask>? jobs;
+    private bool allUsers, busy;
+    private Timer? timer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        // Refresh while something is queued or running.
+        timer = new Timer(_ => InvokeAsync(async () =>
+        {
+            if (jobs?.Any(j => !BackgroundTaskStatus.IsFinished(j.Status)) == true) { await LoadAsync(); StateHasChanged(); }
+        }), null, TimeSpan.FromSeconds(1.5), TimeSpan.FromSeconds(1.5));
+    }
+
+    private async Task LoadAsync() => jobs = await Tasks.ListAsync(Current.Required, allUsers);
+
+    private async Task ToggleAll(ChangeEventArgs e) { allUsers = e.Value is true; await LoadAsync(); }
+
+    private async Task Cancel(BackgroundTask job) => await Act(async () =>
+    {
+        await Tasks.CancelAsync(Current.Required, job.Id);
+        Toasts.Success(T["The job will stop at its next step."], job.Title);
+    });
+
+    private async Task RunAgain(BackgroundTask job) => await Act(async () =>
+    {
+        await Tasks.RunAgainAsync(Current.Required, job.Id);
+        Toasts.Success(T["Queued again."], job.Title);
+    });
+
+    private async Task Act(Func<Task> action)
+    {
+        if (busy) return;
+        busy = true;
+        try { await action(); await LoadAsync(); }
+        catch (Exception ex) when (ex is InvalidPayloadException or InvalidStateException or DocumentNotFoundException or PermissionDeniedException)
+        {
+            Toasts.Error(T.Message(ex.Message), T["Background jobs"]);
+        }
+        finally { busy = false; }
+    }
+
+    private static BadgeVariant Badge(string status) => status switch
+    {
+        BackgroundTaskStatus.Succeeded => BadgeVariant.Default,
+        BackgroundTaskStatus.Failed or BackgroundTaskStatus.Interrupted => BadgeVariant.Destructive,
+        BackgroundTaskStatus.Running => BadgeVariant.Secondary,
+        _ => BadgeVariant.Outline,
+    };
+
+    public void Dispose() => timer?.Dispose();
+}

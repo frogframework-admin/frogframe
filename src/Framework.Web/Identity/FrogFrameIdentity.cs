@@ -84,14 +84,21 @@ public sealed class FrogFrameClaimsFactory(IOptions<IdentityOptions> options) : 
         // Security stamp di cookie: dicek ulang berkala; berubah saat password/role/status diubah → sesi lama tidak berlaku.
         identity.AddClaim(new Claim(o.SecurityStampClaimType, user.SecurityStamp));
         identity.AddClaims(ClaimsUserMapper.ToClaims(user));
+        // Enrolment state for Security:TwoFactor:RequiredForRoles. Changing it changes the security stamp, so the claim stays current.
+        if (user.TwoFactorEnabled) identity.AddClaim(new Claim(TwoFactorSetup.EnabledClaim, "1"));
         return Task.FromResult(new ClaimsPrincipal(identity));
     }
 }
 
 /// <summary>Adapter ASP.NET Core Identity → IUserAccountRepository (in-memory atau PostgreSQL).</summary>
-public sealed class FrogFrameUserStore(IUserAccountRepository repo, TimeProvider clock) :
-    IUserPasswordStore<UserAccount>, IUserSecurityStampStore<UserAccount>, IUserLockoutStore<UserAccount>, IUserEmailStore<UserAccount>
+public sealed class FrogFrameUserStore(IUserAccountRepository repo, TimeProvider clock, IDataProtectionProvider dataProtection) :
+    IUserPasswordStore<UserAccount>, IUserSecurityStampStore<UserAccount>, IUserLockoutStore<UserAccount>, IUserEmailStore<UserAccount>,
+    IUserTwoFactorStore<UserAccount>, IUserAuthenticatorKeyStore<UserAccount>, IUserTwoFactorRecoveryCodeStore<UserAccount>
 {
+    /// <summary>Purpose string of the Data Protection key that encrypts authenticator secrets at rest.</summary>
+    public const string AuthenticatorKeyPurpose = "FrogFrame.Identity.AuthenticatorKey.v1";
+    private readonly IDataProtector _keyProtector = dataProtection.CreateProtector(AuthenticatorKeyPurpose);
+
     public Task<string> GetUserIdAsync(UserAccount user, CancellationToken ct) => Task.FromResult(user.Id);
     public Task<string?> GetUserNameAsync(UserAccount user, CancellationToken ct) => Task.FromResult<string?>(user.UserName);
     public Task SetUserNameAsync(UserAccount user, string? userName, CancellationToken ct) { user.UserName = userName ?? ""; return Task.CompletedTask; }
@@ -143,6 +150,64 @@ public sealed class FrogFrameUserStore(IUserAccountRepository repo, TimeProvider
     public Task<UserAccount?> FindByEmailAsync(string normalizedEmail, CancellationToken ct) => repo.FindByNormalizedEmailAsync(normalizedEmail, ct);
     public Task<string?> GetNormalizedEmailAsync(UserAccount user, CancellationToken ct) => Task.FromResult(user.NormalizedEmail);
     public Task SetNormalizedEmailAsync(UserAccount user, string? normalizedEmail, CancellationToken ct) { user.NormalizedEmail = normalizedEmail; return Task.CompletedTask; }
+
+    // Two-factor
+    public Task SetTwoFactorEnabledAsync(UserAccount user, bool enabled, CancellationToken ct) { user.TwoFactorEnabled = enabled; return Task.CompletedTask; }
+    public Task<bool> GetTwoFactorEnabledAsync(UserAccount user, CancellationToken ct) => Task.FromResult(user.TwoFactorEnabled);
+
+    // Authenticator key: encrypted at rest. Identity reads it on every code check, so it is decrypted here only.
+    public Task SetAuthenticatorKeyAsync(UserAccount user, string key, CancellationToken ct)
+    {
+        user.AuthenticatorKey = string.IsNullOrEmpty(key) ? null : _keyProtector.Protect(key);
+        return Task.CompletedTask;
+    }
+
+    public Task<string?> GetAuthenticatorKeyAsync(UserAccount user, CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(user.AuthenticatorKey)) return Task.FromResult<string?>(null);
+        try { return Task.FromResult<string?>(_keyProtector.Unprotect(user.AuthenticatorKey)); }
+        catch (System.Security.Cryptography.CryptographicException)
+        {
+            // Data Protection keys lost: the secret cannot be read. Fail closed: for an enrolled user return a random key
+            // nobody has, so a second factor is still demanded but no app code matches (recovery codes still work, or an
+            // administrator resets two-factor). Returning null would make Identity treat the account as having no 2FA.
+            return Task.FromResult<string?>(user.TwoFactorEnabled
+                ? Base32Random()
+                : null);
+        }
+    }
+
+    private static string Base32Random()
+    {
+        const string alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+        return string.Concat(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32).Select(b => alphabet[b & 31]));
+    }
+
+    // Recovery codes: stored as SHA-256 hashes; redeeming removes the code.
+    public Task ReplaceCodesAsync(UserAccount user, IEnumerable<string> recoveryCodes, CancellationToken ct)
+    {
+        user.RecoveryCodes = recoveryCodes.Select(HashRecoveryCode).Distinct().ToList();
+        return Task.CompletedTask;
+    }
+
+    public Task<bool> RedeemCodeAsync(UserAccount user, string code, CancellationToken ct)
+    {
+        var hash = HashRecoveryCode(code);
+        var index = user.RecoveryCodes.FindIndex(h => System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
+            Convert.FromHexString(h), Convert.FromHexString(hash)));
+        if (index < 0) return Task.FromResult(false);
+        user.RecoveryCodes.RemoveAt(index);
+        return Task.FromResult(true);
+    }
+
+    public Task<int> CountCodesAsync(UserAccount user, CancellationToken ct) => Task.FromResult(user.RecoveryCodes.Count);
+
+    /// <summary>Codes are compared without case, spaces or dashes, so "ab12-cd34" and "AB12CD34" are the same code.</summary>
+    public static string HashRecoveryCode(string code)
+    {
+        var normalized = new string(code.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant();
+        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(normalized)));
+    }
 
     public void Dispose() { }
 }
@@ -218,6 +283,7 @@ public static class IdentityServiceCollectionExtensions
             })
             .AddSignInManager()
             .AddDefaultTokenProviders();
+        services.AddFrogFrameworkTwoFactor(); // after AddDefaultTokenProviders: limits 2FA to the authenticator app
 
         services.AddAuthentication(o =>
             {
@@ -246,10 +312,27 @@ public static class IdentityServiceCollectionExtensions
                 o.SlidingExpiration = true;
             }));
 
-        services.Configure<SecurityStampValidatorOptions>(o => o.ValidationInterval = TimeSpan.FromMinutes(5));
+        services.Configure<SecurityStampValidatorOptions>(o =>
+        {
+            o.ValidationInterval = TimeSpan.FromMinutes(5);
+            o.OnRefreshingPrincipal = PreserveAuthenticationMethod;
+        });
+        services.TryAddSingleton(new SsoProviders([]));
         services.AddCascadingAuthenticationState();
         services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
         return services;
+    }
+
+    /// <summary>
+    /// The periodic security-stamp check rebuilds the cookie principal from the account; keep how the user signed in
+    /// ("amr": "mfa" after a two-factor code, "sso:google" after single sign-on) so that information is not lost.
+    /// </summary>
+    public static Task PreserveAuthenticationMethod(SecurityStampRefreshingPrincipalContext context)
+    {
+        if (context.NewPrincipal?.Identity is not ClaimsIdentity target || context.CurrentPrincipal is null) return Task.CompletedTask;
+        foreach (var claim in context.CurrentPrincipal.FindAll(c => c.Type is "amr" || c.Type == ClaimTypes.AuthenticationMethod))
+            if (!target.HasClaim(claim.Type, claim.Value)) target.AddClaim(new Claim(claim.Type, claim.Value));
+        return Task.CompletedTask;
     }
 }
 

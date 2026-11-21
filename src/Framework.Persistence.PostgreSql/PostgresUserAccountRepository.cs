@@ -7,7 +7,8 @@ public sealed class PostgresUserAccountRepository(NpgsqlDataSource db) : IUserAc
 {
     private const string Columns =
         "id, user_name, normalized_user_name, email, normalized_email, full_name, tenant_id, department, employee_id, roles, is_active, " +
-        "password_hash, security_stamp, concurrency_stamp, lockout_enabled, lockout_end, access_failed_count, created_at, last_login_at, avatar_id";
+        "password_hash, security_stamp, concurrency_stamp, lockout_enabled, lockout_end, access_failed_count, created_at, last_login_at, avatar_id, " +
+        "two_factor_enabled, authenticator_key, recovery_codes";
 
     private static UserAccount Read(NpgsqlDataReader r) => new()
     {
@@ -21,6 +22,8 @@ public sealed class PostgresUserAccountRepository(NpgsqlDataSource db) : IUserAc
         AccessFailedCount = r.GetInt32(16), CreatedAt = r.GetFieldValue<DateTimeOffset>(17),
         LastLoginAt = r.IsDBNull(18) ? null : r.GetFieldValue<DateTimeOffset>(18),
         AvatarId = r.IsDBNull(19) ? null : r.GetString(19),
+        TwoFactorEnabled = r.GetBoolean(20), AuthenticatorKey = r.IsDBNull(21) ? null : r.GetString(21),
+        RecoveryCodes = r.GetFieldValue<string[]>(22).ToList(),
     };
 
     private async Task<UserAccount?> One(string where, object value, CancellationToken ct)
@@ -54,7 +57,7 @@ public sealed class PostgresUserAccountRepository(NpgsqlDataSource db) : IUserAc
     public async Task CreateAsync(UserAccount a, CancellationToken ct = default)
     {
         await using var cmd = db.CreateCommand(
-            $"INSERT INTO frogframe_users ({Columns}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)");
+            $"INSERT INTO frogframe_users ({Columns}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)");
         AddParams(cmd, a);
         try { await cmd.ExecuteNonQueryAsync(ct); }
         catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UniqueViolation)
@@ -68,7 +71,8 @@ public sealed class PostgresUserAccountRepository(NpgsqlDataSource db) : IUserAc
         await using var cmd = db.CreateCommand(
             "UPDATE frogframe_users SET user_name=$2, normalized_user_name=$3, email=$4, normalized_email=$5, full_name=$6, tenant_id=$7, " +
             "department=$8, employee_id=$9, roles=$10, is_active=$11, password_hash=$12, security_stamp=$13, concurrency_stamp=$14, " +
-            "lockout_enabled=$15, lockout_end=$16, access_failed_count=$17, created_at=$18, last_login_at=$19, avatar_id=$20 WHERE id=$1");
+            "lockout_enabled=$15, lockout_end=$16, access_failed_count=$17, created_at=$18, last_login_at=$19, avatar_id=$20, " +
+            "two_factor_enabled=$21, authenticator_key=$22, recovery_codes=$23 WHERE id=$1");
         AddParams(cmd, a);
         try { await cmd.ExecuteNonQueryAsync(ct); }
         catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UniqueViolation)
@@ -94,5 +98,6 @@ public sealed class PostgresUserAccountRepository(NpgsqlDataSource db) : IUserAc
         cmd.Parameters.AddWithValue(a.SecurityStamp); cmd.Parameters.AddWithValue(a.ConcurrencyStamp); cmd.Parameters.AddWithValue(a.LockoutEnabled);
         cmd.Parameters.AddWithValue(N(a.LockoutEnd)); cmd.Parameters.AddWithValue(a.AccessFailedCount); cmd.Parameters.AddWithValue(a.CreatedAt);
         cmd.Parameters.AddWithValue(N(a.LastLoginAt)); cmd.Parameters.AddWithValue(N(a.AvatarId));
+        cmd.Parameters.AddWithValue(a.TwoFactorEnabled); cmd.Parameters.AddWithValue(N(a.AuthenticatorKey)); cmd.Parameters.AddWithValue(a.RecoveryCodes.ToArray());
     }
 }

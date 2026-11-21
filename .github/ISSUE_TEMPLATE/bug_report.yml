@@ -1,0 +1,65 @@
+name: Bug report
+description: Something does not work as expected.
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Do **not** report security vulnerabilities here; see SECURITY.md.
+        Remove passwords, tokens and real customer data from logs and screenshots.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Sign in as a user with role ...
+        2. Open /app/SalesOrder
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: area
+    attributes:
+      label: Area
+      description: Page, DocType, report or API endpoint, e.g. "Sales Order print", "/api/data/Item".
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Commit, release or image tag.
+    validations:
+      required: true
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Environment
+      options:
+        - Development (dotnet run)
+        - Docker Compose
+        - Kubernetes / other
+    validations:
+      required: true
+  - type: dropdown
+    id: persistence
+    attributes:
+      label: Persistence
+      options:
+        - PostgreSQL
+        - In-memory
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or error message
+      description: Application log lines or the error message shown on the page.
+      render: shell
+  - type: textarea
+    id: extra
+    attributes:
+      label: Screenshots or other context

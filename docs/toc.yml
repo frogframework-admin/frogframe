@@ -20,6 +20,14 @@
       href: guides/doctype-and-workflows.md
     - name: Deployment Checks
       href: guides/deployment-checks.md
+    - name: Secrets
+      href: guides/secrets.md
+    - name: Database Migrations
+      href: guides/database-migrations.md
+    - name: Write Performance
+      href: guides/performance.md
+    - name: Release Pipeline
+      href: guides/release.md
     - name: Visual Workflow Editor
       href: guides/visual-workflow-editor.md
     - name: DocType & Workflow Catalog
@@ -30,6 +38,12 @@
       href: guides/list-views-board-and-calendar.md
     - name: Row Sharing
       href: guides/row-sharing.md
+    - name: Tags, Bookmarks and Follow
+      href: guides/tags-bookmarks-follow.md
+    - name: Background Jobs
+      href: guides/background-jobs.md
+    - name: Two-Factor Authentication & SSO
+      href: guides/two-factor-and-sso.md
     - name: Ad-hoc Report Builder
       href: guides/report-builder.md
     - name: Letterheads & Print Formats

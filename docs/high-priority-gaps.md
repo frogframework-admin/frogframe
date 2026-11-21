@@ -13,9 +13,9 @@ This document outlines the six high-priority architectural gaps between **FrogFr
 | **1** | **Customization Layer** *(Custom Field & Property Setter)* | Non-destructive tenant customization layer (`frogframe_customizations`) in `033_customizations.sql` with overlay compilation in `Compiler.cs`. | Base definitions belong to app code; tenant Custom Fields & Property Setters are layered on top and preserved across upgrades. | Zero-loss tenant customization without developer dependency. | **Completed** |
 | **2** | **Server & Client Scripting** | Sandboxed C# Roslyn scripting compiled to memory, cached as delegates, and executed for DocEvents, APIs, and Cron jobs. | Sandboxed C# Roslyn scripting with compile-time AST analyzer and statement budget rewriter. Client scripts unified via Blazor Server. | Rapid custom business logic authoring directly from the web interface. | **Completed (Phase 3-C)** |
 | **3** | **Document Collaboration & Activity Timeline** | FormPage offers attachments, audit timeline, and presence, but lacks interactive discussions and task handoffs. | Combined activity timeline with rich comments, `@mentions`, internal notifications, and task assignments (ToDos). | Operational teamwork and accountability within documents. | **Next Milestone (Option 2)** |
-| **4** | **Per-Document Sharing & Tagging** | Document access is strictly governed by global role definitions; no ad-hoc record sharing or tag-based organization. | Explicit row-level document sharing (`can_read`, `can_write`, `can_share`), combined with GIN-indexed document tags. | Granular ad-hoc access control and fast categorization. | **Next Milestone (Option 2)** |
+| **4** | **Per-Document Sharing & Tagging** | Document access is strictly governed by global role definitions; no ad-hoc record sharing or tag-based organization. | Explicit row-level document sharing (`can_read`, `can_write`, `can_share`), combined with GIN-indexed document tags. | Granular ad-hoc access control and fast categorization. | **Implemented** (row sharing: `docs/guides/row-sharing.md`; tags: `docs/guides/tags-bookmarks-follow.md`) |
 | **5** | **Webhooks & Integration Events** | Declarative Webhook metadata with HMAC-SHA256 signatures, exponential backoff retries, SSRF protection callback, and delivery logs. | Declarative Webhook metadata with HMAC-SHA256 signatures, exponential backoff retries, SSRF protection, and audit logs. | Native system-to-system integration and real-time data sync. | **Completed (Phase 3-A)** |
-| **6** | **Enterprise Authentication (2FA & SSO)** | Authentication is limited to username/password (ASP.NET Core Identity) and internal API keys. | TOTP Two-Factor Authentication, OIDC/OAuth2 Single Sign-On (Entra ID, Google, Keycloak), LDAP/AD, and Bearer token auth via OpenIddict. | Enterprise security compliance, identity federation, and seamless API integrations. | Planned (Phase 4) |
+| **6** | **Enterprise Authentication (2FA & SSO)** | TOTP 2FA (with recovery codes and per-role requirement) and Google / Entra ID SSO are implemented (`docs/guides/two-factor-and-sso.md`). Still open: other OIDC providers, JIT provisioning, LDAP/AD. | TOTP Two-Factor Authentication, OIDC/OAuth2 Single Sign-On (Entra ID, Google, Keycloak), LDAP/AD, and Bearer token auth via OpenIddict. | Enterprise security compliance, identity federation, and seamless API integrations. | Planned (Phase 4) |
 
 ---
 
@@ -292,10 +292,11 @@ Domain events are queued into the PostgreSQL outbox table (`Event(doc, "document
 ## 6. Enterprise Authentication: 2FA & SSO
 
 ### Current State
-Authentication is currently restricted to:
-- Username and password verification via ASP.NET Core Identity.
-- API keys using `X-API-Key` headers.
-- No Multi-Factor Authentication (MFA/2FA), Single Sign-On (SAML 2.0 / OIDC), or Directory Services integration (LDAP / Active Directory) are implemented.
+- Username and password via ASP.NET Core Identity, and API keys.
+- Implemented: TOTP two-factor authentication with QR enrolment, hashed one-time recovery codes, a per-role requirement (`Security:TwoFactor:RequiredForRoles`) and an administrator reset; Google and Microsoft Entra ID (single directory) sign-in for existing accounts, matched by verified e-mail. See `docs/guides/two-factor-and-sso.md`.
+- Not implemented: other OIDC providers (Keycloak, Okta, Auth0), just-in-time account provisioning and role mapping from token claims, SAML 2.0, LDAP / Active Directory.
+
+The plan below is kept for the remaining parts; items 1 and the Google / Entra part of item 2 are done (SSO uses the built-in OAuth handler with PKCE and the OIDC userinfo endpoint, so no extra package is needed).
 
 ### Proposed Solution for FrogFrame
 

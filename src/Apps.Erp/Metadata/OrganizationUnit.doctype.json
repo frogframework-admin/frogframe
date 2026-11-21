@@ -269,6 +269,14 @@
       "scope": "all"
     }
   ],
+  "indexes": [
+    {
+      "fields": [
+        "materialized_path"
+      ],
+      "prefix": true
+    }
+  ],
   "listView": {
     "titleField": "org_unit_name",
     "searchFields": [

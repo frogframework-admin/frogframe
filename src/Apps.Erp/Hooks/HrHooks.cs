@@ -96,7 +96,7 @@ internal static class Hr
         var root = await GetOrgUnitAsOfAsync(m, parentUnitNameOrCode, asOfDate, ct);
         if (root is null) return [];
         var rootPath = root.Data.Str("materialized_path") ?? $"/{root.Data.Str("org_unit_code") ?? root.Name}/";
-        var candidates = await m.QueryAsync("OrganizationUnit", [new FilterClause("materialized_path", "like", rootPath)], ct, take: 5000);
+        var candidates = await m.QueryAsync("OrganizationUnit", [new FilterClause("materialized_path", "startswith", rootPath)], ct, take: 5000);
         return candidates
             .Where(u => (u.Data.Str("materialized_path") ?? "").StartsWith(rootPath, StringComparison.Ordinal) && IsUnitValidOn(u, asOfDate))
             .ToList();

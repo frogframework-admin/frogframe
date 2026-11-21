@@ -243,6 +243,14 @@
       "scope": "all"
     }
   ],
+  "indexes": [
+    {
+      "fields": [
+        "employee",
+        "work_date"
+      ]
+    }
+  ],
   "listView": {
     "titleField": "employee_name",
     "searchFields": [

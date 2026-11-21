@@ -14,6 +14,7 @@
 @inject IHostEnvironment Env
 @inject TimeProvider Clock
 @inject SystemConnectivityService Connectivity
+@inject Framework.Web.Identity.SsoProviders Sso
 
 <PageTitle>Log in · FrogFrame</PageTitle>
 
@@ -57,9 +58,9 @@
                 </div>
             }
 
-            @if (error is not null)
+            @if ((error ?? Framework.Web.Identity.SingleSignOn.Describe(SsoError)) is { } shownError)
             {
-                <div class="auth-alert" role="alert">@error</div>
+                <div class="auth-alert" role="alert">@shownError</div>
             }
 
             <EditForm Model="Input" method="post" OnValidSubmit="LoginAsync" FormName="login" class="auth-form">
@@ -80,6 +81,17 @@
                 <label class="auth-check"><InputCheckbox @bind-Value="Input.RememberMe" /> Remember me on this device</label>
                 <button type="submit" class="auth-button">Log in</button>
             </EditForm>
+            @if (Sso.All.Count > 0)
+            {
+                <div class="auth-divider"><span>or</span></div>
+                <div class="auth-sso">
+                    @foreach (var p in Sso.All)
+                    {
+                        <a class="auth-sso-button" data-enhance-nav="false"
+                           href="@($"/account/external/{p.Scheme}?returnUrl={Uri.EscapeDataString(SafeReturnUrl)}")">Continue with @p.DisplayName</a>
+                    }
+                </div>
+            }
 
             @if (Demo.ShowAccounts)
             {
@@ -124,6 +136,7 @@
     [SupplyParameterFromForm] private LoginModel Input { get; set; } = default!;
     [SupplyParameterFromQuery] private string? ReturnUrl { get; set; }
     [SupplyParameterFromQuery(Name = "reset")] private string? Reset { get; set; }
+    [SupplyParameterFromQuery(Name = "sso")] private string? SsoError { get; set; }
     private bool ResetSuccess => Reset == "1";
     private string? error;
     /// <summary>Demo settings (accounts listed and prefilled only in demo mode); see Framework.Hosting.DemoMode.</summary>
@@ -170,6 +183,12 @@
                     await Users.UpdateAsync(user);
                 }
                 Nav.NavigateTo(SafeReturnUrl, forceLoad: true);
+                return;
+            }
+            if (result.RequiresTwoFactor)
+            {
+                // Password correct; the second step identifies the user by the short-lived Identity.TwoFactorUserId cookie.
+                Nav.NavigateTo($"/account/login-2fa?returnUrl={Uri.EscapeDataString(SafeReturnUrl)}&rememberMe={Input.RememberMe}", forceLoad: true);
                 return;
             }
             // Pesan sengaja tidak membedakan "username tidak ada" dan "password salah".

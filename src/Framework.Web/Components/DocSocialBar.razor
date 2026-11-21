@@ -1,0 +1,129 @@
+@*
+    Bookmark, follow and tags of a document, shown under the form toolbar. Bookmark and follow are personal; tags are
+    shared and can be changed by users who can edit the document. All rules live in DocSocialService.
+*@
+@using Framework.Social
+@inject DocSocialService Social
+@inject CurrentUser Current
+@inject ToastService Toasts
+@inject UiText T
+
+@if (state is not null)
+{
+    <div class="doc-social" role="group" aria-label="@T["Bookmark, follow and tags"]">
+        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" Disabled="@busy" OnClick="ToggleBookmark"
+                  AdditionalAttributes="@(new Dictionary<string, object> { ["title"] = T[state.Bookmarked ? "Remove from my bookmarks" : "Add to my bookmarks"], ["aria-pressed"] = state.Bookmarked ? "true" : "false" })">
+            <LucideIcon Name="star" Size="15" Class="@(state.Bookmarked ? "doc-social-on" : "")" /> @T[state.Bookmarked ? "Bookmarked" : "Bookmark"]
+        </BbButton>
+        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" Disabled="@busy" OnClick="ToggleFollow"
+                  AdditionalAttributes="@(new Dictionary<string, object> { ["title"] = T[state.Following ? "Stop notifications about changes to this document" : "Get notified when this document changes"], ["aria-pressed"] = state.Following ? "true" : "false" })">
+            <LucideIcon Name="@(state.Following ? "bell-ring" : "bell")" Size="15" Class="@(state.Following ? "doc-social-on" : "")" />
+            @T[state.Following ? "Following" : "Follow"]@(state.Followers > 0 ? $" ({state.Followers})" : "")
+        </BbButton>
+
+        <span class="doc-social-tags">
+            <LucideIcon Name="tag" Size="14" Class="muted" />
+            @foreach (var t in state.Tags)
+            {
+                var tag = t;
+                <span class="filter-chip doc-tag tag-color" style="--tag-hue:@DocTags.Hue(tag)">
+                    <a class="chip-val" href="@($"/app/{DocType}?tag={Uri.EscapeDataString(tag)}")" title="@T["Show documents with this tag"]">@tag</a>
+                    @if (state.CanEditTags)
+                    {
+                        <button type="button" class="chip-close" disabled="@busy" @onclick="() => RemoveTag(tag)" aria-label="@T.Format("Remove tag {0}", tag)">✕</button>
+                    }
+                </span>
+            }
+            @if (state.Tags.Count == 0 && !state.CanEditTags)
+            {
+                <span class="muted small">@T["No tags"]</span>
+            }
+            @if (state.CanEditTags && state.Tags.Count < DocSocialLimits.MaxTagsPerDocument)
+            {
+                <input class="doc-tag-input" list="@ListId" maxlength="@DocSocialLimits.MaxTagLength" placeholder="@T["Add tag…"]"
+                       aria-label="@T["Add tag"]" value="@newTag" disabled="@busy"
+                       @oninput="OnTagInput" @onkeydown="OnTagKey" />
+                <datalist id="@ListId">
+                    @foreach (var s in suggestions.Where(s => !state.Tags.Contains(s.Tag, StringComparer.OrdinalIgnoreCase)))
+                    {
+                        <option value="@s.Tag">@s.Count</option>
+                    }
+                </datalist>
+            }
+        </span>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public string DocType { get; set; } = "";
+    [Parameter, EditorRequired] public string Name { get; set; } = "";
+
+    private DocSocialState? state;
+    private IReadOnlyList<TagUsage> suggestions = [];
+    private string newTag = "";
+    private bool busy;
+    private string loadedFor = "";
+    private string ListId => $"doc-tag-suggestions-{DocType}";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var key = $"{DocType}/{Name}";
+        if (key == loadedFor) return;
+        loadedFor = key;
+        state = null;
+        try
+        {
+            state = await Social.StateAsync(Current.Required, DocType, Name);
+            if (state.CanEditTags) suggestions = await Social.TagSuggestionsAsync(Current.Required, DocType, null, 50);
+        }
+        catch (Exception ex) when (IsDomainError(ex)) { state = null; } // not readable: the form shows the error
+    }
+
+    private async Task Run(Func<Task> action, string failTitle)
+    {
+        if (busy) return;
+        busy = true;
+        try { await action(); }
+        catch (Exception ex) when (IsDomainError(ex)) { Toasts.Error(T.Message(ex.Message), T[failTitle]); }
+        finally { busy = false; }
+    }
+
+    private Task ToggleBookmark() => Run(async () =>
+    {
+        var on = await Social.SetBookmarkAsync(Current.Required, DocType, Name, !state!.Bookmarked);
+        state = state with { Bookmarked = on };
+        Toasts.Success(T[on ? "Added to your bookmarks." : "Removed from your bookmarks."], Name);
+    }, "Bookmark failed");
+
+    private Task ToggleFollow() => Run(async () =>
+    {
+        var on = await Social.SetFollowAsync(Current.Required, DocType, Name, !state!.Following);
+        state = state with { Following = on, Followers = Math.Max(0, state.Followers + (on == state.Following ? 0 : on ? 1 : -1)) };
+        Toasts.Success(T[on ? "You will be notified when this document changes." : "You no longer follow this document."], Name);
+    }, "Follow failed");
+
+    private void OnTagInput(ChangeEventArgs e) => newTag = e.Value?.ToString() ?? "";
+
+    private async Task OnTagKey(KeyboardEventArgs e)
+    {
+        if (e.Key != "Enter") return;
+        var tag = newTag.Trim();
+        if (tag.Length == 0) return;
+        await Run(async () =>
+        {
+            var tags = await Social.AddTagAsync(Current.Required, DocType, Name, tag);
+            state = state! with { Tags = tags };
+            newTag = "";
+            suggestions = await Social.TagSuggestionsAsync(Current.Required, DocType, null, 50);
+        }, "Tag not added");
+    }
+
+    private Task RemoveTag(string tag) => Run(async () =>
+    {
+        var tags = await Social.RemoveTagAsync(Current.Required, DocType, Name, tag);
+        state = state! with { Tags = tags };
+    }, "Tag not removed");
+
+    private static bool IsDomainError(Exception ex) =>
+        ex is PermissionDeniedException or InvalidPayloadException or DocumentNotFoundException or InvalidStateException;
+}

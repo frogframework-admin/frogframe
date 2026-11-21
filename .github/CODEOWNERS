@@ -1,0 +1,24 @@
+# Code owners: GitHub requests their review on pull requests that touch these paths. With branch protection
+# ("Require review from Code Owners") their approval is required. The last matching pattern wins.
+# Owners must be users or teams with write access, e.g. @user or @org/team. Replace @frogframework-admin
+# below with the maintainers' accounts or a team when there is more than one maintainer.
+
+# Default owner for everything
+*                                           @frogframework-admin
+
+# Security-sensitive areas: permissions, identity, secrets and startup checks
+/src/Framework.Core/Security/               @frogframework-admin
+/src/Framework.Core/Hosting/                @frogframework-admin
+/src/Framework.Web/Identity/                @frogframework-admin
+/src/Framework.Web/HttpHardening.cs         @frogframework-admin
+
+# Database schema and migrations (must stay safe for rolling updates)
+/src/Framework.Persistence.PostgreSql/      @frogframework-admin
+/deploy/sql/                                @frogframework-admin
+
+# Deployment, CI and repository settings
+/.github/                                   @frogframework-admin
+/deploy/                                    @frogframework-admin
+/Dockerfile                                 @frogframework-admin
+/docker-compose*.yml                        @frogframework-admin
+/.env.example                               @frogframework-admin

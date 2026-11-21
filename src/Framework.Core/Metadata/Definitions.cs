@@ -25,6 +25,11 @@ public sealed class DocTypeDef
     public List<DocHookDef> Hooks { get; set; } = [];
     public DataMigrationPlanDef? DataMigration { get; set; }
     public ListViewDef ListView { get; set; } = new();
+    /// <summary>
+    /// Extra database indexes for queries that list view settings do not describe, e.g. hooks that look up by two
+    /// fields together. Single fields used in list filters, sorting and search are indexed automatically.
+    /// </summary>
+    public List<IndexDef>? Indexes { get; set; }
     public List<PermissionDef> Permissions { get; set; } = [];
     public ApiDef Api { get; set; } = new();
     /// <summary>Impor Excel/CSV. Default aktif untuk DocType yang bukan child table.</summary>
@@ -32,6 +37,20 @@ public sealed class DocTypeDef
     public string? Workflow { get; set; }
     /// <summary>Format cetak (A4). Bila null, dipakai format default dari layout form.</summary>
     public PrintFormatDef? PrintFormat { get; set; }
+}
+
+/// <summary>
+/// A PostgreSQL index on fields of one DocType, built in the background like the list view indexes.
+/// <c>{ "fields": ["employee", "work_date"] }</c> serves filters on employee, or employee and work_date together
+/// (equality or range), sorted by work_date. <c>{ "fields": ["materialized_path"], "prefix": true }</c> serves the
+/// "startswith" filter on the last field (case-sensitive prefix, e.g. every unit under "/HQ/FIN/").
+/// </summary>
+public sealed class IndexDef
+{
+    /// <summary>1–4 fields, most selective equality filters first.</summary>
+    public List<string> Fields { get; set; } = [];
+    /// <summary>The last field is a text field queried with "startswith".</summary>
+    public bool Prefix { get; set; }
 }
 
 public sealed class DataMigrationPlanDef

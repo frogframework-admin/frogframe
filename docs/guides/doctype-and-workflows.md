@@ -101,6 +101,22 @@ stateDiagram-v2
 
 ---
 
+### Database indexes
+
+On PostgreSQL, fields used in `listView.filters`, `listView.defaultSort` and `listView.searchFields` are indexed automatically. For queries that the list view does not describe, such as a hook that looks up by two fields together, declare extra indexes in the DocType file:
+
+```json
+"indexes": [
+  { "fields": ["employee", "work_date"] },
+  { "fields": ["materialized_path"], "prefix": true }
+]
+```
+
+- Each index covers 1 to 4 fields in order, after the tenant. Put fields compared with `=` first and a range or sort field last. `["employee", "work_date"]` serves `employee = …`, `employee = … and work_date = …`, and `employee = … and work_date between … and …` sorted by `work_date`.
+- `prefix: true`: the last field must be a text field. It is then indexed for the `startswith` filter (case-sensitive prefix, e.g. every organization unit under `/HQ/FIN/`). `like` means "contains" and does not use it.
+- Indexes are built in the background with `CREATE INDEX CONCURRENTLY` at startup and after each publish, and dropped when removed from the file. Child tables cannot have indexes.
+- Only developers can change `indexes` (in the file); administrators cannot add them from the UI.
+
 ## 4. Customizing Application DocTypes (Custom Field / Property Setter)
 
 A DocType that ships with the application (a `*.doctype.json` file under `Metadata/`) is **application-owned**. When an administrator changes it in the DocType Editor (or through the JSON tab, the metadata API, the AI designer, or by linking a workflow), FrogFrame does not publish a new base version. It stores only the difference as a **customization** and applies it on top of the base:
@@ -114,7 +130,7 @@ When the developers deploy a newer file, the new base is used and the customizat
 | Administrators can | Only developers can (in the file) |
 |---|---|
 | Add fields. Their names must start with `custom_` so they never clash with fields added later by the developers | Remove an application field, or change its `name`, `type`, `linkTo`, `childDocType`, `compute`, `fetchFrom` |
-| Change label, description, tab/section/column, required/visible/read-only rules, default, options, min/max, list and filter settings, permission level, link filters of application fields | Change DocType `name`, `naming`, `storage`, `document` (submit/cancel), `isChild`, `isSingle`, `module`, `api`, data migrations |
+| Change label, description, tab/section/column, required/visible/read-only rules, default, options, min/max, list and filter settings, permission level, link filters of application fields | Change DocType `name`, `naming`, `storage`, `document` (submit/cancel), `isChild`, `isSingle`, `module`, `api`, `indexes`, data migrations |
 | Re-order fields | |
 | Change DocType `title`, `description`, `listView`, `permissions`, `printFormat`, `rules`, `hooks`, `import`, `allowAutoRepeat`, linked `workflow` | |
 

@@ -156,6 +156,10 @@ public static class ServiceCollectionExtensions
         // Row sharing (frogframe_doc_shares): per-document read / write / share grants from the form.
         services.TryAddSingleton<Framework.Sharing.IDocShareStore, Framework.Sharing.InMemoryDocShareStore>();
         services.AddSingleton<Framework.Sharing.DocShareService>();
+        // Tags, bookmarks, follow (followers are notified of changes by DocFollowNotifier).
+        services.TryAddSingleton<Framework.Social.IDocSocialStore, Framework.Social.InMemoryDocSocialStore>();
+        services.AddSingleton<Framework.Social.DocSocialService>();
+        services.AddSingleton<IEventHandler, Framework.Social.DocFollowNotifier>();
         services.AddSingleton<IEventHandler, Framework.Sharing.DocShareCleanupHandler>();
         // Ad-hoc report builder (/reports/builder): saved reports in frogframe_adhoc_reports.
         services.TryAddSingleton<Framework.Reports.IAdHocReportStore, Framework.Reports.InMemoryAdHocReportStore>();
@@ -239,6 +243,14 @@ public static class ServiceCollectionExtensions
             };
         });
         services.AddSingleton<DataImportService>();
+        // Background tasks (long imports, bulk actions): queued by users, run by BackgroundTaskWorker, followed on /jobs.
+        services.TryAddSingleton<Framework.Tasks.IBackgroundTaskStore, Framework.Tasks.InMemoryBackgroundTaskStore>();
+        services.AddSingleton<Framework.Tasks.BackgroundTaskSignal>();
+        services.AddSingleton<Framework.Tasks.BackgroundTaskService>();
+        services.AddSingleton<Framework.Tasks.BackgroundTaskRunner>();
+        services.AddSingleton<Framework.Tasks.IBackgroundTaskHandler, Framework.Tasks.DataImportTaskHandler>();
+        services.AddSingleton<Framework.Tasks.IBackgroundTaskHandler, Framework.Tasks.BulkActionTaskHandler>();
+        services.AddHostedService<BackgroundTaskWorker>();
         services.AddRateLimiter(o =>
         {
             o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -515,6 +527,48 @@ public sealed class OutboxWorker(
                 log.LogError(ex, "Outbox worker gagal");
             }
         }
+    }
+}
+
+/// <summary>
+/// Runs queued background tasks: Tasks:Workers loops (default 2) per instance, woken when a task is queued and
+/// polling every few seconds otherwise (tasks queued on other instances); every minute it marks tasks of stopped
+/// workers as Interrupted and deletes finished tasks older than 14 days.
+/// </summary>
+public sealed class BackgroundTaskWorker(
+    Framework.Tasks.BackgroundTaskRunner runner,
+    Framework.Tasks.BackgroundTaskSignal signal,
+    ILogger<BackgroundTaskWorker> log,
+    IConfiguration? config = null,
+    StartupReadiness? startup = null) : BackgroundService
+{
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        if (startup is not null && !await startup.WaitForDatabaseReadyAsync(stoppingToken)) return;
+        var workers = Math.Clamp(config?.GetValue("Tasks:Workers", 2) ?? 2, 1, 16);
+        var poll = TimeSpan.FromSeconds(Math.Clamp(config?.GetValue("Tasks:PollIntervalSeconds", 3) ?? 3, 1, 60));
+        var loops = Enumerable.Range(0, workers).Select(_ => Task.Run(async () =>
+        {
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                var ran = false;
+                try { ran = await runner.RunNextAsync(stoppingToken); }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
+                catch (Exception ex) { log.LogError(ex, "Background task worker error"); }
+                if (!ran) await signal.WaitAsync(poll, stoppingToken);
+            }
+        }, stoppingToken)).ToList();
+        loops.Add(Task.Run(async () =>
+        {
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                try { await runner.MaintainAsync(stoppingToken); }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
+                catch (Exception ex) { log.LogError(ex, "Background task maintenance error"); }
+                try { await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken); } catch (OperationCanceledException) { break; }
+            }
+        }, stoppingToken));
+        try { await Task.WhenAll(loops); } catch (OperationCanceledException) { }
     }
 }
 

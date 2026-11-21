@@ -10,7 +10,7 @@ FrogFramework provides user-defined **Saved Filters and Custom Views** per DocTy
 - **Default View Auto-Loading**: Mark a preferred view as default (`IsDefault`). When navigating to the DocType's list page, the default view's filter clauses are automatically loaded and applied.
 - **Dynamic Condition Builder**:
   - Filter drawer with row-based condition builder supporting all queryable scalar fields (Data, Int, Float, Currency, Date, Datetime, Check, Select, Link, Workflow State).
-  - Supported operators: `=` (Equals), `!=` (Not equals), `>` (Greater than), `<` (Less than), `>=` (Greater or equal), `<=` (Less or equal), `like` (Contains text), and `in` (In set).
+  - Supported operators: `=` (Equals), `!=` (Not equals), `>` (Greater than), `<` (Less than), `>=` (Greater or equal), `<=` (Less or equal), `like` (Contains text, case-insensitive), `startswith` (Starts with, case-sensitive), and `in` (In set).
   - Value input adapts dynamically to field type (e.g. Workflow State dropdown, Checkbox, Number input, Date picker, or Text box).
 - **Interactive Active Filter Strip**:
   - Filter chips appear below the toolbar showing active field, operator, and value.

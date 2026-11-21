@@ -40,8 +40,8 @@ This document tracks the implemented architecture for **Enterprise Organization 
    - In-page "Generate Roster" dialog, Excel/CSV export for team schedules, and visual shortage alert badges per date.
 2. **Org Chart As-Of-Date Picker (`/hr/struktur-organisasi`)**:
    - Date selector to inspect historical or future `Planned` organization trees, plus SVG/PDF print export.
-3. **PostgreSQL Composite Index Optimization**:
-   - Explicit indexes in `DocumentIndexSync` for `(tenant_id, employee, work_date)` on `EmployeeDailySchedule` and `text_pattern_ops` on `OrganizationUnit.materialized_path`.
+3. **PostgreSQL Composite Index Optimization** (implemented):
+   - `EmployeeDailySchedule` declares `indexes: [{ fields: [employee, work_date] }]`, and `OrganizationUnit` declares a prefix index on `materialized_path` (`text_pattern_ops`). The subtree lookup in `HrHooks` uses the new `startswith` filter, so it reads only the units under the path. See "Database indexes" in `docs/guides/doctype-and-workflows.md`.
 
 ### Priority 3: Advanced Optimization & Matrix Governance (Implemented)
 1. **Constraint Solver Auto-Scheduling (`WsmOptimizerEngine` / Google OR-Tools CP-SAT)**:

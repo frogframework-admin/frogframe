@@ -563,6 +563,20 @@ public sealed partial class MetadataCompiler(IFieldTypeRegistry fieldTypes, Func
             if (byName.TryGetValue(s, out var sf) && !sf.Type.Searchable)
                 errors.Add(new(src, "listView.searchFields", $"Field '{s}' bukan tipe teks"));
 
+        for (var i = 0; i < (d.Indexes?.Count ?? 0); i++)
+        {
+            var ix = d.Indexes![i];
+            var path = $"indexes[{i}]";
+            if (d.IsChild) errors.Add(new(src, path, "Child tables are stored inside their parent document and cannot have indexes"));
+            if (ix.Fields.Count is < 1 or > 4) errors.Add(new(src, path, "An index needs 1 to 4 fields"));
+            if (ix.Fields.Distinct().Count() != ix.Fields.Count) errors.Add(new(src, path, "A field appears more than once"));
+            foreach (var f in ix.Fields)
+                if (!byName.TryGetValue(f, out var xf) || xf.Def.Type == "Table" || !FieldKinds.IsQueryable(xf.Def.Type))
+                    errors.Add(new(src, path, $"Field '{f}' cannot be indexed (unknown, a table or not queryable)"));
+            if (ix.Prefix && ix.Fields.Count > 0 && byName.TryGetValue(ix.Fields[^1], out var lastField) && !lastField.Type.Searchable)
+                errors.Add(new(src, path, $"Prefix index: the last field '{ix.Fields[^1]}' must be a text field"));
+        }
+
         if (lv.Calendar is { } cal)
         {
             bool IsDateField(string? f) => f is not null && byName.TryGetValue(f, out var df) && df.Def.Type is "Date" or "Datetime";

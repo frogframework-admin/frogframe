@@ -54,10 +54,15 @@ public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider 
 
     public async Task<Document?> GetAsync(string tenantId, string docType, string name, CancellationToken ct = default)
     {
+        // Inside a save operation the same master is often read several times: read it once (DocumentReadScope).
+        if (DocumentReadScope.TryGet(tenantId, docType, name, out var cached)) return cached;
         await using var cmd = db.CreateCommand($"SELECT {Columns} FROM frogframe_documents d WHERE d.tenant_id = $1 AND d.doctype = $2 AND d.name = $3");
         cmd.Parameters.AddWithValue(tenantId); cmd.Parameters.AddWithValue(docType); cmd.Parameters.AddWithValue(name);
-        await using var r = await cmd.ExecuteReaderAsync(ct);
-        return await r.ReadAsync(ct) ? ReadDocument(r) : null;
+        Document? doc;
+        await using (var r = await cmd.ExecuteReaderAsync(ct))
+            doc = await r.ReadAsync(ct) ? ReadDocument(r) : null;
+        DocumentReadScope.Remember(tenantId, docType, name, doc);
+        return doc;
     }
 
     public async Task<QueryResult> QueryAsync(StoreQuery q, CancellationToken ct = default)
@@ -120,20 +125,22 @@ public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider 
 
     public async Task CommitAsync(UnitOfWork uow, CancellationToken ct = default)
     {
+        // Never serve a cached read of a document this unit of work writes (whether or not the commit succeeds).
+        DocumentReadScope.Forget(uow);
         await using var conn = await db.OpenConnectionAsync(ct);
         await using var tx = await conn.BeginTransactionAsync(ct);
         try
         {
             var docTypes = uow.Upserts.Select(x => x.Doc.DocType)
-                .Concat(uow.Deletes.Select(x => x.DocType)).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal);
-            foreach (var docType in docTypes)
-                await LockDocType(conn, tx, docType, shared: true, ct);
-            foreach (var docType in docTypes)
-                await EnsurePublishedSchema(conn, tx, docType, ct);
+                .Concat(uow.Deletes.Select(x => x.DocType)).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToList();
+            // Shared DocType locks (in a fixed order) and the published schema versions, in one round trip.
+            var schemaVersions = await LockAndReadSchemaVersions(conn, tx, docTypes, ct);
 
             foreach (var (doc, expected) in uow.Upserts)
             {
-                await EnsureDocumentSchema(conn, tx, doc.DocType, doc.SchemaVersion, ct);
+                var activeVersion = schemaVersions[doc.DocType];
+                if (doc.SchemaVersion != activeVersion)
+                    throw new InvalidOperationException($"Schema dokumen versi {doc.SchemaVersion} tidak sesuai metadata aktif versi {activeVersion} untuk '{doc.DocType}'. Muat ulang aplikasi atau dokumen.");
                 if (expected is null) await InsertDocument(conn, tx, doc, ct);
                 else await UpdateDocument(conn, tx, doc, expected.Value, ct);
             }
@@ -157,27 +164,33 @@ public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider 
             if (pendingExtensions.Count > 0)
                 throw new InvalidOperationException($"No PostgreSQL handler is registered for unit-of-work extension '{pendingExtensions[0].Payload.GetType().Name}'.");
 
-            foreach (var a in uow.Audits)
+            // Audit entries and outbox events in one round trip.
+            if (uow.Audits.Count + uow.Outbox.Count > 0)
             {
-                await using var ins = new NpgsqlCommand(
-                    "INSERT INTO frogframe_audit (tenant_id, doctype, doc_name, action, actor, at, changes, comment, from_state, to_state, workflow_version, schema_version) " +
-                    "VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9,$10,$11,$12)", conn, tx);
-                ins.Parameters.AddWithValue(a.TenantId); ins.Parameters.AddWithValue(a.DocType); ins.Parameters.AddWithValue(a.DocName);
-                ins.Parameters.AddWithValue(a.Action); ins.Parameters.AddWithValue(a.Actor); ins.Parameters.AddWithValue(a.At);
-                ins.Parameters.AddWithValue(JsonSerializer.Serialize(a.Changes));
-                ins.Parameters.AddWithValue((object?)a.Comment ?? DBNull.Value); ins.Parameters.AddWithValue((object?)a.FromState ?? DBNull.Value);
-                ins.Parameters.AddWithValue((object?)a.ToState ?? DBNull.Value); ins.Parameters.AddWithValue((object?)a.WorkflowVersion ?? DBNull.Value);
-                ins.Parameters.AddWithValue(a.SchemaVersion);
-                await ins.ExecuteNonQueryAsync(ct);
-            }
-            foreach (var m in uow.Outbox)
-            {
-                await using var ins = new NpgsqlCommand(
-                    "INSERT INTO frogframe_outbox (id, tenant_id, type, payload, idempotency_key, created_at) VALUES ($1,$2,$3,$4::jsonb,$5,$6) " +
-                    "ON CONFLICT (idempotency_key) DO NOTHING", conn, tx);
-                ins.Parameters.AddWithValue(m.Id); ins.Parameters.AddWithValue(m.TenantId); ins.Parameters.AddWithValue(m.Type);
-                ins.Parameters.AddWithValue(JsonSerializer.Serialize(m.Payload)); ins.Parameters.AddWithValue(m.IdempotencyKey); ins.Parameters.AddWithValue(m.CreatedAt);
-                await ins.ExecuteNonQueryAsync(ct);
+                await using var batch = new NpgsqlBatch(conn, tx);
+                foreach (var a in uow.Audits)
+                {
+                    var ins = new NpgsqlBatchCommand(
+                        "INSERT INTO frogframe_audit (tenant_id, doctype, doc_name, action, actor, at, changes, comment, from_state, to_state, workflow_version, schema_version) " +
+                        "VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9,$10,$11,$12)");
+                    ins.Parameters.AddWithValue(a.TenantId); ins.Parameters.AddWithValue(a.DocType); ins.Parameters.AddWithValue(a.DocName);
+                    ins.Parameters.AddWithValue(a.Action); ins.Parameters.AddWithValue(a.Actor); ins.Parameters.AddWithValue(a.At);
+                    ins.Parameters.AddWithValue(JsonSerializer.Serialize(a.Changes));
+                    ins.Parameters.AddWithValue((object?)a.Comment ?? DBNull.Value); ins.Parameters.AddWithValue((object?)a.FromState ?? DBNull.Value);
+                    ins.Parameters.AddWithValue((object?)a.ToState ?? DBNull.Value); ins.Parameters.AddWithValue((object?)a.WorkflowVersion ?? DBNull.Value);
+                    ins.Parameters.AddWithValue(a.SchemaVersion);
+                    batch.BatchCommands.Add(ins);
+                }
+                foreach (var m in uow.Outbox)
+                {
+                    var ins = new NpgsqlBatchCommand(
+                        "INSERT INTO frogframe_outbox (id, tenant_id, type, payload, idempotency_key, created_at) VALUES ($1,$2,$3,$4::jsonb,$5,$6) " +
+                        "ON CONFLICT (idempotency_key) DO NOTHING");
+                    ins.Parameters.AddWithValue(m.Id); ins.Parameters.AddWithValue(m.TenantId); ins.Parameters.AddWithValue(m.Type);
+                    ins.Parameters.AddWithValue(JsonSerializer.Serialize(m.Payload)); ins.Parameters.AddWithValue(m.IdempotencyKey); ins.Parameters.AddWithValue(m.CreatedAt);
+                    batch.BatchCommands.Add(ins);
+                }
+                await batch.ExecuteNonQueryAsync(ct);
             }
             await tx.CommitAsync(ct); // constraint trigger keseimbangan GL berjalan di sini
         }
@@ -209,30 +222,35 @@ public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider 
         }
     }
 
-    private static async Task LockDocType(NpgsqlConnection conn, NpgsqlTransaction tx, string docType, bool shared, CancellationToken ct)
+    /// <summary>
+    /// Takes the shared advisory lock of each DocType (same order as before: sorted), so a concurrent metadata publish
+    /// waits, and reads each DocType's published schema version, all in one round trip. The server runs the
+    /// statements in order, so every version is read after its lock is held.
+    /// </summary>
+    private static async Task<Dictionary<string, int>> LockAndReadSchemaVersions(NpgsqlConnection conn, NpgsqlTransaction tx, IReadOnlyList<string> docTypes, CancellationToken ct)
     {
-        var mode = shared ? "pg_advisory_xact_lock_shared" : "pg_advisory_xact_lock";
-        await using var cmd = new NpgsqlCommand($"SELECT {mode}(hashtext('FrogFrame.doctype'), hashtext($1))", conn, tx);
-        cmd.Parameters.AddWithValue(docType);
-        await cmd.ExecuteScalarAsync(ct);
-    }
-
-    private static async Task<int> PublishedSchemaVersion(NpgsqlConnection conn, NpgsqlTransaction tx, string docType, CancellationToken ct)
-    {
-        await using var cmd = new NpgsqlCommand("SELECT version FROM frogframe_metadata_versions WHERE doctype=$1 AND status='Published'", conn, tx);
-        cmd.Parameters.AddWithValue(docType);
-        var result = await cmd.ExecuteScalarAsync(ct);
-        return result is int version ? version : throw new InvalidOperationException($"Tidak ada metadata Published untuk DocType '{docType}'.");
-    }
-
-    private static async Task EnsurePublishedSchema(NpgsqlConnection conn, NpgsqlTransaction tx, string docType, CancellationToken ct) =>
-        _ = await PublishedSchemaVersion(conn, tx, docType, ct);
-
-    private static async Task EnsureDocumentSchema(NpgsqlConnection conn, NpgsqlTransaction tx, string docType, int documentVersion, CancellationToken ct)
-    {
-        var activeVersion = await PublishedSchemaVersion(conn, tx, docType, ct);
-        if (documentVersion != activeVersion)
-            throw new InvalidOperationException($"Schema dokumen versi {documentVersion} tidak sesuai metadata aktif versi {activeVersion} untuk '{docType}'. Muat ulang aplikasi atau dokumen.");
+        var result = new Dictionary<string, int>(StringComparer.Ordinal);
+        if (docTypes.Count == 0) return result;
+        await using var batch = new NpgsqlBatch(conn, tx);
+        foreach (var docType in docTypes)
+        {
+            var lockCmd = new NpgsqlBatchCommand("SELECT pg_advisory_xact_lock_shared(hashtext('FrogFrame.doctype'), hashtext($1))");
+            lockCmd.Parameters.AddWithValue(docType);
+            var versionCmd = new NpgsqlBatchCommand("SELECT version FROM frogframe_metadata_versions WHERE doctype=$1 AND status='Published'");
+            versionCmd.Parameters.AddWithValue(docType);
+            batch.BatchCommands.Add(lockCmd);
+            batch.BatchCommands.Add(versionCmd);
+        }
+        await using var r = await batch.ExecuteReaderAsync(ct);
+        for (var i = 0; i < docTypes.Count; i++)
+        {
+            if (i > 0) await r.NextResultAsync(ct);   // lock result
+            await r.NextResultAsync(ct);              // version result
+            result[docTypes[i]] = await r.ReadAsync(ct) && !r.IsDBNull(0)
+                ? r.GetInt32(0)
+                : throw new InvalidOperationException($"Tidak ada metadata Published untuk DocType '{docTypes[i]}'.");
+        }
+        return result;
     }
 
     private static async Task InsertDocument(NpgsqlConnection conn, NpgsqlTransaction tx, Document d, CancellationToken ct)
@@ -862,6 +880,26 @@ public sealed class PostgresMetadataVersionStore(NpgsqlDataSource db) : IMetadat
 
 public static class PostgreSqlServiceCollectionExtensions
 {
+    /// <summary>
+    /// Connection pool size per application instance when the connection string sets none (Npgsql's own default is
+    /// 100, the same as PostgreSQL's default max_connections). A short save opens several brief connections; under a
+    /// burst of users, a smaller pool lets requests queue for a moment instead of overloading the database server or
+    /// failing with "too many clients". Measured with tests/Framework.Tests/WriteBench.cs: see docs/guides/performance.md.
+    /// Set "Maximum Pool Size" in the connection string to change it.
+    /// </summary>
+    public const int DefaultMaxPoolSize = 30;
+
+    /// <summary>Applies <see cref="DefaultMaxPoolSize"/> unless the connection string sets a maximum pool size.</summary>
+    public static string WithPoolDefaults(string connectionString)
+    {
+        var raw = new System.Data.Common.DbConnectionStringBuilder { ConnectionString = connectionString };
+        var explicitPool = raw.Keys.Cast<string>().Any(k =>
+            k.Replace(" ", "", StringComparison.Ordinal).Equals("MaximumPoolSize", StringComparison.OrdinalIgnoreCase)
+            || k.Replace(" ", "", StringComparison.Ordinal).Equals("MaxPoolSize", StringComparison.OrdinalIgnoreCase));
+        if (explicitPool) return connectionString;
+        return new NpgsqlConnectionStringBuilder(connectionString) { MaxPoolSize = DefaultMaxPoolSize }.ConnectionString;
+    }
+
     /// <summary>Membangun indeks dari metadata (CONCURRENTLY). Aman dijalankan di latar belakang saat startup.</summary>
     public static Task SyncDocumentIndexesAsync(this IServiceProvider services, CancellationToken ct = default) =>
         services.GetService<DocumentIndexSync>()?.SyncAsync(ct) ?? Task.CompletedTask;
@@ -876,9 +914,9 @@ public static class PostgreSqlServiceCollectionExtensions
     /// </param>
     public static IServiceCollection AddFrogFrameworkPostgreSql(this IServiceCollection services, string connectionString, string? schemaConnectionString = null)
     {
-        services.AddSingleton(_ => NpgsqlDataSource.Create(connectionString));
+        services.AddSingleton(_ => NpgsqlDataSource.Create(WithPoolDefaults(connectionString)));
         services.AddSingleton(sp => new SchemaDataSource(string.IsNullOrWhiteSpace(schemaConnectionString)
-            ? sp.GetRequiredService<NpgsqlDataSource>() : NpgsqlDataSource.Create(schemaConnectionString), owns: !string.IsNullOrWhiteSpace(schemaConnectionString)));
+            ? sp.GetRequiredService<NpgsqlDataSource>() : NpgsqlDataSource.Create(WithPoolDefaults(schemaConnectionString)), owns: !string.IsNullOrWhiteSpace(schemaConnectionString)));
         services.AddSingleton<PostgresDocumentStore>();
         services.Replace(ServiceDescriptor.Singleton<IDocumentStore>(sp => sp.GetRequiredService<PostgresDocumentStore>()));
         services.Replace(ServiceDescriptor.Singleton<IOutboxStore>(sp => sp.GetRequiredService<PostgresDocumentStore>()));
@@ -890,6 +928,8 @@ public static class PostgreSqlServiceCollectionExtensions
         services.Replace(ServiceDescriptor.Singleton<INotificationStore, PostgresNotificationStore>());
         services.Replace(ServiceDescriptor.Singleton<Framework.Assignments.IAssignmentStore, PostgresAssignmentStore>());
         services.Replace(ServiceDescriptor.Singleton<Framework.Sharing.IDocShareStore, PostgresDocShareStore>());
+        services.Replace(ServiceDescriptor.Singleton<Framework.Social.IDocSocialStore, PostgresDocSocialStore>());
+        services.Replace(ServiceDescriptor.Singleton<Framework.Tasks.IBackgroundTaskStore, PostgresBackgroundTaskStore>());
         services.Replace(ServiceDescriptor.Singleton<Framework.Reports.IAdHocReportStore, PostgresAdHocReportStore>());
         services.Replace(ServiceDescriptor.Singleton<Framework.Printing.IPrintDesignStore, PostgresPrintDesignStore>());
         services.Replace(ServiceDescriptor.Singleton<Framework.Notifications.INotificationRuleStore, PostgresNotificationRuleStore>());
@@ -931,6 +971,11 @@ public static class PostgreSqlServiceCollectionExtensions
     public static Task MigrateFrogFrameworkDatabaseAsync(this IServiceProvider services, CancellationToken ct = default) =>
         services.GetRequiredService<SchemaMigrator>().MigrateAsync(ct);
 
-    public static Task EnsureFrogFrameworkDatabaseMigratedAsync(this IServiceProvider services, CancellationToken ct = default) =>
-        services.GetRequiredService<SchemaMigrator>().EnsureMigratedAsync(ct);
+    /// <summary>Migrations not applied yet (version, name), in order.</summary>
+    public static Task<IReadOnlyList<(int Version, string Name)>> PendingFrogFrameworkMigrationsAsync(this IServiceProvider services, CancellationToken ct = default) =>
+        services.GetRequiredService<SchemaMigrator>().PendingAsync(ct);
+
+    /// <summary>Waits until a separate migrate step has applied every migration; see <see cref="SchemaMigrator.WaitUntilMigratedAsync"/>.</summary>
+    public static Task WaitForFrogFrameworkMigrationsAsync(this IServiceProvider services, TimeSpan timeout, CancellationToken ct = default) =>
+        services.GetRequiredService<SchemaMigrator>().WaitUntilMigratedAsync(timeout, ct);
 }

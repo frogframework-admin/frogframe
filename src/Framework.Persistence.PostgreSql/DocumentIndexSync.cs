@@ -66,17 +66,30 @@ public sealed class DocumentIndexSync(SchemaDataSource schema, IMetadataProvider
                 list.Add(Spec(meta.Name, f, "trgm",
                     $"ON frogframe_documents USING gin (({Expression(f)}) gin_trgm_ops) WHERE doctype = '{meta.Name}'"));
             }
+            // Indexes declared in metadata (DocTypeDef.Indexes): several fields together, and/or a prefix index whose
+            // last expression uses text_pattern_ops so "startswith" (LIKE 'prefix%') can use it in any collation.
+            foreach (var ix in meta.Def.Indexes ?? [])
+            {
+                if (ix.Fields.Count == 0 || !ix.Fields.All(meta.ByName.ContainsKey)) continue;
+                var fields = ix.Fields.Select(n => meta.ByName[n]).ToList();
+                var parts = fields.Select((f, i) => ix.Prefix && i == fields.Count - 1 ? $"({Expression(f)}) text_pattern_ops" : $"({Expression(f)})");
+                list.Add(Spec(meta.Name, string.Join("_", ix.Fields), ix.Prefix ? "prefix" : "composite",
+                    $"ON frogframe_documents (tenant_id, {string.Join(", ", parts)}) WHERE doctype = '{meta.Name}'"));
+            }
         }
-        return list;
+        // The same index can follow from two settings (e.g. a declared one-field index and a list filter): build it once.
+        return list.DistinctBy(s => s.Ddl).ToList();
     }
 
-    private static IndexSpec Spec(string docType, CompiledField f, string kind, string body)
+    private static IndexSpec Spec(string docType, CompiledField f, string kind, string body) => Spec(docType, f.Name, kind, body);
+
+    private static IndexSpec Spec(string docType, string field, string kind, string body)
     {
         // Nama memuat hash definisi: bila ekspresi/tipe berubah, nama berubah → indeks lama dibuang, yang baru dibuat.
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(body)))[..8].ToLowerInvariant();
-        var readable = $"{Prefix}{Snake(docType)}_{f.Name}";
+        var readable = $"{Prefix}{Snake(docType)}_{field}";
         if (readable.Length > 50) readable = readable[..50];
-        return new IndexSpec($"{readable}_{kind[0]}{hash}", docType, f.Name, kind, body);
+        return new IndexSpec($"{readable}_{kind[0]}{hash}", docType, field, kind, body);
     }
 
     private static string Snake(string pascal)

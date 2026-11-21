@@ -175,6 +175,11 @@ else if (meta is not null && doc is not null)
         }
     </div>
 
+    @if (!IsNew && !meta.Def.IsSingle)
+    {
+        <DocSocialBar DocType="@DocType" Name="@Name" />
+    }
+
     @if (!IsNew && OtherEditingUsers.Count > 0)
     {
         var editors = string.Join(", ", OtherEditingUsers.Select(u => u.FullName));

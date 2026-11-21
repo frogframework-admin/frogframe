@@ -158,6 +158,9 @@
                 <BbButton Variant="ButtonVariant.Outline" OnClick="GoToChangePassword">
                     <LucideIcon Name="key-round" Size="15" /> Change Password
                 </BbButton>
+                <BbButton Variant="ButtonVariant.Outline" OnClick="GoToTwoFactor">
+                    <LucideIcon Name="shield-check" Size="15" /> Two-factor
+                </BbButton>
                 <BbButton Variant="ButtonVariant.Ghost" OnClick="() => OpenChanged.InvokeAsync(false)">Close</BbButton>
             </div>
         </div>
@@ -315,6 +318,8 @@
     {
         Nav.NavigateTo("/account/password", forceLoad: true);
     }
+
+    private void GoToTwoFactor() => Nav.NavigateTo("/account/two-factor", forceLoad: true);
 
     private static string Initials(string name) =>
         string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(p => p[0]));

@@ -404,7 +404,7 @@ public sealed class AdHocReportService(
             return (raw ?? "").Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
                 .Select(v => FilterValue(type, "=", v)).ToList();
         if (raw is null || raw.Length == 0) return null;
-        if (op == "like") return raw;
+        if (op is "like" or "startswith") return raw;
         if (AdHocLimits.NumericTypes.Contains(type))
             return decimal.TryParse(raw, NumberStyles.Number, CultureInfo.InvariantCulture, out var d) ? d : throw new FormatException($"'{raw}' is not a number.");
         if (type == "Check")

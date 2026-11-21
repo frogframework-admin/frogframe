@@ -130,7 +130,9 @@ docker compose up -d
 docker compose -f docker-compose.yml -f docker-compose.demo.yml up -d
 ```
 
-Going live: set `ASPNETCORE_ENVIRONMENT=Production` in `.env`. Demo mode is always on in Development and off elsewhere, so the demo accounts disappear from the login page and are no longer seeded; if `FROGFRAME_DEMO_SEED_DATA` or `FROGFRAME_DEMO_SHOW_ACCOUNTS` is still `true`, the application refuses to start.
+Going live: set `ASPNETCORE_ENVIRONMENT=Production` in `.env`. Demo mode is always on in Development and off elsewhere, so the demo accounts disappear from the login page and are no longer seeded; if `FROGFRAME_DEMO_SEED_DATA` or `FROGFRAME_DEMO_SHOW_ACCOUNTS` is still `true`, the application refuses to start. It also refuses to start while a secret in `.env` is still a `change-me` placeholder, a repository default or too short; see [Secrets](docs/guides/secrets.md).
+
+`docker compose up` first takes a snapshot of an existing database (`db-backup`), applies migrations once (`migrate`), and only then starts the app; see [Database migrations](docs/guides/database-migrations.md).
 
 Outside the Development environment the application refuses to start unless `App:PublicBaseUrl` is an absolute URL, `AllowedHosts` lists explicit host names (not `*`), and demo mode is off (or explicitly allowed for a dedicated demo server with its own password). See [Deployment checks](docs/guides/deployment-checks.md).
 

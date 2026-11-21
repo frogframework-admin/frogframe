@@ -1,0 +1,96 @@
+@page "/bookmarks"
+@using Framework.Social
+@inject DocSocialService Social
+@inject CurrentUser Current
+@inject ToastService Toasts
+@inject UiText T
+
+<PageTitle>@T["Bookmarks"] · FrogFrame</PageTitle>
+
+<header class="page-head">
+    <div>
+        <h1>@T["Bookmarks"]</h1>
+        <p>@T["Documents you bookmarked, and documents you follow (you are notified when they change). Use the Bookmark and Follow buttons on a document."]</p>
+    </div>
+</header>
+
+<div class="stack">
+    <div style="display:flex;gap:.45rem;flex-wrap:wrap">
+        <BbButton Size="ButtonSize.Small" Variant="@(tab == "bookmarks" ? ButtonVariant.Default : ButtonVariant.Outline)" OnClick='() => tab = "bookmarks"'>
+            <LucideIcon Name="star" Size="14" /> @T["Bookmarks"] (@bookmarks.Count)
+        </BbButton>
+        <BbButton Size="ButtonSize.Small" Variant="@(tab == "following" ? ButtonVariant.Default : ButtonVariant.Outline)" OnClick='() => tab = "following"'>
+            <LucideIcon Name="bell" Size="14" /> @T["Following"] (@following.Count)
+        </BbButton>
+    </div>
+
+    @if (loading)
+    {
+        <p class="muted">@T["Loading…"]</p>
+    }
+    else
+    {
+        var items = tab == "bookmarks" ? bookmarks : following;
+        if (items.Count == 0)
+        {
+            <p class="muted">@T[tab == "bookmarks" ? "No bookmarks yet. Open a document and choose Bookmark." : "You do not follow any document yet. Open a document and choose Follow."]</p>
+        }
+        else
+        {
+            @foreach (var group in items.GroupBy(i => i.DocTypeTitle).OrderBy(g => g.Key, StringComparer.CurrentCultureIgnoreCase))
+            {
+                <section class="card" style="padding:.75rem 1rem">
+                    <h2 class="small muted" style="margin:0 0 .4rem">@T[group.Key] · @group.Count()</h2>
+                    <ul class="saved-list">
+                        @foreach (var item in group)
+                        {
+                            var it = item;
+                            <li>
+                                <a class="doc-link" href="@($"/app/{it.DocType}/{Uri.EscapeDataString(it.Name)}")">@it.Name</a>
+                                @if (it.Title is not null) { <span>@it.Title</span> }
+                                <span class="muted small">@it.At.ToLocalTime().ToString("d MMM yyyy HH:mm")</span>
+                                <button type="button" class="chip-close" disabled="@busy" @onclick="() => Remove(it)"
+                                        title="@T[tab == "bookmarks" ? "Remove from my bookmarks" : "Stop following"]"
+                                        aria-label="@T[tab == "bookmarks" ? "Remove from my bookmarks" : "Stop following"]">✕</button>
+                            </li>
+                        }
+                    </ul>
+                </section>
+            }
+        }
+    }
+</div>
+
+@code {
+    private string tab = "bookmarks";
+    private IReadOnlyList<SavedDocument> bookmarks = [];
+    private IReadOnlyList<SavedDocument> following = [];
+    private bool loading = true, busy;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        loading = true;
+        bookmarks = await Social.BookmarksAsync(Current.Required);
+        following = await Social.FollowingAsync(Current.Required);
+        loading = false;
+    }
+
+    private async Task Remove(SavedDocument item)
+    {
+        if (busy) return;
+        busy = true;
+        try
+        {
+            if (tab == "bookmarks") await Social.SetBookmarkAsync(Current.Required, item.DocType, item.Name, false);
+            else await Social.SetFollowAsync(Current.Required, item.DocType, item.Name, false);
+            await LoadAsync();
+        }
+        catch (Exception ex) when (ex is PermissionDeniedException or DocumentNotFoundException or InvalidPayloadException)
+        {
+            Toasts.Error(T.Message(ex.Message), item.Name);
+        }
+        finally { busy = false; }
+    }
+}

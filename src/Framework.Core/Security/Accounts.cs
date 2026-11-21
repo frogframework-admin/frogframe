@@ -35,6 +35,13 @@ public sealed class UserAccount
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? LastLoginAt { get; set; }
 
+    // Two-factor authentication (TOTP authenticator app + one-time recovery codes)
+    public bool TwoFactorEnabled { get; set; }
+    /// <summary>Authenticator (TOTP) secret, encrypted with ASP.NET Core Data Protection by the identity store. Never stored in plain text.</summary>
+    public string? AuthenticatorKey { get; set; }
+    /// <summary>SHA-256 hashes of the unused recovery codes. Each code works once.</summary>
+    public List<string> RecoveryCodes { get; set; } = [];
+
     public UserAccount Clone() => JsonSerializer.Deserialize<UserAccount>(JsonSerializer.Serialize(this))!;
 
     /// <summary>Atribut yang menjadi klaim dan muncul di UserContext.Attributes (dipakai row scope "match:").</summary>

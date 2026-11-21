@@ -12,7 +12,8 @@ namespace Framework.Persistence;
 
 public static class FilterOps
 {
-    public static readonly IReadOnlySet<string> All = new HashSet<string> { "=", "!=", ">", ">=", "<", "<=", "like", "in" };
+    /// <summary>"like" = contains (case-insensitive); "startswith" = prefix (case-sensitive, can use a prefix index).</summary>
+    public static readonly IReadOnlySet<string> All = new HashSet<string> { "=", "!=", ">", ">=", "<", "<=", "like", "startswith", "in" };
 }
 
 /// <summary>Pola nama dokumen, mis. "PR-{YYYY}-{#####}" → prefix "PR-2026-", lebar 5, suffix "".</summary>
@@ -197,6 +198,7 @@ public sealed class InMemoryDocumentStore(IEnumerable<IInMemoryUnitOfWorkExtensi
                 "<" => actual is not null && Values.Compare(actual, expected) < 0,
                 "<=" => actual is not null && Values.Compare(actual, expected) <= 0,
                 "like" => Convert.ToString(actual, CultureInfo.InvariantCulture)?.Contains(Convert.ToString(expected, CultureInfo.InvariantCulture) ?? "", StringComparison.OrdinalIgnoreCase) == true,
+                "startswith" => Convert.ToString(actual, CultureInfo.InvariantCulture)?.StartsWith(Convert.ToString(expected, CultureInfo.InvariantCulture) ?? "", StringComparison.Ordinal) == true,
                 "in" => expected is IEnumerable<object?> list && list.Any(x => Values.AreEqual(actual, x)),
                 _ => false
             };

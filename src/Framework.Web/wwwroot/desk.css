@@ -7424,3 +7424,109 @@ aside[data-state="collapsed"] .sidebar-user-chevron {
 .pd-preview-bar .pd-native { width: auto; }
 
 @media (max-width: 1100px) { .pd { grid-template-columns: 1fr; } .pd-edit, .pd-preview { max-height: none; } }
+
+/* Bookmark, follow and tags under the form toolbar (DocSocialBar) */
+.doc-social { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.5rem; margin: -0.25rem 0 0.75rem; }
+.doc-social .doc-social-on { color: var(--primary); fill: currentColor; }
+.doc-social-tags { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; margin-left: 0.25rem; }
+.doc-tag a.chip-val { text-decoration: none; }
+.doc-tag a.chip-val:hover { text-decoration: underline; }
+.doc-tag-input { width: 9rem; border: 1px dashed var(--border); border-radius: 4px; background: transparent; padding: 0.15rem 0.4rem;
+  font-size: 0.785rem; color: var(--foreground); }
+.doc-tag-input:focus { outline: none; border-style: solid; border-color: var(--ring, var(--primary)); }
+.list-tags { display: inline-flex; flex-wrap: wrap; gap: 0.25rem; margin-left: 0.4rem; vertical-align: middle; }
+.list-tags .list-tag { font-size: 0.7rem; padding: 0 0.35rem; border: 1px solid var(--border); border-radius: 999px; color: var(--muted-foreground); }
+.saved-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.3rem; }
+.saved-list li { display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; }
+/* Tag colours: one hue per tag (DocTags.Hue), light and dark theme */
+.tag-color { background: hsl(var(--tag-hue) 75% 94%); border-color: hsl(var(--tag-hue) 55% 78%); }
+.tag-color, .tag-color .chip-val { color: hsl(var(--tag-hue) 55% 28%); }
+.dark .tag-color { background: hsl(var(--tag-hue) 35% 20%); border-color: hsl(var(--tag-hue) 35% 35%); }
+.dark .tag-color, .dark .tag-color .chip-val { color: hsl(var(--tag-hue) 70% 82%); }
+/* Background jobs (/jobs) */
+.job-bar { height: 6px; border-radius: 999px; background: var(--muted, #e5e7eb); overflow: hidden; margin-bottom: 0.2rem; }
+.job-bar > span { display: block; height: 100%; background: var(--primary); transition: width 0.4s ease; }
+.jobs-table td { vertical-align: top; }
+
+/* ---------- Single sign-on and two-factor (account pages) ---------- */
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  margin: 1rem 0 .75rem;
+  color: var(--muted-foreground);
+  font-size: .8rem;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid var(--border);
+}
+
+.auth-sso {
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+}
+
+.auth-sso-button,
+.auth-button-secondary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 2.5rem;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 2px);
+  background: var(--background);
+  color: var(--foreground);
+  font: inherit;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.auth-sso-button:hover,
+.auth-button-secondary:hover {
+  background: var(--accent);
+}
+
+.auth-qr {
+  display: flex;
+  justify-content: center;
+  padding: .75rem;
+}
+
+.auth-qr svg {
+  border-radius: 6px;
+}
+
+.auth-key {
+  display: block;
+  padding: .5rem .75rem;
+  border: 1px dashed var(--border);
+  border-radius: calc(var(--radius) - 2px);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .9rem;
+  word-break: break-all;
+  text-align: center;
+}
+
+.auth-codes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .35rem .75rem;
+  padding: .75rem;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 2px);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .9rem;
+  text-align: center;
+}
+
+.auth-section {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}

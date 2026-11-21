@@ -1,0 +1,40 @@
+name: Feature request
+description: Suggest a new capability or an improvement.
+labels: ["enhancement", "triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do, and what makes it hard today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How it should work. Mention whether it can be done in metadata (DocType, workflow, print format) or needs code.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Framework core (DocTypes, permissions, workflows)
+        - UI / desk
+        - Reporting / dashboards
+        - Printing
+        - ERP modules (Apps.Erp)
+        - HR / WSM
+        - API / integrations
+        - Deployment / operations
+        - Other
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional context

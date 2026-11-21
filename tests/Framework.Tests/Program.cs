@@ -27,6 +27,7 @@ using Npgsql;
 // Runner kecil: setiap method bertanda [Test] dijalankan pada aplikasi in-process baru (data seed segar).
 // Jalankan: dotnet run --project tests/Framework.Tests  [filter-nama-test]
 if (args.FirstOrDefault() == "--bench") return await Bench.RunAsync(args);
+if (args.FirstOrDefault() == "--bench-write") return await WriteBench.RunAsync(args);
 if (args.FirstOrDefault() == "--inspect-grid-tree")
 {
     var grid = new BlazorBlueprint.Components.BbDataGrid<string>();

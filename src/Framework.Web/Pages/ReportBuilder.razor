@@ -251,7 +251,7 @@ else
     private sealed class AggRow { public string Function { get; set; } = "count"; public string? Field { get; set; } }
 
     private static readonly (string Key, string Label)[] Ops =
-        [("=", "is"), ("!=", "is not"), (">", "greater than"), (">=", "at least"), ("<", "less than"), ("<=", "at most"), ("like", "contains"), ("in", "is one of")];
+        [("=", "is"), ("!=", "is not"), (">", "greater than"), (">=", "at least"), ("<", "less than"), ("<=", "at most"), ("like", "contains"), ("startswith", "starts with"), ("in", "is one of")];
     private static readonly (string Key, string Label)[] Functions =
         [("count", "Count"), ("sum", "Sum"), ("avg", "Average"), ("min", "Minimum"), ("max", "Maximum")];
 

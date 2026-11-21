@@ -57,6 +57,8 @@ The test script executes 4 staged virtual user (VU) ramps:
 
 ## 5. Real Verification Run Results
 
+> **Note.** The run below was made with an earlier Purchase Request metadata (fields `requester`, `justification`) and before the write-path tuning. The script now sends the current fields (`requested_by`, `company`, `purpose`, `items`) and needs the demo masters (`deploy/sql/seed-phase-1..8.sql`; or set `REQUESTER` / `COMPANY`). The tuning (bounded connection pool, read cache per save, batched commit) and before/after numbers from the write benchmark are described in [Write performance](../../docs/guides/performance.md). Re-run this test on the target environment to update the end-to-end numbers.
+
 Verified in an isolated Docker network environment (`frogframe-app` + `frogframe-postgres` on PostgreSQL 17, `grafana/k6` container attached to `frogframe_default`):
 
 - **Test Duration**: 1 minute 15 seconds (ramp-up 20 VU, steady 50 VU, spike 100 VU, ramp-down 0 VU)

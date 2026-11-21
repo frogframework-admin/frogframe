@@ -117,9 +117,9 @@ This document summarizes the current development status of FrogFramework, includ
 - **Webhooks:** Outbox-driven document event payload dispatcher to external webhook URLs, featuring HMAC signatures and automated exponential backoff retries.
 - **Ad-Hoc Report Builder:** Non-technical user interface to build, sort, filter, and group document data into customizable and savable reports.
 - **Dynamic Row-Level Security (User Permissions per Record):** Granular document-level access permissions that can be shared with specific users or roles directly from the UI.
-- **Advanced Authentication (SSO & 2FA):** Google and Microsoft Entra ID (OIDC) single sign-on integration, combined with TOTP app-based two-factor authentication (2FA).
+- **Advanced Authentication (SSO & 2FA)** (implemented): authenticator-app two-factor authentication with recovery codes, optionally required per role, and Google / Microsoft Entra ID single sign-on for existing accounts. See `docs/guides/two-factor-and-sso.md`.
 - **Generic Document Rename:** Document identifier renaming engine that automatically cascades updates to all Link foreign keys in child tables and related documents.
-- **Ad-Hoc Background Jobs (`FrogFrame.enqueue`):** Asynchronous heavy task queue with live progress bar feedback in the web interface.
+- **Ad-Hoc Background Jobs (`FrogFrame.enqueue`)** (implemented): queue with live progress, cancel and notifications on `/jobs`; large imports and bulk actions use it. See `docs/guides/background-jobs.md`.
 - **Database Role Segregation:** Separation of database migration owner role from runtime application connection role for append-only audit enforcement.
 - **Dynamic Workflows:** Visual state machine transition editor with conditional approvals.
 
@@ -130,7 +130,7 @@ This document summarizes the current development status of FrogFramework, includ
   - **Calendar View:** Date-based document tracking (due dates, delivery schedules, event appointments).
   - **Tree View:** Hierarchical nested structure navigation (Chart of Accounts, Cost Centers, Department trees).
 - **Visual Print Format Builder & Letter Head UI:** Interactive letterhead designer and visual print format template layout editor.
-- **Social Features:** Color-coded document tags, personal bookmarks/favorites, and Follow Document subscriptions with automated update notifications.
+- **Social Features** (implemented): colour-coded document tags, personal bookmarks, and Follow with automated change notifications. See `docs/guides/tags-bookmarks-follow.md`.
 - **Dynamic Multi-Language (i18n):** Runtime UI localization switching between English and Indonesian.
 
 ---

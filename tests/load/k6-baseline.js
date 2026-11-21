@@ -90,18 +90,19 @@ export default function (data) {
 
   // 3. Document Creation (Write throughput)
   group('Document Creation', () => {
-    const today = new Date().toISOString().split('T')[0];
+    // Matches the current PurchaseRequest metadata (requested_by, company, purpose, items). Needs the demo masters
+    // from deploy/sql/seed-phase-1..8.sql (Company ACME, Employee EMP-0001), or set REQUESTER / COMPANY.
+    const requiredBy = new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString().split('T')[0];
     const reqBody = JSON.stringify({
-      requester: 'EMP-0001',
-      request_date: today,
-      priority: 'Normal',
-      justification: `Automated Load Test Item - VU ${__VU} Iteration ${__ITER}`,
+      requested_by: __ENV.REQUESTER || 'EMP-0001',
+      company: __ENV.COMPANY || 'ACME',
+      required_by: requiredBy,
+      purpose: `Automated Load Test Item - VU ${__VU} Iteration ${__ITER}`,
       items: [
         {
           item_name: 'Standard Developer Laptop',
           qty: 1,
-          uom: 'unit',
-          rate: 15000000,
+          estimated_rate: 15000000,
         },
       ],
     });
@@ -118,6 +119,9 @@ export default function (data) {
     check(createRes, {
       'document create returns status 201': (r) => r.status === 201,
     });
+    if (createRes.status !== 201 && __ITER === 0) {
+      console.error(`Create failed (${createRes.status}): ${createRes.body}`);
+    }
   });
 
   sleep(1);

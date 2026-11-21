@@ -287,7 +287,10 @@ src/Framework.Web/
 │   ├── AccountEndpoints.cs      # /account/login, /account/logout, and /api/auth/{login,me} bearer token issuer
 │   ├── AccountService.cs        # Password policy validation, PBKDF2 hashing, lockout, user CRUD, security stamp
 │   ├── ApiKeyAuthHandler.cs     # Authentication handler for "Authorization: ApiKey dfk_..."
-│   └── BlazorIdentityRevalidator.cs # Revalidates security stamp every 60s for open Blazor Server circuits
+│   ├── BlazorIdentityRevalidator.cs # Revalidates security stamp every 60s for open Blazor Server circuits
+│   ├── Identity/TwoFactor.cs    # 2FA options, per-role requirement middleware, enrolment helpers
+│   ├── Identity/QrCode.cs       # Server-side QR code (SVG) for authenticator enrolment
+│   └── Identity/SingleSignOn.cs # Google / Entra ID sign-in for existing accounts (/account/external/*)
 ├── Components/
 │   ├── BbIndonesian.cs          # Indonesian localization for Blazor Blueprint components
 │   ├── ChildTable.razor         # Inline editable child table + "Add from Lookup" multi-select integration
@@ -538,10 +541,11 @@ All three analytical features share `DashboardSqlExecutor` ([DashboardSqlExecuto
   - Declares allowed `Roles` and `Parameters` (`text`, `number`, `date`, `boolean`, `list`). Unknown parameters are rejected to prevent mass assignment.
 
 ### 6.12 PostgreSQL Performance, Automatic Indexing & Transactional Outbox
-- **`DocumentIndexSync`**: Runs at startup and after every metadata publish under a PostgreSQL advisory lock. Automatically builds (`CREATE INDEX CONCURRENTLY`) and prunes partial indexes (`WHERE doctype = '...'`) named `ix_df_<doctype>_<kind>_<hash>`:
+- **`DocumentIndexSync`**: Runs at startup and after every metadata publish under a PostgreSQL advisory lock. Automatically builds (`CREATE INDEX CONCURRENTLY`) and prunes partial indexes (`WHERE doctype = '...'`) named `ix_ff_<doctype>_<field>_<kind><hash>`:
   - B-tree expression indexes matching `listView.defaultSort` + `name`.
   - B-tree expression indexes matching `listView.filters`.
   - GIN trigram (`pg_trgm`) indexes matching `listView.searchFields` for fast `ILIKE '%term%'` searches.
+  - Indexes declared in DocType metadata (`indexes`): several fields together, and prefix indexes (`text_pattern_ops`) for the `startswith` filter.
 - **`QueryLimits.CountCap = 10_000`**: List queries cap `COUNT(*)` using `SELECT COUNT(*) FROM (SELECT 1 FROM ... LIMIT 10001) s`, avoiding expensive full-table scans on million-row tables while displaying `10.000+` in the UI.
 - **Outbox v2 & Retention**: `OutboxProcessor` claims batches using `FOR UPDATE SKIP LOCKED` with a 2-minute lease, exponential backoff, and dead-lettering after 5 attempts. `OutboxRetentionCleaner` prunes processed messages older than `Outbox:RetentionDays` (default 7 days) every hour.
 

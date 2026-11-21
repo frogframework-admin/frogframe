@@ -458,11 +458,11 @@ public static class ReportingServiceCollectionExtensions
         var options = new ReportingOptions { ReadOnlyConnectionString = readOnlyConnectionString };
         configure?.Invoke(options);
         services.AddSingleton(options);
-        services.AddSingleton(_ => new ReadOnlyDataSource(NpgsqlDataSource.Create(readOnlyConnectionString)));
+        services.AddSingleton(_ => new ReadOnlyDataSource(NpgsqlDataSource.Create(PostgreSqlServiceCollectionExtensions.WithPoolDefaults(readOnlyConnectionString))));
         services.AddSingleton(sp => new AnalyticsDataSource(string.IsNullOrWhiteSpace(options.AnalyticsConnectionString)
             // Tanpa instance analitik terpisah: pakai koneksi PEMILIK skema, karena sinkronisasi membuat skema & view (DDL).
             ? sp.GetRequiredService<SchemaDataSource>().Source
-            : NpgsqlDataSource.Create(options.AnalyticsConnectionString), owns: !string.IsNullOrWhiteSpace(options.AnalyticsConnectionString)));
+            : NpgsqlDataSource.Create(PostgreSqlServiceCollectionExtensions.WithPoolDefaults(options.AnalyticsConnectionString)), owns: !string.IsNullOrWhiteSpace(options.AnalyticsConnectionString)));
         services.AddSingleton<ReportingSchemaSync>();
         services.Replace(ServiceDescriptor.Singleton<IReportingQueryExecutor, PostgresReportingQueryExecutor>());
         services.Replace(ServiceDescriptor.Singleton<IWidgetStore, PostgresWidgetStore>());

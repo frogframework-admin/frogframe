@@ -7,6 +7,7 @@ Outside the Development environment, FrogFrame checks its configuration when it 
 | Public URL | `App:PublicBaseUrl` is empty or not an absolute http/https URL | Set `FROGFRAME_PUBLIC_BASE_URL` |
 | Allowed hosts | `AllowedHosts` is empty or `*` | Set `FROGFRAME_ALLOWED_HOSTS` (e.g. `erp.example.com`) |
 | Demo mode | `Demo:SeedData` or `Demo:ShowAccounts` is `true` | Set `FROGFRAME_DEMO_SEED_DATA=false` and `FROGFRAME_DEMO_SHOW_ACCOUNTS=false` |
+| Secrets | a database password, `Bootstrap:AdminPassword`, an S3 key or the AI key is a `change-me` placeholder, a repository/common default, or (passwords, S3 secret key) shorter than 12 characters | Set the `.env` variable named in the message; see [Secrets](secrets.md) |
 | Demo server password | demo mode is explicitly allowed but `Demo:Password` is the public default or shorter than 12 characters | Set `FROGFRAME_DEMO_PASSWORD` |
 
 ## Why demo mode is blocked
@@ -16,7 +17,7 @@ Demo seeding creates accounts such as `admin` (System Manager), `hr02` and `fina
 ## Compose files
 
 - `docker-compose.yml` defaults to `ASPNETCORE_ENVIRONMENT=Development` during the development phase. Development is always demo mode (demo accounts seeded and listed on the login page), and no database or object storage port is published to the host.
-- **Going live** needs one change in `.env`: `ASPNETCORE_ENVIRONMENT=Production`. Demo mode then turns off by itself, because the `FROGFRAME_DEMO_*` switches default to `false` and only apply outside Development. If one of them is still `true`, the application stops at startup and names the values to change.
+- **Going live**: set `ASPNETCORE_ENVIRONMENT=Production` in `.env`, with real values for every secret (see [Secrets](secrets.md)). Demo mode then turns off by itself, because the `FROGFRAME_DEMO_*` switches default to `false` and only apply outside Development. If one of them is still `true`, the application stops at startup and names the values to change.
 - `docker-compose.demo.yml` adds the PostgreSQL and S3 ports on `127.0.0.1`, for running `dotnet run` against the containers:
 
   ```bash

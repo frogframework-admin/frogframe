@@ -1,4 +1,4 @@
-# Backup & Disaster Recovery Runbook
+﻿# Backup & Disaster Recovery Runbook
 
 Operational guide for backing up and restoring FrogFramework environments in production.
 
@@ -44,6 +44,46 @@ Retention policy:
 - Keep daily backups for 30 days.
 - Retain monthly snapshots for 12 months.
 
+In Docker Compose, every deployment also takes a verified snapshot before migrating (service `db-backup`, volume `frogframe-backups`, newest 5 kept). It is meant for rolling back a deployment and does not replace the scheduled backups above. See [Database migrations](guides/database-migrations.md).
+
+### Restore drill
+
+A backup only counts once it has been restored. `deploy/scripts/restore-drill.sh` proves it automatically. It restores into a throwaway database, verifies the result, measures the time, and drops the throwaway database again. The source is only read, and exit code 0 means the drill passed.
+
+| Mode | Command | What is checked |
+|---|---|---|
+| Fresh dump (default) | `restore-drill.sh` | Dumps the source from a consistent snapshot and fingerprints the source **in the same snapshot**. Then every table's row count and content checksum must match after the restore, and so must the applied migrations. This stays exact while the application keeps writing. |
+| Existing backup | `restore-drill.sh --dump FILE` | Verifies a backup taken earlier (e.g. last night's): it must restore without errors, and every table the archive lists must exist. Contents are not compared, because the source has changed since. |
+
+Both modes fail when restore plus verification takes longer than `RTO_TARGET_SECONDS` (default 1800, the RTO above).
+
+With Docker Compose the script is mounted in the `db-backup` service, which has the matching PostgreSQL client and the connection settings. This works the same from PowerShell on Windows:
+
+```bash
+docker compose run --rm --no-deps --entrypoint sh db-backup /opt/frogframe/restore-drill.sh
+docker compose run --rm --no-deps --entrypoint sh db-backup /opt/frogframe/restore-drill.sh \
+  --dump /backups/pre-migrate_frogframe_<timestamp>.dump
+```
+
+On a host with the PostgreSQL client (same major version as the server or newer):
+
+```bash
+PGHOST=db.internal PGUSER=frogframe PGDATABASE=frogframe PGPASSWORD=... deploy/scripts/restore-drill.sh
+```
+
+Options are set as environment variables:
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `RTO_TARGET_SECONDS` | `1800` | Fail when restore plus verification takes longer than this. |
+| `JOBS` | `2` | Parallel `pg_restore` jobs. |
+| `KEEP_DRILL_DB` | `false` | Set `true` to keep the throwaway database for inspection. |
+| `DRILL_DB` | `<db>_restore_drill_<timestamp>` | Name of the throwaway database. |
+| `WORK_DIR` | a temporary folder | Where the fresh dump is written. |
+| `REPORT_FILE` | (none) | Also write the summary as JSON to this file, e.g. for monitoring. |
+
+The user needs `CREATEDB` (the bundled `frogframe` user has it). Run the drill monthly and after major upgrades, and keep the reports. For production-sized data, run it on a separate instance restored from the backup storage, not on the production server. The drill covers PostgreSQL only: with `Storage:Provider=S3`, check the object-store backup separately.
+
 ---
 
 ## 4. Disaster Recovery & Restoration Steps
@@ -72,21 +112,3 @@ Retention policy:
    docker compose up -d
    ```
 6. Verify service health via `/healthz`.
-
----
-
-## 5. Automated Restore Verification Drill
-
-To prove backup integrity and measure actual RTO without risking the live database, run the automated restore verification drill script:
-
-```powershell
-# PowerShell (Windows / Docker)
-./deploy/scripts/verify-restore-drill.ps1
-```
-
-```bash
-# Bash (Linux / macOS)
-./deploy/scripts/verify-restore-drill.sh
-```
-
-The script automatically captures a compressed `pg_dump -Fc` snapshot (or accepts an existing dump path), restores it into a throwaway database (`frogframe_drill_<timestamp>`), verifies schema migration counts, compares row counts across all `public` tables, validates deterministic content checksums on core tables, reports the measured RTO, and drops the throwaway database.

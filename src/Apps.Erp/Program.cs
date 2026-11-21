@@ -11,7 +11,14 @@ using Framework.Web.Identity;
 using Framework.Persistence.PostgreSql;
 using Npgsql;
 
-var builder = WebApplication.CreateBuilder(args);
+// The migration switches (see below) are not configuration: keep them away from the command-line configuration source,
+// which would otherwise read the next argument as their value.
+var builder = WebApplication.CreateBuilder(args.Where(a => !MigrationCommand.Requested([a])).ToArray());
+// Secrets as files (Docker/Kubernetes secrets, Key Vault or Vault CSI mounts): one file per setting, named like the
+// environment variable (ConnectionStrings__FrogFrame, Bootstrap__AdminPassword, ...). Values override other sources.
+// Folder: Secrets:Directory, default /run/secrets; a missing folder is ignored. See docs/guides/secrets.md.
+builder.Configuration.AddKeyPerFile(
+    builder.Configuration["Secrets:Directory"] is { Length: > 0 } secretsDir ? secretsDir : "/run/secrets", optional: true);
 // Aset statis Razor Class Library (BlazorBlueprint, Framework.Web) juga tersaji saat dijalankan dari source di luar Development.
 builder.WebHost.UseStaticWebAssets();
 
@@ -39,6 +46,9 @@ Framework.Storage.ObjectStorageSetup.AddFrogFrameObjectStorage(builder.Services,
 
 // Login: ASP.NET Core Identity (cookie untuk browser, bearer token untuk API). Klaim → UserContext.
 builder.Services.AddFrogFrameworkIdentity();
+// Optional single sign-on (Google / Microsoft Entra ID), enabled per provider by Authentication:* settings.
+// Two-factor authentication options: Security:TwoFactor. See docs/guides/two-factor-and-sso.md.
+builder.Services.AddFrogFrameworkSso(builder.Configuration);
 
 // Dashboard SQL: butuh PostgreSQL + user database read-only (deploy/sql/reporting-readonly-user.sql).
 var readOnlyConnection = builder.Configuration.GetConnectionString("FrogFrameReadOnly");
@@ -69,10 +79,6 @@ builder.Services.Configure<Microsoft.AspNetCore.Authentication.BearerToken.Beare
 // Hardening HTTP production: ForwardedHeaders & HSTS
 builder.Services.AddFrogFrameHttpHardening(builder.Configuration);
 
-var migrateOnly = args.Any(a => string.Equals(a, "--migrate-only", StringComparison.OrdinalIgnoreCase)
-    || string.Equals(a, "--migrate", StringComparison.OrdinalIgnoreCase));
-var migrateOnStartup = builder.Configuration.GetValue("Persistence:MigrateOnStartup", true);
-
 var app = builder.Build();
 
 // Refuse to start with an unsafe configuration (e.g. demo accounts with a known password outside Development),
@@ -80,26 +86,30 @@ var app = builder.Build();
 Framework.Hosting.DeploymentChecks.ThrowIfInvalid(app.Environment.IsDevelopment(), k => app.Configuration[k]);
 var demoMode = Framework.Hosting.DemoMode.Resolve(app.Environment.IsDevelopment(), k => app.Configuration[k]);
 
-if (migrateOnly)
+// Migration step, separate from serving requests: "--migrate-only" applies pending migrations and exits,
+// "--migration-status" lists them (exit code 2 when some are pending). The web server is not started.
+// See docs/guides/database-migrations.md.
+if (MigrationCommand.Requested(args))
 {
-    if (usePostgres)
+    if (!usePostgres)
     {
-        app.Logger.LogInformation("Running decoupled database migration (--migrate-only)...");
-        await app.Services.MigrateFrogFrameworkDatabaseAsync(CancellationToken.None);
-        await app.Services.SyncDocumentIndexesAsync(CancellationToken.None);
-        if (useReporting)
-        {
-            await app.Services.SyncReportingSchemaAsync(CancellationToken.None);
-            _ = await app.Services.CheckReportingConnectionAsync(CancellationToken.None);
-        }
-        app.Logger.LogInformation("Database migration complete.");
+        Console.Error.WriteLine("Migrations need Persistence:Provider=PostgreSql.");
+        Environment.ExitCode = 1;
+        return;
     }
-    else
+    try
     {
-        app.Logger.LogInformation("Persistence:Provider is not PostgreSql; nothing to migrate.");
+        Environment.ExitCode = await MigrationCommand.RunAsync(app.Services.GetRequiredService<SchemaMigrator>(), args, Console.Out);
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogCritical(ex, "Database migration failed.");
+        Environment.ExitCode = 1;
     }
     return;
 }
+// Database:MigrateOnStartup=false: a separate migrate step applies migrations; this instance waits for it.
+var migrateOnStartup = app.Configuration.GetValue("Database:MigrateOnStartup", true);
 
 // 1. Reverse proxy forwarded headers (Docker, Traefik, Nginx, ALB)
 app.UseForwardedHeaders();
@@ -128,6 +138,7 @@ app.UseAuthentication();
 // Format angka & tanggal tetap Indonesia; penyimpanan dan API tetap memakai format invarian (yyyy-MM-dd, titik desimal).
 app.UseFrogFrameLocalization();
 app.UseAuthorization();
+app.UseFrogFrameTwoFactorRequirement(); // Security:TwoFactor:RequiredForRoles (no-op when empty)
 app.UseRateLimiter(); // batas permintaan /api per kunci API / pengguna (Api:RateLimitPerMinute)
 app.UseAntiforgery();
 app.MapStaticAssets();
@@ -135,6 +146,7 @@ app.MapStaticAssets();
 // Health checks liveness & readiness
 app.MapFrogFrameHealthChecks();
 app.MapFrogFrameworkApi();
+app.MapFrogFrameworkSso(); // /account/external/{provider} + callback (only providers that are configured)
 Apps.Erp.Ess.EssEndpoints.MapEssApi(app); // /api/ess/v1 (aplikasi mobile ESS)
 app.MapRazorComponents<App>()
    .AddInteractiveServerRenderMode()
@@ -144,25 +156,20 @@ async Task InitializeDatabaseAndSeedAsync(CancellationToken ct)
 {
     if (usePostgres)
     {
-        if (migrateOnStartup)
+        if (migrateOnStartup) await app.Services.MigrateFrogFrameworkDatabaseAsync(ct);
+        else await app.Services.WaitForFrogFrameworkMigrationsAsync(
+            TimeSpan.FromSeconds(app.Configuration.GetValue("Database:WaitForMigrationsSeconds", 600)), ct);
+        // Indeks dari metadata dibangun di latar belakang (CONCURRENTLY): startup tidak menunggu pembangunan indeks
+        // pada tabel besar, dan tabel tetap bisa ditulis selama proses. Diperbarui otomatis setiap metadata dipublikasikan.
+        _ = Task.Run(async () =>
         {
-            await app.Services.MigrateFrogFrameworkDatabaseAsync(ct);
-            // Indeks dari metadata dibangun di latar belakang (CONCURRENTLY): startup tidak menunggu pembangunan indeks
-            // pada tabel besar, dan tabel tetap bisa ditulis selama proses. Diperbarui otomatis setiap metadata dipublikasikan.
-            _ = Task.Run(async () =>
-            {
-                try { await app.Services.SyncDocumentIndexesAsync(ct); }
-                catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
-                catch (Exception ex) { app.Logger.LogError(ex, "Sinkronisasi indeks dokumen gagal"); }
-            }, ct);
-        }
-        else
-        {
-            await app.Services.EnsureFrogFrameworkDatabaseMigratedAsync(ct);
-        }
+            try { await app.Services.SyncDocumentIndexesAsync(ct); }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+            catch (Exception ex) { app.Logger.LogError(ex, "Sinkronisasi indeks dokumen gagal"); }
+        }, ct);
     }
     // View pelaporan dibuat dari metadata aktif (dan diperbarui otomatis setiap publish).
-    if (useReporting && migrateOnStartup)
+    if (useReporting)
     {
         await app.Services.SyncReportingSchemaAsync(ct);
         // Peringatan di log bila user read-only belum siap. Aplikasi tetap berjalan; dashboard menampilkan pesannya.

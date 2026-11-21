@@ -36,11 +36,22 @@ public static class DeploymentChecks
     /// <summary>Minimum length of the demo password on a demo server reachable outside Development.</summary>
     public const int MinDemoPasswordLength = 12;
 
+    /// <summary>Minimum length of a password or secret key outside Development.</summary>
+    public const int MinSecretLength = 12;
+
+    /// <summary>Values that ship in the repository or are commonly guessed; never accepted outside Development.</summary>
+    private static readonly HashSet<string> KnownWeak = new(StringComparer.OrdinalIgnoreCase)
+    {
+        DemoMode.PublicPassword, "frogframe", "postgres", "password", "admin", "secret", "changeme", "change-me",
+        "ganti-password-ini", "123456", "12345678", "123456789012", "password1234", "admin1234567",
+    };
+
     /// <summary>Problems with the configuration; empty when the application may start.</summary>
     public static IReadOnlyList<string> Validate(bool isDevelopment, Func<string, string?> config)
     {
         var errors = new List<string>();
         if (isDevelopment) return errors;
+        ValidateSecrets(config, errors);
 
         var demo = DemoMode.Resolve(isDevelopment, config);
         if (demo.SeedData || demo.ShowAccounts)
@@ -57,6 +68,55 @@ public static class DeploymentChecks
                     $"{MinDemoPasswordLength} characters. Set FROGFRAME_DEMO_PASSWORD to your own long password.");
         }
         return errors;
+    }
+
+    /// <summary>
+    /// Secrets outside Development: database passwords, the initial admin password, object-storage and AI keys must be
+    /// set to real values: not a "change-me" placeholder from .env.example, not a value from the repository or a
+    /// common default, and passwords at least <see cref="MinSecretLength"/> characters long. Settings that are not used
+    /// (e.g. no S3 storage, Bootstrap:AdminPassword cleared after the first login) are not checked.
+    /// </summary>
+    private static void ValidateSecrets(Func<string, string?> config, List<string> errors)
+    {
+        if (string.Equals(config("Persistence:Provider"), "PostgreSql", StringComparison.OrdinalIgnoreCase))
+            CheckSecret(ConnectionPassword(config("ConnectionStrings:FrogFrame")),
+                "The database password in ConnectionStrings:FrogFrame", "POSTGRES_PASSWORD", errors);
+        CheckSecret(ConnectionPassword(config("ConnectionStrings:FrogFrameReadOnly")),
+            "The read-only database password in ConnectionStrings:FrogFrameReadOnly", "FROGFRAME_RO_PASSWORD", errors);
+        CheckSecret(config("Bootstrap:AdminPassword"),
+            "Bootstrap:AdminPassword (initial admin)", "FROGFRAME_ADMIN_PASSWORD", errors);
+        if (string.Equals(config("Storage:Provider"), "S3", StringComparison.OrdinalIgnoreCase))
+        {
+            CheckSecret(config("Storage:S3:AccessKey"), "Storage:S3:AccessKey", "FROGFRAME_S3_ACCESS_KEY", errors, minLength: 0);
+            CheckSecret(config("Storage:S3:SecretKey"), "Storage:S3:SecretKey", "FROGFRAME_S3_SECRET_KEY", errors);
+        }
+        if (DemoMode.Flag(config("AI:Enabled")) && string.Equals(config("AI:Auth"), "ApiKey", StringComparison.OrdinalIgnoreCase))
+            CheckSecret(config("AI:ApiKey"), "AI:ApiKey", "FROGFRAME_AI_API_KEY", errors, minLength: 0);
+    }
+
+    /// <summary>Adds an error when a configured secret is a placeholder, a known weak value or too short. Empty = not checked.</summary>
+    private static void CheckSecret(string? value, string what, string envVar, List<string> errors, int minLength = MinSecretLength)
+    {
+        if (string.IsNullOrEmpty(value)) return;
+        var reason =
+            value.StartsWith("change-me", StringComparison.OrdinalIgnoreCase) ? "is still the placeholder from .env.example" :
+            KnownWeak.Contains(value.Trim()) ? "is a default value that is in the repository or easy to guess" :
+            value.Length < minLength ? $"is shorter than {minLength} characters" : null;
+        if (reason is not null)
+            errors.Add($"{what} {reason}. Set {envVar} to a long random value (e.g. openssl rand -base64 24); " +
+                       "see docs/guides/secrets.md.");
+    }
+
+    /// <summary>Password (or Pwd) of a PostgreSQL connection string, quoted values included; null when there is none.</summary>
+    public static string? ConnectionPassword(string? connectionString)
+    {
+        if (string.IsNullOrWhiteSpace(connectionString)) return null;
+        try
+        {
+            var b = new System.Data.Common.DbConnectionStringBuilder { ConnectionString = connectionString };
+            return (b.TryGetValue("Password", out var p) || b.TryGetValue("Pwd", out p)) ? p?.ToString() : null;
+        }
+        catch (ArgumentException) { return null; } // malformed: Npgsql reports it when connecting
     }
 
     /// <summary>Throws with every problem listed when <see cref="Validate"/> finds any.</summary>

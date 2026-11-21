@@ -1,0 +1,113 @@
+name: Deploy
+
+# Reusable deployment to one GitHub environment (staging, production): copies the compose files to the host, runs
+# deploy/scripts/deploy.sh there (db-backup -> migrate -> app), smoke-tests the result and rolls back to the previous
+# image automatically when the smoke test fails. Called by release.yml; can also be run by hand to redeploy an image.
+#
+# Per environment (Settings -> Environments), with the same names in each:
+#   variables: DEPLOY_HOST, DEPLOY_SSH_USER, DEPLOY_PATH, DEPLOY_URL, GHCR_USER (only for private images)
+#   secrets:   DEPLOY_SSH_KEY, DEPLOY_KNOWN_HOSTS, GHCR_TOKEN (read:packages, only for private images),
+#              SMOKE_USER, SMOKE_PASSWORD (optional: a login checked by the smoke test)
+# Required reviewers on the "production" environment are the approval gate before production.
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+      image:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to deploy to
+        type: choice
+        options: [staging, production]
+      image:
+        description: Image to deploy, e.g. ghcr.io/owner/repo:1.4.0
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy to ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: ${{ inputs.environment }}
+      url: ${{ vars.DEPLOY_URL }}
+    concurrency:
+      group: deploy-${{ inputs.environment }}
+      cancel-in-progress: false
+    env:
+      TARGET: ${{ vars.DEPLOY_SSH_USER }}@${{ vars.DEPLOY_HOST }}
+      DIR: ${{ vars.DEPLOY_PATH }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check configuration
+        run: |
+          missing=""
+          for v in DEPLOY_HOST DEPLOY_SSH_USER DEPLOY_PATH DEPLOY_URL; do [ -n "${!v}" ] || missing="$missing $v"; done
+          [ -z "$missing" ] || { echo "::error::Set these variables on the '${{ inputs.environment }}' environment:$missing"; exit 1; }
+        env:
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+          DEPLOY_SSH_USER: ${{ vars.DEPLOY_SSH_USER }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+          DEPLOY_URL: ${{ vars.DEPLOY_URL }}
+
+      - name: SSH key
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy
+          chmod 600 ~/.ssh/deploy
+          printf '%s\n' "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+
+      - name: Copy deployment files
+        run: |
+          tar czf deploy-files.tgz docker-compose.yml deploy/docker deploy/sql/reporting-readonly-user.sql deploy/scripts
+          scp -i ~/.ssh/deploy deploy-files.tgz "${TARGET}:${DIR}/deploy-files.tgz"
+          ssh -i ~/.ssh/deploy "${TARGET}" "cd '${DIR}' && tar xzf deploy-files.tgz && rm deploy-files.tgz"
+
+      - name: Log in to GHCR on the host (private images)
+        env:
+          GHCR_USER: ${{ vars.GHCR_USER }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: |
+          if [ -n "${GHCR_TOKEN}" ]; then
+            printf '%s' "${GHCR_TOKEN}" | ssh -i ~/.ssh/deploy "${TARGET}" "docker login ghcr.io -u '${GHCR_USER}' --password-stdin"
+          fi
+
+      - name: Deploy
+        env:
+          IMAGE: ${{ inputs.image }}
+        run: ssh -i ~/.ssh/deploy "${TARGET}" "cd '${DIR}' && bash deploy/scripts/deploy.sh deploy '${IMAGE}'"
+
+      - name: Smoke test
+        id: smoke
+        env:
+          URL: ${{ vars.DEPLOY_URL }}
+          SMOKE_USER: ${{ secrets.SMOKE_USER }}
+          SMOKE_PASSWORD: ${{ secrets.SMOKE_PASSWORD }}
+        run: bash deploy/scripts/smoke-test.sh "${URL}" "${SMOKE_USER}" "${SMOKE_PASSWORD}"
+
+      - name: Logs
+        if: failure()
+        run: ssh -i ~/.ssh/deploy "${TARGET}" "cd '${DIR}' && docker compose logs --no-color --tail=200 db-backup migrate app" || true
+
+      - name: Roll back to the previous image
+        if: failure() && steps.smoke.outcome == 'failure'
+        env:
+          URL: ${{ vars.DEPLOY_URL }}
+          SMOKE_USER: ${{ secrets.SMOKE_USER }}
+          SMOKE_PASSWORD: ${{ secrets.SMOKE_PASSWORD }}
+        run: |
+          ssh -i ~/.ssh/deploy "${TARGET}" "cd '${DIR}' && bash deploy/scripts/deploy.sh rollback"
+          bash deploy/scripts/smoke-test.sh "${URL}" "${SMOKE_USER}" "${SMOKE_PASSWORD}"
+          echo "::error::The smoke test failed on ${{ inputs.image }}; rolled back to the previous image (database migrations are not reversed)."
+          exit 1

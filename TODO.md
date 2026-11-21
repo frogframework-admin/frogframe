@@ -36,25 +36,27 @@ For full architectural context and runbooks, refer to [Production Readiness Guid
 - [x] **Decouple Demo Configuration from Production**:
   - `docker-compose.yml` defaults to Development (demo on) during development; `ASPNETCORE_ENVIRONMENT=Production` turns demo mode off by itself.
   - `Demo:SeedData` and `Demo:ShowAccounts` are off by default, and the app refuses to start outside Development while they are on (unless explicitly allowed for a demo server).
-- [ ] **Secret Management & External Store Integration**:
-  - Move hardcoded database passwords and bootstrap admin credentials to `.env` or external secret stores (Docker secrets, Key Vault, HashiCorp Vault).
-  - Provide `.env.example` template with production guidelines.
-- [ ] **PostgreSQL Network Isolation**:
-  - Remove public host port mapping (`5432:5432`) in production Compose configuration.
-- [ ] **Automated Backup & Restore Drill**:
-  - Build and verify an automated restoration verification script to prove end-to-end recovery time and data integrity.
-- [ ] **Database Migration Deployment Strategy**:
-  - Separate migration execution from application startup to support multi-replica rolling deployments without race conditions.
-  - Implement pre-migration database snapshot backup hook.
+- [x] **Secret Management & External Store Integration**:
+  - Secrets come from `.env` or secret files (`/run/secrets`: Docker secrets, Kubernetes, Key Vault/Vault CSI); `.env.example` has production guidance.
+  - Outside Development the app refuses to start with placeholder, default or short secrets. See `docs/guides/secrets.md`.
+- [x] **PostgreSQL Network Isolation**:
+  - `docker-compose.yml` publishes no database port (only `docker-compose.demo.yml`, on `127.0.0.1`).
+- [x] **Automated Backup & Restore Drill**:
+  - `deploy/scripts/restore-drill.sh`: restore into a throwaway database, row counts + checksums vs. the source snapshot, RTO check, JSON report.
+- [x] **Database Migration Deployment Strategy**:
+  - `--migrate-only` step separate from startup (`Database:MigrateOnStartup=false`); Compose: `db-backup` → `migrate` → `app`.
+  - Pre-migration snapshot (`deploy/docker/pre-migrate-backup.sh`). See `docs/guides/database-migrations.md`.
 - [ ] **Write Performance Optimization & Target Alignment**:
   - Address p95 document write latency under 100 VU spikes (~1,020 ms vs target 400 ms) in `tests/load/README.md`.
+  - Tuned (bounded pool, read cache per save, batched commit): write benchmark p95 1,299 → 292 ms at 100 simultaneous users, no more "too many clients" errors (`docs/guides/performance.md`). Remaining: re-run k6 on the target environment.
 
 ---
 
 ## 🟡 P1 — Scale-Up & Enterprise Hardening (Before Scaling Workloads)
 
-- [ ] **Release CD Pipeline (GitHub Actions)**:
-  - Add workflow for container build, publish to registry (GHCR/Docker Hub), staging deploy, automated smoke tests, and production approval gate.
+- [x] **Release CD Pipeline (GitHub Actions)**:
+  - `release.yml`: image build, image smoke test, GHCR publish, staging, production behind required reviewers.
+  - `deploy.yml`: deploy, smoke test, automatic rollback. See `docs/guides/release.md`.
 - [ ] **Fail-Fast Startup Configuration Validation**:
   - Add runtime validation on boot: abort startup immediately if production environment runs with demo seeds or default credentials.
 - [ ] **End-to-End Observability & Alerting**:
@@ -63,16 +65,16 @@ For full architectural context and runbooks, refer to [Production Readiness Guid
   - Automate post-deployment health, login, CRUD, workflow, and tenant boundary verification.
 - [ ] **Tiered Endpoint Rate Limiting**:
   - Transition from single global rate limit (`Api:RateLimitPerMinute=10000`) to route-specific policies (stricter for auth/write, higher for query APIs).
-- [ ] **Automated Dependency Management**:
-  - Add Dependabot configuration (`.github/dependabot.yml`) for NuGet and GitHub Actions.
+- [x] **Automated Dependency Management**:
+  - `.github/dependabot.yml`: weekly grouped updates for NuGet, the .NET SDK (`global.json`), GitHub Actions, the Dockerfile and the compose images (no PostgreSQL major upgrades).
 
 ---
 
 ## 🔵 P2 — Operational Governance & Maintenance Hygiene
 
-- [ ] **Repository Hygiene**:
-  - Add `.github/CODEOWNERS`, pull request template (`.github/pull_request_template.md`), and issue templates.
-  - Maintain `CHANGELOG.md` with semantic versioning tags.
+- [x] **Repository Hygiene**:
+  - `.github/CODEOWNERS`, pull request template, issue templates (bug, feature, private security reporting) and `SECURITY.md`.
+  - `CHANGELOG.md` (Keep a Changelog, `vMAJOR.MINOR.PATCH` tags).
 - [ ] **Administrator & User Onboarding Guides**:
   - Complete Tenant Provisioning, Role Management, and Operational Troubleshooting Runbooks.
 - [ ] **Formalized Service Level Objectives (SLOs)**:
@@ -121,12 +123,12 @@ For full architectural context and runbooks, refer to [Production Readiness Guid
   - Self-service builder for non-technical users to select columns, sort, filter, and group data into custom saved reports.
 - [ ] **Dynamic Row-Level Security (User Permissions per Record)**:
   - Granular per-document access sharing to specific users or roles directly from the interface.
-- [ ] **Advanced Authentication (SSO & 2FA)**:
-  - Google and Microsoft Entra ID (OIDC) SSO integration, plus TOTP app-based two-factor authentication.
+- [x] **Advanced Authentication (SSO & 2FA)**:
+  - Authenticator-app 2FA with recovery codes, required per role if configured; Google and Microsoft Entra ID sign-in for existing accounts. See `docs/guides/two-factor-and-sso.md`.
 - [ ] **Generic Document Rename**:
   - Rename document keys with automated cascading updates across all foreign Link references in parent and child tables.
-- [ ] **Ad-Hoc Background Jobs (`frappe.enqueue`)**:
-  - Asynchronous heavy task queue with live progress bar feedback in the web UI.
+- [x] **Ad-Hoc Background Jobs (`frappe.enqueue`)**:
+  - `BackgroundTaskService.EnqueueAsync` + `IBackgroundTaskHandler`; imports and bulk actions; `/jobs` with live progress, cancel and run again. See `docs/guides/background-jobs.md`.
 - [ ] **Dynamic Visual Workflows**:
   - Visual state machine transition editor with conditional approval branches.
 - [ ] **Database Role Segregation**:
@@ -140,8 +142,8 @@ For full architectural context and runbooks, refer to [Production Readiness Guid
   - Tree view (hierarchical structure navigation for Chart of Accounts and Cost Centers).
 - [ ] **Visual Print Format Builder & Letterhead UI**:
   - Interactive corporate letterhead manager and visual print template layout editor.
-- [ ] **Social Features**:
-  - Color-coded document tags, personal bookmarks/favorites, and Follow Document subscriptions.
+- [x] **Social Features**:
+  - Colour-coded document tags (filterable in lists), personal bookmarks, and Follow with change notifications. See `docs/guides/tags-bookmarks-follow.md`.
 - [x] **Dynamic Multi-Language (i18n)**:
   - Runtime UI localization toggle between English and Indonesian (`035_translations.sql`).
 

@@ -1,0 +1,185 @@
+@page "/account/two-factor"
+@attribute [ExcludeFromInteractiveRouting]
+@layout AuthCardLayout
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.Http
+@using Microsoft.Extensions.Options
+@using Framework.Web.Identity
+@inject UserManager<UserAccount> Users
+@inject SignInManager<UserAccount> SignIn
+@inject NavigationManager Nav
+@inject IOptions<TwoFactorOptions> Options
+
+<PageTitle>Two-factor authentication · FrogFrame</PageTitle>
+
+<h1 class="auth-title">Two-factor authentication</h1>
+
+@if (Required && user is { TwoFactorEnabled: false })
+{
+    <div class="auth-alert" role="alert">Your role requires two-factor authentication. Set it up below to continue using FrogFrame.</div>
+}
+@if (message is not null) { <div class="auth-alert auth-success" role="status">@message</div> }
+@if (error is not null) { <div class="auth-alert" role="alert">@error</div> }
+
+@if (newCodes is { Count: > 0 })
+{
+    <p class="auth-sub">Save these recovery codes somewhere safe (a password manager or printed copy). Each code signs you in once if you lose your phone. They are shown only now.</p>
+    <div class="auth-codes">
+        @foreach (var c in newCodes) { <span>@c</span> }
+    </div>
+    <a class="auth-button" style="display:flex;align-items:center;justify-content:center;text-decoration:none;margin-top:1rem;" href="/" data-enhance-nav="false">I have saved my codes — continue</a>
+}
+else if (user is { TwoFactorEnabled: false })
+{
+    <p class="auth-sub">Protect your account with a code from an authenticator app (Google Authenticator, Microsoft Authenticator, 1Password, Authy…) in addition to your password.</p>
+    <ol class="auth-sub" style="padding-left:1.1rem;display:flex;flex-direction:column;gap:.35rem;">
+        <li>Scan this QR code with the app, or enter the key by hand.</li>
+        <li>Type the 6-digit code the app shows to confirm.</li>
+    </ol>
+    @if (qrSvg is not null) { <div class="auth-qr">@((MarkupString)qrSvg)</div> }
+    <code class="auth-key">@formattedKey</code>
+    <EditForm Model="EnableInput" method="post" OnValidSubmit="EnableAsync" FormName="enable-2fa" class="auth-form" style="margin-top:1rem;">
+        <DataAnnotationsValidator />
+        <div class="auth-field">
+            <label for="code">Code from the app</label>
+            <InputText id="code" class="auth-input" @bind-Value="EnableInput.Code" autocomplete="one-time-code" inputmode="numeric" />
+            <ValidationMessage For="() => EnableInput.Code" class="auth-error" />
+        </div>
+        <button type="submit" class="auth-button">Turn on two-factor authentication</button>
+    </EditForm>
+}
+else if (user is not null)
+{
+    <p class="auth-sub">Two-factor authentication is <strong>on</strong>. You have @recoveryLeft unused recovery code@(recoveryLeft == 1 ? "" : "s").</p>
+    @if (recoveryLeft <= 3)
+    {
+        <div class="auth-alert" role="alert">You are running low on recovery codes. Generate new ones below.</div>
+    }
+
+    <div class="auth-section">
+        <EditForm Model="CodesInput" method="post" OnValidSubmit="RegenerateAsync" FormName="regenerate-codes" class="auth-form">
+            <DataAnnotationsValidator />
+            <div class="auth-field">
+                <label for="codes-password">Current password</label>
+                <InputText id="codes-password" type="password" class="auth-input" @bind-Value="CodesInput.Password" autocomplete="current-password" />
+                <ValidationMessage For="() => CodesInput.Password" class="auth-error" />
+            </div>
+            <button type="submit" class="auth-button-secondary">Generate new recovery codes</button>
+        </EditForm>
+    </div>
+
+    <div class="auth-section">
+        <EditForm Model="DisableInput" method="post" OnValidSubmit="DisableAsync" FormName="disable-2fa" class="auth-form">
+            <DataAnnotationsValidator />
+            <div class="auth-field">
+                <label for="disable-password">Current password</label>
+                <InputText id="disable-password" type="password" class="auth-input" @bind-Value="DisableInput.Password" autocomplete="current-password" />
+                <ValidationMessage For="() => DisableInput.Password" class="auth-error" />
+            </div>
+            <button type="submit" class="auth-button-secondary">Turn off two-factor authentication</button>
+        </EditForm>
+    </div>
+}
+<p style="margin-top:1rem;"><a class="auth-link" href="/" data-enhance-nav="false">Back to FrogFrame</a></p>
+
+@code {
+    [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
+    [SupplyParameterFromForm(FormName = "enable-2fa")] private EnableModel EnableInput { get; set; } = default!;
+    [SupplyParameterFromForm(FormName = "regenerate-codes")] private PasswordModel CodesInput { get; set; } = default!;
+    [SupplyParameterFromForm(FormName = "disable-2fa")] private PasswordModel DisableInput { get; set; } = default!;
+    [SupplyParameterFromQuery(Name = "required")] private string? RequiredFlag { get; set; }
+    private bool Required => RequiredFlag == "1";
+
+    private UserAccount? user;
+    private string? message, error, qrSvg, formattedKey;
+    private List<string>? newCodes;
+    private int recoveryLeft;
+
+    protected override async Task OnInitializedAsync()
+    {
+        EnableInput ??= new();
+        CodesInput ??= new();
+        DisableInput ??= new();
+        user = await Users.GetUserAsync(HttpContext.User);
+        if (user is null)
+        {
+            Nav.NavigateTo("/account/login?returnUrl=%2Faccount%2Ftwo-factor", forceLoad: true);
+            return;
+        }
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        if (user!.TwoFactorEnabled)
+        {
+            recoveryLeft = await Users.CountRecoveryCodesAsync(user);
+            return;
+        }
+        var key = await Users.GetAuthenticatorKeyAsync(user);
+        if (string.IsNullOrEmpty(key))
+        {
+            // New secret: the security stamp changes, so refresh this session's cookie to stay signed in.
+            await Users.ResetAuthenticatorKeyAsync(user);
+            await SignIn.RefreshSignInAsync(user);
+            key = await Users.GetAuthenticatorKeyAsync(user);
+        }
+        formattedKey = TwoFactorSetup.FormatKey(key!);
+        qrSvg = QrCode.ToSvg(TwoFactorSetup.AuthenticatorUri(Options.Value.Issuer, user.UserName, key!));
+    }
+
+    private async Task EnableAsync()
+    {
+        if (user is null || user.TwoFactorEnabled) return;
+        if (!await TwoFactorSetup.VerifyAuthenticatorCodeAsync(Users, user, EnableInput.Code))
+        {
+            error = "That code is not valid. Check that the time on your phone is set automatically and try the newest code.";
+            EnableInput = new();
+            await LoadAsync();
+            return;
+        }
+        await Users.SetTwoFactorEnabledAsync(user, true);
+        newCodes = (await Users.GenerateNewTwoFactorRecoveryCodesAsync(user, Options.Value.RecoveryCodeCount))?.ToList();
+        await SignIn.RefreshSignInAsync(user);
+        message = "Two-factor authentication is on. Sessions on other devices have been signed out.";
+    }
+
+    private async Task RegenerateAsync()
+    {
+        if (user is not { TwoFactorEnabled: true }) return;
+        if (!await Users.CheckPasswordAsync(user, CodesInput.Password))
+        {
+            error = "Current password is incorrect.";
+            await LoadAsync();
+            return;
+        }
+        newCodes = (await Users.GenerateNewTwoFactorRecoveryCodesAsync(user, Options.Value.RecoveryCodeCount))?.ToList();
+        message = "New recovery codes generated. The old codes no longer work.";
+    }
+
+    private async Task DisableAsync()
+    {
+        if (user is not { TwoFactorEnabled: true }) return;
+        if (!await Users.CheckPasswordAsync(user, DisableInput.Password))
+        {
+            error = "Current password is incorrect.";
+            await LoadAsync();
+            return;
+        }
+        await TwoFactorSetup.DisableAsync(Users, user);
+        await SignIn.RefreshSignInAsync(user);
+        message = "Two-factor authentication is off.";
+        await LoadAsync();
+    }
+
+    private sealed class EnableModel
+    {
+        [Required(ErrorMessage = "Enter the code from the app")] public string Code { get; set; } = "";
+    }
+
+    private sealed class PasswordModel
+    {
+        [Required(ErrorMessage = "Current password is required")] public string Password { get; set; } = "";
+    }
+}

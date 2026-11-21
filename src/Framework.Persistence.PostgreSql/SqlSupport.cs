@@ -154,6 +154,9 @@ internal sealed class SqlQueryBuilder(CompiledDocType? meta)
         {
             case "like":
                 return $"{(type == NpgsqlDbType.Text ? sql : sql + "::text")} ILIKE {Param("%" + EscapeLike(Convert.ToString(f.Value, CultureInfo.InvariantCulture) ?? "") + "%", NpgsqlDbType.Text)}";
+            case "startswith":
+                // Case-sensitive prefix: LIKE 'prefix%' can use a text_pattern_ops index (DocTypeDef.Indexes with prefix).
+                return $"{(type == NpgsqlDbType.Text ? sql : sql + "::text")} LIKE {Param(EscapeLike(Convert.ToString(f.Value, CultureInfo.InvariantCulture) ?? "") + "%", NpgsqlDbType.Text)}";
             case "in":
                 var items = (f.Value as IEnumerable<object?> ?? []).Select(v => Coerce(v, type)).ToArray();
                 var arr = type switch

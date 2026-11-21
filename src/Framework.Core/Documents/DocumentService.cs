@@ -71,7 +71,8 @@ public sealed class DocumentService(
     IFileStore files,
     HookRunner hooks,
     OutboxWakeSignal? outboxWake = null,
-    Framework.Sharing.IDocShareStore? shares = null)
+    Framework.Sharing.IDocShareStore? shares = null,
+    Framework.Social.IDocSocialStore? social = null)
 {
     private sealed class TenantLookup(IDocumentStore store, string tenantId) : IDocumentLookup
     {
@@ -173,6 +174,7 @@ public sealed class DocumentService(
     /// </summary>
     public async Task<Document> SetSingleAsync(UserContext user, string docType, IDictionary<string, object?> data, CancellationToken ct = default)
     {
+        using var readScope = DocumentReadScope.Begin(); // one read per master document during this save
         var meta = TopLevel(docType);
         if (!meta.Def.IsSingle)
             throw new InvalidOperationException($"DocType '{docType}' is not a Single DocType.");
@@ -253,12 +255,23 @@ public sealed class DocumentService(
         var filters = new List<FilterClause>();
         foreach (var f in req.Filters ?? [])
         {
+            if (f.Field == Framework.Social.DocTags.FilterField)
+            {
+                // Tag filter: the documents carrying the tag (several tag filters = all of the tags).
+                if (social is null) throw new InvalidPayloadException("Tags are not available", [f.Field]);
+                if (f.Op != "=") throw new InvalidPayloadException("Tags can only be filtered with '='", [f.Field]);
+                var tag = Convert.ToString(f.Value, System.Globalization.CultureInfo.InvariantCulture)?.Trim() ?? "";
+                var names = tag.Length == 0 ? [] : await social.NamesWithTagAsync(user.TenantId, docType, tag,
+                    Framework.Social.DocSocialLimits.MaxNamesPerTagFilter, ct);
+                filters.Add(new FilterClause(StandardFields.Name, "in", names.Cast<object?>().ToList()));
+                continue;
+            }
             if (!filterable.Contains(f.Field) || !meta.IsQueryable(f.Field) || !Readable(f.Field))
                 throw new InvalidPayloadException($"Filter on field '{f.Field}' is not allowed", [f.Field]);
             if (!FilterOps.All.Contains(f.Op))
                 throw new InvalidPayloadException($"Filter operator '{f.Op}' is not allowed", [f.Field]);
             var value = f.Value;
-            if (meta.ByName.TryGetValue(f.Field, out var cf) && f.Op is not ("like" or "in"))
+            if (meta.ByName.TryGetValue(f.Field, out var cf) && f.Op is not ("like" or "startswith" or "in"))
             {
                 var n = cf.Type.Normalize(value);
                 if (!n.Ok) throw new InvalidPayloadException($"Filter value for {cf.Label} is invalid: {n.Error}", [f.Field]);
@@ -311,6 +324,13 @@ public sealed class DocumentService(
             if (lv.TitleField is { } tf && Readable(tf)) row["_title"] = d.Get(tf);
             return row;
         }).ToList();
+        if (social is not null && items.Count > 0)
+        {
+            // Tags of the documents on this page, in one query.
+            var tagsByName = await social.TagsForAsync(user.TenantId, docType, result.Items.Select(d => d.Name).ToList(), ct);
+            foreach (var row in items)
+                if (tagsByName.TryGetValue((string)row[StandardFields.Name]!, out var t)) row[Framework.Social.DocTags.ListKey] = t;
+        }
         return new ListResponse(items, result.Total, page, pageSize, columns, result.TotalCapped);
     }
 
@@ -362,7 +382,7 @@ public sealed class DocumentService(
             if (!FilterOps.All.Contains(f.Op))
                 throw new InvalidPayloadException($"Filter operator '{f.Op}' is not allowed", [f.Field]);
             var value = f.Value;
-            if (meta.ByName.TryGetValue(f.Field, out var cf) && f.Op is not ("like" or "in"))
+            if (meta.ByName.TryGetValue(f.Field, out var cf) && f.Op is not ("like" or "startswith" or "in"))
             {
                 var n = cf.Type.Normalize(value);
                 if (!n.Ok) throw new InvalidPayloadException($"Filter value for {cf.Label} is invalid: {n.Error}", [f.Field]);
@@ -673,6 +693,7 @@ public sealed class DocumentService(
     /// <param name="auditAction">Teks aksi di audit, mis. "Dibuat lewat impor #imp_x".</param>
     public async Task<Document> InsertAsync(UserContext user, string docType, IDictionary<string, object?> payload, string auditAction, CancellationToken ct = default)
     {
+        using var readScope = DocumentReadScope.Begin(); // one read per master document during this save
         using var activity = FrogFrameTelemetry.ActivitySource.StartActivity("frogframe.document.insert");
         activity?.SetTag("frogframe.doctype", docType);
         activity?.SetTag("frogframe.tenant", user.TenantId);
@@ -744,6 +765,7 @@ public sealed class DocumentService(
     /// <summary>Simulasi insert (impor dry-run): seluruh aturan dijalankan, tidak ada yang disimpan dan nomor urut tidak dipakai.</summary>
     public async Task<Document> ValidateInsertAsync(UserContext user, string docType, IDictionary<string, object?> payload, CancellationToken ct = default)
     {
+        using var readScope = DocumentReadScope.Begin(); // one read per master document during this save
         using var hookScope = hooks.EnterDocument(docType, $"(simulation:{Guid.NewGuid():N})");
         var p = await PrepareInsertAsync(user, docType, payload, allocateName: false, ct);
         return RedactForRead(user, p.Meta, p.Doc);
@@ -756,6 +778,7 @@ public sealed class DocumentService(
     public async Task<IReadOnlyList<Document>> InsertBatchAsync(UserContext user, string docType, IReadOnlyList<IDictionary<string, object?>> payloads,
         string auditAction, CancellationToken ct = default)
     {
+        using var readScope = DocumentReadScope.Begin(); // one read per master document during this save
         var uow = new UnitOfWork();
         var prepared = new List<PreparedInsert>();
         var names = new HashSet<string>(StringComparer.Ordinal);
@@ -794,6 +817,7 @@ public sealed class DocumentService(
     public async Task<Document> UpdateAsync(UserContext user, string docType, string name, int expectedVersion,
         IDictionary<string, object?> patch, CancellationToken ct = default)
     {
+        using var readScope = DocumentReadScope.Begin(); // one read per master document during this save
         using var activity = FrogFrameTelemetry.ActivitySource.StartActivity("frogframe.document.update");
         activity?.SetTag("frogframe.doctype", docType);
         activity?.SetTag("frogframe.name", name);
@@ -834,6 +858,7 @@ public sealed class DocumentService(
 
     public async Task DeleteAsync(UserContext user, string docType, string name, int expectedVersion, CancellationToken ct = default)
     {
+        using var readScope = DocumentReadScope.Begin(); // one read per master document during this save
         if (Meta.DocTypes.TryGetValue(docType, out var singleMeta) && singleMeta.Def.IsSingle)
             throw new InvalidStateException($"{singleMeta.Title} adalah dokumen tunggal dan tidak bisa dihapus.");
         using var activity = FrogFrameTelemetry.ActivitySource.StartActivity("frogframe.document.delete");
@@ -877,6 +902,7 @@ public sealed class DocumentService(
     public async Task<Document> RunActionAsync(UserContext user, string docType, string name, string action, int expectedVersion,
         string? comment, CancellationToken ct = default)
     {
+        using var readScope = DocumentReadScope.Begin(); // one read per master document during this save
         using var activity = FrogFrameTelemetry.ActivitySource.StartActivity("frogframe.document.action");
         activity?.SetTag("frogframe.doctype", docType);
         activity?.SetTag("frogframe.name", name);

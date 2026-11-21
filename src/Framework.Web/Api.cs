@@ -214,6 +214,18 @@ public static class DocApi
             // Respons token (access_token, expires_in, refresh_token) ditulis langsung oleh handler bearer token.
             signIn.AuthenticationScheme = IdentityConstants.BearerScheme;
             var result = await signIn.PasswordSignInAsync(body.UserName ?? "", body.Password ?? "", isPersistent: false, lockoutOnFailure: true);
+            if (result.RequiresTwoFactor)
+            {
+                // Same request, second factor: an authenticator code or a recovery code (the Identity API convention).
+                if (!string.IsNullOrWhiteSpace(body.TwoFactorCode))
+                    result = await signIn.TwoFactorAuthenticatorSignInAsync(Framework.Web.Identity.TwoFactorSetup.Normalize(body.TwoFactorCode), isPersistent: false, rememberClient: false);
+                else if (!string.IsNullOrWhiteSpace(body.TwoFactorRecoveryCode))
+                    result = await signIn.TwoFactorRecoveryCodeSignInAsync(body.TwoFactorRecoveryCode);
+                else
+                    return Results.Problem(statusCode: 401, title: "Two-factor code required",
+                        detail: "This account uses two-factor authentication. Send the password again with twoFactorCode (6 digits from the authenticator app) or twoFactorRecoveryCode.",
+                        extensions: new Dictionary<string, object?> { ["requiresTwoFactor"] = true });
+            }
             if (result.Succeeded) return Results.Empty;
             return result.IsLockedOut ? Problem(423, "Account locked", "Too many failed attempts. Try again later.")
                 : Problem(401, "Login failed", "Invalid username or password, or account is disabled.");
@@ -415,6 +427,77 @@ public static class DocApi
             return Results.Created($"/api/data/{doctype}/{name}/audit", entry);
         }));
 
+        // ---------- Background jobs (long imports, bulk actions) ----------
+        api.MapGet("/jobs/me", (HttpContext http, bool? all) => Run(http, async (user, sp) =>
+            Results.Ok(await Jobs(sp).ListAsync(user, all ?? false, ct: http.RequestAborted))));
+        api.MapGet("/jobs/{id:guid}", (HttpContext http, Guid id) => Run(http, async (user, sp) =>
+            Results.Ok(await Jobs(sp).GetAsync(user, id, http.RequestAborted))));
+        api.MapPost("/jobs/{id:guid}/cancel", (HttpContext http, Guid id) => Run(http, async (user, sp) =>
+            Results.Ok(new { cancelled = await Jobs(sp).CancelAsync(user, id, http.RequestAborted) })));
+        api.MapPost("/jobs/{id:guid}/run-again", (HttpContext http, Guid id) => Run(http, async (user, sp) =>
+        {
+            var task = await Jobs(sp).RunAgainAsync(user, id, http.RequestAborted);
+            return Results.Accepted($"/api/jobs/{task.Id}", task);
+        }));
+        api.MapGet("/jobs/{id:guid}/output", (HttpContext http, Guid id) => Run(http, async (user, sp) =>
+        {
+            var (content, name) = await Jobs(sp).OutputAsync(user, id, http.RequestAborted);
+            var type = name.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase) ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                : name.EndsWith(".csv", StringComparison.OrdinalIgnoreCase) ? "text/csv" : "application/octet-stream";
+            return Results.File(content, type, name);
+        }));
+        // Submit / cancel / delete many documents in the background; returns 202 with the job.
+        api.MapPost("/data/{doctype}/bulk", (HttpContext http, string doctype, BulkJobBody body) => Run(http, $"doc:{doctype}:action", async (user, sp) =>
+        {
+            RequireApi(sp, doctype, "action");
+            var task = await Framework.Tasks.BulkActionTaskHandler.EnqueueAsync(Jobs(sp), user,
+                new Framework.Tasks.BulkActionTaskPayload(doctype, body.Action ?? "", body.Names?.ToList() ?? [], body.Comment), http.RequestAborted);
+            return Results.Accepted($"/api/jobs/{task.Id}", task);
+        }));
+
+        // ---------- Tags, bookmarks, follow ----------
+        api.MapGet("/data/{doctype}/{name}/social", (HttpContext http, string doctype, string name) => Run(http, $"doc:{doctype}:read", async (user, sp) =>
+        {
+            RequireApi(sp, doctype, "read");
+            return Results.Ok(await Social(sp).StateAsync(user, doctype, name, http.RequestAborted));
+        }));
+        api.MapPost("/data/{doctype}/{name}/tags", (HttpContext http, string doctype, string name, TagBody body) => Run(http, $"doc:{doctype}:update", async (user, sp) =>
+        {
+            RequireApi(sp, doctype, "read");
+            return Results.Ok(await Social(sp).AddTagAsync(user, doctype, name, body.Tag ?? "", http.RequestAborted));
+        }));
+        api.MapDelete("/data/{doctype}/{name}/tags/{tag}", (HttpContext http, string doctype, string name, string tag) => Run(http, $"doc:{doctype}:update", async (user, sp) =>
+        {
+            RequireApi(sp, doctype, "read");
+            return Results.Ok(await Social(sp).RemoveTagAsync(user, doctype, name, tag, http.RequestAborted));
+        }));
+        api.MapGet("/tags/{doctype}", (HttpContext http, string doctype, string? prefix) => Run(http, $"doc:{doctype}:list", async (user, sp) =>
+        {
+            RequireApi(sp, doctype, "list");
+            return Results.Ok(await Social(sp).TagSuggestionsAsync(user, doctype, prefix, ct: http.RequestAborted));
+        }));
+        foreach (var (path, bookmark) in new[] { ("bookmark", true), ("follow", false) })
+        {
+            api.MapPut($"/data/{{doctype}}/{{name}}/{path}", (HttpContext http, string doctype, string name) => Run(http, $"doc:{doctype}:read", async (user, sp) =>
+            {
+                RequireApi(sp, doctype, "read");
+                var on = bookmark ? await Social(sp).SetBookmarkAsync(user, doctype, name, true, http.RequestAborted)
+                                  : await Social(sp).SetFollowAsync(user, doctype, name, true, http.RequestAborted);
+                return Results.Ok(new { on });
+            }));
+            api.MapDelete($"/data/{{doctype}}/{{name}}/{path}", (HttpContext http, string doctype, string name) => Run(http, $"doc:{doctype}:read", async (user, sp) =>
+            {
+                RequireApi(sp, doctype, "read");
+                var on = bookmark ? await Social(sp).SetBookmarkAsync(user, doctype, name, false, http.RequestAborted)
+                                  : await Social(sp).SetFollowAsync(user, doctype, name, false, http.RequestAborted);
+                return Results.Ok(new { on });
+            }));
+        }
+        api.MapGet("/bookmarks/me", (HttpContext http) => Run(http, async (user, sp) =>
+            Results.Ok(await Social(sp).BookmarksAsync(user, http.RequestAborted))));
+        api.MapGet("/following/me", (HttpContext http) => Run(http, async (user, sp) =>
+            Results.Ok(await Social(sp).FollowingAsync(user, http.RequestAborted))));
+
         // ---------- Assignments (ToDo / My Tasks) ----------
         api.MapGet("/assignments/me", (HttpContext http, string? status, bool? overdue, bool? dueToday, string? search, int? skip, int? take) =>
             Run(http, async (user, sp) =>
@@ -552,10 +635,12 @@ public static class DocApi
     }
 
     public sealed record ActionBody(string? Comment);
+    public sealed record TagBody(string? Tag);
+    public sealed record BulkJobBody(string? Action, IReadOnlyList<string>? Names, string? Comment);
     public sealed record AssignBody(IReadOnlyList<string>? Assignees, string? DueDate, string? Priority, string? Description);
     public sealed record AssignmentCloseBody(string? Note);
     public sealed record AssignmentPatchBody(string? DueDate, bool UpdateDueDate, string? Priority, string? AssignedTo, string? Description, bool UpdateDescription);
-    public sealed record LoginBody(string? UserName, string? Password);
+    public sealed record LoginBody(string? UserName, string? Password, string? TwoFactorCode = null, string? TwoFactorRecoveryCode = null);
     public sealed record RefreshBody(string? RefreshToken);
     public sealed record ForgotPasswordBody(string? Identifier, string? Email);
     public sealed record ResetPasswordBody(string? UserId, string? Token, string? NewPassword);
@@ -563,6 +648,8 @@ public static class DocApi
 
     private static DocumentService Docs(IServiceProvider sp) => sp.GetRequiredService<DocumentService>();
     private static Framework.Assignments.AssignmentService Assignments(IServiceProvider sp) => sp.GetRequiredService<Framework.Assignments.AssignmentService>();
+    private static Framework.Social.DocSocialService Social(IServiceProvider sp) => sp.GetRequiredService<Framework.Social.DocSocialService>();
+    private static Framework.Tasks.BackgroundTaskService Jobs(IServiceProvider sp) => sp.GetRequiredService<Framework.Tasks.BackgroundTaskService>();
 
     private static void RequireRole(UserContext user, string role)
     {

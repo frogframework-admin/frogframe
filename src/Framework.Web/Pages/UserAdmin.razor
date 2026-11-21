@@ -243,6 +243,13 @@ else
                             <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Disabled="busy" OnClick="Unlock"><LucideIcon Name="lock-open" Size="15" /> Unlock account</BbButton>
                         </div>
                     }
+                    @if (!isNew && edit.TwoFactorEnabled)
+                    {
+                        <div class="row" style="border-top:1px solid var(--border);padding-top:.75rem;gap:.5rem;align-items:center">
+                            <span class="muted" style="font-size:.8rem;flex:1">Two-factor authentication is on.</span>
+                            <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Disabled="busy" OnClick="ResetTwoFactor"><LucideIcon Name="shield-off" Size="15" /> Reset two-factor</BbButton>
+                        </div>
+                    }
                 </div>
             }
         </FooterContent>
@@ -595,6 +602,20 @@ else
         await Users.SetLockoutEndDateAsync(user, null);
         await Users.ResetAccessFailedCountAsync(user);
         Toasts.Success($"{user.UserName} can now log in again.", "Account Unlocked");
+        CloseDrawer();
+        await Reload();
+    }
+
+    /// <summary>Lost phone and no recovery codes: turn two-factor off so the user can sign in with the password and enrol again.</summary>
+    private async Task ResetTwoFactor()
+    {
+        var ok = await Dialogs.ConfirmAsync($"Reset two-factor authentication for {edit!.UserName}?",
+            "Their authenticator app and recovery codes stop working and active sessions end. Do this only after confirming who is asking.",
+            new ConfirmDialogOptions { ConfirmText = "Reset two-factor", CancelText = "Cancel" });
+        if (!ok.Confirmed) return;
+        var user = (await Users.FindByIdAsync(edit.Id))!;
+        await Framework.Web.Identity.TwoFactorSetup.DisableAsync(Users, user);
+        Toasts.Success($"Two-factor authentication for {user.UserName} has been turned off. They can set it up again after signing in.", "Two-factor reset");
         CloseDrawer();
         await Reload();
     }

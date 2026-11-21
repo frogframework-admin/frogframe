@@ -10,18 +10,27 @@ name: frogframe
 #
 # Local demo with the PostgreSQL/S3 ports published on localhost (for "dotnet run" against the containers):
 #   docker compose -f docker-compose.yml -f docker-compose.demo.yml up -d
+#
+# Image: built locally from ./publish by default. Set FROGFRAME_IMAGE (e.g. ghcr.io/<owner>/<repo>:1.4.0) to run a
+# released image instead: docker compose pull app migrate && docker compose up -d --no-build (see docs/guides/release.md).
+#
+# Start order: postgres → db-backup (snapshot before migrating) → migrate (applies database migrations once, then exits)
+# → app. The app does not migrate by itself (Database__MigrateOnStartup=false), so several app instances can be
+# updated one by one without racing on the schema. See docs/guides/database-migrations.md.
 
 services:
   app:
     build:
       context: .
       dockerfile: Dockerfile
-    image: frogframe-app:latest
+    image: ${FROGFRAME_IMAGE:-frogframe-app:latest}
     container_name: frogframe-app
     ports:
       - "${FROGFRAME_HTTP_PORT:-5080}:8080"
-    environment:
+    environment: &app-environment
       - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Development}
+      # Migrations run in the 'migrate' service below; the app waits until the schema is up to date.
+      - Database__MigrateOnStartup=false
       # Public URL accessed by end users; used for password reset links in emails.
       - App__PublicBaseUrl=${FROGFRAME_PUBLIC_BASE_URL:?Set FROGFRAME_PUBLIC_BASE_URL in .env}
       # Host names allowed in the Host header (separated by ';'). "*" is rejected in Production.
@@ -29,7 +38,6 @@ services:
       # When deployed behind a reverse proxy, set the proxy CIDR so X-Forwarded-* headers are trusted, e.g. 172.18.0.0/16.
       - ForwardedHeaders__KnownNetworks__0=${FROGFRAME_TRUSTED_PROXY_CIDR:-}
       - Persistence__Provider=PostgreSql
-      - Persistence__MigrateOnStartup=${FROGFRAME_MIGRATE_ON_STARTUP:-true}
       - ConnectionStrings__FrogFrame=Host=postgres;Port=5432;Database=frogframe;Username=frogframe;Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       - ConnectionStrings__FrogFrameReadOnly=Host=postgres;Port=5432;Database=frogframe;Username=frogframe_ro;Password=${FROGFRAME_RO_PASSWORD:?Set FROGFRAME_RO_PASSWORD in .env}
       # Demo mode is always on in Development and off elsewhere. These switches only matter outside Development: demo
@@ -43,6 +51,15 @@ services:
       - Bootstrap__AdminUserName=${FROGFRAME_ADMIN_USER:-admin}
       - Bootstrap__AdminPassword=${FROGFRAME_ADMIN_PASSWORD:?Set FROGFRAME_ADMIN_PASSWORD in .env}
       - Api__RateLimitPerMinute=${FROGFRAME_API_RATE_LIMIT:-300}
+      # Two-factor authentication and single sign-on. See docs/guides/two-factor-and-sso.md.
+      - Security__TwoFactor__Issuer=${FROGFRAME_2FA_ISSUER:-FrogFrame}
+      - Security__TwoFactor__RequiredForRoles__0=${FROGFRAME_2FA_REQUIRED_ROLES:-}
+      - Authentication__AllowedEmailDomains__0=${FROGFRAME_SSO_ALLOWED_DOMAIN:-}
+      - Authentication__Google__ClientId=${FROGFRAME_SSO_GOOGLE_CLIENT_ID:-}
+      - Authentication__Google__ClientSecret=${FROGFRAME_SSO_GOOGLE_CLIENT_SECRET:-}
+      - Authentication__Microsoft__ClientId=${FROGFRAME_SSO_MICROSOFT_CLIENT_ID:-}
+      - Authentication__Microsoft__ClientSecret=${FROGFRAME_SSO_MICROSOFT_CLIENT_SECRET:-}
+      - Authentication__Microsoft__TenantId=${FROGFRAME_SSO_MICROSOFT_TENANT_ID:-}
       # AI designer (Azure OpenAI in Microsoft Foundry). Off unless FROGFRAME_AI_ENABLED=true. See docs/guides/ai-designer.md.
       - AI__Enabled=${FROGFRAME_AI_ENABLED:-false}
       - AI__Endpoint=${FROGFRAME_AI_ENDPOINT:-}
@@ -64,7 +81,54 @@ services:
         condition: service_started
       seaweedfs:
         condition: service_started
+      migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
+
+  # Applies pending database migrations once and exits (same image and settings as the app, web server not started).
+  # The app starts only after it succeeded. Run it by hand with: docker compose run --rm migrate
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${FROGFRAME_IMAGE:-frogframe-app:latest}
+    container_name: frogframe-migrate
+    command: ["--migrate-only"]
+    environment: *app-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+      db-backup:
+        condition: service_completed_successfully
+    restart: "no"
+
+  # Snapshot before migrating: pg_dump into the frogframe-backups volume on every "docker compose up" of an existing
+  # database (skipped for a new, empty one), verified with pg_restore --list, keeping the newest
+  # FROGFRAME_PRE_MIGRATE_BACKUP_KEEP files. FROGFRAME_PRE_MIGRATE_BACKUP=false skips it. Not a replacement for
+  # scheduled backups (deploy/scripts/backup-db.sh, docs/backup-disaster-recovery.md).
+  db-backup:
+    image: postgres:17-alpine
+    container_name: frogframe-db-backup
+    environment:
+      PGHOST: postgres
+      PGDATABASE: frogframe
+      PGUSER: frogframe
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      BACKUP_ENABLED: ${FROGFRAME_PRE_MIGRATE_BACKUP:-true}
+      BACKUP_KEEP: ${FROGFRAME_PRE_MIGRATE_BACKUP_KEEP:-5}
+      BACKUP_DIR: /backups
+      TZ: Asia/Jakarta
+    entrypoint: ["/bin/sh", "/opt/frogframe/pre-migrate-backup.sh"]
+    volumes:
+      - ./deploy/docker/pre-migrate-backup.sh:/opt/frogframe/pre-migrate-backup.sh:ro
+      # Restore drill (docs/backup-disaster-recovery.md):
+      #   docker compose run --rm --no-deps --entrypoint sh db-backup /opt/frogframe/restore-drill.sh
+      - ./deploy/scripts/restore-drill.sh:/opt/frogframe/restore-drill.sh:ro
+      - frogframe-backups:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
 
   # S3-compatible object storage for file contents (SeaweedFS, Apache-2.0). Single node: master + volume + filer + S3
   # in one container. Credentials come from .env; the S3 port is only reachable inside the compose network.
@@ -117,4 +181,5 @@ services:
 
 volumes:
   frogframe-pg:
+  frogframe-backups:
   frogframe-seaweedfs:

@@ -73,6 +73,16 @@
                             }
                         </BbSidebarMenuItem>
                         <BbSidebarMenuItem>
+                            <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="/bookmarks" Match="NavLinkMatch.Prefix" Tooltip="@(T["Bookmarks"])">
+                                <LucideIcon Name="star" Size="18" /><span>@T["Bookmarks"]</span>
+                            </BbSidebarMenuButton>
+                        </BbSidebarMenuItem>
+                        <BbSidebarMenuItem>
+                            <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="/jobs" Match="NavLinkMatch.Prefix" Tooltip="@(T["Background jobs"])">
+                                <LucideIcon Name="loader" Size="18" /><span>@T["Background jobs"]</span>
+                            </BbSidebarMenuButton>
+                        </BbSidebarMenuItem>
+                        <BbSidebarMenuItem>
                             <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="/dashboard" Match="NavLinkMatch.Prefix" Tooltip="@(T["Dashboard"])">
                                 <LucideIcon Name="layout-dashboard" Size="18" /><span>@T["Dashboard"]</span>
                             </BbSidebarMenuButton>

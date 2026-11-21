@@ -2,6 +2,7 @@
 @using Framework.Imports
 @using Framework.Reports
 @using Microsoft.AspNetCore.Components.Forms
+@inject Framework.Tasks.BackgroundTaskService BackgroundTasks
 @inject DataImportService Importer
 @inject IMetadataProvider Metadata
 @inject CurrentUser Current
@@ -135,11 +136,16 @@ else
                         <div class="props-sub" style="margin-bottom:.35rem">If there are rows with issues</div>
                         <div class="label-row"><input type="radio" id="m-skip" name="mode" checked="@(!atomic)" @onchange="() => atomic = false" /><label for="m-skip">Skip failed rows — save remaining valid rows</label></div>
                         <div class="label-row"><input type="radio" id="m-atomic" name="mode" checked="@atomic" @onchange="() => atomic = true" /><label for="m-atomic">All or nothing — if any row fails, nothing is saved</label></div>
+                        <div class="label-row" style="margin-top:.5rem"><input type="checkbox" id="m-bg" checked="@RunInBackground" @onchange="e => runInBackground = e.Value is true" /><label for="m-bg">Run in the background — keep working or close this page; follow it in <a href="/jobs">Background jobs</a> (recommended for large files)</label></div>
                     </div>
+                    @if (queuedJob is not null)
+                    {
+                        <BbAlert Variant="AlertVariant.Success" Style="margin-top:1rem"><BbAlertDescription>The import is queued as a background job. You will be notified when it ends. <a href="/jobs">Open Background jobs</a></BbAlertDescription></BbAlert>
+                    }
                     <div class="row" style="margin-top:1rem">
                         <BbButton Variant="ButtonVariant.Ghost" OnClick="() => GoTo(2)">Back</BbButton>
                         <span class="spacer"></span>
-                        <BbButton Disabled="@(busy || preview.Ok == 0 || atomic && preview.Failed > 0)" OnClick="Execute">
+                        <BbButton Disabled="@(busy || queuedJob is not null || preview.Ok == 0 || atomic && preview.Failed > 0)" OnClick="Execute">
                             <LucideIcon Name="file-up" Size="16" /> @(busy ? $"Importing… {progress:N0}/{preview.Rows.Count:N0}" : $"Import {preview.Ok:N0} rows")
                         </BbButton>
                     </div>
@@ -215,7 +221,9 @@ else
             await using var s = e.File.OpenReadStream(Importer.Limits.MaxFileBytes);
             using var ms = new MemoryStream();
             await s.CopyToAsync(ms);
-            session = Importer.Open(Current.Required, DocType, e.File.Name, ms.ToArray());
+            fileBytes = ms.ToArray();
+            session = Importer.Open(Current.Required, DocType, e.File.Name, fileBytes);
+            queuedJob = null; runInBackground = null;
             step = maxStep = 2;
         }
         catch (Exception ex) when (ex is TemplateException or PermissionDeniedException or IOException)
@@ -279,18 +287,32 @@ else
         error = null; busy = true; progress = 0;
         try
         {
+            if (RunInBackground)
+            {
+                queuedJob = await Framework.Tasks.DataImportTaskHandler.EnqueueAsync(BackgroundTasks, Importer, Current.Required, session!, fileBytes!, atomic);
+                Toasts.Success("You will be notified when it ends.", "Import queued");
+                return;
+            }
             await Task.Yield();
             result = await Importer.ExecuteAsync(Current.Required, session!, atomic, Reporter());
             step = maxStep = 4;
             history = await Importer.HistoryAsync(Current.Required, DocType);
             if (result.Log.Succeeded > 0) Toasts.Success($"{result.Log.Succeeded:N0} documents created, {result.Log.Failed:N0} failed.", $"Import #{result.Log.Id} completed");
         }
-        catch (Exception ex) when (ex is TemplateException or PermissionDeniedException)
+        catch (Exception ex) when (ex is TemplateException or PermissionDeniedException or InvalidPayloadException)
         {
             (errorTitle, error) = ("Import failed", ex.Message);
         }
         finally { busy = false; }
     }
 
-    private void Restart() { session = null; preview = null; result = null; step = maxStep = 1; }
+    private void Restart() { session = null; preview = null; result = null; fileBytes = null; queuedJob = null; runInBackground = null; step = maxStep = 1; }
+
+    /// <summary>Uploaded file, kept for a background import (the job reads it again).</summary>
+    private byte[]? fileBytes;
+    private Framework.Tasks.BackgroundTask? queuedJob;
+    private bool? runInBackground;
+    /// <summary>Files from this many rows run in the background unless the user unticks it.</summary>
+    private const int BackgroundFromRows = 500;
+    private bool RunInBackground => runInBackground ?? (session?.RowCount ?? 0) >= BackgroundFromRows;
 }

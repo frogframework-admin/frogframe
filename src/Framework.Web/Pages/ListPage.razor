@@ -328,6 +328,12 @@ else if (meta is not null)
                                           Order="@GetColOrder("name")">
                     <CellTemplate Context="row">
                         <a class="doc-link" href="/app/@meta.Name/@((string)row["name"]!)">@((string)row["name"]!)</a>
+                        @if (row.GetValueOrDefault(Framework.Social.DocTags.ListKey) is IReadOnlyList<string> { Count: > 0 } rowTags)
+                        {
+                            <span class="list-tags">
+                                @foreach (var rt in rowTags) { <span class="list-tag tag-color" style="--tag-hue:@Framework.Social.DocTags.Hue(rt)">@rt</span> }
+                            </span>
+                        }
                     </CellTemplate>
                 </BbDataGridPropertyColumn>
 
@@ -638,6 +644,8 @@ else if (meta is not null)
     /// Date/Datetime field), "tree" the tree (DocTypes with a parent Link to themselves); anything else the grid.
     /// </summary>
     [SupplyParameterFromQuery(Name = "view")] public string? View { get; set; }
+    /// <summary>"?tag=urgent" (links from a document's tags) filters the list to documents with that tag.</summary>
+    [SupplyParameterFromQuery(Name = "tag")] public string? Tag { get; set; }
 
     private bool CanBoard => meta is not null && WorkflowBoard.Supports(meta);
     private bool CanCalendar => meta is not null && CalendarView.Supports(meta);
@@ -794,6 +802,7 @@ else if (meta is not null)
         return
         [
             new("like", T["contains"]),
+            new("startswith", T["starts with"]),
             new("=", "="),
             new("!=", "≠")
         ];
@@ -808,6 +817,7 @@ else if (meta is not null)
         "<" => "<",
         "<=" => "≤",
         "like" => T["contains"],
+        "startswith" => T["starts with"],
         "in" => T["in"],
         _ => op
     };
@@ -920,8 +930,8 @@ else if (meta is not null)
     private string? loadedKey;
     protected override async Task OnParametersSetAsync()
     {
-        if (DocType == loadedKey) return;
-        loadedKey = DocType;
+        if ($"{DocType}|{Tag}" == loadedKey) return;
+        loadedKey = $"{DocType}|{Tag}";
         fatal = null; error = null; search = null; sortField = null; result = null;
         selectedItems.Clear();
         if (!Metadata.Current.TryGet(DocType, out var m) || m.Def.IsChild) { fatalStatus = 404; fatal = T.Format("DocType '{0}' was not found.", DocType); return; }
@@ -969,6 +979,11 @@ else if (meta is not null)
                 activeFilters.AddRange(defView.Filters.Select(f => f.ToFilterClause()));
             }
         }
+        if (!string.IsNullOrWhiteSpace(Tag))
+        {
+            activeFilters.RemoveAll(f => f.Field == Framework.Social.DocTags.FilterField);
+            activeFilters.Add(new FilterClause(Framework.Social.DocTags.FilterField, "=", Tag.Trim()));
+        }
 
         await Reload();
     }
@@ -982,6 +997,7 @@ else if (meta is not null)
         StandardFields.DocStatus => T["Document Status"],
         StandardFields.Owner => T["Owner / Created By"],
         StandardFields.Modified => T["Last Modified"],
+        Framework.Social.DocTags.FilterField => T["Tag"],
         _ => meta!.ByName.TryGetValue(field, out var f) ? T.Label(f) : field
     };
 
