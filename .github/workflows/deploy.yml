@@ -48,7 +48,7 @@ jobs:
       DIR: ${{ vars.DEPLOY_PATH }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Check configuration
         run: |
