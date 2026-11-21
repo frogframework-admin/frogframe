@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <RootNamespace>Framework.Persistence.PostgreSql</RootNamespace>
-    <NpgsqlVersion>10.0.3</NpgsqlVersion>
+    <NpgsqlVersion>10.0.4</NpgsqlVersion>
   </PropertyGroup>
 
   <ItemGroup>
