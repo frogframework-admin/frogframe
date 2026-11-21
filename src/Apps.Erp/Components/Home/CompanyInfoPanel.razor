@@ -1,0 +1,35 @@
+@using System.Globalization
+@using Apps.Erp.Home
+@using Framework.Localization
+@inject ErpHomeService Home
+@inject CurrentUser Current
+@inject UiText T
+
+@* Home page, side column: next holiday and colleagues of the same unit on leave today. Hidden when there is nothing to say. *@
+@if (info is { } i && (i.NextHolidayDate is not null || i.TeamOnLeaveToday.Count > 0))
+{
+    <section class="home-card" aria-label="@T["Company info"]">
+        <div class="section-head-row"><h2>@T["Company info"]</h2></div>
+        <div class="home-facts">
+            @if (i.NextHolidayDate is { } date)
+            {
+                <div><span class="label">@T["Next holiday"]:</span> @(i.NextHolidayName ?? "—"), @date.ToString("dddd, d MMMM", Culture)</div>
+            }
+            @if (i.TeamOnLeaveToday.Count > 0)
+            {
+                <div><span class="label">@T["On leave today (your team)"]:</span> @string.Join(", ", i.TeamOnLeaveToday)</div>
+            }
+        </div>
+    </section>
+}
+
+@code {
+    private CompanyInfo? info;
+
+    private CultureInfo Culture => T.Language == "id" ? CultureInfo.GetCultureInfo("id-ID") : CultureInfo.GetCultureInfo("en-GB");
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Current.User is { } u) info = await Home.CompanyInfoAsync(u);
+    }
+}

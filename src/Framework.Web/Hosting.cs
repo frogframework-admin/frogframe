@@ -304,6 +304,9 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IDocHookLogger, DocumentHookLogger>();
         services.AddSingleton<HookRunner>();
         services.AddSingleton<DocumentService>();
+        // Home page (/): panels and "Create new" shortcuts registered by applications, plus the approval queue and KPIs.
+        services.AddSingleton<Framework.Web.Home.HomeRegistry>();
+        services.AddSingleton<Framework.Web.Home.HomeFeed>();
         services.AddSingleton<OutboxProcessor>();
         services.AddSingleton<ReportService>();
         services.AddHostedService<OutboxWorker>();

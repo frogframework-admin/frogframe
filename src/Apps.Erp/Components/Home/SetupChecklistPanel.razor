@@ -1,0 +1,74 @@
+@using Apps.Erp.Home
+@using Framework.Localization
+@using Framework.Preferences
+@using Framework.Web.Home
+@inject ErpHomeService Home
+@inject CurrentUser Current
+@inject IUserPreferenceStore Prefs
+@inject UiText T
+
+@* Home page, top slot, administrators only: first-run checklist. Disappears when every step is done, or when hidden. *@
+@if (steps is not null && !hidden && steps.Any(s => !s.Done))
+{
+    var done = steps.Count(s => s.Done);
+    <section class="home-card" aria-label="@T["Set up FrogFrame"]">
+        <div class="section-head-row">
+            <h2>@T["Set up FrogFrame"]</h2>
+            <button type="button" class="home-banner-close" title="@T["Hide"]" aria-label="@T["Hide"]" @onclick="HideAsync"><LucideIcon Name="x" Size="16" /></button>
+        </div>
+        <div class="muted small">@T.Format("{0} of {1} done. This box disappears once everything is set.", done, steps.Count)</div>
+        <div class="home-progress" role="progressbar" aria-valuemin="0" aria-valuemax="@steps.Count" aria-valuenow="@done"><span style="width:@(done * 100 / steps.Count)%"></span></div>
+        <ul class="home-checklist">
+            @foreach (var s in steps)
+            {
+                var step = s;
+                <li class="@(s.Done ? "done" : "")">
+                    @if (s.Manual)
+                    {
+                        <button type="button" class="tick" style="cursor:pointer" aria-pressed="@s.Done" title="@T["Mark as done"]" @onclick="() => ToggleAsync(step)">@(s.Done ? "✓" : "")</button>
+                    }
+                    else
+                    {
+                        <span class="tick" aria-hidden="true">@(s.Done ? "✓" : "")</span>
+                    }
+                    <div style="display:flex;flex-direction:column">
+                        <span class="text">@T[s.Title]</span>
+                        @if (!s.Done)
+                        {
+                            <span class="muted small">@T[s.Hint]</span>
+                        }
+                    </div>
+                    @if (!s.Done && s.Href is { } href)
+                    {
+                        <a class="section-link" href="@href">@T["Open"]</a>
+                    }
+                </li>
+            }
+        </ul>
+    </section>
+}
+
+@code {
+    private IReadOnlyList<SetupStep>? steps;
+    private bool hidden;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Current.User is not { } u) return;
+        hidden = (await HomePreferences.DismissedAsync(Prefs, u)).Contains(ErpHomeService.SetupDismissId);
+        if (!hidden) steps = await Home.SetupStepsAsync(u);
+    }
+
+    private async Task HideAsync()
+    {
+        hidden = true;
+        if (Current.User is { } u) await HomePreferences.DismissAsync(Prefs, u, ErpHomeService.SetupDismissId);
+    }
+
+    private async Task ToggleAsync(SetupStep step)
+    {
+        if (Current.User is not { } u) return;
+        await Home.SetRestoreDrillAsync(u, !step.Done);
+        steps = await Home.SetupStepsAsync(u);
+    }
+}

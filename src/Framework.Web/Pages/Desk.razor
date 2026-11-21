@@ -2,14 +2,23 @@
 @implements IDisposable
 @using Framework.Navigation
 @using Framework.Notifications
+@using Framework.Preferences
+@using Framework.Social
+@using Framework.Tasks
+@using Framework.Web.Home
+@using Framework.Web.Identity
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.Extensions.Options
 @inject DocumentService Docs
+@inject HomeFeed Feed
+@inject HomeRegistry Registry
 @inject AssignmentService AssignmentsSvc
 @inject CurrentUser Current
-@inject IMetadataProvider Metadata
-@inject IPermissionService Perms
 @inject INavigationMenuStore MenuStore
 @inject INotificationStore Notifications
 @inject INotificationLiveFeed LiveNotifications
+@inject IUserPreferenceStore Prefs
+@inject IServiceProvider Services
 @inject NavigationManager Nav
 @inject ToastService Toasts
 @inject TimeProvider Clock
@@ -17,180 +26,386 @@
 
 <PageTitle>@T["Home"] · FrogFrame</PageTitle>
 
-<div class="launcher-page">
-    <header class="desk-hero">
+<div class="launcher-page home-page">
+    <header class="desk-hero home-hero">
         <img class="desk-hero-bg desk-hero-bg-light" src="/_content/Framework.Web/img/desk-hero-light.png" alt="" aria-hidden="true" />
         <img class="desk-hero-bg desk-hero-bg-dark" src="/_content/Framework.Web/img/desk-hero-dark.png" alt="" aria-hidden="true" />
         <div class="desk-hero-content">
-            <h1>@T[GreetingText()], @FirstName(Current.Required.FullName)!</h1>
-            <p>@T["What would you like to work on today?"]</p>
-            <div class="desk-hero-accent" aria-hidden="true"></div>
+            <div class="home-date">@HomeDate()</div>
+            <h1>@T[HomeClock.GreetingKey(HomeClock.LocalNow(Clock).Hour)], @FirstName(Current.User?.FullName)</h1>
+            <div class="home-chips" aria-label="@T["Summary"]">
+                @if (queue is { Count: > 0 })
+                {
+                    <a class="home-chip primary" href="#approvals"><LucideIcon Name="stamp" Size="14" /> @T.Format("{0} awaiting your approval", queue.Count)</a>
+                }
+                @if (taskCounts.Overdue > 0)
+                {
+                    <a class="home-chip danger" href="/tasks"><LucideIcon Name="alarm-clock" Size="14" /> @T.Format("{0} overdue tasks", taskCounts.Overdue)</a>
+                }
+                else if (taskCounts.DueToday > 0)
+                {
+                    <a class="home-chip warning" href="/tasks"><LucideIcon Name="calendar-clock" Size="14" /> @T.Format("{0} tasks due today", taskCounts.DueToday)</a>
+                }
+                @if (unreadCount > 0)
+                {
+                    <a class="home-chip" href="/inbox"><LucideIcon Name="bell" Size="14" /> @T.Format("{0} unread notifications", unreadCount)</a>
+                }
+                @if (loaded && (queue?.Count ?? 0) == 0 && taskCounts.Overdue == 0 && taskCounts.DueToday == 0 && unreadCount == 0)
+                {
+                    <span class="home-chip muted"><LucideIcon Name="check" Size="14" /> @T["Nothing urgent right now"]</span>
+                }
+            </div>
+            @if (quickActions.Count > 0)
+            {
+                <div class="home-quick" aria-label="@T["Create new"]">
+                    @foreach (var a in quickActions)
+                    {
+                        <a class="home-quick-btn" href="@a.Href"><LucideIcon Name="@a.Icon" Size="14" /> @T[a.Label]</a>
+                    }
+                </div>
+            }
         </div>
     </header>
 
-    <section class="workspace-summary" aria-label="@(T["My workspace"])">
-        <div class="section-head-row">
-            <h2>@T["My workspace"]</h2>
-        </div>
-
-        <div class="workspace-cards-grid">
-            <a class="workspace-stat-card" href="#recent-docs">
-                <span>@T["Awaiting your approval / action"]</span>
-                <strong class="stat-num primary">@(pending?.Count ?? 0)</strong>
-            </a>
-            <a class="workspace-stat-card" href="/inbox">
-                <span>@T["Tasks & unread notifications"]</span>
-                <strong class="stat-num">@unreadCount</strong>
-            </a>
-        </div>
-    </section>
-
-    <section class="my-tasks-section" aria-label="@(T["My Tasks"])">
-        <div class="section-head-row">
-            <h2>@T["My Tasks"]</h2>
-            <a class="section-link" href="/tasks">@T["View all"]</a>
-        </div>
-
-        <div class="my-tasks-stats">
-            <a class="my-tasks-pill" href="/tasks">
-                <span>@T["Open"]</span>
-                <strong>@taskCounts.Open</strong>
-            </a>
-            <a class="my-tasks-pill" href="/tasks">
-                <span>@T["Due Today"]</span>
-                <strong>@taskCounts.DueToday</strong>
-            </a>
-            <a class="my-tasks-pill @(taskCounts.Overdue > 0 ? "overdue" : "")" href="/tasks">
-                <span>@T["Overdue"]</span>
-                <strong>@taskCounts.Overdue</strong>
-            </a>
-        </div>
-
-        @if (myTasks is null)
-        {
-            <div class="stack"><BbSkeleton Height="3rem" /><BbSkeleton Height="3rem" /></div>
-        }
-        else if (myTasks.Count == 0)
-        {
-            <div class="desk-table-card desk-empty-box">
-                @T["You're all caught up — no pending tasks assigned to you."]
+    @if (showTwoFactorNudge)
+    {
+        <div class="home-banner" role="status">
+            <LucideIcon Name="shield-alert" Size="18" />
+            <div class="home-banner-text">
+                <strong>@T["Turn on two-factor authentication."]</strong>
+                <span>@T["Protect your account with an authenticator app; it takes about two minutes."]</span>
             </div>
-        }
-        else
+            <a class="desk-act-btn primary" href="/account/two-factor">@T["Turn on now"]</a>
+            <button type="button" class="home-banner-close" title="@T["Hide"]" aria-label="@T["Hide"]" @onclick="DismissTwoFactorAsync"><LucideIcon Name="x" Size="16" /></button>
+        </div>
+    }
+
+    @if (Current.User is { } top)
+    {
+        @foreach (var p in Registry.PanelsFor(top, HomeSlot.Top))
         {
-            <div class="desk-table-card">
-                @foreach (var item in myTasks)
-                {
-                    var a = item.Assignment;
-                    var today = AssignmentsSvc.Today;
-                    var docHref = $"/app/{a.DocType}/{a.DocName}";
-                    <div class="my-task-row">
-                        <div class="my-task-main">
-                            <div class="my-task-title">
-                                <a class="doc-code" href="@docHref">@a.DocName</a>
-                                <span class="doc-sub">@T[item.DocTypeTitle]@(!string.IsNullOrWhiteSpace(item.DocTitle) && !string.Equals(item.DocTitle, a.DocName, StringComparison.OrdinalIgnoreCase) ? $" · {item.DocTitle}" : "")</span>
-                                <BbBadge Variant="@PriorityBadge(a.Priority)">@T[a.Priority.ToString()]</BbBadge>
-                            </div>
-                            @if (!string.IsNullOrWhiteSpace(a.Description))
-                            {
-                                <div class="my-task-note">@a.Description</div>
-                            }
-                        </div>
-                        <div class="my-task-meta">
-                            <span class="my-task-due @DueClass(a, today)">@DueLabel(a, today)</span>
-                            <button type="button"
-                                    class="desk-act-btn outline"
-                                    disabled="@completingTask"
-                                    @onclick="() => CompleteTaskAsync(a.Id)">
-                                <LucideIcon Name="check" Size="14" /> <span style="margin-left:.25rem">@T["Done"]</span>
+            <DynamicComponent Type="p.Component" @key="p.Id" />
+        }
+    }
+
+    <div class="home-grid">
+        <div class="home-main">
+            @if (!IsApprover)
+            {
+                @RenderPersonal()
+            }
+
+            @if (queue is null)
+            {
+                <div class="stack"><BbSkeleton Height="3rem" /><BbSkeleton Height="3rem" /></div>
+            }
+            else if (queue.Count > 0 || doneItems.Count > 0)
+            {
+                <section id="approvals" class="home-section" aria-label="@T["Needs your action"]">
+                    <div class="section-head-row">
+                        <h2>@T["Needs your action"]</h2>
+                    </div>
+                    <div class="home-tabs" role="tablist">
+                        <button type="button" role="tab" class="home-tab @(activeGroup is null ? "active" : "")" aria-selected="@(activeGroup is null)" @onclick="() => SelectGroup(null)">
+                            @T["All"] <span class="home-tab-count">@queue.Count</span>
+                        </button>
+                        @foreach (var g in queue.GroupBy(i => i.Group).OrderBy(g => g.Key, StringComparer.Ordinal))
+                        {
+                            var key = g.Key;
+                            <button type="button" role="tab" class="home-tab @(activeGroup == key ? "active" : "")" aria-selected="@(activeGroup == key)" @onclick="() => SelectGroup(key)">
+                                @T[GroupLabel(key)] <span class="home-tab-count">@g.Count()</span>
                             </button>
-                        </div>
+                        }
+                    </div>
+                    <div class="desk-table-card">
+                        @{
+                            var rows = queue.Where(i => activeGroup is null || i.Group == activeGroup).ToList();
+                            var now = Clock.GetUtcNow();
+                        }
+                        @if (rows.Count == 0 && doneItems.Count == 0)
+                        {
+                            <div class="desk-empty-box">@T["Nothing waiting in this category."]</div>
+                        }
+                        @foreach (var done in doneItems)
+                        {
+                            <div class="home-approval-row done">
+                                <div class="home-approval-main">
+                                    <span class="doc-code">@done.Name</span>
+                                    <span class="doc-sub">@done.Label</span>
+                                </div>
+                            </div>
+                        }
+                        @foreach (var item in rows.Take(showAllApprovals ? rows.Count : 8))
+                        {
+                            var href = $"/app/{Uri.EscapeDataString(item.Meta.Name)}/{Uri.EscapeDataString(item.Doc.Name)}";
+                            var key = Key(item);
+                            <div class="home-approval-row" @key="key">
+                                <div class="home-approval-main">
+                                    <div class="home-approval-title">
+                                        <a class="doc-code" href="@href">@item.Doc.Name</a>
+                                        <span class="doc-sub">@T.Title(item.Meta)</span>
+                                        <span class="home-age @HomeClock.AgeTone(item.WaitingSince, now)" title="@T["Waiting since the last change"]">@T.Format("waiting {0}", Age(item.WaitingSince, now))</span>
+                                    </div>
+                                    <div class="home-approval-sub">
+                                        @string.Join(" · ", new[] { item.Requester, item.Summary }.Where(s => !string.IsNullOrWhiteSpace(s)))
+                                    </div>
+                                </div>
+                                @if (item.Amount is { } amt)
+                                {
+                                    <div class="home-approval-amount">@amt</div>
+                                }
+                                <div class="home-approval-actions">
+                                    @if (commentFor == key)
+                                    {
+                                        <input class="home-comment" placeholder="@T["Reason (required)"]" @bind="comment" @bind:event="oninput" aria-label="@T["Reason"]" />
+                                        <button type="button" class="desk-act-btn @(ToneClass(pendingAction?.Tone))" disabled="@(busy || string.IsNullOrWhiteSpace(comment))" @onclick="() => RunAsync(item, pendingAction!, comment)">@T[pendingAction!.Action]</button>
+                                        <button type="button" class="desk-act-btn outline" disabled="@busy" @onclick="CancelComment">@T["Cancel"]</button>
+                                    }
+                                    else
+                                    {
+                                        @foreach (var a in item.Actions.OrderBy(a => a.Tone == "positive" ? 0 : a.Tone == "negative" ? 2 : 1).Take(3))
+                                        {
+                                            var action = a;
+                                            <button type="button" class="desk-act-btn @(ToneClass(a.Tone))" disabled="@busy" title="@(T.Format("Move to {0}", T[a.ToState]))"
+                                                    @onclick="() => ActAsync(item, action)">@T[a.Action]</button>
+                                        }
+                                        @if (item.Actions.Count > 3)
+                                        {
+                                            <a class="desk-act-btn outline" href="@href">@T["More"]</a>
+                                        }
+                                    }
+                                </div>
+                            </div>
+                        }
+                        @if (!showAllApprovals && rows.Count > 8)
+                        {
+                            <button type="button" class="home-more" @onclick="() => showAllApprovals = true">@T.Format("Show all ({0})", rows.Count)</button>
+                        }
+                    </div>
+                </section>
+            }
+
+            @if (IsApprover)
+            {
+                @RenderPersonal()
+            }
+
+            <section class="home-section" aria-label="@T["My Tasks"]">
+                <div class="section-head-row">
+                    <h2>@T["My Tasks"]</h2>
+                    <div class="home-task-pills">
+                        <a class="my-tasks-pill" href="/tasks"><span>@T["Open"]</span> <strong>@taskCounts.Open</strong></a>
+                        <a class="my-tasks-pill" href="/tasks"><span>@T["Due Today"]</span> <strong>@taskCounts.DueToday</strong></a>
+                        <a class="my-tasks-pill @(taskCounts.Overdue > 0 ? "overdue" : "")" href="/tasks"><span>@T["Overdue"]</span> <strong>@taskCounts.Overdue</strong></a>
+                    </div>
+                </div>
+
+                @if (myTasks is null)
+                {
+                    <div class="stack"><BbSkeleton Height="3rem" /><BbSkeleton Height="3rem" /></div>
+                }
+                else if (myTasks.Count == 0)
+                {
+                    <div class="desk-table-card desk-empty-box">
+                        <div>@T["You're all caught up — no pending tasks assigned to you."]</div>
+                        <a class="section-link" href="/tasks">@T["Open the task list"]</a>
                     </div>
                 }
-            </div>
-        }
-    </section>
+                else
+                {
+                    <div class="desk-table-card">
+                        @foreach (var item in myTasks)
+                        {
+                            var a = item.Assignment;
+                            var today = AssignmentsSvc.Today;
+                            var docHref = $"/app/{a.DocType}/{a.DocName}";
+                            <div class="my-task-row">
+                                <div class="my-task-main">
+                                    <div class="my-task-title">
+                                        <a class="doc-code" href="@docHref">@a.DocName</a>
+                                        <span class="doc-sub">@T[item.DocTypeTitle]@(!string.IsNullOrWhiteSpace(item.DocTitle) && !string.Equals(item.DocTitle, a.DocName, StringComparison.OrdinalIgnoreCase) ? $" · {item.DocTitle}" : "")</span>
+                                        <BbBadge Variant="@PriorityBadge(a.Priority)">@T[a.Priority.ToString()]</BbBadge>
+                                    </div>
+                                    @if (!string.IsNullOrWhiteSpace(a.Description))
+                                    {
+                                        <div class="my-task-note">@a.Description</div>
+                                    }
+                                </div>
+                                <div class="my-task-meta">
+                                    <span class="my-task-due @DueClass(a, today)">@DueLabel(a, today)</span>
+                                    <button type="button" class="desk-act-btn outline" disabled="@completingTask" @onclick="() => CompleteTaskAsync(a.Id)">
+                                        <LucideIcon Name="check" Size="14" /> <span style="margin-left:.25rem">@T["Done"]</span>
+                                    </button>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </section>
 
-    <section id="recent-docs" class="recent-docs-section" aria-label="@(T["Recent documents"])">
-        <div class="section-head-row">
-            <h2>@T["Recent documents"]</h2>
-            <a class="section-link" href="@SeeAllHref">@T["View all"]</a>
+            <section class="home-section" aria-label="@T["My recent documents"]">
+                <div class="section-head-row">
+                    <h2>@T["My recent documents"]</h2>
+                </div>
+                @if (recentDocs is null)
+                {
+                    <div class="stack"><BbSkeleton Height="3rem" /><BbSkeleton Height="3rem" /><BbSkeleton Height="3rem" /></div>
+                }
+                else if (recentDocs.Count == 0)
+                {
+                    <div class="desk-table-card desk-empty-box">
+                        <div>@T["No transaction documents recorded yet."]</div>
+                        @if (quickActions.Count > 0)
+                        {
+                            <a class="desk-act-btn primary" href="@quickActions[0].Href"><LucideIcon Name="plus" Size="14" /> @T[quickActions[0].Label]</a>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="desk-table-card">
+                        <table class="desk-doc-table">
+                            <thead>
+                                <tr>
+                                    <th>@T["Document"]</th>
+                                    <th>@T["Type"]</th>
+                                    <th>@T["Party / title"]</th>
+                                    <th class="num">@T["Amount"]</th>
+                                    <th>@T["Status"]</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var (meta, doc, _) in recentDocs)
+                                {
+                                    var docHref = $"/app/{Uri.EscapeDataString(meta.Name)}/{Uri.EscapeDataString(doc.Name)}";
+                                    var (party, summary, amount) = HomeFeed.Describe(meta, doc);
+                                    <tr class="clickable" @onclick="@(() => Nav.NavigateTo(docHref))">
+                                        <td><a class="doc-code" href="@docHref" @onclick:stopPropagation="true">@doc.Name</a></td>
+                                        <td class="doc-sub">@T.Title(meta)</td>
+                                        <td class="doc-requester">@(party ?? summary ?? "—")</td>
+                                        <td class="num doc-total">@(amount ?? "—")</td>
+                                        <td>
+                                            <span class="desk-status-pill @StatusPillClass(meta, doc)">
+                                                <span class="dot" aria-hidden="true"></span>
+                                                <span>@T.State(doc.WorkflowState, doc.DocStatus)</span>
+                                            </span>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </section>
+
+            @if (Current.User is { } mainUser)
+            {
+                @foreach (var p in Registry.PanelsFor(mainUser, HomeSlot.Main))
+                {
+                    <DynamicComponent Type="p.Component" @key="p.Id" />
+                }
+            }
         </div>
 
-        @if (recentDocs is null)
-        {
-            <div class="stack"><BbSkeleton Height="3rem" /><BbSkeleton Height="3rem" /><BbSkeleton Height="3rem" /></div>
-        }
-        else if (recentDocs.Count == 0)
-        {
-            <div class="desk-table-card desk-empty-box">
-                @T["No transaction documents recorded yet."]
-            </div>
-        }
-        else
-        {
-            <div class="desk-table-card">
-                <table class="desk-doc-table">
-                    <thead>
-                        <tr>
-                            <th>@T["Document"]</th>
-                            <th>@T["Requester / title"]</th>
-                            <th class="num">@T["Total"]</th>
-                            <th>@T["Status"]</th>
-                            <th class="act-col">@T["Available actions"]</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var (meta, doc, actions) in recentDocs)
+        <aside class="home-side">
+            @if (kpis.Count > 0)
+            {
+                <section class="home-card" aria-label="@T["Today's numbers"]">
+                    <div class="section-head-row">
+                        <h2>@T["Today's numbers"]</h2>
+                        <a class="section-link" href="@kpis[0].Href">@T["Dashboard"]</a>
+                    </div>
+                    <div class="home-kpis">
+                        @foreach (var k in kpis)
                         {
-                            var docHref = $"/app/{meta.Name}/{doc.Name}";
-                            var (btnText, isPrimary, btnTooltip) = DescribeAction(actions);
-                            <tr class="clickable" @onclick="@(() => Nav.NavigateTo(docHref))">
-                                <td>
-                                    <a class="doc-code" href="@docHref" @onclick:stopPropagation="true">@doc.Name</a>
-                                    <div class="doc-sub">@T.Title(meta)</div>
-                                </td>
-                                <td class="doc-requester">@ResolveTitle(meta, doc)</td>
-                                <td class="num doc-total">@(meta.ByName.TryGetValue("total", out var tf2) ? T.Value(tf2, doc.Get("total")) : "—")</td>
-                                <td>
-                                    <span class="desk-status-pill @StatusPillClass(meta, doc)">
-                                        <span class="dot" aria-hidden="true"></span>
-                                        <span>@T.State(doc.WorkflowState, doc.DocStatus)</span>
-                                    </span>
-                                </td>
-                                <td class="act-col" @onclick:stopPropagation="true">
-                                    <a class="desk-act-btn @(isPrimary ? "primary" : "outline")" href="@docHref" title="@(T[btnTooltip])">
-                                        @T[btnText]
-                                    </a>
-                                </td>
-                            </tr>
+                            <a class="home-kpi" href="@k.Href"><span>@T[k.Title]</span><strong>@k.Value</strong></a>
                         }
-                    </tbody>
-                </table>
-            </div>
-        }
-    </section>
+                    </div>
+                </section>
+            }
+
+            @if (jobs.Count > 0)
+            {
+                <section class="home-card" aria-label="@T["Running jobs"]">
+                    <div class="section-head-row">
+                        <h2>@T["Running jobs"]</h2>
+                        <a class="section-link" href="/jobs">@T["All jobs"]</a>
+                    </div>
+                    @foreach (var j in jobs)
+                    {
+                        <div class="home-job">
+                            <div class="home-job-title"><span>@j.Title</span><span class="muted small">@(j.Status == BackgroundTaskStatus.Queued ? T["Queued"] : $"{j.Progress}%")</span></div>
+                            <div class="job-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@j.Progress"><span style="width:@(j.Progress)%"></span></div>
+                        </div>
+                    }
+                </section>
+            }
+
+            <section class="home-card" aria-label="@T["Bookmarks & following"]">
+                <div class="section-head-row">
+                    <h2>@T["Bookmarks & following"]</h2>
+                    @if (saved.Count > 0)
+                    {
+                        <a class="section-link" href="/bookmarks">@T["View all"]</a>
+                    }
+                </div>
+                @if (saved.Count == 0)
+                {
+                    <div class="home-empty-small">@T["Star a document or follow it to keep it here."]</div>
+                }
+                else
+                {
+                    <ul class="home-list">
+                        @foreach (var s in saved)
+                        {
+                            <li>
+                                <a href="/app/@Uri.EscapeDataString(s.DocType)/@Uri.EscapeDataString(s.Name)">@(string.IsNullOrWhiteSpace(s.Title) ? s.Name : s.Title)</a>
+                                <span class="muted small">@T[s.DocTypeTitle]</span>
+                            </li>
+                        }
+                    </ul>
+                }
+            </section>
+
+            @if (Current.User is { } sideUser)
+            {
+                @foreach (var p in Registry.PanelsFor(sideUser, HomeSlot.Side))
+                {
+                    <DynamicComponent Type="p.Component" @key="p.Id" />
+                }
+            }
+        </aside>
+    </div>
 </div>
 
 @code {
-    private IReadOnlyList<(CompiledDocType Meta, Document Doc, IReadOnlyList<string> Actions)>? pending;
+    private IReadOnlyList<HomeApprovalItem>? queue;
+    private readonly List<(string Name, string Label)> doneItems = [];
     private IReadOnlyList<(CompiledDocType Meta, Document Doc, IReadOnlyList<string> Actions)>? recentDocs;
     private IReadOnlyList<TaskItem>? myTasks;
     private AssignmentCounts taskCounts = new(0, 0, 0);
+    private IReadOnlyList<HomeQuickAction> quickActions = [];
+    private IReadOnlyList<HomeKpi> kpis = [];
+    private IReadOnlyList<BackgroundTask> jobs = [];
+    private IReadOnlyList<SavedDocument> saved = [];
+    private HashSet<string> dismissed = new(StringComparer.Ordinal);
+    private bool showTwoFactorNudge;
+    private bool loaded;
     private bool completingTask;
-    private IReadOnlyList<NavigationModule> visibleModules = [];
-    private string? activeModuleId;
+    private bool busy;
+    private bool showAllApprovals;
+    private string? activeGroup;
+    private string? commentFor;
+    private ActionView? pendingAction;
+    private string comment = "";
     private int unreadCount;
     private IDisposable? liveSub;
 
-    private string SeeAllHref =>
-        recentDocs is { Count: > 0 } ? $"/app/{recentDocs[0].Meta.Name}"
-        : Metadata.Current.TryGet("PurchaseRequest", out var pr) && Perms.Can(Current.Required, pr, DocActions.Read) ? "/app/PurchaseRequest"
-        : "/inbox";
+    /// <summary>Users with approvals waiting see the queue first; everyone else sees their own day first.</summary>
+    private bool IsApprover => queue is { Count: > 0 };
 
     protected override async Task OnInitializedAsync()
     {
-        Current.ModuleChanged += OnModuleChanged;
         MenuStore.Changed += OnMenusChanged;
         if (Current.User is { } u)
         {
@@ -198,6 +413,7 @@
             {
                 await RefreshTasksAsync();
                 unreadCount = Notifications.ForUser(u.TenantId, u.Id).Count(n => !n.Read);
+                queue = await Feed.ApprovalQueueAsync(u);
                 StateHasChanged();
             }));
         }
@@ -207,106 +423,174 @@
     private async Task LoadDataAsync()
     {
         if (Current.User is not { } u) return;
-        var allModules = await MenuStore.ListModulesAsync(u.TenantId, onlyActive: true);
-        visibleModules = allModules.Where(m => m.IsVisibleFor(u)).OrderBy(m => m.SortOrder).ThenBy(m => m.Name).ToList();
+        await EnsureActiveModuleAsync(u);
 
-        if (string.IsNullOrWhiteSpace(Current.ActiveModuleId) || !visibleModules.Any(m => m.Id == Current.ActiveModuleId))
-        {
-            if (visibleModules.Count > 0)
-            {
-                Current.SetActiveModule(visibleModules[0].Id);
-            }
-        }
-        activeModuleId = Current.ActiveModuleId;
-
+        quickActions = Registry.QuickActionsFor(u);
         unreadCount = Notifications.ForUser(u.TenantId, u.Id).Count(n => !n.Read);
-        await RefreshTasksAsync();
-        pending = await Docs.PendingActionsAsync(u);
-        var recent = await Docs.RecentDocumentsAsync(u, limit: 6);
 
-        // Merge pending actions and recent documents without duplicates, ordered by newest document name/modification.
-        var combined = pending
-            .Concat(recent)
-            .GroupBy(x => (x.Meta.Name, x.Doc.Name))
-            .Select(g => g.First())
-            .OrderByDescending(x => x.Doc.Modified)
-            .ThenByDescending(x => x.Doc.Name)
-            .Take(6)
-            .ToList();
-        recentDocs = combined;
+        var dismissedTask = HomePreferences.DismissedAsync(Prefs, u);
+        var tasksTask = RefreshTasksAsync();
+        var queueTask = Feed.ApprovalQueueAsync(u);
+        var recentTask = Docs.RecentDocumentsAsync(u, limit: 6);
+        var kpisTask = Feed.KpisAsync(u);
+        var jobsTask = Feed.ActiveJobsAsync(u);
+        var savedTask = Feed.SavedAsync(u);
+        var twoFactorTask = NeedsTwoFactorAsync();
+
+        await Task.WhenAll(dismissedTask, tasksTask, queueTask, recentTask, kpisTask, jobsTask, savedTask, twoFactorTask);
+
+        dismissed = await dismissedTask;
+        queue = await queueTask;
+        recentDocs = await recentTask;
+        kpis = await kpisTask;
+        jobs = await jobsTask;
+        saved = await savedTask;
+        showTwoFactorNudge = !dismissed.Contains("two-factor") && await twoFactorTask;
+        loaded = true;
     }
 
-    private void OnModuleChanged()
+    /// <summary>The sidebar shows the active module's menu: pick the first visible module when none (or a hidden one) is active.</summary>
+    private async Task EnsureActiveModuleAsync(UserContext u)
     {
-        activeModuleId = Current.ActiveModuleId;
-        _ = InvokeAsync(StateHasChanged);
+        var modules = (await MenuStore.ListModulesAsync(u.TenantId, onlyActive: true))
+            .Where(m => m.IsVisibleFor(u)).OrderBy(m => m.SortOrder).ThenBy(m => m.Name).ToList();
+        if (modules.Count > 0 && (string.IsNullOrWhiteSpace(Current.ActiveModuleId) || modules.All(m => m.Id != Current.ActiveModuleId)))
+            Current.SetActiveModule(modules[0].Id);
     }
 
-    private void OnMenusChanged()
+    /// <summary>
+    /// A password-only account (no authenticator, no single sign-on) is nudged to enrol. Users whose role requires
+    /// two-factor never get here without it: the middleware sends them to enrolment first.
+    /// </summary>
+    private async Task<bool> NeedsTwoFactorAsync()
     {
-        _ = InvokeAsync(async () =>
+        // Optional services: hosts without the identity module (tests, tools) simply get no nudge.
+        if (Services.GetService(typeof(AuthenticationStateProvider)) is not AuthenticationStateProvider auth) return false;
+        var principal = (await auth.GetAuthenticationStateAsync()).User;
+        if (principal.Identity?.IsAuthenticated != true || principal.HasClaim(c => c.Type == ApiKeyDefaults.KeyIdClaim)) return false;
+        var trustSso = (Services.GetService(typeof(IOptionsMonitor<TwoFactorOptions>)) as IOptionsMonitor<TwoFactorOptions>)?.CurrentValue.TrustSingleSignOn ?? true;
+        return !TwoFactorSetup.HasSecondFactor(principal, trustSso);
+    }
+
+    private async Task DismissTwoFactorAsync()
+    {
+        showTwoFactorNudge = false;
+        if (Current.User is not { } u) return;
+        dismissed.Add("two-factor");
+        await HomePreferences.DismissAsync(Prefs, u, "two-factor");
+    }
+
+    private void OnMenusChanged() => _ = InvokeAsync(async () => { await LoadDataAsync(); StateHasChanged(); });
+
+    private string HomeDate()
+    {
+        var culture = T.Language == "id" ? CultureInfo.GetCultureInfo("id-ID") : CultureInfo.GetCultureInfo("en-GB");
+        return HomeClock.LocalNow(Clock).ToString("dddd, d MMMM yyyy", culture);
+    }
+
+    private string FirstName(string? fullName) =>
+        string.IsNullOrWhiteSpace(fullName) ? T["User"] : fullName.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0];
+
+    private static string Key(HomeApprovalItem i) => i.Meta.Name + "/" + i.Doc.Name;
+
+    private string GroupLabel(string module) => module.Length <= 4 ? module.ToUpperInvariant() : char.ToUpperInvariant(module[0]) + module[1..].ToLowerInvariant();
+
+    private void SelectGroup(string? group)
+    {
+        activeGroup = group;
+        showAllApprovals = false;
+        CancelComment();
+    }
+
+    private string Age(DateTimeOffset since, DateTimeOffset now)
+    {
+        var span = now - since;
+        if (span.TotalMinutes < 60) return T.Format("{0} min", Math.Max(1, (int)span.TotalMinutes));
+        if (span.TotalHours < 24) return T.Format("{0} h", (int)span.TotalHours);
+        return T.Format("{0} d", (int)span.TotalDays);
+    }
+
+    private static string ToneClass(string? tone) => tone switch
+    {
+        "positive" => "primary",
+        "negative" => "outline danger",
+        _ => "outline",
+    };
+
+    private async Task ActAsync(HomeApprovalItem item, ActionView action)
+    {
+        if (action.RequireComment)
         {
-            await LoadDataAsync();
-            StateHasChanged();
-        });
-    }
-
-    private string GreetingText()
-    {
-        var hour = Clock.GetLocalNow().Hour;
-        return hour switch
-        {
-            >= 4 and < 11 => "Good morning",
-            >= 11 and < 15 => "Good afternoon",
-            >= 15 and < 19 => "Good evening",
-            _ => "Good evening"
-        };
-    }
-
-    private string FirstName(string fullName)
-    {
-        if (string.IsNullOrWhiteSpace(fullName)) return T["User"];
-        return fullName.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0];
-    }
-
-    private static string ResolveTitle(CompiledDocType meta, Document doc)
-    {
-        if (meta.Def.ListView.TitleField is { } tf)
-        {
-            var val = Fmt.Value(null, doc.Get(tf));
-            if (!string.IsNullOrWhiteSpace(val) && val != "—") return val;
+            commentFor = Key(item);
+            pendingAction = action;
+            comment = "";
+            return;
         }
-        return doc.Owner;
+        await RunAsync(item, action, null);
     }
 
-    private static string StatusPillClass(CompiledDocType meta, Document doc)
+    private void CancelComment()
     {
-        var tone = Fmt.Tone(meta, doc);
-        return tone switch
+        commentFor = null;
+        pendingAction = null;
+        comment = "";
+    }
+
+    private async Task RunAsync(HomeApprovalItem item, ActionView action, string? text)
+    {
+        if (busy || Current.User is not { } u) return;
+        if (action.RequireComment && string.IsNullOrWhiteSpace(text)) return;
+        busy = true;
+        try
         {
-            "positive" => "tone-positive",
-            "pending" => "tone-pending",
-            "negative" => "tone-negative",
-            _ => doc.DocStatus == 0 ? "tone-warning" : "tone-neutral"
-        };
+            var doc = await Feed.RunAsync(u, item, action.Action, text);
+            doneItems.Insert(0, (doc.Name, T.Format("{0} → {1}", T[action.Action], T.State(doc.WorkflowState, doc.DocStatus))));
+            if (doneItems.Count > 3) doneItems.RemoveAt(doneItems.Count - 1);
+            Toasts.Success(T.Format("{0}: {1}", doc.Name, T.State(doc.WorkflowState, doc.DocStatus)), T[action.Action]);
+            CancelComment();
+            queue = await Feed.ApprovalQueueAsync(u);
+        }
+        catch (Exception ex)
+        {
+            // A version conflict or a failed condition: show the reason and reload the queue so the row reflects the stored document.
+            Toasts.Error(T.Message(ex.Message), T["Error"]);
+            queue = await Feed.ApprovalQueueAsync(u);
+        }
+        finally
+        {
+            busy = false;
+        }
     }
 
-    private (string Label, bool IsPrimary, string Tooltip) DescribeAction(IReadOnlyList<string> actions)
+    private RenderFragment RenderPersonal() => builder =>
     {
-        if (actions.Count == 0)
-            return ("View", false, "Open document details");
-        if (actions.Count == 1 && (string.Equals(actions[0], "Batalkan", StringComparison.OrdinalIgnoreCase) || string.Equals(actions[0], "Cancel", StringComparison.OrdinalIgnoreCase)))
-            return ("Cancel", false, "Cancel document");
-        if (actions.Count == 1 && (string.Equals(actions[0], "Ajukan", StringComparison.OrdinalIgnoreCase) || string.Equals(actions[0], "Submit", StringComparison.OrdinalIgnoreCase)))
-            return ("Submit", true, "Submit document for approval");
-        return ("Review", true, string.Join(" · ", actions.Select(a => T[a])));
-    }
+        if (Current.User is not { } u) return;
+        var seq = 0;
+        foreach (var p in Registry.PanelsFor(u, HomeSlot.Personal))
+        {
+            builder.OpenComponent<DynamicComponent>(seq++);
+            builder.SetKey(p.Id);
+            builder.AddAttribute(seq++, nameof(DynamicComponent.Type), p.Component);
+            builder.CloseComponent();
+        }
+    };
+
+    private static string StatusPillClass(CompiledDocType meta, Document doc) => Fmt.Tone(meta, doc) switch
+    {
+        "positive" => "tone-positive",
+        "pending" => "tone-pending",
+        "negative" => "tone-negative",
+        _ => doc.DocStatus == 0 ? "tone-warning" : "tone-neutral"
+    };
 
     private async Task RefreshTasksAsync()
     {
         if (Current.User is not { } u) return;
-        taskCounts = await AssignmentsSvc.CountMyTasksAsync(u);
-        myTasks = await AssignmentsSvc.ListMyTasksAsync(u, AssignmentStatus.Open, take: 5);
+        var countsTask = AssignmentsSvc.CountMyTasksAsync(u);
+        var listTask = AssignmentsSvc.ListMyTasksAsync(u, AssignmentStatus.Open, take: 5);
+        await Task.WhenAll(countsTask, listTask);
+        taskCounts = await countsTask;
+        myTasks = await listTask;
     }
 
     private async Task CompleteTaskAsync(Guid id)
@@ -352,7 +636,6 @@
     public void Dispose()
     {
         liveSub?.Dispose();
-        Current.ModuleChanged -= OnModuleChanged;
         MenuStore.Changed -= OnMenusChanged;
     }
 }

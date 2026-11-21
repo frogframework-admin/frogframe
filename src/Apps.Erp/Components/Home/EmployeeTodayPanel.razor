@@ -1,0 +1,123 @@
+@using System.Globalization
+@using Apps.Erp.Home
+@using Apps.Erp.Ess
+@using Framework.Localization
+@inject ErpHomeService Home
+@inject CurrentUser Current
+@inject ToastService Toasts
+@inject UiText T
+
+@* Home page, "Personal" slot: the signed-in employee's shift, attendance, leave balance and latest payslip. *@
+@if (today is { } d)
+{
+    <section class="home-section" aria-label="@T["My day"]">
+        <div class="section-head-row"><h2>@T["My day"]</h2></div>
+        <div class="home-today">
+            <div class="home-tile">
+                <span>@T["Today"]@(d.ShiftName is { } s ? $" · {s}" : "")</span>
+                @if (d.IsHoliday)
+                {
+                    <strong>@T["Public holiday"]</strong>
+                }
+                else if (d.ShiftStart is not null)
+                {
+                    <strong>@d.ShiftStart – @(d.ShiftEnd ?? "?")</strong>
+                }
+                else
+                {
+                    <strong>@T["No shift scheduled"]</strong>
+                }
+                <span>
+                    @if (d.CheckIn is { } ci)
+                    {
+                        @T.Format("In {0}", ci)@(d.CheckOut is { } co ? " · " + T.Format("out {0}", co) : "")
+                    }
+                    else
+                    {
+                        @T["Not checked in yet"]
+                    }
+                </span>
+                @if (d.CanPunchFromWeb)
+                {
+                    var type = d.LastPunchType == "in" ? "out" : "in";
+                    <button type="button" class="desk-act-btn primary" disabled="@busy" @onclick="() => PunchAsync(type)">
+                        @(type == "in" ? T["Check in now"] : T["Check out"])
+                    </button>
+                }
+                else if (d.WebPunchNote is { } note && d.CheckIn is null)
+                {
+                    <span class="muted small">@T[note]</span>
+                }
+            </div>
+
+            <a class="home-tile" href="/app/LeaveApplication" style="text-decoration:none">
+                <span>@T["Leave balance"]</span>
+                @if (d.LeaveBalances.Count == 0)
+                {
+                    <strong>—</strong>
+                    <span>@T["No leave allocation for this period."]</span>
+                }
+                else
+                {
+                    var main = d.LeaveBalances[0];
+                    <strong>@T.Format("{0} of {1} days", Num(main.Balance), Num(main.Allocated))</strong>
+                    <span>@T[main.LeaveType]@(main.Pending > 0 ? " · " + T.Format("{0} days pending", Num(main.Pending)) : "")</span>
+                    @foreach (var other in d.LeaveBalances.Skip(1).Take(2))
+                    {
+                        <span>@T[other.LeaveType]: @T.Format("{0} days", Num(other.Balance))</span>
+                    }
+                }
+            </a>
+
+            <div class="home-tile">
+                <span>@T["Latest payslip"]</span>
+                @if (d.PayslipName is { } slip)
+                {
+                    <strong>@d.PayslipPeriod</strong>
+                    <span>@T["Net pay"]: @d.PayslipNetPay</span>
+                    <a class="desk-act-btn outline" href="/api/print/Payslip/@Uri.EscapeDataString(slip)/pdf" target="_blank" rel="noopener">@T["View / download PDF"]</a>
+                }
+                else
+                {
+                    <strong>—</strong>
+                    <span>@T["No payslip yet."]</span>
+                }
+            </div>
+        </div>
+    </section>
+}
+
+@code {
+    private EmployeeToday? today;
+    private bool busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Current.User is { } u) today = await Home.TodayAsync(u);
+    }
+
+    private static string Num(decimal? v) => v is { } x ? x.ToString("0.#", CultureInfo.InvariantCulture) : "—";
+
+    private async Task PunchAsync(string type)
+    {
+        if (busy || Current.User is not { } u) return;
+        busy = true;
+        try
+        {
+            var r = await Home.PunchFromWebAsync(u, type);
+            if (r.Punch.Status == EssPunchStatus.Rejected)
+                Toasts.Error(string.Join(" ", r.Punch.Reasons.Select(code => T[EssReason.Message(code)])), T["Attendance not recorded"]);
+            else
+                Toasts.Success(type == "in" ? T["Checked in."] : T["Checked out."], T["Attendance"]);
+            today = await Home.TodayAsync(u);
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error(T.Message(ex.Message), T["Error"]);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+}

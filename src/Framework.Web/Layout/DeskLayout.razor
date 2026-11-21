@@ -334,36 +334,39 @@
                 </button>
             </div>
         </header>
-        <div class="page-top-bar">
-            <div class="crumbs-trail">
-                @{
-                    var crumbs = GetBreadcrumbs();
-                }
-                <a href="" class="@(crumbs.Count == 0 ? "crumb-item crumb-home crumb-active" : "crumb-item crumb-home")" title="@(T["Home"])">
-                    <LucideIcon Name="house" Size="14" />
-                </a>
-                @foreach (var crumb in crumbs)
-                {
-                    <LucideIcon Name="chevron-right" Size="13" Class="crumb-sep" />
-                    @if (crumb.OnClick is not null)
-                    {
-                        <button type="button" class="crumb-link" @onclick="crumb.OnClick">@T[crumb.Label]</button>
+        @if (!IsHomePage)
+        {
+            <div class="page-top-bar">
+                <div class="crumbs-trail">
+                    @{
+                        var crumbs = GetBreadcrumbs();
                     }
-                    else if (!string.IsNullOrEmpty(crumb.Href))
+                    <a href="" class="@(crumbs.Count == 0 ? "crumb-item crumb-home crumb-active" : "crumb-item crumb-home")" title="@(T["Home"])">
+                        <LucideIcon Name="house" Size="14" />
+                    </a>
+                    @foreach (var crumb in crumbs)
                     {
-                        <a href="@crumb.Href" class="crumb-link">@T[crumb.Label]</a>
+                        <LucideIcon Name="chevron-right" Size="13" Class="crumb-sep" />
+                        @if (crumb.OnClick is not null)
+                        {
+                            <button type="button" class="crumb-link" @onclick="crumb.OnClick">@T[crumb.Label]</button>
+                        }
+                        else if (!string.IsNullOrEmpty(crumb.Href))
+                        {
+                            <a href="@crumb.Href" class="crumb-link">@T[crumb.Label]</a>
+                        }
+                        else if (crumb.IsActive)
+                        {
+                            <span class="crumb-item crumb-active">@T[crumb.Label]</span>
+                        }
+                        else
+                        {
+                            <span class="crumb-item">@T[crumb.Label]</span>
+                        }
                     }
-                    else if (crumb.IsActive)
-                    {
-                        <span class="crumb-item crumb-active">@T[crumb.Label]</span>
-                    }
-                    else
-                    {
-                        <span class="crumb-item">@T[crumb.Label]</span>
-                    }
-                }
+                </div>
             </div>
-        </div>
+        }
         @if (!Connectivity.Current.IsAllHealthy)
         {
             var connSnap = Connectivity.Current;
@@ -995,6 +998,19 @@
         .OrderBy(i => i.Order);
 
     private sealed record Crumb(string Label, string? Href = null, bool IsActive = false, Action? OnClick = null);
+
+    private bool IsHomePage
+    {
+        get
+        {
+            var rel = Nav.ToBaseRelativePath(Nav.Uri).Trim('/');
+            var queryIdx = rel.IndexOf('?');
+            if (queryIdx >= 0) rel = rel.Substring(0, queryIdx);
+            var hashIdx = rel.IndexOf('#');
+            if (hashIdx >= 0) rel = rel.Substring(0, hashIdx);
+            return string.IsNullOrEmpty(rel.Trim('/'));
+        }
+    }
 
     private IReadOnlyList<Crumb> GetBreadcrumbs()
     {

@@ -1,0 +1,51 @@
+@using Apps.Erp.Home
+@using Framework.Localization
+@inject ErpHomeService Home
+@inject CurrentUser Current
+@inject UiText T
+
+@* Home page, "Personal" slot: the employee's latest leave, overtime, expense, advance and shift swap requests. *@
+@if (requests is not null)
+{
+    <section class="home-section" aria-label="@T["My requests"]">
+        <div class="section-head-row"><h2>@T["My requests"]</h2></div>
+        @if (requests.Count == 0)
+        {
+            <div class="desk-table-card desk-empty-box">
+                <div>@T["You have not submitted any requests yet."]</div>
+                <a class="desk-act-btn primary" href="/app/LeaveApplication/new"><LucideIcon Name="plus" Size="14" /> @T["Apply for leave"]</a>
+            </div>
+        }
+        else
+        {
+            <div class="desk-table-card">
+                @foreach (var r in requests)
+                {
+                    var href = $"/app/{Uri.EscapeDataString(r.DocType)}/{Uri.EscapeDataString(r.Name)}";
+                    <div class="home-approval-row">
+                        <div class="home-approval-main">
+                            <div class="home-approval-title">
+                                <a class="doc-code" href="@href">@r.Name</a>
+                                <span class="doc-sub">@T[r.DocTypeTitle]</span>
+                            </div>
+                            <div class="home-approval-sub">@r.Summary</div>
+                        </div>
+                        <span class="desk-status-pill tone-@(r.Tone == "neutral" && r.DocStatus == 0 ? "warning" : r.Tone)">
+                            <span class="dot" aria-hidden="true"></span>
+                            <span>@T.State(r.WorkflowState, r.DocStatus)</span>
+                        </span>
+                    </div>
+                }
+            </div>
+        }
+    </section>
+}
+
+@code {
+    private IReadOnlyList<MyRequest>? requests;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Current.User is { } u) requests = await Home.MyRequestsAsync(u);
+    }
+}

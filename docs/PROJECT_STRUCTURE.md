@@ -311,7 +311,7 @@ src/Framework.Web/
 │   ├── ApiKeysAdmin.razor       # /admin/api-keys — API key & integration account management
 │   ├── Dashboard.razor          # /dashboard — Interactive SQL dashboard with global filters
 │   ├── DashboardWidgetWizard.razor # /admin/widgets/new & /{id}/edit — 4-step SQL widget builder
-│   ├── Desk.razor               # / — Home workspace with module cards and inbox
+│   ├── Desk.razor               # / — Home: approvals with inline actions, tasks, recent documents, app panels (docs/guides/home-page.md)
 │   ├── DocDetail.razor          # /app/{DocType}/{Name} — View/edit existing document
 │   ├── DocImport.razor          # /app/{DocType}/import — 4-step Excel/CSV import wizard
 │   ├── DocList.razor            # /app/{DocType} — Paginated list view with search & filters
@@ -623,7 +623,7 @@ All migrations live in `src/Framework.Persistence.PostgreSql/Migrations/` and ar
 | :--- | :--- | :--- | :--- |
 | `/account/login` | `Login.razor` | Anonymous | Sign in with username & password |
 | `/account/password` | `AccountPassword.razor` | Authenticated | Change own password |
-| `/` | `Desk.razor` | Authenticated | Main workspace, module shortcuts, and notification inbox |
+| `/` | `Desk.razor` | Authenticated | Home: decisions waiting (inline workflow actions), tasks, recent documents, KPIs, jobs, bookmarks and panels registered by applications |
 | `/app/{DocType}` | `DocList.razor` | DocType `Read` | Paginated list view, search, filters, and Import button |
 | `/app/{DocType}/new` | `DocNew.razor` | DocType `Create` | Dynamic creation form |
 | `/app/{DocType}/{Name}` | `DocDetail.razor` | DocType `Read` | Dynamic detail form, workflow action buttons, print/PDF, audit timeline |

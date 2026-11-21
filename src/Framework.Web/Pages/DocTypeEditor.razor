@@ -167,27 +167,55 @@ else
         <BbTabsContent Value="design">
             <div class="designer">
                 <aside class="palette" aria-label="Field types">
-                    <div class="props-group-title">LAYOUT</div>
-                    <p class="muted small" style="margin:0 0 .5rem">Click to add at the end, or drag onto a field to start a new tab, section or column from that field.</p>
-                    @foreach (var b in DocTypeDesign.LayoutBreaks)
-                    {
-                        var kind = b;
-                        <div class="palette-item palette-layout" draggable="true" role="button" tabindex="0" title="@LayoutHelp(kind)"
-                             @ondragstart="() => StartBreak(kind)" @ondragend="EndDrag" @onclick="() => AddBreakByClick(kind)"
-                             @onkeydown="@(e => { if (e.Key is "Enter" or " ") AddBreakByClick(kind); })">
-                            <LucideIcon Name="@LayoutIcon(kind)" Size="16" /><span>@LayoutLabel(kind)</span>
-                        </div>
+                    @* Search: filters both lists by name, type and common words (English and Indonesian). Enter adds the first match. *@
+                    <div class="palette-search">
+                        <LucideIcon Name="search" Size="15" Class="palette-search-icon" />
+                        <input type="search" placeholder="Search controls…" aria-label="Search controls" autocomplete="off" spellcheck="false"
+                               value="@paletteQuery" @oninput="e => paletteQuery = e.Value?.ToString() ?? string.Empty" @onkeydown="PaletteSearchKey" />
+                    </div>
+                    @{
+                        var layoutMatches = DocTypeDesign.LayoutBreaks.Where(k => PaletteMatches(k, LayoutLabel(k))).ToList();
+                        var typeMatches = DocTypeDesign.FieldTypes.Where(t => PaletteMatches(t, TypeLabel(t))).ToList();
+                        var searching = !string.IsNullOrWhiteSpace(paletteQuery);
                     }
-                    <div class="props-group-title" style="margin-top:.75rem">ADD FIELD</div>
-                    <p class="muted small" style="margin:0 0 .5rem">Drag to form, or click to add to the selected section.</p>
-                    @foreach (var t in DocTypeDesign.FieldTypes)
+                    @if (searching)
                     {
-                        var type = t;
-                        <div class="palette-item" draggable="true" role="button" tabindex="0"
-                             @ondragstart="() => StartNew(type)" @ondragend="EndDrag" @onclick="() => AddByClick(type)"
-                             @onkeydown="e => PaletteKey(e, type)">
-                            <LucideIcon Name="@TypeIcon(type)" Size="16" /><span>@TypeLabel(type)</span>
-                        </div>
+                        <p class="muted small palette-search-count" role="status">
+                            @(layoutMatches.Count + typeMatches.Count) of @(DocTypeDesign.LayoutBreaks.Length + DocTypeDesign.FieldTypes.Length) controls@(layoutMatches.Count + typeMatches.Count > 0 ? " · Enter adds the first" : "")
+                        </p>
+                    }
+                    @if (layoutMatches.Count > 0)
+                    {
+                        <div class="props-group-title">LAYOUT</div>
+                        @if (!searching) { <p class="muted small" style="margin:0 0 .5rem">Click to add at the end, or drag onto a field to start a new tab, section or column from that field.</p> }
+                        @foreach (var b in layoutMatches)
+                        {
+                            var kind = b;
+                            <div class="palette-item palette-layout" draggable="true" role="button" tabindex="0" title="@LayoutHelp(kind)"
+                                 @ondragstart="() => StartBreak(kind)" @ondragend="EndDrag" @onclick="() => AddBreakByClick(kind)"
+                                 @onkeydown="@(e => { if (e.Key is "Enter" or " ") AddBreakByClick(kind); })">
+                                <LucideIcon Name="@LayoutIcon(kind)" Size="16" /><span>@LayoutLabel(kind)</span>
+                            </div>
+                        }
+                    }
+                    @if (typeMatches.Count > 0)
+                    {
+                        <div class="props-group-title" style="@(layoutMatches.Count > 0 ? "margin-top:.75rem" : null)">ADD FIELD</div>
+                        @if (!searching) { <p class="muted small" style="margin:0 0 .5rem">Drag to form, or click to add to the selected section.</p> }
+                        @foreach (var t in typeMatches)
+                        {
+                            var type = t;
+                            <div class="palette-item" draggable="true" role="button" tabindex="0" title="@type"
+                                 @ondragstart="() => StartNew(type)" @ondragend="EndDrag" @onclick="() => AddByClick(type)"
+                                 @onkeydown="e => PaletteKey(e, type)">
+                                <LucideIcon Name="@TypeIcon(type)" Size="16" /><span>@TypeLabel(type)</span>
+                                @if (searching && TypeLabel(type) != type) { <span class="muted small palette-type">@type</span> }
+                            </div>
+                        }
+                    }
+                    @if (searching && layoutMatches.Count + typeMatches.Count == 0)
+                    {
+                        <div class="d-empty">No control matches “@paletteQuery”.</div>
                     }
                 </aside>
 
@@ -222,70 +250,61 @@ else
                             </BbAlert>
                         }
 
-                        @foreach (var section in ct.Sections)
+                        @* One card per section, holding its inner tabs ("Tab in section"), as in Preview and the form. *@
+                        @foreach (var section in ct.Sections.Where(s => s.Parent is null || !ct.Sections.Contains(s.Parent)))
                         {
                             var sec = section;
-                            <div class="d-section @(sec == currentSection ? "current" : "") @(sec.SubTab is not null ? "d-subtab" : "")" @onclick="() => currentSection = sec">
+                            var inner = ct.Sections.Where(s => s.Parent == sec).ToList();
+                            var active = ActiveInner(sec, inner);
+                            <div class="d-section @(sec == currentSection || inner.Contains(currentSection!) ? "current" : "")" @onclick="() => currentSection = sec">
                                 <div class="d-section-head">
-                                    @if (sec.SubTab is not null)
+                                    <BbInput Value="@sec.Title" ValueChanged="v => Mutate(() => sec.Title = string.IsNullOrWhiteSpace(v) ? null : v.Trim())" Placeholder="Section title (optional)" AriaLabel="Section title" />
+                                    @if (inner.Count == 0 || !sec.IsEmpty)
                                     {
-                                        <span class="subtab-of" title="Tab inside a section: only one of these tabs is shown at a time">
-                                            <LucideIcon Name="layout-panel-top" Size="14" /> Tab in “@(sec.Parent?.Title ?? "(untitled section)")”
-                                        </span>
-                                        <BbInput Value="@sec.SubTab" ValueChanged="v => Mutate(() => { if (!string.IsNullOrWhiteSpace(v)) sec.SubTab = v.Trim(); })" AriaLabel="Tab title" />
-                                    }
-                                    else
-                                    {
-                                        <BbInput Value="@sec.Title" ValueChanged="v => Mutate(() => sec.Title = string.IsNullOrWhiteSpace(v) ? null : v.Trim())" Placeholder="Section title (optional)" AriaLabel="Section title" />
-                                    }
-                                    <div class="col-select">
-                                        <BbSelect TValue="string" Value="@sec.Columns.Count.ToString()" ValueChanged="v => Mutate(() => design.SetColumns(sec, int.Parse(v!)))" AriaLabel="Number of columns"
-                                                  Options="ColumnOptions" />
-                                    </div>
-                                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Move section up" OnClick="() => Mutate(() => design.MoveSection(ct, sec, -1))"><LucideIcon Name="arrow-up" Size="16" /></BbButton>
-                                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Move section down" OnClick="() => Mutate(() => design.MoveSection(ct, sec, 1))"><LucideIcon Name="arrow-down" Size="16" /></BbButton>
-                                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Delete section" Disabled="@(!sec.IsEmpty || design.HasSubTabs(sec))" OnClick="() => Mutate(() => { design.RemoveSection(ct, sec); if (currentSection == sec) currentSection = ct.Sections.FirstOrDefault(); })"><LucideIcon Name="trash-2" Size="16" /></BbButton>
-                                </div>
-                                <div class="d-cols cols-@sec.Columns.Count">
-                                    @for (var c = 0; c < sec.Columns.Count; c++)
-                                    {
-                                        var col = c;
-                                        var fields = sec.Columns[col];
-                                        <div class="d-col @(dragging ? "dropping" : "") @(IsHint(sec, col, fields.Count) ? "hint-end" : "")"
-                                             @ondragover:preventDefault="true" @ondragenter="() => Hint(sec, col, fields.Count)" @ondrop="() => Drop(sec, col, null)">
-                                            @for (var i = 0; i < fields.Count; i++)
-                                            {
-                                                var idx = i; var f = fields[i];
-                                                <div class="d-field @(f == selected ? "selected" : "") @(IsHint(sec, col, idx) ? "hint-before" : "") @(HasErrors(f) ? "has-error" : "")"
-                                                     draggable="true" tabindex="0" role="button" aria-pressed="@(f == selected)"
-                                                     @ondragstart="() => StartMove(f)" @ondragend="EndDrag"
-                                                     @ondragover:preventDefault="true" @ondragenter="() => Hint(sec, col, idx)"
-                                                     @ondrop="() => Drop(sec, col, idx)" @ondrop:stopPropagation="true"
-                                                     @onclick="() => Select(f, sec)" @onclick:stopPropagation="true"
-                                                     @onkeydown="@(e => { if (e.Key is "Enter" or " ") Select(f, sec); })">
-                                                    <LucideIcon Name="grip-vertical" Size="14" Class="grip" />
-                                                    <div class="d-field-main">
-                                                        <div class="d-field-label">@(string.IsNullOrWhiteSpace(f.Label) ? f.Name : f.Label)@if (f.RequiredWhen is not null) { <span class="req" title="@(f.RequiredWhen == "true" ? "Required" : $"Required when {f.RequiredWhen}")">*</span> }</div>
-                                                        <div class="d-field-meta">
-                                                            <span>@f.Type</span>
-                                                            @if (f.Compute is not null) { <span title="Formula: @f.Compute">fx</span> }
-                                                            @if (f.FetchFrom is not null) { <span title="Fetched from @f.FetchFrom">↙ @f.FetchFrom.Split('.')[0]</span> }
-                                                            @if (f.VisibleWhen is not null) { <span title="Visible when @f.VisibleWhen">conditional</span> }
-                                                            @if (f.PermLevel > 0) { <span title="Permission level @f.PermLevel">level @f.PermLevel</span> }
-                                                            @if (f.InListView) { <span title="Column in list">list</span> }
-                                                        </div>
-                                                    </div>
-                                                    <div class="d-field-actions" @onclick:stopPropagation="true">
-                                                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@($"Move {f.Name} up")" OnClick="() => Mutate(() => design.MoveBy(f, -1))"><LucideIcon Name="chevron-up" Size="14" /></BbButton>
-                                                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@($"Move {f.Name} down")" OnClick="() => Mutate(() => design.MoveBy(f, 1))"><LucideIcon Name="chevron-down" Size="14" /></BbButton>
-                                                        <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@($"Delete {f.Name}")" OnClick="() => RemoveField(f)"><LucideIcon Name="trash-2" Size="14" /></BbButton>
-                                                    </div>
-                                                </div>
-                                            }
-                                            @if (fields.Count == 0) { <div class="d-empty">Drag field here</div> }
+                                        <div class="col-select">
+                                            <BbSelect TValue="string" Value="@sec.Columns.Count.ToString()" ValueChanged="v => Mutate(() => design.SetColumns(sec, int.Parse(v!)))" AriaLabel="Number of columns"
+                                                      Options="ColumnOptions" />
                                         </div>
                                     }
+                                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Move section up" OnClick="() => Mutate(() => design.MoveSection(ct, sec, -1))"><LucideIcon Name="arrow-up" Size="16" /></BbButton>
+                                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Move section down" OnClick="() => Mutate(() => design.MoveSection(ct, sec, 1))"><LucideIcon Name="arrow-down" Size="16" /></BbButton>
+                                    <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Delete section" Disabled="@(!sec.IsEmpty || inner.Count > 0)" OnClick="() => Mutate(() => { design.RemoveSection(ct, sec); if (currentSection == sec) currentSection = ct.Sections.FirstOrDefault(); })"><LucideIcon Name="trash-2" Size="16" /></BbButton>
                                 </div>
+                                @if (inner.Count == 0 || !sec.IsEmpty || dragging)
+                                {
+                                    @* Fields of the section itself; with inner tabs they are shown above the tab strip. *@
+                                    @ColumnsOf(sec, inner.Count > 0 ? "Drop here to place a field above the tabs" : "Drag field here")
+                                }
+                                @if (active is not null)
+                                {
+                                    <div class="d-subtabs @(active == currentSection ? "current" : "")" @onclick="() => currentSection = active" @onclick:stopPropagation="true">
+                                        <div class="subtab-strip" role="tablist" aria-label="@($"Tabs in {sec.Title ?? "section"}")">
+                                            @foreach (var part in inner)
+                                            {
+                                                var p = part;
+                                                <button type="button" role="tab" aria-selected="@(p == active)" class="subtab @(p == active ? "active" : "") @(dragging ? "dropping" : "")"
+                                                        @onclick="() => PickInner(sec, p)" @onclick:stopPropagation="true"
+                                                        @ondragover:preventDefault="true" @ondragenter="() => PickInner(sec, p)" @ondrop="() => Drop(p, 0, null)" @ondrop:stopPropagation="true">
+                                                    @p.SubTab <span class="muted small">@p.Columns.Sum(c => c.Count)</span>
+                                                </button>
+                                            }
+                                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" AriaLabel="Add tab in section"
+                                                      OnClick="() => Mutate(() => { var added = design.AddSubTab(sec); PickInner(sec, added); })"><LucideIcon Name="plus" Size="14" /> Tab</BbButton>
+                                        </div>
+                                        <div class="d-subtab-head">
+                                            <BbInput Value="@active.SubTab" ValueChanged="v => Mutate(() => { if (!string.IsNullOrWhiteSpace(v)) active.SubTab = v.Trim(); })" AriaLabel="Tab title" />
+                                            <div class="col-select">
+                                                <BbSelect TValue="string" Value="@active.Columns.Count.ToString()" ValueChanged="v => Mutate(() => design.SetColumns(active, int.Parse(v!)))" AriaLabel="Number of columns in tab"
+                                                          Options="ColumnOptions" />
+                                            </div>
+                                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Move tab left" Disabled="@(inner.IndexOf(active) == 0)" OnClick="() => Mutate(() => design.MoveSection(ct, active, -1))"><LucideIcon Name="arrow-left" Size="16" /></BbButton>
+                                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Move tab right" Disabled="@(inner.IndexOf(active) == inner.Count - 1)" OnClick="() => Mutate(() => design.MoveSection(ct, active, 1))"><LucideIcon Name="arrow-right" Size="16" /></BbButton>
+                                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="Delete tab" Disabled="@(!active.IsEmpty)"
+                                                      OnClick="() => Mutate(() => { design.RemoveSection(ct, active); currentSection = ct.Sections.FirstOrDefault(s => s.Parent == sec) ?? sec; })"><LucideIcon Name="trash-2" Size="16" /></BbButton>
+                                        </div>
+                                        @ColumnsOf(active, "Drag field here")
+                                    </div>
+                                }
                             </div>
                         }
                         <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick="() => Mutate(() => currentSection = design.AddSection(ct))"><LucideIcon Name="plus" Size="15" /> Add section</BbButton>
@@ -798,6 +817,7 @@ else
         active = meta.Def;
         version = meta.Version + 1;
         design = DocTypeDesign.From(meta.Def);
+        activeInner.Clear();
         isApp = Registry.IsAppOwned(DocTypeName);
         customization = isApp ? Registry.Customization(DocTypeName) : null;
         baseFieldNames = isApp && Registry.BaseDefinition(DocTypeName) is { } baseDef
@@ -894,6 +914,65 @@ else
 
     private void Mutate(Action change) { change(); Recompile(); }
 
+    // ---------- tabs inside a section ----------
+    /// <summary>Inner tab shown per section in the canvas (the form shows one inner tab at a time, so does the editor).</summary>
+    private readonly Dictionary<DesignerSection, DesignerSection> activeInner = new(ReferenceEqualityComparer.Instance);
+
+    private DesignerSection? ActiveInner(DesignerSection main, List<DesignerSection> inner)
+    {
+        if (inner.Count == 0) return null;
+        if (currentSection is { } cur && inner.Contains(cur)) return activeInner[main] = cur;
+        return activeInner.TryGetValue(main, out var picked) && inner.Contains(picked) ? picked : inner[0];
+    }
+
+    private void PickInner(DesignerSection main, DesignerSection part)
+    {
+        activeInner[main] = part;
+        currentSection = part;
+    }
+
+    /// <summary>The columns of a section or inner tab, with drag and drop.</summary>
+    private RenderFragment ColumnsOf(DesignerSection sec, string emptyText) => @<div class="d-cols cols-@sec.Columns.Count">
+        @for (var c = 0; c < sec.Columns.Count; c++)
+        {
+            var col = c;
+            var fields = sec.Columns[col];
+            <div class="d-col @(dragging ? "dropping" : "") @(IsHint(sec, col, fields.Count) ? "hint-end" : "")"
+                 @ondragover:preventDefault="true" @ondragenter="() => Hint(sec, col, fields.Count)" @ondrop="() => Drop(sec, col, null)" @ondrop:stopPropagation="true">
+                @for (var i = 0; i < fields.Count; i++)
+                {
+                    var idx = i; var f = fields[i];
+                    <div class="d-field @(f == selected ? "selected" : "") @(IsHint(sec, col, idx) ? "hint-before" : "") @(HasErrors(f) ? "has-error" : "")"
+                         draggable="true" tabindex="0" role="button" aria-pressed="@(f == selected)"
+                         @ondragstart="() => StartMove(f)" @ondragend="EndDrag"
+                         @ondragover:preventDefault="true" @ondragenter="() => Hint(sec, col, idx)"
+                         @ondrop="() => Drop(sec, col, idx)" @ondrop:stopPropagation="true"
+                         @onclick="() => Select(f, sec)" @onclick:stopPropagation="true"
+                         @onkeydown="@(e => { if (e.Key is "Enter" or " ") Select(f, sec); })">
+                        <LucideIcon Name="grip-vertical" Size="14" Class="grip" />
+                        <div class="d-field-main">
+                            <div class="d-field-label">@(string.IsNullOrWhiteSpace(f.Label) ? f.Name : f.Label)@if (f.RequiredWhen is not null) { <span class="req" title="@(f.RequiredWhen == "true" ? "Required" : $"Required when {f.RequiredWhen}")">*</span> }</div>
+                            <div class="d-field-meta">
+                                <span>@f.Type</span>
+                                @if (f.Compute is not null) { <span title="Formula: @f.Compute">fx</span> }
+                                @if (f.FetchFrom is not null) { <span title="Fetched from @f.FetchFrom">↙ @f.FetchFrom.Split('.')[0]</span> }
+                                @if (f.VisibleWhen is not null) { <span title="Visible when @f.VisibleWhen">conditional</span> }
+                                @if (f.PermLevel > 0) { <span title="Permission level @f.PermLevel">level @f.PermLevel</span> }
+                                @if (f.InListView) { <span title="Column in list">list</span> }
+                            </div>
+                        </div>
+                        <div class="d-field-actions" @onclick:stopPropagation="true">
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@($"Move {f.Name} up")" OnClick="() => Mutate(() => design!.MoveBy(f, -1))"><LucideIcon Name="chevron-up" Size="14" /></BbButton>
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@($"Move {f.Name} down")" OnClick="() => Mutate(() => design!.MoveBy(f, 1))"><LucideIcon Name="chevron-down" Size="14" /></BbButton>
+                            <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Icon" AriaLabel="@($"Delete {f.Name}")" OnClick="() => RemoveField(f)"><LucideIcon Name="trash-2" Size="14" /></BbButton>
+                        </div>
+                    </div>
+                }
+                @if (fields.Count == 0) { <div class="d-empty">@emptyText</div> }
+            </div>
+        }
+    </div>;
+
     private void ChangeView(string? v)
     {
         if (v is null) return;
@@ -925,6 +1004,48 @@ else
     private void PaletteKey(KeyboardEventArgs e, string type)
     {
         if (e.Key is "Enter" or " ") AddByClick(type);
+    }
+
+    // ---------- control search (palette) ----------
+    private string paletteQuery = string.Empty;
+
+    /// <summary>Extra words per control, so a search finds it by what it is for (English and Indonesian).</summary>
+    private static readonly Dictionary<string, string> PaletteKeywords = new()
+    {
+        ["Tab"] = "tab page halaman top", ["SubTab"] = "tab in section inner sub tab dalam section", ["Section"] = "section bagian group kelompok",
+        ["Column"] = "column kolom",
+        ["Data"] = "text string teks pendek short name nama kode code", ["Text"] = "long text teks panjang paragraph keterangan notes catatan textarea",
+        ["Email"] = "email surel mail", ["Int"] = "integer number angka bilangan bulat qty count jumlah",
+        ["Float"] = "decimal number angka desimal float", ["Currency"] = "money uang nominal amount harga price rupiah idr angka number",
+        ["Check"] = "checkbox boolean yes no ya tidak centang toggle", ["Date"] = "tanggal day date",
+        ["Select"] = "dropdown pilihan options list option", ["Link"] = "relation relasi reference referensi lookup doctype",
+        ["Table"] = "child rows baris detail item lines grid tabel", ["Image"] = "picture foto gambar photo",
+        ["Datetime"] = "timestamp tanggal jam waktu", ["Time"] = "jam waktu clock", ["Duration"] = "lama durasi",
+        ["Percent"] = "persen percentage % angka number", ["Phone"] = "telepon telp hp nomor mobile whatsapp",
+        ["TextEditor"] = "rich wysiwyg format editor", ["Markdown"] = "md", ["Attach"] = "file lampiran upload dokumen attachment",
+        ["Password"] = "secret kata sandi", ["DynamicLink"] = "dynamic polymorphic link", ["TableMultiSelect"] = "multi multiple tags banyak pilih",
+        ["Rating"] = "star bintang nilai score", ["Color"] = "warna colour", ["JSON"] = "object struktur structure",
+        ["Signature"] = "tanda tangan ttd sign", ["Barcode"] = "qr kode batang scan", ["Geolocation"] = "map peta lokasi gps koordinat location",
+        ["ReadOnly"] = "display tampil baca saja", ["HTML"] = "html block konten custom", ["Button"] = "tombol action aksi",
+        ["Heading"] = "judul title header",
+    };
+
+    /// <summary>Every word of the query must appear in the control's type, label or keywords (case-insensitive).</summary>
+    private bool PaletteMatches(string type, string label)
+    {
+        if (string.IsNullOrWhiteSpace(paletteQuery)) return true;
+        var haystack = $"{type} {label} {PaletteKeywords.GetValueOrDefault(type)}";
+        return paletteQuery.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .All(word => haystack.Contains(word, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void PaletteSearchKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") { paletteQuery = string.Empty; return; }
+        if (e.Key != "Enter" || string.IsNullOrWhiteSpace(paletteQuery)) return;
+        // Enter adds the first match: a layout control first, as listed.
+        if (DocTypeDesign.LayoutBreaks.FirstOrDefault(k => PaletteMatches(k, LayoutLabel(k))) is { } kind) AddBreakByClick(kind);
+        else if (DocTypeDesign.FieldTypes.FirstOrDefault(t => PaletteMatches(t, TypeLabel(t))) is { } type) AddByClick(type);
     }
 
     private async Task RemoveField(FieldDef f)
@@ -1068,6 +1189,7 @@ else
             var def = MetadataJson.ParseDocType(json);
             if (def.Name != DocTypeName) { jsonError = $"DocType name cannot be changed here (must be '{DocTypeName}')."; return; }
             design = DocTypeDesign.From(def);
+            activeInner.Clear();
             currentTab = design.Tabs[0]; currentSection = currentTab.Sections.FirstOrDefault(); selected = null;
             isDrawerOpen = false;
             jsonError = null;
@@ -1086,6 +1208,7 @@ else
 
         r.DocType.Version = version;
         design = DocTypeDesign.From(r.DocType);
+        activeInner.Clear();
         currentTab = design.Tabs[0]; currentSection = currentTab.Sections.FirstOrDefault(); selected = null;
         isDrawerOpen = false;
         jsonError = null;

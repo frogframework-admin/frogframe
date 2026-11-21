@@ -82,11 +82,17 @@ Run and explore FrogFramework directly in your browser without local setup:
 
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/frogframework-admin/frogframe)
 
-Once the Codespace opens, start the application via terminal:
+Once the Codespace opens, start the demo from the terminal:
 ```bash
-dotnet run --project src/Apps.Erp
+scripts/codespaces-demo.sh
 ```
-Codespaces will automatically forward port `5080` and launch the web portal.
+The script:
+- creates `.env` from `.env.example`, with random secrets and the Codespace URL;
+- publishes the app;
+- starts PostgreSQL, SeaweedFS and the app with Docker Compose in demo mode (sample data, and demo accounts listed on the login page, password `FrogFrame#2026`);
+- waits until the app is ready.
+
+The first run takes a few minutes. Then open port `5080` in the **Ports** tab. Other commands: `scripts/codespaces-demo.sh logs`, `down` (stop), `reset` (stop and delete the demo data). The same script works on any machine with Docker and the .NET 10 SDK.
 
 ### Prerequisites (For Local Setup)
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) (v10.0.100 or later).

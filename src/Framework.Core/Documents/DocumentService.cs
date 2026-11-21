@@ -532,22 +532,36 @@ public sealed class DocumentService(
         return s.IndexOfAny([',', '"', '\n', '\r']) >= 0 ? "\"" + s.Replace("\"", "\"\"") + "\"" : s;
     }
 
-    /// <summary>Dokumen yang menunggu tindakan workflow dari user ini (untuk beranda/to-do).</summary>
+    /// <summary>Documents awaiting workflow action from this user (for home/to-do).</summary>
     public async Task<IReadOnlyList<(CompiledDocType Meta, Document Doc, IReadOnlyList<string> Actions)>> PendingActionsAsync(
         UserContext user, CancellationToken ct = default)
     {
+        var targets = Meta.DocTypes.Values
+            .Where(m => m.Workflow is not null && permissions.Can(user, m, DocActions.Read))
+            .ToList();
         var result = new List<(CompiledDocType, Document, IReadOnlyList<string>)>();
-        foreach (var meta in Meta.DocTypes.Values.Where(m => m.Workflow is not null && permissions.Can(user, m, DocActions.Read)))
-        {
-            var scope = await ScopeAsync(user, meta, DocActions.Read, ct);
-            var open = await store.QueryAsync(new StoreQuery(user.TenantId, meta.Name, scope,
-                [new FilterClause(StandardFields.DocStatus, "in", new List<object?> { 0m, 1m })], null, [], meta.Def.ListView.DefaultSort, 0, 200), ct);
-            foreach (var d in open.Items)
+        var statusFilter = new List<FilterClause> { new(StandardFields.DocStatus, "in", new List<object?> { 0m, 1m }) };
+
+        await Parallel.ForEachAsync(
+            targets,
+            new ParallelOptions { MaxDegreeOfParallelism = 8, CancellationToken = ct },
+            async (meta, token) =>
             {
-                var actions = workflow.Available(meta, d, user).Select(t => t.Def.Action).ToList();
-                if (actions.Count > 0) result.Add((meta, RedactForRead(user, meta, d), actions));
-            }
-        }
+                var scope = await ScopeAsync(user, meta, DocActions.Read, token);
+                var open = await store.QueryAsync(new StoreQuery(user.TenantId, meta.Name, scope,
+                    statusFilter, null, [], meta.Def.ListView.DefaultSort, 0, 200), token);
+                var matched = new List<(CompiledDocType, Document, IReadOnlyList<string>)>();
+                foreach (var d in open.Items)
+                {
+                    var actions = workflow.Available(meta, d, user).Select(t => t.Def.Action).ToList();
+                    if (actions.Count > 0) matched.Add((meta, RedactForRead(user, meta, d), actions));
+                }
+                if (matched.Count > 0)
+                {
+                    lock (result) result.AddRange(matched);
+                }
+            });
+
         return result;
     }
 
@@ -564,20 +578,27 @@ public sealed class DocumentService(
 
         var transactional = docTypes.Where(m => m.Workflow is not null || m.Def.Document.AllowSubmit).ToList();
         var targets = transactional.Count > 0 ? transactional : docTypes;
+        var sort = new List<SortDef> { new() { Field = StandardFields.Modified, Direction = "desc" } };
 
-        foreach (var meta in targets)
-        {
-            var scope = await ScopeAsync(user, meta, DocActions.Read, ct);
-            var sort = new List<SortDef> { new() { Field = StandardFields.Modified, Direction = "desc" } };
-            var res = await store.QueryAsync(new StoreQuery(user.TenantId, meta.Name, scope, [], null, [], sort, 0, limit), ct);
-            foreach (var d in res.Items)
+        await Parallel.ForEachAsync(
+            targets,
+            new ParallelOptions { MaxDegreeOfParallelism = 8, CancellationToken = ct },
+            async (meta, token) =>
             {
-                var actions = meta.Workflow is not null
-                    ? workflow.Available(meta, d, user).Select(t => t.Def.Action).ToList()
-                    : [];
-                candidates.Add((meta, RedactForRead(user, meta, d), actions));
-            }
-        }
+                var scope = await ScopeAsync(user, meta, DocActions.Read, token);
+                var res = await store.QueryAsync(new StoreQuery(user.TenantId, meta.Name, scope, [], null, [], sort, 0, limit), token);
+                if (res.Items.Count == 0) return;
+
+                var batch = new List<(CompiledDocType Meta, Document Doc, IReadOnlyList<string> Actions)>(res.Items.Count);
+                foreach (var d in res.Items)
+                {
+                    var actions = meta.Workflow is not null
+                        ? workflow.Available(meta, d, user).Select(t => t.Def.Action).ToList()
+                        : [];
+                    batch.Add((meta, RedactForRead(user, meta, d), actions));
+                }
+                lock (candidates) candidates.AddRange(batch);
+            });
 
         return candidates
             .OrderByDescending(x => x.Doc.Modified)

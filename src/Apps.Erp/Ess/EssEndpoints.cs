@@ -391,38 +391,13 @@ public static class EssEndpoints
         pph21 = p.Data.Dec("pph21_withheld"), pdfUrl = $"/api/print/Payslip/{Uri.EscapeDataString(p.Name)}/pdf",
     };
 
-    private static async Task<List<object>> LeaveTypesAsync(Masters m, string emp, DateOnly today, CancellationToken ct)
-    {
-        var apps = (await m.QueryAsync("LeaveApplication", [new("employee", "=", emp)], ct, take: 1000)).Where(LeaveMath.Active).ToList();
-        var allocations = (await m.QueryAsync("LeaveAllocation", [new("employee", "=", emp)], ct, take: 200))
-            .Where(a => a.DocStatus == DocStatus.Submitted).ToList();
-        var result = new List<object>();
-        foreach (var type in await m.QueryAsync("LeaveType", [], ct, take: 200))
+    private static async Task<List<object>> LeaveTypesAsync(Masters m, string emp, DateOnly today, CancellationToken ct) =>
+        (await EssLeave.BalancesAsync(m, emp, today, ct)).Select(b => (object)new
         {
-            if (type.Data.ContainsKey("is_active") && type.Data["is_active"] is false) continue;
-            var quota = type.Data.Bool("is_annual_quota");
-            var alloc = quota ? allocations.FirstOrDefault(a => a.Data.Str("leave_type") == type.Name
-                                                                && a.Data.Date("from_date") <= today && today <= a.Data.Date("to_date")) : null;
-            decimal? allocated = null, used = null, pending = null, balance = null;
-            if (alloc is not null)
-            {
-                var from = alloc.Data.Date("from_date"); var to = alloc.Data.Date("to_date");
-                var inWindow = apps.Where(a => a.Data.Str("leave_type") == type.Name && Hr.Overlaps(from, to, a.Data.Date("from_date"), a.Data.Date("to_date"))).ToList();
-                allocated = alloc.Data.Dec("total_leaves");
-                used = inWindow.Where(a => a.DocStatus == DocStatus.Submitted).Sum(a => a.Data.Dec("total_days"));
-                pending = inWindow.Where(a => a.DocStatus == DocStatus.Draft && a.WorkflowState is { } s && s.StartsWith("Pending", StringComparison.Ordinal))
-                    .Sum(a => a.Data.Dec("total_days"));
-                balance = allocated - used;
-            }
-            result.Add(new
-            {
-                leaveType = type.Name, isPaid = type.Data.Bool("is_paid"), isAnnualQuota = quota, requiresAttachment = type.Data.Bool("requires_attachment"),
-                maxConsecutiveDays = type.Data.Dec("max_consecutive_days"), allocated, used, pending, balance,
-                validFrom = alloc?.Data.Str("from_date"), validTo = alloc?.Data.Str("to_date"),
-            });
-        }
-        return result;
-    }
+            leaveType = b.LeaveType, isPaid = b.IsPaid, isAnnualQuota = b.IsAnnualQuota, requiresAttachment = b.RequiresAttachment,
+            maxConsecutiveDays = b.MaxConsecutiveDays, allocated = b.Allocated, used = b.Used, pending = b.Pending, balance = b.Balance,
+            validFrom = b.ValidFrom, validTo = b.ValidTo,
+        }).ToList();
 
     private static readonly (string DocType, string ApproverField, string State)[] ApprovalSources =
     [

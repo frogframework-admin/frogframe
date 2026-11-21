@@ -6,6 +6,7 @@ using Framework.Accounting;
 using Framework.Persistence;
 using Framework.Persistence.PostgreSql;
 using Framework.Web;
+using Framework.Web.Home;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
@@ -32,6 +33,34 @@ public static class ErpRegistration
         services.AddDocHook<Ess.ShiftType, Ess.EssCacheInvalidationHook>();
         services.AddDocHook<Ess.HRSettings, Ess.EssCacheInvalidationHook>();
         services.AddScheduledJob<Ess.EssAttendanceAggregationJob>();
+        return services;
+    }
+
+    /// <summary>
+    /// Home page contributions: the employee's day and requests ("Personal" slot, only for accounts linked to an
+    /// employee), company information (side column), the first-run checklist for administrators (top) and quick
+    /// actions, each shown only to users allowed to create that DocType. See docs/guides/home-page.md.
+    /// </summary>
+    public static IServiceCollection AddErpHome(this IServiceCollection services)
+    {
+        services.TryAddSingleton<Home.ErpHomeService>();
+        static bool IsEmployee(Framework.Security.UserContext u) => Home.ErpHomeService.EmployeeOf(u) is not null;
+        services.AddHomePanel<Components.Home.SetupChecklistPanel>("erp-setup", Framework.Web.Home.HomeSlot.Top, 10, u => u.IsAdmin);
+        services.AddHomePanel<Components.Home.EmployeeTodayPanel>("erp-today", Framework.Web.Home.HomeSlot.Personal, 10, IsEmployee);
+        services.AddHomePanel<Components.Home.MyRequestsPanel>("erp-my-requests", Framework.Web.Home.HomeSlot.Personal, 20, IsEmployee);
+        services.AddHomePanel<Components.Home.CompanyInfoPanel>("erp-company-info", Framework.Web.Home.HomeSlot.Side, 50);
+
+        // Order: self-service first (most users), then the transactions of each department.
+        services.AddHomeQuickAction("LeaveApplication", "Apply for leave", "calendar-off", 10);
+        services.AddHomeQuickAction("OvertimeRequest", "Request overtime", "clock-plus", 11);
+        services.AddHomeQuickAction("ExpenseClaim", "Expense claim", "receipt", 12);
+        services.AddHomeQuickAction("ShiftSwapRequest", "Swap shift", "repeat", 13);
+        services.AddHomeQuickAction("PurchaseRequest", "Purchase request", "shopping-cart", 30);
+        services.AddHomeQuickAction("SalesInvoice", "Sales invoice", "file-text", 40);
+        services.AddHomeQuickAction("PaymentEntry", "Payment entry", "banknote", 41);
+        services.AddHomeQuickAction("JournalEntry", "Journal entry", "book-open", 42);
+        services.AddHomeQuickAction("Lead", "Lead", "user-plus", 50);
+        services.AddHomeQuickAction("Quotation", "Quotation", "file-pen-line", 51);
         return services;
     }
 
@@ -182,6 +211,9 @@ public static class ErpRegistration
 
         // ESS mobile (absen GPS, cuti, slip gaji, persetujuan): docs/guides/ess-mobile-api.md
         services.AddErpEss();
+
+        // Home page (/): employee panels, company info, the admin setup checklist and "Create new" shortcuts.
+        services.AddErpHome();
 
         // Laporan (menu Reports; izin 'report' mengikuti DocType sumber tiap laporan)
         services.AddReport<TrialBalanceReport>();

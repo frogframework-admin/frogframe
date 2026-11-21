@@ -11,6 +11,15 @@ Releases are tagged `vMAJOR.MINOR.PATCH` on `main`. Add every user-visible chang
 ## [Unreleased]
 
 ### Added
+- Home page (`/`), see `docs/guides/home-page.md`:
+  - "Needs your action": documents waiting for the user's workflow decision, grouped by module, oldest first, with how long they have waited and the workflow buttons on the row. Actions that require a comment ask for the reason first.
+  - Compact header with date, summary chips (approvals, overdue or due-today tasks, unread notifications) and "Create new" shortcuts limited to DocTypes the user may create.
+  - Side column: "single number" widgets of the default dashboard, running background jobs, bookmarks and followed documents.
+  - Banner suggesting two-factor authentication to sessions without a second factor; each user can hide it.
+  - Extension points for applications: `AddHomePanel<TComponent>(id, HomeSlot, order, visible)` and `AddHomeQuickAction(...)`.
+  - ERP panels: "My day" (shift, check-in/out, leave balance, latest payslip; check-in from the browser only when the attendance policy needs no location, device or photo), "My requests", company info (next holiday, colleagues on leave today) and a setup checklist for administrators.
+- DocType editor: a search box above the control palette filters the layout controls and field types by name, type or common words (English and Indonesian, e.g. "angka", "tanggal", "lampiran"). Enter adds the first match to the selected section; Escape clears.
+- `scripts/codespaces-demo.sh`: starts the demo with Docker Compose in GitHub Codespaces (or locally). It prepares `.env` (random secrets, Codespace URL and allowed hosts), publishes, builds, starts and waits until ready. The README's Codespaces instructions now use it; `dotnet run` alone needs PostgreSQL.
 - Alternate list views: Kanban board (drag and drop between workflow states), calendar (month/week/day), and tree view for hierarchical masters.
 - Roster calendar quick actions: generate roster, export (.xlsx/.csv), and shortage indicators per shift.
 - Ad-hoc report builder: choose columns, filters and aggregates, and save named reports.
@@ -45,6 +54,9 @@ Releases are tagged `vMAJOR.MINOR.PATCH` on `main`. Add every user-visible chang
   - migration `042_two_factor.sql`.
 
 ### Changed
+- Home page: users with decisions waiting see them first; other users see their own day first. Recent documents show type, party or title, amount and status (the "Available actions" column and the arbitrary "View all" link are gone). The card "Tasks & unread notifications", which counted only notifications, is replaced by the summary chips.
+- ESS leave balances are computed in one place (`EssLeave.BalancesAsync`) for the ESS API and the home page; the API response is unchanged.
+- Docker Compose sets `TZ` for the `app` and `migrate` services (`FROGFRAME_TZ`, default `Asia/Jakarta`).
 - `TODO.md` and the production-readiness checklist now match the code: fail-fast startup checks, report builder, row sharing, board/calendar/tree views, visual workflow editor and print designer are marked done; observability and post-deploy smoke tests are marked partly done.
 - Write performance (PostgreSQL):
   - each application instance uses a connection pool of 30 unless the connection string sets `Maximum Pool Size` (was Npgsql's 100);
@@ -62,5 +74,7 @@ Releases are tagged `vMAJOR.MINOR.PATCH` on `main`. Add every user-visible chang
 - Outside Development the application refuses to start while a secret in use is a `change-me` placeholder, a repository default, or shorter than 12 characters.
 
 ### Fixed
+- Home page greeting, date and My Tasks "due today" / "overdue" use the application time zone instead of the server clock (UTC in a container without `TZ`), and the greeting has four periods (Indonesian "Selamat sore" between 15:00 and 18:00).
+- DocType editor: a "Tab in section" is now drawn inside its section card (tab strip, then the selected tab's fields), as in Preview and the form, instead of as a separate card below the section. Fields can be dropped on a tab in the strip to move them into it.
 - Bursts of saves no longer fail with "too many clients already" (surfacing as "An error occurred while executing document hooks").
 - Startup no longer retries non-transient PostgreSQL errors (wrong password, unknown database) for minutes; it fails at once.

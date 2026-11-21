@@ -40,6 +40,8 @@
       href: guides/row-sharing.md
     - name: Tags, Bookmarks and Follow
       href: guides/tags-bookmarks-follow.md
+    - name: Home Page
+      href: guides/home-page.md
     - name: Background Jobs
       href: guides/background-jobs.md
     - name: Roles

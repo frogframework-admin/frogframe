@@ -47,7 +47,11 @@ public sealed class AssignmentService(
     OutboxWakeSignal? outboxWake = null,
     Framework.Sharing.IDocShareStore? shares = null)
 {
-    public DateOnly Today => DateOnly.FromDateTime(clock.GetLocalNow().DateTime);
+    /// <summary>
+    /// Today in the application time zone (<see cref="Framework.Metadata.FieldTypeSettings.DefaultTimeZone"/>), not the
+    /// server's: a container without TZ runs on UTC, which would move "due today" and "overdue" by seven hours in Jakarta.
+    /// </summary>
+    public DateOnly Today => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(clock.GetUtcNow(), Framework.Metadata.FieldTypeSettings.DefaultTimeZone).DateTime);
 
     private CompiledDocType TopLevel(string docType)
     {

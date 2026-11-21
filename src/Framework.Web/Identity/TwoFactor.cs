@@ -111,8 +111,17 @@ public static class TwoFactorSetup
     {
         var roles = options.EffectiveRequiredRoles;
         if (roles.Count == 0 || !roles.Any(user.IsInRole)) return true;
+        return HasSecondFactor(user, options.TrustSingleSignOn);
+    }
+
+    /// <summary>
+    /// True when this session has a second factor: an authenticator app is enrolled, or (when trusted) the user signed
+    /// in with single sign-on. The home page uses it to suggest enrolment to password-only accounts.
+    /// </summary>
+    public static bool HasSecondFactor(ClaimsPrincipal user, bool trustSingleSignOn)
+    {
         if (user.HasClaim(EnabledClaim, "1")) return true;
-        return options.TrustSingleSignOn && user.FindAll("amr")
+        return trustSingleSignOn && user.FindAll("amr")
             .Any(c => c.Value.StartsWith(SsoMethodPrefix, StringComparison.Ordinal));
     }
 }

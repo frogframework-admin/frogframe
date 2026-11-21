@@ -37,6 +37,7 @@
     "{0} wajib diisi": "{0} is required",
     "{0}: gambar tidak ditemukan atau bukan milik Anda. Unggah ulang.": "{0}: the image was not found or is not yours. Upload it again.",
     "{0}: {1} '{2}' tidak ditemukan": "{0}: {1} '{2}' was not found",
-    "{0}: {1} '{2}' tidak memenuhi syarat ({3})": "{0}: {1} '{2}' does not meet the conditions ({3})"
+    "{0}: {1} '{2}' tidak memenuhi syarat ({3})": "{0}: {1} '{2}' does not meet the conditions ({3})",
+    "Good late afternoon": "Good afternoon"
   }
 }
