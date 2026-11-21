@@ -1,7 +1,7 @@
 # ==========================================
 # Runtime: Menggunakan image aspnet:10.0 lokal dan file hasil publish
 # ==========================================
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
+FROM mcr.microsoft.com/dotnet/aspnet:11.0 AS final
 WORKDIR /app
 
 # Install Google Chrome for server-side PDF rendering
