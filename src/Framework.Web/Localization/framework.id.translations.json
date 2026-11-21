@@ -299,6 +299,8 @@
     "Success": "Berhasil",
     "Sum": "Jumlah total",
     "Supported formats: PDF, Office (.docx, .xlsx), CSV, plain text, PNG, JPEG, WebP, GIF (Max 10 MB per file).": "Format yang didukung: PDF, Office (.docx, .xlsx), CSV, teks, PNG, JPEG, WebP, GIF (maks. 10 MB per file).",
+    "Switch": "Ganti",
+    "Switch module": "Ganti modul",
     "Switched to {0} module.": "Beralih ke modul {0}.",
     "System": "Sistem",
     "Tasks & unread notifications": "Tugas & notifikasi belum dibaca",

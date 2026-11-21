@@ -92,15 +92,6 @@
                                 <LucideIcon Name="chart-column" Size="18" /><span>@T["Reports"]</span>
                             </BbSidebarMenuButton>
                         </BbSidebarMenuItem>
-                        @if (activeMod is not null)
-                        {
-                            <BbSidebarMenuItem>
-                                <BbSidebarMenuButton OnClick="OpenModulePicker" Tooltip="@(T.Format("Active module: {0} (Click to switch module)", T[activeMod.Name]))" Class="module-switch-btn">
-                                    <LucideIcon Name="@(string.IsNullOrWhiteSpace(activeMod.Icon) ? "layout-grid" : activeMod.Icon)" Size="18" />
-                                    <span>@T[activeMod.Name]</span>
-                                </BbSidebarMenuButton>
-                            </BbSidebarMenuItem>
-                        }
                     </BbSidebarMenu>
                 </BbSidebarGroup>
 
