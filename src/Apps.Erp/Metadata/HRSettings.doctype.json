@@ -225,6 +225,27 @@
       "section": "Attendance codes",
       "column": 2,
       "description": "The attendance job creates and finalizes records for this many past days; use the monthly recap's Recalculate for older days"
+    },
+    {
+      "name": "attendance_cutoff_start_day",
+      "type": "Int",
+      "label": "Attendance cut-off start day",
+      "default": 1,
+      "min": 1,
+      "max": 31,
+      "section": "Attendance codes",
+      "description": "Start day of the monthly attendance recap period (1–31). If greater than the end day (e.g. 21 to 20), it starts in the previous month"
+    },
+    {
+      "name": "attendance_cutoff_end_day",
+      "type": "Int",
+      "label": "Attendance cut-off end day",
+      "default": 31,
+      "min": 1,
+      "max": 31,
+      "section": "Attendance codes",
+      "column": 2,
+      "description": "End day of the monthly attendance recap period (1–31, clamped to the month's last day)"
     }
   ],
   "permissions": [

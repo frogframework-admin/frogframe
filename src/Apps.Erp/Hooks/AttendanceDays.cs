@@ -144,6 +144,34 @@ public static class AttendanceDays
         }
         return rows;
     }
+
+    /// <summary>Reads the monthly attendance cut-off start/end days from HR Settings (defaults to 1..31).</summary>
+    internal static async Task<(int StartDay, int EndDay)> RecapCutOffAsync(IDocumentStore store, string tenant, CancellationToken ct)
+    {
+        var settings = await new Masters(store, tenant).SingleAsync("HRSettings", ct);
+        var startDay = settings.ContainsKey("attendance_cutoff_start_day")
+            ? Math.Clamp((int)settings.Dec("attendance_cutoff_start_day"), 1, 31)
+            : 1;
+        var endDay = settings.ContainsKey("attendance_cutoff_end_day")
+            ? Math.Clamp((int)settings.Dec("attendance_cutoff_end_day"), 1, 31)
+            : 31;
+        return (startDay, endDay);
+    }
+
+    /// <summary>
+    /// Computes the [From, To] date range for a recap month given cut-off start and end days.
+    /// When startDay &gt; endDay (e.g. 21..20), From is in the previous month and To is in the selected month.
+    /// </summary>
+    public static (DateOnly From, DateOnly To) RecapRange(int year, int month, int startDay, int endDay)
+    {
+        var s = Math.Clamp(startDay, 1, 31);
+        var e = Math.Clamp(endDay, 1, 31);
+        var selected = new DateOnly(year, month, 1);
+        var fromMonth = s > e ? selected.AddMonths(-1) : selected;
+        var from = new DateOnly(fromMonth.Year, fromMonth.Month, Math.Min(s, DateTime.DaysInMonth(fromMonth.Year, fromMonth.Month)));
+        var to = new DateOnly(selected.Year, selected.Month, Math.Min(e, DateTime.DaysInMonth(selected.Year, selected.Month)));
+        return (from, to);
+    }
 }
 
 /// <summary>

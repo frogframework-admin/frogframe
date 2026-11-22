@@ -141,4 +141,18 @@ sealed partial class Tests
             "STAFF-B week: the code set by HR is kept by Recalculate");
         Assert.True(b.Count("ABS") == 1, "Friday without punches");
     }
+
+    [Test]
+    public Task Attendance_recap_cutoff_range()
+    {
+        Assert.Equal((new DateOnly(2026, 11, 1), new DateOnly(2026, 11, 30)),
+            AttendanceDays.RecapRange(2026, 11, 1, 31), "default full calendar month");
+        Assert.Equal((new DateOnly(2026, 10, 21), new DateOnly(2026, 11, 20)),
+            AttendanceDays.RecapRange(2026, 11, 21, 20), "cut-off 21..20 spans previous month to selected month");
+        Assert.Equal((new DateOnly(2025, 12, 21), new DateOnly(2026, 1, 20)),
+            AttendanceDays.RecapRange(2026, 1, 21, 20), "January cut-off crosses year boundary");
+        Assert.Equal((new DateOnly(2026, 2, 28), new DateOnly(2026, 3, 30)),
+            AttendanceDays.RecapRange(2026, 3, 31, 30), "days are clamped to month length");
+        return Task.CompletedTask;
+    }
 }

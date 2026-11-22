@@ -29,10 +29,15 @@
 }
 else
 {
-    <header class="page-head">
+    <header class="page-head" style="flex-direction:column;align-items:flex-start">
         <div>
             <h1>@T["Monthly attendance recap"]</h1>
             <p>@T["Days per attendance code for each employee, for payroll. LI/EO days count as late and as early out. Days without a final code are still waiting for punches, the deadline or HR."]</p>
+            @if (!string.IsNullOrEmpty(month))
+            {
+                var (pFrom, pTo) = Range;
+                <p class="muted small" style="margin-top:.25rem">@T["Period"]: <strong>@pFrom.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)</strong> – <strong>@pTo.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)</strong></p>
+            }
         </div>
         <div class="row" style="gap:.5rem;flex-wrap:wrap;align-items:center">
             <input type="month" class="auth-input" style="width:auto" value="@month" @onchange="e => ChangeMonthAsync(e.Value as string)" aria-label="@T["Month"]" />
@@ -131,6 +136,8 @@ else
     private ElementReference tableRef;
     private bool resizeInitPending;
     private string month = "";
+    private int cutoffStartDay = 1;
+    private int cutoffEndDay = 31;
     private string unit = "";
     private List<string> units = [];
     private IReadOnlyList<AttendanceRecapRow> rows = [];
@@ -149,7 +156,7 @@ else
         get
         {
             var first = DateOnly.ParseExact(month + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture);
-            return (first, first.AddMonths(1).AddDays(-1));
+            return AttendanceDays.RecapRange(first.Year, first.Month, cutoffStartDay, cutoffEndDay);
         }
     }
 
@@ -157,6 +164,7 @@ else
     {
         if (!CanView) return;
         month = Today.ToString("yyyy-MM", CultureInfo.InvariantCulture);
+        (cutoffStartDay, cutoffEndDay) = await AttendanceDays.RecapCutOffAsync(Store, Current.Required.TenantId, default);
         units = (await new Masters(Store, Current.Required.TenantId).QueryAsync("Employee", [], default, take: 20000))
             .Select(e => e.Data.Str("organization_unit")).OfType<string>().Distinct().Order(StringComparer.CurrentCultureIgnoreCase).ToList();
         await LoadAsync();
