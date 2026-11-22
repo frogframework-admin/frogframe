@@ -290,6 +290,8 @@ else
     private PrintModel? preview;
     private string? previewError;
 
+    [SupplyParameterFromQuery(Name = "doctype")] public string? InitialDocType { get; set; }
+
     private UserContext User => Current.Required;
     private bool IsManager => User.Roles.Contains(UserContext.SystemManager) || User.Roles.Contains(UserContext.Administrator);
     private CompiledDocType? Meta => docType is not null && Metadata.Current.TryGet(docType, out var m) ? m : null;
@@ -308,6 +310,11 @@ else
         await ReloadLetterheadsAsync();
         if (letterheads.FirstOrDefault(l => l.Design.IsDefault) is { } d) EditLetterhead(d);
         else lh = new LetterheadDesign { Name = "Main", CompanyName = "", IsDefault = true };
+        if (!string.IsNullOrWhiteSpace(InitialDocType) && PrintableDocTypes.Any(m => string.Equals(m.Name, InitialDocType, StringComparison.OrdinalIgnoreCase)))
+        {
+            tab = "formats";
+            await SelectDocTypeAsync(PrintableDocTypes.First(m => string.Equals(m.Name, InitialDocType, StringComparison.OrdinalIgnoreCase)).Name);
+        }
     }
 
     // ---------------- letterheads ----------------

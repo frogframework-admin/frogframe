@@ -169,6 +169,20 @@ else if (meta is not null && doc is not null)
                 <LucideIcon Name="trash-2" Size="16" /> @T[HasStatus ? "Delete draft" : "Delete"]
             </BbButton>
         }
+        @if (User.Roles.Contains(UserContext.SystemManager))
+        {
+            <BbButton Variant="ButtonVariant.Ghost" Href="@($"/admin/metadata/{DocType}/editor")"
+                      AdditionalAttributes="@(new Dictionary<string, object> { ["title"] = T["Edit DocType metadata"] })">
+                <LucideIcon Name="settings-2" Size="16" /> @T["Edit DocType"]
+            </BbButton>
+        }
+        @if (!meta.Def.IsSingle && (User.Roles.Contains(UserContext.SystemManager) || User.Roles.Contains(UserContext.Administrator)))
+        {
+            <BbButton Variant="ButtonVariant.Ghost" Href="@($"/admin/print-designs?doctype={DocType}")"
+                      AdditionalAttributes="@(new Dictionary<string, object> { ["title"] = T["Design print format for this DocType"] })">
+                <LucideIcon Name="file-text" Size="16" /> @T["Print Design"]
+            </BbButton>
+        }
         @if (!Editable && !IsNew && doc.DocStatus != DocStatus.Draft)
         {
             <span class="muted small">@T.Format("Document is locked with status {0}.", T.State(doc.WorkflowState, doc.DocStatus))</span>
