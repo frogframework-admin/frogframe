@@ -7795,12 +7795,12 @@ table.review-rows tr.row-removed td.review-row-kind { text-decoration: none; }
 .table-wrap table.attendance-recap {
   width: 100%;
   min-width: 0;
-  font-size: .78rem;
+  font-size: .75rem;
 }
 
 .table-wrap table.attendance-recap th,
 .table-wrap table.attendance-recap td {
-  padding: .4rem .25rem;
+  padding: .35rem .2rem;
 }
 
 .table-wrap table.attendance-recap th {
@@ -7840,9 +7840,11 @@ table.review-rows tr.row-removed td.review-row-kind { text-decoration: none; }
 }
 
 .table-wrap table.attendance-recap th:first-child,
-.table-wrap table.attendance-recap td:first-child {
+.table-wrap table.attendance-recap td:first-child,
+.table-wrap table.attendance-recap thead th:nth-child(2),
+.table-wrap table.attendance-recap tbody td:nth-child(2) {
   text-align: left;
-  padding-left: .5rem;
+  padding-left: .45rem;
 }
 
 .table-wrap table.attendance-recap tfoot th {

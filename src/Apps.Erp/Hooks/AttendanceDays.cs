@@ -12,6 +12,9 @@ public sealed record AttendanceRecapRow(
     string Employee,
     string EmployeeName,
     string? OrganizationUnit,
+    string? PositionTitle,
+    DateOnly? HireDate,
+    DateOnly? SeparationDate,
     IReadOnlyDictionary<string, int> Codes,
     int LateDays,
     int LateMinutes,
@@ -109,6 +112,8 @@ public static class AttendanceDays
         if (employee is not null) filters.Add(new FilterClause(StandardFields.Name, "=", employee));
         if (organizationUnit is not null) filters.Add(new FilterClause("organization_unit", "=", organizationUnit));
         var employees = await m.QueryAsync("Employee", filters, ct, "full_name", "asc", 20000);
+        var positions = (await m.QueryAsync("Position", [], ct, take: 20000))
+            .ToDictionary(p => p.Name, p => p.Data.Str("position_title") ?? p.Name, StringComparer.OrdinalIgnoreCase);
         var attFilters = new List<FilterClause> { new("attendance_date", ">=", D.Iso(from)), new("attendance_date", "<=", D.Iso(to)) };
         if (employee is not null) attFilters.Add(new FilterClause("employee", "=", employee));
         var byEmployee = (await m.QueryAsync("Attendance", attFilters, ct, take: 400000))
@@ -139,7 +144,10 @@ public static class AttendanceDays
             }
             for (var day = from > hired ? from : hired; day <= last && day <= left; day = day.AddDays(1))
                 if (!seen.Contains(day)) unclassified++;
+            var posId = emp.Data.Str("position");
+            var posTitle = posId is not null && positions.TryGetValue(posId, out var pt) ? pt : (posId ?? emp.Data.Str("job_profile"));
             rows.Add(new AttendanceRecapRow(emp.Name, emp.Data.Str("full_name") ?? emp.Name, emp.Data.Str("organization_unit"),
+                posTitle, emp.Data.Date("hire_date"), emp.Data.Date("separation_date"),
                 codes, lateDays, lateMin, earlyDays, earlyMin, unclassified));
         }
         return rows;

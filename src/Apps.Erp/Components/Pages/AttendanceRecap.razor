@@ -40,6 +40,7 @@ else
             }
         </div>
         <div class="row" style="gap:.5rem;flex-wrap:wrap;align-items:center">
+            <input type="search" class="auth-input" style="min-width:14rem;width:auto" value="@search" @oninput="OnSearchInput" placeholder="@T["Search employee, position, unit..."]" aria-label="@T["Search"]" />
             <input type="month" class="auth-input" style="width:auto" value="@month" @onchange="e => ChangeMonthAsync(e.Value as string)" aria-label="@T["Month"]" />
             <select class="auth-input" style="width:auto" value="@unit" @onchange="e => ChangeUnitAsync(e.Value as string)" aria-label="@T["Unit"]">
                 <option value="">@T["All units"]</option>
@@ -68,17 +69,24 @@ else
     {
         <div class="stack"><BbSkeleton Height="3rem" /><BbSkeleton Height="3rem" /><BbSkeleton Height="3rem" /></div>
     }
-    else if (rows.Count == 0)
+    else if (FilteredRows.Count == 0)
     {
         <div class="desk-table-card desk-empty-box">@T["No employees or attendance in this month."]</div>
     }
     else
     {
+        var filtered = FilteredRows;
+        var paged = PagedRows(filtered);
+        var startRow = (currentPage - 1) * pageSize + 1;
+        var endRow = Math.Min(currentPage * pageSize, filtered.Count);
         <div class="table-wrap">
             <table @ref="tableRef" class="perm-table attendance-recap">
                 <thead>
                     <tr>
                         <th>@T["Employee"]</th>
+                        <th>@T["Position"]</th>
+                        <th class="num">@T["Join Date"]</th>
+                        <th class="num">@T["Resign Date"]</th>
                         @foreach (var c in Columns)
                         {
                             <th class="num" title="@T[CodeTitle(c)]">@c</th>
@@ -91,13 +99,16 @@ else
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var r in rows)
+                    @foreach (var r in paged)
                     {
                         <tr>
                             <td>
                                 <a href="/app/Attendance?employee=@Uri.EscapeDataString(r.Employee)">@r.EmployeeName</a>
                                 <div class="muted small">@r.Employee@(r.OrganizationUnit is { } ou ? " · " + ou : "")</div>
                             </td>
+                            <td>@(r.PositionTitle ?? "—")</td>
+                            <td class="num nowrap">@(r.HireDate?.ToString("dd-MM-yyyy", CultureInfo.InvariantCulture) ?? "—")</td>
+                            <td class="num nowrap">@(r.SeparationDate?.ToString("dd-MM-yyyy", CultureInfo.InvariantCulture) ?? "—")</td>
                             @foreach (var c in Columns)
                             {
                                 var n = r.Count(c);
@@ -113,19 +124,39 @@ else
                 </tbody>
                 <tfoot>
                     <tr>
-                        <th>@T["Total"]</th>
+                        <th colspan="4">@T["Total"]</th>
                         @foreach (var c in Columns)
                         {
-                            <th class="num">@rows.Sum(r => r.Count(c))</th>
+                            <th class="num">@filtered.Sum(r => r.Count(c))</th>
                         }
-                        <th class="num">@rows.Sum(r => r.LateDays)</th>
-                        <th class="num">@rows.Sum(r => r.LateMinutes)</th>
-                        <th class="num">@rows.Sum(r => r.EarlyOutDays)</th>
-                        <th class="num">@rows.Sum(r => r.EarlyOutMinutes)</th>
-                        <th class="num">@rows.Sum(r => r.UnclassifiedDays)</th>
+                        <th class="num">@filtered.Sum(r => r.LateDays)</th>
+                        <th class="num">@filtered.Sum(r => r.LateMinutes)</th>
+                        <th class="num">@filtered.Sum(r => r.EarlyOutDays)</th>
+                        <th class="num">@filtered.Sum(r => r.EarlyOutMinutes)</th>
+                        <th class="num">@filtered.Sum(r => r.UnclassifiedDays)</th>
                     </tr>
                 </tfoot>
             </table>
+        </div>
+        <div class="row" style="justify-content:space-between;align-items:center;margin-top:.75rem;gap:.75rem;flex-wrap:wrap">
+            <div class="row muted small" style="gap:.5rem;align-items:center">
+                <span>@T.Format("Showing {0}–{1} of {2}", startRow, endRow, filtered.Count)</span>
+                <span>·</span>
+                <label class="row" style="gap:.35rem;align-items:center">
+                    <span>@T["Rows per page"]</span>
+                    <select class="auth-input" style="width:auto;padding:.2rem .45rem;height:auto" value="@pageSize" @onchange="OnPageSizeChange">
+                        <option value="10">10</option>
+                        <option value="25">25</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                    </select>
+                </label>
+            </div>
+            <div class="row" style="gap:.4rem;align-items:center">
+                <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Disabled="@(currentPage <= 1)" OnClick="@(() => GoToPage(currentPage - 1))">@T["Previous"]</BbButton>
+                <span class="muted small">@T.Format("Page {0} of {1}", currentPage, TotalPages(filtered.Count))</span>
+                <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" Disabled="@(currentPage >= TotalPages(filtered.Count))" OnClick="@(() => GoToPage(currentPage + 1))">@T["Next"]</BbButton>
+            </div>
         </div>
         <p class="muted small" style="margin-top:.5rem">@T["ONT on time · LI late in · EO early out · LI/EO both · NCIN no clock-in · NCOUT no clock-out · ABS absent · TO-ND time off without deduction · TO-D time off with salary deduction (leave type not 'Paid') · DO day off · INV invalid"]</p>
     }
@@ -139,8 +170,51 @@ else
     private int cutoffStartDay = 1;
     private int cutoffEndDay = 31;
     private string unit = "";
+    private string search = "";
+    private int pageSize = 25;
+    private int currentPage = 1;
     private List<string> units = [];
     private IReadOnlyList<AttendanceRecapRow> rows = [];
+
+    private IReadOnlyList<AttendanceRecapRow> FilteredRows
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(search)) return rows;
+            var q = search.Trim();
+            return rows.Where(r =>
+                r.EmployeeName.Contains(q, StringComparison.OrdinalIgnoreCase)
+                || r.Employee.Contains(q, StringComparison.OrdinalIgnoreCase)
+                || (r.OrganizationUnit?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false)
+                || (r.PositionTitle?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false)).ToList();
+        }
+    }
+
+    private int TotalPages(int count) => Math.Max(1, (int)Math.Ceiling(count / (double)pageSize));
+
+    private IReadOnlyList<AttendanceRecapRow> PagedRows(IReadOnlyList<AttendanceRecapRow> filtered)
+    {
+        var maxPage = TotalPages(filtered.Count);
+        if (currentPage > maxPage) currentPage = maxPage;
+        return filtered.Skip((currentPage - 1) * pageSize).Take(pageSize).ToList();
+    }
+
+    private void OnSearchInput(ChangeEventArgs e)
+    {
+        search = e.Value as string ?? "";
+        currentPage = 1;
+    }
+
+    private void OnPageSizeChange(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value as string, out var next) && next is 10 or 25 or 50 or 100)
+        {
+            pageSize = next;
+            currentPage = 1;
+        }
+    }
+
+    private void GoToPage(int page) => currentPage = Math.Clamp(page, 1, TotalPages(FilteredRows.Count));
     private bool loading = true;
     private bool busy;
     private bool recalculating;
@@ -182,16 +256,16 @@ else
         finally
         {
             loading = false;
-            resizeInitPending = rows.Count > 0;
+            currentPage = 1;
+            resizeInitPending = FilteredRows.Count > 0;
         }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (resizeInitPending && rows.Count > 0)
+        if (!loading && FilteredRows.Count > 0)
         {
-            resizeInitPending = false;
-            await JS.InvokeVoidAsync("frogframe.initResizableTable", tableRef, "ff-attendance-recap-cols");
+            await JS.InvokeVoidAsync("frogframe.initResizableTable", tableRef, "ff-attendance-recap-cols-v2");
         }
     }
 
@@ -238,8 +312,11 @@ else
         busy = true;
         try
         {
-            string[] headers = ["Employee ID", "Employee", "Unit", .. Columns, "Late days", "Late minutes", "Early-out days", "Early-out minutes", "Days without final code"];
-            var data = rows.Select(r => (object?[])[r.Employee, r.EmployeeName, r.OrganizationUnit, .. Columns.Select(c => (object?)r.Count(c)),
+            string[] headers = ["Employee ID", "Employee", "Unit", "Position", "Join Date", "Resign Date", .. Columns, "Late days", "Late minutes", "Early-out days", "Early-out minutes", "Days without final code"];
+            var data = FilteredRows.Select(r => (object?[])[r.Employee, r.EmployeeName, r.OrganizationUnit, r.PositionTitle,
+                r.HireDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                r.SeparationDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                .. Columns.Select(c => (object?)r.Count(c)),
                 r.LateDays, r.LateMinutes, r.EarlyOutDays, r.EarlyOutMinutes, r.UnclassifiedDays]).ToList();
             var name = $"attendance-recap-{month}{(string.IsNullOrEmpty(unit) ? "" : "-" + unit)}";
             ReportOutput output;
