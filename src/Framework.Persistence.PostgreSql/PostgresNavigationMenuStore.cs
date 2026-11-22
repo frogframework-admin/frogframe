@@ -707,6 +707,56 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
             if (await moveOrgJobCmd.ExecuteNonQueryAsync(ct) > 0) added = true;
         }
 
+        // 13. Split 'Time & Attendance' into 'Attendance & Daily Tracking', 'Leave & Time Off', and 'Shift & Roster Management'
+        await using (var renameAttGrpCmd = db.CreateCommand(
+            "UPDATE frogframe_navigation_menu_groups SET name = 'Attendance & Daily Tracking', icon = 'clock', updated_at = $3 " +
+            "WHERE tenant_id = $1 AND id = $2 AND is_system = true AND (name <> 'Attendance & Daily Tracking' OR icon <> 'clock')"))
+        {
+            renameAttGrpCmd.Parameters.AddWithValue(tenantId);
+            renameAttGrpCmd.Parameters.AddWithValue(NavigationMenuDefaults.GroupHrAttendanceId(tenantId));
+            renameAttGrpCmd.Parameters.AddWithValue(now);
+            if (await renameAttGrpCmd.ExecuteNonQueryAsync(ct) > 0) added = true;
+        }
+
+        await using (var moveAttItemsCmd = db.CreateCommand(
+            "UPDATE frogframe_navigation_menus " +
+            "SET group_id = $2, group_name = 'Attendance & Daily Tracking', updated_at = $3 " +
+            "WHERE tenant_id = $1 AND is_system = true " +
+            "AND href IN ('app/Attendance', 'app/AttendanceCorrection', 'app/EmployeeDailySchedule', 'hr/attendance-recap', 'app/FaceRegistration') " +
+            "AND (group_id IS DISTINCT FROM $2 OR group_name <> 'Attendance & Daily Tracking')"))
+        {
+            moveAttItemsCmd.Parameters.AddWithValue(tenantId);
+            moveAttItemsCmd.Parameters.AddWithValue(NavigationMenuDefaults.GroupHrAttendanceId(tenantId));
+            moveAttItemsCmd.Parameters.AddWithValue(now);
+            if (await moveAttItemsCmd.ExecuteNonQueryAsync(ct) > 0) added = true;
+        }
+
+        await using (var moveLeaveItemsCmd = db.CreateCommand(
+            "UPDATE frogframe_navigation_menus " +
+            "SET group_id = $2, group_name = 'Leave & Time Off', updated_at = $3 " +
+            "WHERE tenant_id = $1 AND is_system = true " +
+            "AND href IN ('app/LeaveApplication', 'app/LeaveAllocation', 'app/HolidayList', 'app/LeaveType', 'app/LeavePolicy') " +
+            "AND (group_id IS DISTINCT FROM $2 OR group_name <> 'Leave & Time Off')"))
+        {
+            moveLeaveItemsCmd.Parameters.AddWithValue(tenantId);
+            moveLeaveItemsCmd.Parameters.AddWithValue(NavigationMenuDefaults.GroupHrLeaveId(tenantId));
+            moveLeaveItemsCmd.Parameters.AddWithValue(now);
+            if (await moveLeaveItemsCmd.ExecuteNonQueryAsync(ct) > 0) added = true;
+        }
+
+        await using (var moveShiftItemsCmd = db.CreateCommand(
+            "UPDATE frogframe_navigation_menus " +
+            "SET group_id = $2, group_name = 'Shift & Roster Management', updated_at = $3 " +
+            "WHERE tenant_id = $1 AND is_system = true " +
+            "AND href IN ('hr/roster-calendar', 'app/OvertimeRequest', 'app/ShiftSwapRequest', 'app/ShiftOverride', 'app/ShiftPreference', 'app/ShiftAssignment', 'app/ScheduleGeneration', 'app/ScheduleOptimization', 'app/ShiftType', 'app/ShiftPattern', 'app/ShiftGroup', 'app/ShiftRequirement', 'app/WorkScheduleRule') " +
+            "AND (group_id IS DISTINCT FROM $2 OR group_name <> 'Shift & Roster Management')"))
+        {
+            moveShiftItemsCmd.Parameters.AddWithValue(tenantId);
+            moveShiftItemsCmd.Parameters.AddWithValue(NavigationMenuDefaults.GroupHrShiftRosterId(tenantId));
+            moveShiftItemsCmd.Parameters.AddWithValue(now);
+            if (await moveShiftItemsCmd.ExecuteNonQueryAsync(ct) > 0) added = true;
+        }
+
         seededTenants[tenantId] = true;
         if (added) Changed?.Invoke();
     }
