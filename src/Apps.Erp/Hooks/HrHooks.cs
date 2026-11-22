@@ -819,6 +819,175 @@ public sealed class EmployeeSeparationHook(IDocumentStore store, TimeProvider cl
     }
 }
 
+/// <summary>Onboarding List: populates checklist from OnboardingTemplate on new/template change and before validate.</summary>
+public sealed class OnboardingListHook(IDocumentStore store)
+    : IBeforeValidate<OnboardingList>, IOnNew<OnboardingList>, IOnFieldChange<OnboardingList>
+{
+    public Task OnNewAsync(HookContext c, CancellationToken ct) =>
+        ApplyTemplateAsync(c, overwrite: false, ct);
+
+    public async Task OnFieldChangeAsync(HookContext c, string fieldName, CancellationToken ct)
+    {
+        var d = c.Doc.Data;
+        var m = new Masters(store, c.Doc.TenantId);
+        if (fieldName == "employee" && !string.IsNullOrWhiteSpace(d.Str("employee")))
+        {
+            var emp = await m.GetAsync("Employee", d.Str("employee"), ct);
+            if (emp is not null && !string.IsNullOrWhiteSpace(emp.Data.Str("hire_date")))
+                d["start_date"] = emp.Data.Str("hire_date");
+            await UpdateChecklistDueDatesAsync(m, d, ct);
+        }
+        else if (fieldName == "start_date")
+        {
+            await UpdateChecklistDueDatesAsync(m, d, ct);
+        }
+        else if (fieldName == "template")
+        {
+            await ApplyTemplateAsync(c, overwrite: true, ct);
+        }
+    }
+
+    public async Task BeforeValidateAsync(HookContext c, CancellationToken ct)
+    {
+        var d = c.Doc.Data;
+        var m = new Masters(store, c.Doc.TenantId);
+        if (string.IsNullOrWhiteSpace(d.Str("start_date")) && !string.IsNullOrWhiteSpace(d.Str("employee")))
+        {
+            var emp = await m.GetAsync("Employee", d.Str("employee"), ct);
+            d.SetIfEmpty("start_date", emp?.Data.Str("hire_date"));
+        }
+        await ApplyTemplateAsync(c, overwrite: false, ct);
+        await UpdateChecklistDueDatesAsync(m, d, ct);
+    }
+
+    private async Task ApplyTemplateAsync(HookContext c, bool overwrite, CancellationToken ct)
+    {
+        var d = c.Doc.Data;
+        if (!overwrite && d.Rows("checklist").Count > 0) return;
+        var tplName = d.Str("template");
+        if (string.IsNullOrWhiteSpace(tplName))
+        {
+            if (overwrite) d["checklist"] = new List<Dictionary<string, object?>>();
+            return;
+        }
+        var tpl = await new Masters(store, c.Doc.TenantId).GetAsync("OnboardingTemplate", tplName, ct);
+        if (tpl is null) return;
+        var startDate = d.Date("start_date");
+        var list = new List<Dictionary<string, object?>>();
+        foreach (var row in tpl.Data.Rows("tasks"))
+        {
+            DateOnly? dueDate = null;
+            if (startDate is not null && row.TryGetValue("due_days", out var dd) && dd is not null)
+            {
+                var days = (int)row.Dec("due_days");
+                if (days >= 0)
+                    dueDate = startDate.Value.AddDays(days);
+            }
+            list.Add(new Dictionary<string, object?>
+            {
+                ["task"] = row.Str("task"),
+                ["responsible"] = row.Str("responsible"),
+                ["due_date"] = dueDate?.ToString("yyyy-MM-dd"),
+                ["is_done"] = false,
+                ["notes"] = row.Str("notes")
+            });
+        }
+        d["checklist"] = list;
+    }
+
+    private static async Task UpdateChecklistDueDatesAsync(Masters m, IDictionary<string, object?> d, CancellationToken ct)
+    {
+        var startDate = d.Date("start_date");
+        var tplName = d.Str("template");
+        var rows = d.Rows("checklist");
+        if (startDate is null || string.IsNullOrWhiteSpace(tplName) || rows.Count == 0) return;
+        var tpl = await m.GetAsync("OnboardingTemplate", tplName, ct);
+        if (tpl is null) return;
+        var tplTasks = tpl.Data.Rows("tasks");
+        for (var i = 0; i < rows.Count && i < tplTasks.Count; i++)
+        {
+            if (string.IsNullOrWhiteSpace(rows[i].Str("due_date")) || rows[i].Str("task") == tplTasks[i].Str("task"))
+            {
+                if (tplTasks[i].TryGetValue("due_days", out var dd) && dd is not null)
+                {
+                    var days = (int)tplTasks[i].Dec("due_days");
+                    if (days >= 0)
+                        rows[i]["due_date"] = startDate.Value.AddDays(days).ToString("yyyy-MM-dd");
+                }
+            }
+        }
+    }
+}
+
+/// <summary>Offboarding List: populates checklist from OffboardingTemplate on new/template change and before validate.</summary>
+public sealed class OffboardingListHook(IDocumentStore store)
+    : IBeforeValidate<OffboardingList>, IOnNew<OffboardingList>, IOnFieldChange<OffboardingList>
+{
+    public Task OnNewAsync(HookContext c, CancellationToken ct) =>
+        ApplyTemplateAsync(c, overwrite: false, ct);
+
+    public async Task OnFieldChangeAsync(HookContext c, string fieldName, CancellationToken ct)
+    {
+        var d = c.Doc.Data;
+        var m = new Masters(store, c.Doc.TenantId);
+        if (fieldName == "employee_separation" && !string.IsNullOrWhiteSpace(d.Str("employee_separation")))
+        {
+            var sep = await m.GetAsync("EmployeeSeparation", d.Str("employee_separation"), ct);
+            if (sep is not null)
+            {
+                d.SetIfEmpty("employee", sep.Data.Str("employee"));
+                if (!string.IsNullOrWhiteSpace(sep.Data.Str("last_working_date")))
+                    d["last_working_date"] = sep.Data.Str("last_working_date");
+            }
+        }
+        else if (fieldName == "template")
+        {
+            await ApplyTemplateAsync(c, overwrite: true, ct);
+        }
+    }
+
+    public async Task BeforeValidateAsync(HookContext c, CancellationToken ct)
+    {
+        var d = c.Doc.Data;
+        if (!string.IsNullOrWhiteSpace(d.Str("employee_separation")))
+        {
+            var sep = await new Masters(store, c.Doc.TenantId).GetAsync("EmployeeSeparation", d.Str("employee_separation"), ct);
+            if (sep is not null)
+            {
+                d.SetIfEmpty("employee", sep.Data.Str("employee"));
+                d.SetIfEmpty("last_working_date", sep.Data.Str("last_working_date"));
+            }
+        }
+        await ApplyTemplateAsync(c, overwrite: false, ct);
+    }
+
+    private async Task ApplyTemplateAsync(HookContext c, bool overwrite, CancellationToken ct)
+    {
+        var d = c.Doc.Data;
+        if (!overwrite && d.Rows("checklist").Count > 0) return;
+        var tplName = d.Str("template");
+        if (string.IsNullOrWhiteSpace(tplName))
+        {
+            if (overwrite) d["checklist"] = new List<Dictionary<string, object?>>();
+            return;
+        }
+        var tpl = await new Masters(store, c.Doc.TenantId).GetAsync("OffboardingTemplate", tplName, ct);
+        if (tpl is null) return;
+        var list = new List<Dictionary<string, object?>>();
+        foreach (var row in tpl.Data.Rows("tasks"))
+        {
+            list.Add(new Dictionary<string, object?>
+            {
+                ["task"] = row.Str("task"),
+                ["responsible"] = row.Str("responsible"),
+                ["is_done"] = false,
+                ["notes"] = row.Str("notes")
+            });
+        }
+        d["checklist"] = list;
+    }
+}
+
 /// <summary>Employment Contract: no overlap; total PKWT duration including renewals at most 60 months (PP 35/2021); status computed on load.</summary>
 public sealed class EmploymentContractHook(IDocumentStore store, TimeProvider clock)
     : IBeforeValidate<EmploymentContract>, IOnLoad<EmploymentContract>

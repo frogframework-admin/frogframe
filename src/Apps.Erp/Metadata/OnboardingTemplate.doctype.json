@@ -1,0 +1,140 @@
+{
+  "name": "OnboardingTemplate",
+  "version": 1,
+  "title": "Onboarding Template",
+  "module": "HR",
+  "description": "Template defining onboarding tasks and checklist items for new employees.",
+  "naming": {
+    "pattern": "field:template_name"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "template_name",
+      "type": "Data",
+      "label": "Template name",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Template Details"
+    },
+    {
+      "name": "organization_unit",
+      "type": "Link",
+      "label": "Organization Unit",
+      "linkTo": "OrganizationUnit",
+      "inListView": true,
+      "section": "Template Details"
+    },
+    {
+      "name": "position",
+      "type": "Link",
+      "label": "Position",
+      "linkTo": "Position",
+      "inListView": true,
+      "section": "Template Details",
+      "column": 2
+    },
+    {
+      "name": "is_active",
+      "type": "Check",
+      "label": "Is active",
+      "default": true,
+      "section": "Template Details",
+      "column": 2
+    },
+    {
+      "name": "description",
+      "type": "Text",
+      "label": "Description",
+      "section": "Template Details"
+    },
+    {
+      "name": "tasks",
+      "type": "Table",
+      "label": "Tasks",
+      "childDocType": "OnboardingTemplateItem",
+      "section": "Checklist Tasks"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR-Admin",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Recruitment",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Employee-Management",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "template_name",
+    "searchFields": [
+      "template_name",
+      "organization_unit"
+    ],
+    "filters": [
+      "is_active",
+      "organization_unit"
+    ],
+    "defaultSort": [
+      {
+        "field": "template_name",
+        "direction": "asc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "delete"
+    ]
+  }
+}

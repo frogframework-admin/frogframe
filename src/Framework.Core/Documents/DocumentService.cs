@@ -113,6 +113,30 @@ public sealed class DocumentService(
 
     // ---------------- Read ----------------
 
+    public async Task<Document> NewAsync(UserContext user, string docType, CancellationToken ct = default)
+    {
+        var doc = New(user, docType);
+        var meta = TopLevel(docType);
+        using var hookScope = hooks.EnterDocument(docType, "");
+        var hookContext = CreateHookContext(meta, user, doc, null, []);
+        await hooks.RunAsync(DocHookStage.OnNew, hookContext, ct);
+        return doc;
+    }
+
+    public async Task ApplyFieldChangeAsync(UserContext user, string docType, Dictionary<string, object?> data, string fieldName, CancellationToken ct = default)
+    {
+        var meta = TopLevel(docType);
+        permissions.Demand(user, meta, DocActions.Read);
+        var doc = new Document
+        {
+            DocType = docType, Name = "", TenantId = user.TenantId, Owner = user.Id, Version = 0,
+            SchemaVersion = meta.Version, WorkflowState = meta.Workflow?.Def.InitialState, Data = data
+        };
+        using var hookScope = hooks.EnterDocument(docType, "");
+        var hookContext = CreateHookContext(meta, user, doc, null, []);
+        await hooks.RunAsync(DocHookStage.OnFieldChange, hookContext, ct, changes: [new FieldChange(fieldName, null, null)]);
+    }
+
     public Document New(UserContext user, string docType)
     {
         var meta = TopLevel(docType);

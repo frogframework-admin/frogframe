@@ -1,0 +1,148 @@
+{
+  "name": "OffboardingTemplate",
+  "version": 1,
+  "title": "Offboarding Template",
+  "module": "HR",
+  "description": "Template defining clearance and exit checklist items for departing employees.",
+  "naming": {
+    "pattern": "field:template_name"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "template_name",
+      "type": "Data",
+      "label": "Template name",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Template Details"
+    },
+    {
+      "name": "organization_unit",
+      "type": "Link",
+      "label": "Organization Unit",
+      "linkTo": "OrganizationUnit",
+      "inListView": true,
+      "section": "Template Details"
+    },
+    {
+      "name": "separation_type",
+      "type": "Select",
+      "label": "Separation Type",
+      "inListView": true,
+      "section": "Template Details",
+      "column": 2,
+      "options": [
+        "Resignation",
+        "PHK",
+        "Retirement",
+        "Contract end",
+        "Death",
+        "Other"
+      ]
+    },
+    {
+      "name": "is_active",
+      "type": "Check",
+      "label": "Is active",
+      "default": true,
+      "section": "Template Details",
+      "column": 2
+    },
+    {
+      "name": "description",
+      "type": "Text",
+      "label": "Description",
+      "section": "Template Details"
+    },
+    {
+      "name": "tasks",
+      "type": "Table",
+      "label": "Tasks",
+      "childDocType": "OffboardingTemplateItem",
+      "section": "Checklist Tasks"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR-Admin",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Recruitment",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Employee-Management",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "template_name",
+    "searchFields": [
+      "template_name",
+      "organization_unit"
+    ],
+    "filters": [
+      "is_active",
+      "organization_unit",
+      "separation_type"
+    ],
+    "defaultSort": [
+      {
+        "field": "template_name",
+        "direction": "asc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "delete"
+    ]
+  }
+}

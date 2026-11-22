@@ -1135,7 +1135,7 @@ else if (meta is not null && doc is not null)
         meta = m;
         try
         {
-            doc = !meta.Def.IsSingle && Name == "new" ? Docs.New(User, DocType) : await Docs.GetAsync(User, DocType, meta.Def.IsSingle ? meta.Name : Name);
+            doc = !meta.Def.IsSingle && Name == "new" ? await Docs.NewAsync(User, DocType) : await Docs.GetAsync(User, DocType, meta.Def.IsSingle ? meta.Name : Name);
             if (!meta.Def.IsSingle && Name == "new") ApplyPrefill(doc);
             myShare = meta.Def.IsSingle || Name == "new" ? null : await Docs.ShareForAsync(User, DocType, Name);
             model = Document.DeepCopy(doc.Data);
@@ -1216,6 +1216,7 @@ else if (meta is not null && doc is not null)
             }
             model[dep.Name] = fetched;
         }
+        if (!loadingForm) await Docs.ApplyFieldChangeAsync(User, DocType, model, f.Name);
         await Changed();
         // Client Scripts (Change). Not while the form loads; values set by scripts cascade up to MaxClientScriptDepth.
         if (!loadingForm) await RunClientScripts(Framework.Scripting.Abstractions.FormScriptEvent.Change, f.Name);

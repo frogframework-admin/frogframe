@@ -34,6 +34,16 @@
       "section": "Onboarding Details"
     },
     {
+      "name": "template",
+      "type": "Link",
+      "label": "Onboarding Template",
+      "linkTo": "OnboardingTemplate",
+      "default": "Standard Employee Onboarding",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Onboarding Details"
+    },
+    {
       "name": "organization_unit",
       "type": "Link",
       "label": "Organization Unit",
@@ -54,7 +64,6 @@
       "name": "start_date",
       "type": "Date",
       "label": "Start date",
-      "fetchFrom": "employee.hire_date",
       "requiredWhen": "true",
       "inListView": true,
       "section": "Onboarding Details",

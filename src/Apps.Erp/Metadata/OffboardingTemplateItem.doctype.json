@@ -1,0 +1,34 @@
+{
+  "name": "OffboardingTemplateItem",
+  "version": 1,
+  "title": "Offboarding Template Item",
+  "module": "HR",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "task",
+      "type": "Data",
+      "label": "Task",
+      "requiredWhen": "true",
+      "description": "e.g. Return laptop, revoke system access, exit interview"
+    },
+    {
+      "name": "responsible",
+      "type": "Select",
+      "label": "Custodian",
+      "requiredWhen": "true",
+      "options": [
+        "HR",
+        "Manager",
+        "IT",
+        "Finance",
+        "General Affairs"
+      ]
+    },
+    {
+      "name": "notes",
+      "type": "Data",
+      "label": "Notes"
+    }
+  ]
+}

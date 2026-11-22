@@ -41,6 +41,8 @@ public sealed class OrganizationUnitType { }
 public sealed class EmployeeAssignment { }
 public sealed class JobChange { }
 public sealed class EmployeeSeparation { }
+public sealed class OnboardingList { }
+public sealed class OffboardingList { }
 public sealed class EmploymentContract { }
 public sealed class LeaveAllocation { }
 public sealed class LeaveApplication { }

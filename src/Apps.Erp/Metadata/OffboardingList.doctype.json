@@ -42,6 +42,16 @@
       "section": "Offboarding Details"
     },
     {
+      "name": "template",
+      "type": "Link",
+      "label": "Offboarding Template",
+      "linkTo": "OffboardingTemplate",
+      "default": "Standard Employee Offboarding",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Offboarding Details"
+    },
+    {
       "name": "organization_unit",
       "type": "Link",
       "label": "Organization Unit",
@@ -54,7 +64,6 @@
       "name": "last_working_date",
       "type": "Date",
       "label": "Last working date",
-      "fetchFrom": "employee_separation.last_working_date",
       "requiredWhen": "true",
       "inListView": true,
       "section": "Offboarding Details",

@@ -144,6 +144,8 @@ public static class ErpRegistration
         services.AddDocHook<EmployeeAssignment, EmployeeAssignmentHook>();
         services.AddDocHook<JobChange, JobChangeHook>();
         services.AddDocHook<EmployeeSeparation, EmployeeSeparationHook>();
+        services.AddDocHook<OnboardingList, OnboardingListHook>();
+        services.AddDocHook<OffboardingList, OffboardingListHook>();
         services.AddDocHook<EmploymentContract, EmploymentContractHook>();
         services.AddDocHook<LeaveAllocation, LeaveAllocationHook>();
         services.AddDocHook<LeaveApplication, LeaveApplicationHook>();

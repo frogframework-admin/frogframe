@@ -63,6 +63,16 @@ public interface IOnLoad<TDoc>
     Task OnLoadAsync(HookContext context, CancellationToken ct);
 }
 
+public interface IOnNew<TDoc>
+{
+    Task OnNewAsync(HookContext context, CancellationToken ct);
+}
+
+public interface IOnFieldChange<TDoc>
+{
+    Task OnFieldChangeAsync(HookContext context, string fieldName, CancellationToken ct);
+}
+
 public interface IBeforeTransition<TDoc>
 {
     Task BeforeTransitionAsync(HookContext context, CancellationToken ct);
@@ -95,6 +105,8 @@ public enum DocHookStage
     BeforeUpdate,
     AfterSave,
     OnLoad,
+    OnNew,
+    OnFieldChange,
     BeforeTransition,
     BeforeDelete,
     AfterDelete,
@@ -129,6 +141,8 @@ public sealed class DocHookRegistration<TDoc, THook>(THook hook) : IDocHookRegis
         DocHookStage.BeforeUpdate => hook is IBeforeUpdate<TDoc>,
         DocHookStage.AfterSave => hook is IAfterSave<TDoc>,
         DocHookStage.OnLoad => hook is IOnLoad<TDoc>,
+        DocHookStage.OnNew => hook is IOnNew<TDoc>,
+        DocHookStage.OnFieldChange => hook is IOnFieldChange<TDoc>,
         DocHookStage.BeforeTransition => hook is IBeforeTransition<TDoc>,
         DocHookStage.BeforeDelete => hook is IBeforeDelete<TDoc>,
         DocHookStage.AfterDelete => hook is IAfterDelete<TDoc>,
@@ -144,6 +158,8 @@ public sealed class DocHookRegistration<TDoc, THook>(THook hook) : IDocHookRegis
         DocHookStage.BeforeUpdate when hook is IBeforeUpdate<TDoc> h => h.BeforeUpdateAsync(context, changes ?? [], ct),
         DocHookStage.AfterSave when hook is IAfterSave<TDoc> h => h.AfterSaveAsync(context, ct),
         DocHookStage.OnLoad when hook is IOnLoad<TDoc> h => h.OnLoadAsync(context, ct),
+        DocHookStage.OnNew when hook is IOnNew<TDoc> h => h.OnNewAsync(context, ct),
+        DocHookStage.OnFieldChange when hook is IOnFieldChange<TDoc> h => h.OnFieldChangeAsync(context, changes is { Count: > 0 } ? changes[0].Field : "", ct),
         DocHookStage.BeforeTransition when hook is IBeforeTransition<TDoc> h => h.BeforeTransitionAsync(context, ct),
         DocHookStage.BeforeDelete when hook is IBeforeDelete<TDoc> h => h.BeforeDeleteAsync(context, ct),
         DocHookStage.AfterDelete when hook is IAfterDelete<TDoc> h => h.AfterDeleteAsync(context, ct),
