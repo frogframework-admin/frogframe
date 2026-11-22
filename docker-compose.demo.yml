@@ -17,6 +17,7 @@ services:
       - Api__RateLimitPerMinute=10000
       - Api__WriteRateLimitPerMinute=10000
       - Api__HeavyRateLimitPerMinute=10000
+      - AllowedHosts=localhost;127.0.0.1;frogframe-app;app;host.docker.internal
 
   postgres:
     ports:

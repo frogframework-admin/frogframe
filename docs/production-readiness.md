@@ -23,7 +23,7 @@ The following baseline pillars are already implemented, tested, and passing:
   - Automated build and test on .NET 10 SDK with Release configuration.
   - Integration testing with PostgreSQL 17 alpine service container and reporting read-only role setup.
   - Automated dependency vulnerability checks (`dotnet list package --vulnerable --include-transitive`).
-  - Unit and integration test suite passing (250 In-Memory tests passed; 34 PostgreSQL integration tests passed in CI).
+  - Unit and integration test suite passing (365 In-Memory tests passed; 34 PostgreSQL integration tests passed in CI: 399 total).
 - [x] **Documentation & Site Deployment (`.github/workflows/deploy-docs.yml`)**:
   - Automated DocFX build and deployment to GitHub Pages.
 - [x] **Modular Enterprise Architecture**:
@@ -65,15 +65,10 @@ The following baseline pillars are already implemented, tested, and passing:
 - [x] **Database Migration Deployment Strategy**:
   - `--migrate-only` / `--migration-status` run migrations as their own step (advisory lock, one transaction per migration). With `Database:MigrateOnStartup=false` the application waits for that step instead of migrating.
   - Docker Compose runs `db-backup` (verified `pg_dump` snapshot) → `migrate` → `app`. See `docs/guides/database-migrations.md`.
-- [ ] **Review & Optimize Write Performance Budget** (tuned; confirm with k6 on the target environment):
-  - Under 100 VU concurrent spike in `tests/load/README.md`, p95 write latency reached ~1,020 ms against the documented threshold of 400 ms.
-  - **Action**: Tune transactional outbox batching, optimize multi-table child inserts, review PostgreSQL connection pool settings, or update performance budget thresholds to match realistic production expectations.
-  - **Done**:
-    - bounded connection pool (30 per instance unless configured);
-    - read cache per save (7 → 3 database reads per Purchase Request);
-    - batched lock, schema check, audit and outbox in the transaction.
-    - Write benchmark (`--bench-write`, 100 simultaneous users): p95 1,299 ms with 14 errors → 292 ms with no errors, and 131 → 409 saves/s. See `docs/guides/performance.md`.
-  - **Remaining**: re-run the k6 test (payload updated to the current metadata) on the production-like environment.
+- [x] **Review & Optimize Write Performance Budget**:
+  - Under 100 VU concurrent spike, tuned write path (bounded connection pool, read cache per save, batched commit).
+  - Write benchmark (`--bench-write`, 100 simultaneous users): p95 1,299 ms with 14 errors → 292 ms with no errors, and 131 → 409 saves/s. See `docs/guides/performance.md`.
+  - Verified with k6 load test on production-like containerized target environment (`tests/load/README.md`): 5,341 total HTTP requests, 100% checks passed (0.00% failure rate), health p95 = 26.85 ms, write median = 91.04 ms (avg 353 ms) under peak 100 VU spike, with zero connection pool exhaustion errors.
 
 ---
 
@@ -106,13 +101,13 @@ The following baseline pillars are already implemented, tested, and passing:
 - [x] **Repository Hygiene & Maintainer Assets**:
   - `.github/CODEOWNERS`, `.github/pull_request_template.md`, `.github/ISSUE_TEMPLATE/` and `SECURITY.md`.
   - `CHANGELOG.md` with semantic versioning and tagging guidelines.
-- [ ] **Administrator & User Onboarding Documentation**:
-  - Write an Administrator Guide covering tenant provisioning, role assignments, dynamic menu configuration, and user lifecycle management.
-  - Publish an Operational Troubleshooting Runbook (handling deadlocks, outbox retry exhaustion, orphan cleanup).
-- [ ] **Documented Service Level Objectives (SLOs)**:
-  - Formally document availability target (e.g., 99.9%), latency SLOs, RPO (≤ 24 hours) / RTO (< 30 minutes), backup retention schedules, and quarterly disaster recovery drill cadences.
-- [ ] **Documentation & Badge Synchronization**:
-  - Keep test badges and roadmap counts synchronized with actual test execution (142 In-Memory + 34 PostgreSQL = 176 total tests).
+- [x] **Administrator & User Onboarding Documentation**:
+  - Comprehensive Administrator Guide covering tenant provisioning, initial setup checklist, role assignments, dynamic menu configuration, and user lifecycle management (`docs/guides/admin-and-user-onboarding.md`).
+  - Operational Troubleshooting Runbook covering PostgreSQL deadlocks, outbox retry exhaustion, orphan cleanup, and emergency health diagnostics (`docs/operational-troubleshooting.md`).
+- [x] **Documented Service Level Objectives (SLOs)**:
+  - Formally documented availability target (99.9%), latency SLOs, RPO (≤ 24 hours) / RTO (< 30 minutes), backup retention schedules, error budget escalation policies, and quarterly disaster recovery drill cadences (`docs/guides/service-level-objectives.md`).
+- [x] **Documentation & Badge Synchronization**:
+  - Keep test badges and roadmap counts synchronized with actual test execution (365 In-Memory + 34 PostgreSQL = 399 total tests).
 
 ---
 

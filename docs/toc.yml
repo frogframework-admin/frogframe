@@ -46,6 +46,8 @@
       href: guides/form-panels.md
     - name: Tenants (Group Companies)
       href: guides/tenants.md
+    - name: Administrator & User Onboarding
+      href: guides/admin-and-user-onboarding.md
     - name: Attendance Codes & Monthly Recap
       href: guides/attendance-codes.md
     - name: Background Jobs
@@ -112,6 +114,10 @@
       href: observability.md
     - name: Backup & Disaster Recovery
       href: backup-disaster-recovery.md
+    - name: Operational Troubleshooting Runbook
+      href: operational-troubleshooting.md
+    - name: Service Level Objectives (SLOs)
+      href: guides/service-level-objectives.md
     - name: Running on Several Nodes
       href: guides/multi-node.md
 - name: Extensibility & Runtime

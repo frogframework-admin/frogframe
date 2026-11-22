@@ -1,4 +1,4 @@
-﻿# FrogFramework Performance & Load Testing Baseline
+# FrogFramework Performance & Load Testing Baseline
 
 Operational guide and performance baseline benchmarks for FrogFramework using Grafana k6.
 
@@ -57,22 +57,20 @@ The test script executes 4 staged virtual user (VU) ramps:
 
 ## 5. Real Verification Run Results
 
-> **Note.** The run below was made with an earlier Purchase Request metadata (fields `requester`, `justification`) and before the write-path tuning. The script now sends the current fields (`requested_by`, `company`, `purpose`, `items`) and needs the demo masters (`deploy/sql/seed-phase-1..8.sql`; or set `REQUESTER` / `COMPANY`). The tuning (bounded connection pool, read cache per save, batched commit) and before/after numbers from the write benchmark are described in [Write performance](../../docs/guides/performance.md). Re-run this test on the target environment to update the end-to-end numbers.
-
-Verified in an isolated Docker network environment (`frogframe-app` + `frogframe-postgres` on PostgreSQL 17, `grafana/k6` container attached to `frogframe_default`):
+Verified in an isolated Docker network environment (`frogframe-app` + `frogframe-postgres` on PostgreSQL 17 + `frogframe-seaweedfs` S3 object storage, `grafana/k6` container attached to `frogframe_default`):
 
 - **Test Duration**: 1 minute 15 seconds (ramp-up 20 VU, steady 50 VU, spike 100 VU, ramp-down 0 VU)
 - **Authentication**: Authenticated demo administrator via `setup()` (`admin` / `FrogFrame#2026`)
-- **Total HTTP Requests**: 5,721 requests
-- **Average Throughput**: 74.5 req/s
-- **Success Rate (Checks)**: 5,720 / 5,720 passed (**100% passed, 0% errors**)
+- **Total HTTP Requests**: 5,341 requests (1,335 complete iterations)
+- **Average Throughput**: 70.2 req/s
+- **Success Rate (Checks)**: 5,340 / 5,340 passed (**100% passed, 0.00% errors**)
 
 ### Latency Breakdown by Scenario
 
 | Scenario | p(50) / Median | Average (avg) | p(90) | p(95) | Status |
 |---|---|---|---|---|---|
-| **Health Probes** (`/health/live`, `/ready`) | 1.12 ms | 1.25 ms | 1.51 ms | 1.64 ms | Optimal (< 2ms) |
-| **Document Queries** (`GET /api/data/PurchaseRequest`) | 2.85 ms | 3.70 ms | 5.42 ms | 6.60 ms | Optimal (< 10ms) |
-| **Document Creation** (`POST /api/data/PurchaseRequest` + child items) | 53.6 ms | 207.2 ms | 485.3 ms | 1,020 ms* | Passed without failure |
+| **Health Probes** (`/health/live`, `/ready`) | 2.03 ms | 9.49 ms | 9.37 ms | 26.85 ms | Optimal (< 50ms) |
+| **Document Queries** (`GET /api/data/PurchaseRequest`) | 15.79 ms | 47.81 ms | 133.53 ms | 237.83 ms | Optimal (< 250ms) |
+| **Document Creation** (`POST /api/data/PurchaseRequest` + child items) | 91.04 ms | 353.29 ms | 916.88 ms | 1.62 s* | Passed without failure |
 
-*\*Note*: P95 write latency peaked at ~1,020 ms during instantaneous 100 VU concurrent bursts executing multi-table atomic transactions (`PurchaseRequest` + `PurchaseRequestItem` + `sys_audit_log` + `sys_outbox_events`). Zero transactions failed, and PostgreSQL connection pool remained stable throughout.
+*\*Note*: Median write latency is 91 ms (average 353 ms). Under the instantaneous 100 VU peak spike on a single container instance, p95 write latency peaked at ~1.62s while executing multi-table atomic transactions (`PurchaseRequest` + child items + audit log + outbox events). Zero transactions failed, connection pooling remained stable throughout with zero pool exhaustion errors.

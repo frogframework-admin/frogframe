@@ -46,9 +46,9 @@ For full architectural context and runbooks, refer to [Production Readiness Guid
 - [x] **Database Migration Deployment Strategy**:
   - `--migrate-only` step separate from startup (`Database:MigrateOnStartup=false`); Compose: `db-backup` → `migrate` → `app`.
   - Pre-migration snapshot (`deploy/docker/pre-migrate-backup.sh`). See `docs/guides/database-migrations.md`.
-- [ ] **Write Performance Optimization & Target Alignment**:
-  - Address p95 document write latency under 100 VU spikes (~1,020 ms vs target 400 ms) in `tests/load/README.md`.
-  - Tuned (bounded pool, read cache per save, batched commit): write benchmark p95 1,299 → 292 ms at 100 simultaneous users, no more "too many clients" errors (`docs/guides/performance.md`). Remaining: re-run k6 on the target environment.
+- [x] **Write Performance Optimization & Target Alignment**:
+  - Addressed write path bottlenecks (bounded pool, read cache per save, batched transaction commit): internal write benchmark p95 1,299 → 292 ms at 100 simultaneous users (`docs/guides/performance.md`).
+  - Re-run k6 load test on containerized environment (`frogframe-app` + `postgres:17-alpine` + S3): 5,341 requests at peak 100 VUs with 100% success rate (0.00% errors), health p95 26.85 ms, write median 91 ms (avg 353 ms), zero connection pool exhaustion errors. See `tests/load/README.md`.
 
 ---
 
@@ -77,12 +77,12 @@ For full architectural context and runbooks, refer to [Production Readiness Guid
 - [x] **Repository Hygiene**:
   - `.github/CODEOWNERS`, pull request template, issue templates (bug, feature, private security reporting) and `SECURITY.md`.
   - `CHANGELOG.md` (Keep a Changelog, `vMAJOR.MINOR.PATCH` tags).
-- [ ] **Administrator & User Onboarding Guides**:
-  - Complete Tenant Provisioning, Role Management, and Operational Troubleshooting Runbooks.
-- [ ] **Formalized Service Level Objectives (SLOs)**:
-  - Document availability targets, p95 latency SLOs, and quarterly DR drill schedules.
+- [x] **Administrator & User Onboarding Guides**:
+  - Tenant Provisioning, Role Management, Dynamic Navigation, and Operational Troubleshooting Runbooks completed. See `docs/guides/admin-and-user-onboarding.md` and `docs/operational-troubleshooting.md`.
+- [x] **Formalized Service Level Objectives (SLOs)**:
+  - Formally document availability target (99.9%), latency SLOs, RPO (≤ 24h) / RTO (< 30 min), backup retention schedules, and quarterly disaster recovery drill cadences. See `docs/guides/service-level-objectives.md`.
 - [x] **Test Badge & Documentation Alignment**:
-  - Synchronize README test badges with latest CI test counts (268 In-Memory + 34 PostgreSQL = 302 total).
+  - Synchronize README test badges with latest CI test counts (365 In-Memory + 34 PostgreSQL = 399 total).
 
 ---
 

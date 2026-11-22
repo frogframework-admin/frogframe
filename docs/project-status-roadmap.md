@@ -9,7 +9,7 @@ This document summarizes the current development status of FrogFramework, includ
 ## 1. Current Project Health
 
 - **Compilation Status (`dotnet build`):** `0 Errors`, `0 Critical Warnings` across all projects (`Framework.Core`, `Framework.Scripting`, `Framework.Persistence.PostgreSql`, `Framework.Web`, `Apps.Erp`, `Framework.Tests`).
-- **Unit & Integration Test Status:** **282 Passed, 0 Failed** (plus **34 PostgreSQL & Reporting tests** verified in CI).
+- **Unit & Integration Test Status:** **365 Passed, 0 Failed** (plus **34 PostgreSQL & Reporting tests** verified in CI: **399 total**).
 - **Database & Migration Status:** 36 PostgreSQL migrations registered and verified (`001_initial.sql` through `035_translations.sql`, including `025_gl_entries.sql` and `1001_ess_attendance_punches.sql` in `Apps.Erp`).
 - **Git Repository Status:** Clean working tree.
 
