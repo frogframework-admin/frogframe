@@ -32,7 +32,7 @@ else
     <header class="page-head">
         <div>
             <h1>@T["Monthly attendance recap"]</h1>
-            <p>@T["Days per attendance code for each employee, for payroll. LI/LO days count as late and as early out. Days without a final code are still waiting for punches, the deadline or HR."]</p>
+            <p>@T["Days per attendance code for each employee, for payroll. LI/EO days count as late and as early out. Days without a final code are still waiting for punches, the deadline or HR."]</p>
         </div>
         <div class="row" style="gap:.5rem;flex-wrap:wrap;align-items:center">
             <input type="month" class="auth-input" style="width:auto" value="@month" @onchange="e => ChangeMonthAsync(e.Value as string)" aria-label="@T["Month"]" />
@@ -70,7 +70,7 @@ else
     else
     {
         <div class="table-wrap">
-            <table class="perm-table attendance-recap">
+            <table @ref="tableRef" class="perm-table attendance-recap">
                 <thead>
                     <tr>
                         <th>@T["Employee"]</th>
@@ -78,9 +78,9 @@ else
                         {
                             <th class="num" title="@T[CodeTitle(c)]">@c</th>
                         }
-                        <th class="num" title="@T["Days late (LI and LI/LO)"]">@T["Late days"]</th>
+                        <th class="num" title="@T["Days late (LI and LI/EO)"]">@T["Late days"]</th>
                         <th class="num">@T["Late min."]</th>
-                        <th class="num" title="@T["Days early out (LO and LI/LO)"]">@T["Early-out days"]</th>
+                        <th class="num" title="@T["Days early out (EO and LI/EO)"]">@T["Early-out days"]</th>
                         <th class="num">@T["Early min."]</th>
                         <th class="num" title="@T["No record yet, or waiting for punches / the deadline"]">@T["Open"]</th>
                     </tr>
@@ -122,12 +122,14 @@ else
                 </tfoot>
             </table>
         </div>
-        <p class="muted small" style="margin-top:.5rem">@T["ONT on time · LI late in · LO early out · LI/LO both · NCIN no clock-in · NCOUT no clock-out · ABS absent · TO-ND time off without deduction · TO-D time off with salary deduction (leave type not 'Paid') · DO day off · INV invalid"]</p>
+        <p class="muted small" style="margin-top:.5rem">@T["ONT on time · LI late in · EO early out · LI/EO both · NCIN no clock-in · NCOUT no clock-out · ABS absent · TO-ND time off without deduction · TO-D time off with salary deduction (leave type not 'Paid') · DO day off · INV invalid"]</p>
     }
 }
 
 @code {
     private static readonly string[] Columns = [.. AttendanceCodes.All];
+    private ElementReference tableRef;
+    private bool resizeInitPending;
     private string month = "";
     private string unit = "";
     private List<string> units = [];
@@ -172,6 +174,16 @@ else
         finally
         {
             loading = false;
+            resizeInitPending = rows.Count > 0;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (resizeInitPending && rows.Count > 0)
+        {
+            resizeInitPending = false;
+            await JS.InvokeVoidAsync("frogframe.initResizableTable", tableRef, "ff-attendance-recap-cols");
         }
     }
 

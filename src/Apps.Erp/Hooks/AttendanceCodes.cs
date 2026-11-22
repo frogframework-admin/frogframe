@@ -7,8 +7,8 @@ public static class AttendanceCodes
 {
     public const string OnTime = "ONT";
     public const string LateIn = "LI";
-    public const string EarlyOut = "LO";
-    public const string LateInEarlyOut = "LI/LO";
+    public const string EarlyOut = "EO";
+    public const string LateInEarlyOut = "LI/EO";
     public const string NoClockIn = "NCIN";
     public const string NoClockOut = "NCOUT";
     public const string Absent = "ABS";
@@ -29,8 +29,8 @@ public static class AttendanceCodes
         _ => currentStatus is "Work from home" or "Half day" ? currentStatus : "Present",
     };
 
-    public static bool IsLate(string? code) => code is LateIn or LateInEarlyOut;
-    public static bool IsEarlyOut(string? code) => code is EarlyOut or LateInEarlyOut;
+    public static bool IsLate(string? code) => code is LateIn or LateInEarlyOut or "LI/LO";
+    public static bool IsEarlyOut(string? code) => code is EarlyOut or LateInEarlyOut or "LO" or "LI/LO";
 }
 
 /// <summary>Everything the classification of one employee-day needs. Times are local (application time zone).</summary>

@@ -121,7 +121,7 @@
       "readOnlyWhen": "true",
       "tab": "Pay",
       "section": "Attendance summary",
-      "description": "Counted from Attendance codes of the payslip month when the payslip is created (see the monthly attendance recap). LI/LO days count as late and as early out."
+      "description": "Counted from Attendance codes of the payslip month when the payslip is created (see the monthly attendance recap). LI/EO days count as late and as early out."
     },
     {
       "name": "att_late_days",
@@ -143,7 +143,7 @@
     {
       "name": "att_early_out_days",
       "type": "Float",
-      "label": "Early out (LO) days",
+      "label": "Early out (EO) days",
       "readOnlyWhen": "true",
       "tab": "Pay",
       "section": "Attendance summary"

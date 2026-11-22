@@ -130,6 +130,8 @@ public static class AttendanceDays
             {
                 if (a.Data.Date("attendance_date") is { } ad) seen.Add(ad);
                 var code = a.Data.Str("attendance_code");
+                if (code == "LO") code = AttendanceCodes.EarlyOut;
+                else if (code == "LI/LO") code = AttendanceCodes.LateInEarlyOut;
                 if (code is null || (!a.Data.Bool("code_final") && !a.Data.Bool("code_manual"))) { unclassified++; continue; }
                 if (codes.ContainsKey(code)) codes[code]++;
                 if (AttendanceCodes.IsLate(code)) { lateDays++; lateMin += (int)a.Data.Dec("late_minutes"); }

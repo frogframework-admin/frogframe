@@ -5,7 +5,7 @@ using Framework.Security;
 using Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Attendance codes (ONT, LI, LO, LI/LO, NCIN, NCOUT, ABS, TO-ND, TO-D, DO, INV), daily records for days without
+/// Attendance codes (ONT, LI, EO, LI/EO, NCIN, NCOUT, ABS, TO-ND, TO-D, DO, INV), daily records for days without
 /// punches, and the monthly recap used by payroll (docs/guides/attendance-codes.md).
 /// </summary>
 sealed partial class Tests
@@ -26,9 +26,9 @@ sealed partial class Tests
         var li = R(work with { CheckIn = At(8, 25), CheckOut = At(17) });
         Assert.True(li.Code == "LI" && li.LateMinutes == 15 && li.Final, "late 25 min − 10 grace = 15");
         var lo = R(work with { CheckIn = At(8), CheckOut = At(16, 30) });
-        Assert.True(lo.Code == "LO" && lo.EarlyOutMinutes == 25, "left 30 min early − 5 grace = 25");
+        Assert.True(lo.Code == "EO" && lo.EarlyOutMinutes == 25, "left 30 min early − 5 grace = 25");
         var both = R(work with { CheckIn = At(8, 40), CheckOut = At(16) });
-        Assert.True(both.Code == "LI/LO" && both.LateMinutes == 30 && both.EarlyOutMinutes == 55, "late and early out on the same day");
+        Assert.True(both.Code == "LI/EO" && both.LateMinutes == 30 && both.EarlyOutMinutes == 55, "late and early out on the same day");
         Assert.Equal("NCIN", R(work with { CheckOut = At(17) }).Code, "clock-out only");
         var ncout = R(work with { CheckIn = At(8, 20) });
         Assert.True(ncout.Code == "NCOUT" && ncout.LateMinutes == 10, "clock-in only; lateness still recorded");
@@ -115,7 +115,7 @@ sealed partial class Tests
         var li = await Punch("STAFF-A", monday, (8, 25), (17, 0));
         Assert.True(li.Data.Str("attendance_code") == "LI" && li.Data.Dec("late_minutes") == 15 && li.Data.Bool("code_final"), "LI with 15 minutes");
         var lo = await Punch("STAFF-A", monday.AddDays(1), (7, 55), (16, 30));
-        Assert.True(lo.Data.Str("attendance_code") == "LO" && lo.Data.Dec("early_out_minutes") == 25, "LO with 25 minutes");
+        Assert.True(lo.Data.Str("attendance_code") == "EO" && lo.Data.Dec("early_out_minutes") == 25, "EO with 25 minutes");
         Assert.Equal("NCOUT", (await Punch("STAFF-A", monday.AddDays(2), (8, 30), null)).Data.Str("attendance_code"), "NCOUT");
         Assert.Equal("ONT", (await Punch("STAFF-B", monday.AddDays(1), (7, 50), (17, 5))).Data.Str("attendance_code"), "ONT");
         Assert.Equal("INV", (await Punch("STAFF-B", monday.AddDays(2), (3, 0), (17, 0))).Data.Str("attendance_code"), "INV outside the shift window");
@@ -134,7 +134,7 @@ sealed partial class Tests
         await AttendanceDays.EnsureAsync(docs, store, "acme", monday, monday.AddDays(6), recalculateAll: true, TimeProvider.System, null, default, employee: "STAFF-B");
         var rows = (await AttendanceDays.RecapAsync(store, "acme", monday, monday.AddDays(6), default)).ToDictionary(x => x.Employee);
         var a = rows["STAFF-A"];
-        Assert.Equal("LI1 LO1 NCOUT1 ABS1 TO-D1 DO2", $"LI{a.Count("LI")} LO{a.Count("LO")} NCOUT{a.Count("NCOUT")} ABS{a.Count("ABS")} TO-D{a.Count("TO-D")} DO{a.Count("DO")}", "STAFF-A week");
+        Assert.Equal("LI1 EO1 NCOUT1 ABS1 TO-D1 DO2", $"LI{a.Count("LI")} EO{a.Count("EO")} NCOUT{a.Count("NCOUT")} ABS{a.Count("ABS")} TO-D{a.Count("TO-D")} DO{a.Count("DO")}", "STAFF-A week");
         Assert.True(a is { LateDays: 1, LateMinutes: 15, EarlyOutDays: 1, EarlyOutMinutes: 25, UnclassifiedDays: 0 }, "minutes and open days");
         var b = rows["STAFF-B"];
         Assert.Equal("TO-ND1 ONT1 INV2 LI1 DO1", $"TO-ND{b.Count("TO-ND")} ONT{b.Count("ONT")} INV{b.Count("INV")} LI{b.Count("LI")} DO{b.Count("DO")}",

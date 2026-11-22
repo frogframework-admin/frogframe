@@ -77,8 +77,8 @@
       "options": [
         "ONT",
         "LI",
-        "LO",
-        "LI/LO",
+        "EO",
+        "LI/EO",
         "NCIN",
         "NCOUT",
         "ABS",
@@ -91,7 +91,7 @@
       "inListView": true,
       "section": "Attendance",
       "column": 2,
-      "description": "ONT on time · LI late in · LO early out · LI/LO both · NCIN no clock-in · NCOUT no clock-out · ABS absent · TO-ND time off (paid) · TO-D time off (salary deducted) · DO day off · INV invalid. Set by the system from the schedule, punches and approved leave"
+      "description": "ONT on time · LI late in · EO early out · LI/EO both · NCIN no clock-in · NCOUT no clock-out · ABS absent · TO-ND time off (paid) · TO-D time off (salary deducted) · DO day off · INV invalid. Set by the system from the schedule, punches and approved leave"
     },
     {
       "name": "code_manual",

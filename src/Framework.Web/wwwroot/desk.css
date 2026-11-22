@@ -7790,3 +7790,64 @@ table.review-rows tr.row-removed td.review-row-kind { text-decoration: none; }
   table.review-biodata > tbody > tr > td::before { content: attr(data-label); display: block; font-size: .7rem; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: .03em; }
   table.review-biodata .review-rows { display: block; overflow-x: auto; }
 }
+
+/* ---------- Attendance Recap ---------- */
+.table-wrap table.attendance-recap {
+  width: 100%;
+  min-width: 0;
+  font-size: .78rem;
+}
+
+.table-wrap table.attendance-recap th,
+.table-wrap table.attendance-recap td {
+  padding: .4rem .25rem;
+}
+
+.table-wrap table.attendance-recap th {
+  position: relative;
+  white-space: normal;
+  line-height: 1.2;
+}
+
+.table-wrap table.attendance-recap thead th:not(:last-child) {
+  border-right: 1px solid color-mix(in srgb, var(--brand-soft, var(--border)) 70%, transparent);
+}
+
+.dark .table-wrap table.attendance-recap thead th:not(:last-child) {
+  border-right: 1px solid #334155;
+}
+
+.table-wrap table.attendance-recap thead th [data-resize-handle] {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 5px;
+  height: 100%;
+  opacity: 0;
+  transition: opacity .12s ease, background-color .12s ease;
+}
+
+.table-wrap table.attendance-recap thead th:hover [data-resize-handle],
+.table-wrap table.attendance-recap thead th.ff-col-resizing [data-resize-handle] {
+  opacity: .55;
+  background-color: var(--border);
+}
+
+.table-wrap table.attendance-recap th.num,
+.table-wrap table.attendance-recap td.num {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.table-wrap table.attendance-recap th:first-child,
+.table-wrap table.attendance-recap td:first-child {
+  text-align: left;
+  padding-left: .5rem;
+}
+
+.table-wrap table.attendance-recap tfoot th {
+  font-weight: 600;
+  color: var(--foreground);
+  border-top: 1px solid var(--border);
+  border-bottom: 0;
+}

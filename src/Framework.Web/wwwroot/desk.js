@@ -457,4 +457,108 @@ window.frogframe = window.frogframe || {};
             canvases.delete(svg);
         }
     };
+
+    window.frogframe.initResizableTable = function (table, storageKey) {
+        if (!table || table.dataset.ffResizable === '1') return;
+        var theadRow = table.querySelector('thead tr');
+        if (!theadRow) return;
+        var ths = Array.from(theadRow.children);
+        if (ths.length === 0) return;
+        table.dataset.ffResizable = '1';
+
+        var colgroup = table.querySelector('colgroup');
+        if (!colgroup) {
+            colgroup = document.createElement('colgroup');
+            ths.forEach(function () { colgroup.appendChild(document.createElement('col')); });
+            table.insertBefore(colgroup, table.firstChild);
+        }
+        var cols = Array.from(colgroup.children);
+
+        var saveWidths = function () {
+            if (!storageKey) return;
+            try {
+                var widths = cols.map(function (c) { return parseFloat(c.style.width) || 0; });
+                localStorage.setItem(storageKey, JSON.stringify(widths));
+            } catch (_) { }
+        };
+
+        var applySumWidth = function () {
+            var total = cols.reduce(function (acc, c) { return acc + (parseFloat(c.style.width) || 0); }, 0);
+            if (total > 0) table.style.width = total + 'px';
+        };
+
+        var saved = null;
+        if (storageKey) {
+            try {
+                var raw = localStorage.getItem(storageKey);
+                if (raw) saved = JSON.parse(raw);
+            } catch (_) { }
+        }
+        if (Array.isArray(saved) && saved.length === cols.length && saved.every(function (w) { return typeof w === 'number' && w > 0; })) {
+            cols.forEach(function (c, i) { c.style.width = saved[i] + 'px'; });
+            applySumWidth();
+        }
+
+        ths.forEach(function (th, index) {
+            if (!th.hasAttribute('data-column-id')) {
+                th.setAttribute('data-column-id', 'col-' + index);
+            }
+            var handle = document.createElement('span');
+            handle.setAttribute('data-resize-handle', 'true');
+            handle.setAttribute('aria-hidden', 'true');
+            th.appendChild(handle);
+
+            handle.addEventListener('pointerdown', function (e) {
+                if (e.button !== 0) return;
+                e.preventDefault();
+                e.stopPropagation();
+
+                // Snapshot all column widths before locking table-layout: fixed
+                var measured = ths.map(function (cell, i) {
+                    var explicit = parseFloat(cols[i].style.width);
+                    return explicit > 0 ? explicit : Math.max(36, Math.round(cell.getBoundingClientRect().width));
+                });
+                measured.forEach(function (w, i) { cols[i].style.width = w + 'px'; });
+                applySumWidth();
+
+                var startX = e.clientX;
+                var startW = measured[index];
+                th.classList.add('ff-col-resizing');
+                document.body.style.cursor = 'col-resize';
+
+                var onMove = function (ev) {
+                    var nextW = Math.max(36, Math.round(startW + (ev.clientX - startX)));
+                    cols[index].style.width = nextW + 'px';
+                    applySumWidth();
+                };
+
+                var onUp = function () {
+                    th.classList.remove('ff-col-resizing');
+                    document.body.style.cursor = '';
+                    window.removeEventListener('pointermove', onMove);
+                    window.removeEventListener('pointerup', onUp);
+                    window.removeEventListener('pointercancel', onUp);
+                    saveWidths();
+                };
+
+                window.addEventListener('pointermove', onMove);
+                window.addEventListener('pointerup', onUp);
+                window.addEventListener('pointercancel', onUp);
+            });
+
+            handle.addEventListener('dblclick', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                var measured = ths.map(function (cell, i) {
+                    var explicit = parseFloat(cols[i].style.width);
+                    return explicit > 0 ? explicit : Math.max(36, Math.round(cell.getBoundingClientRect().width));
+                });
+                var fit = measureColumnFitWidth(table, th, 36, 480);
+                if (fit > 0) measured[index] = fit;
+                measured.forEach(function (w, i) { cols[i].style.width = w + 'px'; });
+                applySumWidth();
+                saveWidths();
+            });
+        });
+    };
 })();
