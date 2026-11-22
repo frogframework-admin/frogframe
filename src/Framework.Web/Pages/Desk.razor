@@ -15,7 +15,6 @@
 @inject AssignmentService AssignmentsSvc
 @inject CurrentUser Current
 @inject INavigationMenuStore MenuStore
-@inject INotificationStore Notifications
 @inject INotificationLiveFeed LiveNotifications
 @inject IUserPreferenceStore Prefs
 @inject IServiceProvider Services
@@ -33,28 +32,23 @@
         <div class="desk-hero-content">
             <div class="home-date">@HomeDate()</div>
             <h1>@T[HomeClock.GreetingKey(HomeClock.LocalNow(Clock).Hour)], @FirstName(Current.User?.FullName)</h1>
-            <div class="home-chips" aria-label="@T["Summary"]">
-                @if (queue is { Count: > 0 })
-                {
-                    <a class="home-chip primary" href="#approvals"><LucideIcon Name="stamp" Size="14" /> @T.Format("{0} awaiting your approval", queue.Count)</a>
-                }
-                @if (taskCounts.Overdue > 0)
-                {
-                    <a class="home-chip danger" href="/tasks"><LucideIcon Name="alarm-clock" Size="14" /> @T.Format("{0} overdue tasks", taskCounts.Overdue)</a>
-                }
-                else if (taskCounts.DueToday > 0)
-                {
-                    <a class="home-chip warning" href="/tasks"><LucideIcon Name="calendar-clock" Size="14" /> @T.Format("{0} tasks due today", taskCounts.DueToday)</a>
-                }
-                @if (unreadCount > 0)
-                {
-                    <a class="home-chip" href="/inbox"><LucideIcon Name="bell" Size="14" /> @T.Format("{0} unread notifications", unreadCount)</a>
-                }
-                @if (loaded && (queue?.Count ?? 0) == 0 && taskCounts.Overdue == 0 && taskCounts.DueToday == 0 && unreadCount == 0)
-                {
-                    <span class="home-chip muted"><LucideIcon Name="check" Size="14" /> @T["Nothing urgent right now"]</span>
-                }
-            </div>
+            @if (queue is { Count: > 0 } || taskCounts.Overdue > 0 || taskCounts.DueToday > 0)
+            {
+                <div class="home-chips" aria-label="@T["Summary"]">
+                    @if (queue is { Count: > 0 })
+                    {
+                        <a class="home-chip primary" href="#approvals"><LucideIcon Name="stamp" Size="14" /> @T.Format("{0} awaiting your approval", queue.Count)</a>
+                    }
+                    @if (taskCounts.Overdue > 0)
+                    {
+                        <a class="home-chip danger" href="/tasks"><LucideIcon Name="alarm-clock" Size="14" /> @T.Format("{0} overdue tasks", taskCounts.Overdue)</a>
+                    }
+                    else if (taskCounts.DueToday > 0)
+                    {
+                        <a class="home-chip warning" href="/tasks"><LucideIcon Name="calendar-clock" Size="14" /> @T.Format("{0} tasks due today", taskCounts.DueToday)</a>
+                    }
+                </div>
+            }
             @if (quickActions.Count > 0)
             {
                 <div class="home-quick" aria-label="@T["Create new"]">
@@ -398,7 +392,6 @@
     private string? commentFor;
     private ActionView? pendingAction;
     private string comment = "";
-    private int unreadCount;
     private IDisposable? liveSub;
 
     /// <summary>Users with approvals waiting see the queue first; everyone else sees their own day first.</summary>
@@ -412,7 +405,6 @@
             liveSub = LiveNotifications.Subscribe(u.TenantId, u.Id, _ => InvokeAsync(async () =>
             {
                 await RefreshTasksAsync();
-                unreadCount = Notifications.ForUser(u.TenantId, u.Id).Count(n => !n.Read);
                 queue = await Feed.ApprovalQueueAsync(u);
                 StateHasChanged();
             }));
@@ -429,7 +421,6 @@
         if (Current.User is not { } u) return;
 
         quickActions = Registry.QuickActionsFor(u);
-        unreadCount = Notifications.ForUser(u.TenantId, u.Id).Count(n => !n.Read);
 
         var module = EnsureActiveModuleAsync(u);
         var tasks = RefreshTasksAsync();

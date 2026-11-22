@@ -610,6 +610,19 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
             if (delDeptCount > 0) added = true;
         }
 
+        // 8b. Migrate Payroll system menus from broad 'HR' role to 'Payroll' role
+        await using (var migratePayrollCmd = db.CreateCommand(
+            "UPDATE frogframe_navigation_menus " +
+            "SET allowed_roles = array_replace(allowed_roles, 'HR', 'Payroll'), updated_at = $2 " +
+            "WHERE tenant_id = $1 AND is_system = true " +
+            "AND href IN ('app/PayrollRun', 'app/Payslip', 'app/SalaryAssignment', 'app/SalaryComponent', 'app/PayrollSettings') " +
+            "AND 'HR' = ANY(allowed_roles) AND NOT ('Payroll' = ANY(allowed_roles))"))
+        {
+            migratePayrollCmd.Parameters.AddWithValue(tenantId);
+            migratePayrollCmd.Parameters.AddWithValue(now);
+            if (await migratePayrollCmd.ExecuteNonQueryAsync(ct) > 0) added = true;
+        }
+
         // 9. Remove deprecated ANALYTICS module and its groups
         await using (var delAnalyticsModCmd = db.CreateCommand(
             "DELETE FROM frogframe_navigation_modules WHERE tenant_id = $1 AND (code = 'ANALYTICS' OR id = $2)"))
