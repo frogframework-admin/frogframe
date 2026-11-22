@@ -345,6 +345,7 @@ public sealed class DocumentService(
             };
             foreach (var c in fetchFields) row[c] = d.Get(c);
             foreach (var gf in meta.Fields.Where(f => f.Def.RowGrouping && Readable(f.Name))) row[gf.Name] = d.Get(gf.Name);
+            if (lv.BoardField is { Length: > 0 } bf && Readable(bf)) row[bf] = d.Get(bf);
             if (lv.TitleField is { } tf && Readable(tf)) row["_title"] = d.Get(tf);
             return row;
         }).ToList();

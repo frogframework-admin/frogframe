@@ -31,8 +31,8 @@ public static class CalendarView
     public static IReadOnlyList<CompiledField> DateFields(CompiledDocType meta) =>
         meta.Fields.Where(f => !f.IsLayout && f.Def.Type is "Date" or "Datetime").ToList();
 
-    /// <summary>The calendar is offered for top-level DocTypes with at least one Date or Datetime field.</summary>
-    public static bool Supports(CompiledDocType meta) => !meta.Def.IsSingle && !meta.Def.IsChild && DateFields(meta).Count > 0;
+    /// <summary>The calendar is offered for top-level DocTypes with ShowCalendar enabled and at least one Date or Datetime field.</summary>
+    public static bool Supports(CompiledDocType meta) => !meta.Def.IsSingle && !meta.Def.IsChild && meta.Def.ListView.ShowCalendar && DateFields(meta).Count > 0;
 
     /// <summary>
     /// Configured settings (<c>listView.calendar</c>), or the first Date/Datetime list column, or the first

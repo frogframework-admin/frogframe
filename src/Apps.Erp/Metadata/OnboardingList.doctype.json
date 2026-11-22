@@ -201,6 +201,7 @@
   ],
   "listView": {
     "titleField": "employee_name",
+    "boardField": "status",
     "searchFields": [
       "name",
       "employee_name"

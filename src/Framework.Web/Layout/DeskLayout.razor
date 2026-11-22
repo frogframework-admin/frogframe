@@ -34,9 +34,9 @@
         <BbSidebarContent>
             @if (Current.User is { } u)
             {
-                var visibleModules = navModules.Where(m => m.IsVisibleFor(u)).OrderBy(m => m.SortOrder).ThenBy(m => m.Name).ToList();
+                var visibleModules = GetVisibleModules(u);
                 var activeMod = ResolveActiveModule(visibleModules);
-                var visibleMenus = navMenus.Where(m => m.IsVisibleFor(u)).ToList();
+                var visibleMenus = GetVisibleMenus(u);
 
                 <BbSidebarGroup>
                     <BbSidebarMenu>
@@ -221,7 +221,7 @@
                 <BbSeparator Orientation="SeparatorOrientation.Vertical" Style="height:1.25rem" />
                 @if (Current.User is { } cu)
                 {
-                    var visibleMods = navModules.Where(m => m.IsVisibleFor(cu)).OrderBy(m => m.SortOrder).ThenBy(m => m.Name).ToList();
+                    var visibleMods = GetVisibleModules(cu);
                     var active = ResolveActiveModule(visibleMods);
                     @if (active is not null)
                     {
@@ -472,7 +472,7 @@
 
 @if (Current.User is { } modalUser)
 {
-    var modalModules = navModules.Where(m => m.IsVisibleFor(modalUser)).OrderBy(m => m.SortOrder).ThenBy(m => m.Name).ToList();
+    var modalModules = GetVisibleModules(modalUser);
     var currentMod = ResolveActiveModule(modalModules);
     var filteredModules = string.IsNullOrWhiteSpace(moduleSearchQuery)
         ? modalModules
@@ -709,7 +709,7 @@
 
     private void EnsureInitialActiveModule(UserContext u)
     {
-        var visible = navModules.Where(m => m.IsVisibleFor(u)).OrderBy(m => m.SortOrder).ThenBy(m => m.Name).ToList();
+        var visible = GetVisibleModules(u);
         if (visible.Count == 0) return;
 
         SyncModuleWithRoute(u);
@@ -722,7 +722,7 @@
 
     private void SyncModuleWithRoute(UserContext u)
     {
-        var visible = navModules.Where(m => m.IsVisibleFor(u)).OrderBy(m => m.SortOrder).ThenBy(m => m.Name).ToList();
+        var visible = GetVisibleModules(u);
         if (visible.Count == 0) return;
 
         var rel = Nav.ToBaseRelativePath(Nav.Uri).Trim('/');
@@ -974,6 +974,58 @@
         return resolved is null ? visible.FirstOrDefault()?.Id == active.Id : resolved.Id == active.Id;
     }
 
+    private bool CanAccessMenu(UserContext u, NavigationMenuItem item)
+    {
+        if (!item.IsVisibleFor(u)) return false;
+
+        var href = (item.Href ?? string.Empty).Trim().TrimStart('/');
+        var qIdx = href.IndexOfAny(['?', '#']);
+        if (qIdx >= 0) href = href[..qIdx];
+
+        if (href.StartsWith("app/", StringComparison.OrdinalIgnoreCase))
+        {
+            var segments = href.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (segments.Length >= 2 && Metadata.Current.TryGet(segments[1], out var dtMeta))
+            {
+                return Perms.Can(u, dtMeta, DocActions.Read);
+            }
+        }
+        else if (href.Equals("hr/roster-calendar", StringComparison.OrdinalIgnoreCase))
+        {
+            return Metadata.Current.TryGet("EmployeeDailySchedule", out var eds) && Perms.Can(u, eds, DocActions.Read)
+                && Metadata.Current.TryGet("OrganizationUnit", out var ou) && Perms.Can(u, ou, DocActions.Read);
+        }
+        else if (href.Equals("hr/organizational-chart", StringComparison.OrdinalIgnoreCase))
+        {
+            return (Metadata.Current.TryGet("OrganizationUnit", out var ou) && Perms.Can(u, ou, DocActions.Read))
+                || (Metadata.Current.TryGet("Employee", out var emp) && Perms.Can(u, emp, DocActions.Read));
+        }
+
+        return true;
+    }
+
+    private List<NavigationMenuItem> GetVisibleMenus(UserContext u) =>
+        navMenus.Where(m => CanAccessMenu(u, m)).ToList();
+
+    private List<NavigationModule> GetVisibleModules(UserContext u)
+    {
+        var visibleMenus = GetVisibleMenus(u);
+        var readableDocs = ReadableDocTypes(u).ToList();
+        var candidates = navModules.Where(m => m.IsVisibleFor(u)).OrderBy(m => m.SortOrder).ThenBy(m => m.Name).ToList();
+        return candidates.Where(mod =>
+        {
+            var modGroups = navGroups.Where(g => g.IsActive && g.ModuleId == mod.Id).ToList();
+            var modGroupIds = modGroups.Select(g => g.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var modGroupNames = modGroups.Select(g => g.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            if (visibleMenus.Any(m => (!string.IsNullOrWhiteSpace(m.GroupId) && modGroupIds.Contains(m.GroupId))
+                || (string.IsNullOrWhiteSpace(m.GroupId) && !string.IsNullOrWhiteSpace(m.GroupName) && modGroupNames.Contains(m.GroupName))))
+            {
+                return true;
+            }
+            return readableDocs.Any(d => BelongsToModule(d, mod, candidates));
+        }).ToList();
+    }
+
     private IEnumerable<CompiledDocType> ReadableDocTypes(UserContext u) =>
         Metadata.Current.DocTypes.Values.Where(d => !d.Def.IsChild && Perms.Can(u, d, DocActions.Read)).OrderBy(d => d.Def.Module).ThenBy(d => d.Title);
 
@@ -1049,7 +1101,7 @@
 
             if (docModule is null && Current.User is { } u)
             {
-                var visibleMods = navModules.Where(m => m.IsVisibleFor(u)).OrderBy(m => m.SortOrder).ThenBy(m => m.Name).ToList();
+                var visibleMods = GetVisibleModules(u);
                 docModule = ResolveActiveModule(visibleMods);
             }
 

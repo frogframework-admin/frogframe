@@ -465,6 +465,30 @@ else
                             <div class="props-group">
                                 <div class="props-group-title">List view</div>
                                 <p class="muted small" style="margin:0 0 .5rem">List columns are configured per field ("Show as column in list").</p>
+                                @if (!design.Def.IsSingle)
+                                {
+                                    <div class="stack" style="gap:.75rem;margin-bottom:1rem">
+                                        <div class="label-row" style="margin:0">
+                                            <BbCheckbox Id="lv-show-calendar"
+                                                        Checked="design.Def.ListView.ShowCalendar"
+                                                        CheckedChanged="v => Mutate(() => design.Def.ListView.ShowCalendar = v)" />
+                                            <BbLabel For="lv-show-calendar">Show Calendar view (when Date/Datetime field exists)</BbLabel>
+                                        </div>
+                                        @{
+                                            var selectBoardOptions = new List<SelectOption<string>> { new("", "(Default — Workflow or Submit status)") };
+                                            selectBoardOptions.AddRange(design.AllFields
+                                                .Where(f => f.Type == "Select" && f.Options is { Count: > 0 })
+                                                .Select(f => new SelectOption<string>(f.Name, $"{f.Label} ({f.Name})")));
+                                        }
+                                        <BbField>
+                                            <BbFieldLabel For="lv-board-field">Kanban board field</BbFieldLabel>
+                                            <BbSelect TValue="string" Value="@(design.Def.ListView.BoardField ?? "")"
+                                                      ValueChanged="v => Mutate(() => design.Def.ListView.BoardField = string.IsNullOrWhiteSpace(v) ? null : v)"
+                                                      Options="selectBoardOptions" AriaLabel="Kanban board field" />
+                                            <BbFieldDescription>Optional Select field used to group cards into Kanban columns.</BbFieldDescription>
+                                        </BbField>
+                                    </div>
+                                }
                                 <div class="props-sub" style="margin-bottom:.5rem">Searchable fields (up to 10 rows per column)</div>
                                 @{
                                     var searchableCols = design.AllFields

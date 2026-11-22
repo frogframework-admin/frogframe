@@ -259,6 +259,10 @@ public sealed class ListViewDef
     public List<string> SearchFields { get; set; } = ["name"];
     public List<string> Filters { get; set; } = [];
     public int PageSize { get; set; } = 20;
+    /// <summary>Whether the Calendar view toggle is shown on the list page (default true).</summary>
+    public bool ShowCalendar { get; set; } = true;
+    /// <summary>Optional Select field name used to group the Kanban board (e.g. "status", "stage").</summary>
+    public string? BoardField { get; set; }
     /// <summary>
     /// Calendar view of the list. Optional: without it the calendar uses the first Date/Datetime list column
     /// (or the first Date/Datetime field) and colours entries by status.

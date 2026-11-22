@@ -14,12 +14,22 @@ public static class WorkflowBoard
     /// <summary>One board column. <paramref name="Key"/> is the workflow state name (or the DocStatus label).</summary>
     public sealed record Column(string Key, int DocStatus, string Tone);
 
-    /// <summary>The board is offered for top-level DocTypes that have a workflow or submit enabled.</summary>
+    /// <summary>Resolves an explicit Select field configured via <c>listView.boardField</c>.</summary>
+    public static CompiledField? ResolveBoardField(CompiledDocType meta)
+    {
+        var name = meta.Def.ListView.BoardField;
+        if (string.IsNullOrWhiteSpace(name)) return null;
+        return meta.ByName.TryGetValue(name, out var f) && !f.IsLayout && f.Def.Type == "Select" && f.Def.Options is { Count: > 0 } ? f : null;
+    }
+
+    /// <summary>The board is offered for top-level DocTypes with a boardField, workflow, or submit enabled.</summary>
     public static bool Supports(CompiledDocType meta) =>
-        !meta.Def.IsSingle && !meta.Def.IsChild && (meta.Workflow is not null || meta.Def.Document.AllowSubmit);
+        !meta.Def.IsSingle && !meta.Def.IsChild && (ResolveBoardField(meta) is not null || meta.Workflow is not null || meta.Def.Document.AllowSubmit);
 
     public static IReadOnlyList<Column> Columns(CompiledDocType meta)
     {
+        if (ResolveBoardField(meta) is { } bf)
+            return bf.Def.Options!.Select(o => new Column(o, -1, ToneForOption(o))).ToList();
         if (meta.Workflow is { } wf)
             return wf.Def.States.Select(s => new Column(s.Name, s.DocStatus, s.Tone)).ToList();
         var cols = new List<Column> { new("Draft", DocStatus.Draft, "neutral") };
@@ -27,6 +37,14 @@ public static class WorkflowBoard
         if (meta.Def.Document.AllowCancel) cols.Add(new("Cancelled", DocStatus.Cancelled, "negative"));
         return cols;
     }
+
+    private static string ToneForOption(string option) => option.Trim().ToLowerInvariant() switch
+    {
+        "completed" or "done" or "approved" or "active" or "closed" or "qualified" or "converted" or "won" => "positive",
+        "cancelled" or "canceled" or "rejected" or "failed" or "lost" or "inactive" => "negative",
+        "in progress" or "pending" or "review" or "open" or "waiting" => "warning",
+        _ => "neutral",
+    };
 
     /// <summary>
     /// Column of a list row. A workflow document without a state (created before the workflow was attached) is
@@ -41,14 +59,18 @@ public static class WorkflowBoard
     }
 
     /// <summary>Column of a row returned by <see cref="DocumentService.ListAsync"/>.</summary>
-    public static string ColumnOf(CompiledDocType meta, IReadOnlyDictionary<string, object?> row) =>
-        ColumnOf(meta, row.GetValueOrDefault(StandardFields.WorkflowState) as string, row.GetValueOrDefault(StandardFields.DocStatus) switch
+    public static string ColumnOf(CompiledDocType meta, IReadOnlyDictionary<string, object?> row)
+    {
+        if (ResolveBoardField(meta) is { } bf)
+            return row.GetValueOrDefault(bf.Name)?.ToString() is { Length: > 0 } val ? val : bf.Def.Options![0];
+        return ColumnOf(meta, row.GetValueOrDefault(StandardFields.WorkflowState) as string, row.GetValueOrDefault(StandardFields.DocStatus) switch
         {
             int i => i,
             long l => (int)l,
             decimal d => (int)d,
             _ => DocStatus.Draft,
         });
+    }
 
     /// <summary>
     /// Actions that move a card into <paramref name="column"/>. Amend is left out: it creates a new revision

@@ -7,6 +7,7 @@
 *@
 @inject DocumentService Docs
 @inject CurrentUser Current
+@inject IPermissionService Perms
 @inject DialogService Dialogs
 @inject ToastService Toasts
 @inject UiText T
@@ -52,7 +53,25 @@
                         @if (menuFor == name)
                         {
                             <div class="kb-menu" role="menu">
-                                @if (menuActions is null)
+                                @if (boardField is not null)
+                                {
+                                    var currentCol = WorkflowBoard.ColumnOf(Meta, row);
+                                    var canEditRow = CanEditBoardField(row);
+                                    @if (!canEditRow)
+                                    {
+                                        <span class="muted small">@T["No status change is available to you for this document."]</span>
+                                    }
+                                    else
+                                    {
+                                        @foreach (var targetCol in columns.Where(c => c.Key != currentCol))
+                                        {
+                                            <button type="button" role="menuitem" class="kb-menu-item tone-@targetCol.Tone" @onclick="() => MoveFieldAsync(row, targetCol.Key)">
+                                                @T["Move"] <span class="muted">→ @T[targetCol.Key]</span>
+                                            </button>
+                                        }
+                                    }
+                                }
+                                else if (menuActions is null)
                                 {
                                     <span class="muted small">@T["Loading…"]</span>
                                 }
@@ -121,6 +140,7 @@
     private IReadOnlyList<WorkflowBoard.Column> columns = [];
     private Dictionary<string, List<Dictionary<string, object?>>> byColumn = new();
     private IReadOnlyList<CompiledField> cardFields = [];
+    private CompiledField? boardField;
     private readonly Dictionary<string, Task<IReadOnlyList<ActionView>>> actionCache = new(StringComparer.Ordinal);
     private IReadOnlyList<Dictionary<string, object?>>? renderedItems;
     private CompiledDocType? renderedMeta;
@@ -140,6 +160,7 @@
         renderedItems = Items; renderedMeta = Meta;
         actionCache.Clear();
         menuFor = null; menuActions = null; choice = null;
+        boardField = WorkflowBoard.ResolveBoardField(Meta);
         columns = WorkflowBoard.Columns(Meta);
         byColumn = columns.ToDictionary(c => c.Key, _ => new List<Dictionary<string, object?>>(), StringComparer.Ordinal);
         foreach (var row in Items)
@@ -155,7 +176,7 @@
         }
         var sample = Items.Count > 0 ? Items[0] : null;
         cardFields = Meta.ListColumns
-            .Where(c => c != Meta.Def.ListView.TitleField && Meta.ByName.TryGetValue(c, out var f) && !f.IsLayout && f.Def.Type is not ("Table" or "Image" or "Attach"))
+            .Where(c => c != Meta.Def.ListView.TitleField && c != boardField?.Name && Meta.ByName.TryGetValue(c, out var f) && !f.IsLayout && f.Def.Type is not ("Table" or "Image" or "Attach"))
             .Where(c => sample is null || sample.ContainsKey(c))
             .Take(3)
             .Select(c => Meta.ByName[c])
@@ -184,10 +205,29 @@
         DocActions.Submit => "Submit", DocActions.Cancel => "Cancel", _ => action
     }];
 
+    private bool CanEditBoardField(Dictionary<string, object?> row)
+    {
+        if (boardField is null) return false;
+        var docStatus = row.GetValueOrDefault(StandardFields.DocStatus) switch
+        {
+            int i => i,
+            long l => (int)l,
+            decimal d => (int)d,
+            _ => DocStatus.Draft,
+        };
+        if (docStatus != DocStatus.Draft) return false;
+        return Perms.Can(Current.Required, Meta, DocActions.Write) && Perms.CanWriteField(Current.Required, Meta, boardField);
+    }
+
     private string DropState(string column)
     {
         if (dragRow is null) return "";
         if (column == WorkflowBoard.ColumnOf(Meta, dragRow)) return "kb-source";
+        if (boardField is not null)
+        {
+            var canMove = CanEditBoardField(dragRow);
+            return (canMove ? "kb-allowed" : "kb-blocked") + (overColumn == column ? " kb-over" : "");
+        }
         if (dragActions is null) return "kb-pending";
         var allowed = WorkflowBoard.MovesTo(dragActions, column).Count > 0;
         return (allowed ? "kb-allowed" : "kb-blocked") + (overColumn == column ? " kb-over" : "");
@@ -196,6 +236,7 @@
     private async Task StartDrag(Dictionary<string, object?> row)
     {
         dragRow = row; dragName = NameOf(row); dragActions = null; overColumn = null; menuFor = null;
+        if (boardField is not null) return;
         try
         {
             var actions = await ActionsFor(row);
@@ -221,6 +262,11 @@
         if (row is null || busyCard is not null) return;
         var from = WorkflowBoard.ColumnOf(Meta, row);
         if (column == from) return;
+        if (boardField is not null)
+        {
+            await MoveFieldAsync(row, column);
+            return;
+        }
         IReadOnlyList<ActionView> actions;
         try { actions = await ActionsFor(row); }
         catch (Exception ex) when (IsDomainError(ex)) { Toasts.Error(T.Message(ex.Message), T.Format("{0} could not be moved", NameOf(row))); return; }
@@ -246,6 +292,7 @@
         var name = NameOf(row);
         if (menuFor == name) { menuFor = null; return; }
         menuFor = name; menuActions = null;
+        if (boardField is not null) return;
         try
         {
             var actions = (await ActionsFor(row)).Where(a => a.Action != DocActions.Amend).ToList();
@@ -256,6 +303,44 @@
             actionCache.Remove(name + "@" + VersionOf(row));
             if (menuFor == name) { menuFor = null; Toasts.Error(T.Message(ex.Message)); }
         }
+    }
+
+    private async Task MoveFieldAsync(Dictionary<string, object?> row, string targetValue)
+    {
+        if (boardField is null) return;
+        var name = NameOf(row);
+        menuFor = null;
+        if (!CanEditBoardField(row))
+        {
+            Toasts.Error(T.Format("You do not have permission to move {0}.", name), T["Move not allowed"]);
+            return;
+        }
+
+        busyCard = name;
+        StateHasChanged();
+        try
+        {
+            var patch = new Dictionary<string, object?> { [boardField.Name] = targetValue };
+            await Docs.UpdateAsync(Current.Required, Meta.Name, name, VersionOf(row), patch);
+            Toasts.Success(T.Format("Updated to {0}.", T[targetValue]), T["Updated"]);
+            busyCard = null;
+            await OnChanged.InvokeAsync();
+        }
+        catch (ConcurrencyException)
+        {
+            busyCard = null;
+            Toasts.Error(T.Format("{0} was changed by someone else. The board has been refreshed; try again.", name), T["Conflict"]);
+            await OnChanged.InvokeAsync();
+        }
+        catch (ValidationFailedException v)
+        {
+            Toasts.Error(string.Join("; ", v.Errors.Select(e => T.Message(e.Message))), T.Format("{0} could not be moved. Open the document to fix it.", name));
+        }
+        catch (Exception ex) when (IsDomainError(ex))
+        {
+            Toasts.Error(T.Message(ex.Message), T.Format("{0} could not be moved", name));
+        }
+        finally { busyCard = null; }
     }
 
     private async Task RunAsync(Dictionary<string, object?> row, ActionView a)
