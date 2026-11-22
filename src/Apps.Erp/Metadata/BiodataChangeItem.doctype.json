@@ -1,0 +1,37 @@
+{
+  "name": "BiodataChangeItem",
+  "version": 1,
+  "title": "Biodata Change",
+  "module": "HR",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "field",
+      "type": "Data",
+      "label": "Field",
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "label",
+      "type": "Data",
+      "label": "Label",
+      "readOnlyWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "current_value",
+      "type": "Text",
+      "label": "Current value",
+      "readOnlyWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "new_value",
+      "type": "Text",
+      "label": "New value",
+      "inListView": true,
+      "description": "For table fields (bank accounts, dependents…): the new rows as a JSON array"
+    }
+  ]
+}

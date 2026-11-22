@@ -1,0 +1,268 @@
+@page "/hr/attendance-recap"
+@page "/hr/rekap-absensi"
+@using System.Globalization
+@using System.Text
+@using Apps.Erp.Hooks
+@using Framework.Imports
+@using Framework.Localization
+@using Framework.Persistence
+@using Framework.Reports
+@using Microsoft.Extensions.Logging
+@using Microsoft.JSInterop
+@inject DocumentService Docs
+@inject IDocumentStore Store
+@inject CurrentUser Current
+@inject IPermissionService Perms
+@inject IMetadataProvider Metadata
+@inject ReportDownloads Downloads
+@inject ToastService Toasts
+@inject TimeProvider Clock
+@inject ILoggerFactory Loggers
+@inject IJSRuntime JS
+@inject UiText T
+
+<PageTitle>@T["Monthly attendance recap"] · FrogFrame</PageTitle>
+
+@if (!CanView)
+{
+    <ErrorState StatusCode="403" Description="@T["The recap needs read access to the attendance of all employees (HR roles)."]" />
+}
+else
+{
+    <header class="page-head">
+        <div>
+            <h1>@T["Monthly attendance recap"]</h1>
+            <p>@T["Days per attendance code for each employee, for payroll. LI/LO days count as late and as early out. Days without a final code are still waiting for punches, the deadline or HR."]</p>
+        </div>
+        <div class="row" style="gap:.5rem;flex-wrap:wrap;align-items:center">
+            <input type="month" class="auth-input" style="width:auto" value="@month" @onchange="e => ChangeMonthAsync(e.Value as string)" aria-label="@T["Month"]" />
+            <select class="auth-input" style="width:auto" value="@unit" @onchange="e => ChangeUnitAsync(e.Value as string)" aria-label="@T["Unit"]">
+                <option value="">@T["All units"]</option>
+                @foreach (var u in units)
+                {
+                    <option value="@u">@u</option>
+                }
+            </select>
+            @if (CanRecalculate)
+            {
+                <BbButton Variant="ButtonVariant.Outline" Disabled="busy" Loading="recalculating" OnClick="RecalculateAsync" title="@T["Creates missing days and recalculates every code of the month that HR did not set by hand (after late leave approvals, schedule or shift changes)."]">
+                    <LucideIcon Name="refresh-cw" Size="16" /> @T["Recalculate month"]
+                </BbButton>
+            }
+            <BbButton Variant="ButtonVariant.Outline" Disabled="@(busy || rows.Count == 0)" OnClick="@(() => ExportAsync("xlsx"))"><LucideIcon Name="file-spreadsheet" Size="16" /> Excel</BbButton>
+            <BbButton Variant="ButtonVariant.Outline" Disabled="@(busy || rows.Count == 0)" OnClick="@(() => ExportAsync("csv"))"><LucideIcon Name="file-text" Size="16" /> CSV</BbButton>
+        </div>
+    </header>
+
+    @if (notice is not null)
+    {
+        <BbAlert Variant="AlertVariant.Info" Class="props-block"><BbAlertDescription>@notice</BbAlertDescription></BbAlert>
+    }
+
+    @if (loading)
+    {
+        <div class="stack"><BbSkeleton Height="3rem" /><BbSkeleton Height="3rem" /><BbSkeleton Height="3rem" /></div>
+    }
+    else if (rows.Count == 0)
+    {
+        <div class="desk-table-card desk-empty-box">@T["No employees or attendance in this month."]</div>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="perm-table attendance-recap">
+                <thead>
+                    <tr>
+                        <th>@T["Employee"]</th>
+                        @foreach (var c in Columns)
+                        {
+                            <th class="num" title="@T[CodeTitle(c)]">@c</th>
+                        }
+                        <th class="num" title="@T["Days late (LI and LI/LO)"]">@T["Late days"]</th>
+                        <th class="num">@T["Late min."]</th>
+                        <th class="num" title="@T["Days early out (LO and LI/LO)"]">@T["Early-out days"]</th>
+                        <th class="num">@T["Early min."]</th>
+                        <th class="num" title="@T["No record yet, or waiting for punches / the deadline"]">@T["Open"]</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in rows)
+                    {
+                        <tr>
+                            <td>
+                                <a href="/app/Attendance?employee=@Uri.EscapeDataString(r.Employee)">@r.EmployeeName</a>
+                                <div class="muted small">@r.Employee@(r.OrganizationUnit is { } ou ? " · " + ou : "")</div>
+                            </td>
+                            @foreach (var c in Columns)
+                            {
+                                var n = r.Count(c);
+                                <td class="num @(n == 0 ? "muted" : "")">@n</td>
+                            }
+                            <td class="num">@r.LateDays</td>
+                            <td class="num">@r.LateMinutes</td>
+                            <td class="num">@r.EarlyOutDays</td>
+                            <td class="num">@r.EarlyOutMinutes</td>
+                            <td class="num @(r.UnclassifiedDays > 0 ? "text-warning" : "muted")">@r.UnclassifiedDays</td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <th>@T["Total"]</th>
+                        @foreach (var c in Columns)
+                        {
+                            <th class="num">@rows.Sum(r => r.Count(c))</th>
+                        }
+                        <th class="num">@rows.Sum(r => r.LateDays)</th>
+                        <th class="num">@rows.Sum(r => r.LateMinutes)</th>
+                        <th class="num">@rows.Sum(r => r.EarlyOutDays)</th>
+                        <th class="num">@rows.Sum(r => r.EarlyOutMinutes)</th>
+                        <th class="num">@rows.Sum(r => r.UnclassifiedDays)</th>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        <p class="muted small" style="margin-top:.5rem">@T["ONT on time · LI late in · LO early out · LI/LO both · NCIN no clock-in · NCOUT no clock-out · ABS absent · TO-ND time off without deduction · TO-D time off with salary deduction (leave type not 'Paid') · DO day off · INV invalid"]</p>
+    }
+}
+
+@code {
+    private static readonly string[] Columns = [.. AttendanceCodes.All];
+    private string month = "";
+    private string unit = "";
+    private List<string> units = [];
+    private IReadOnlyList<AttendanceRecapRow> rows = [];
+    private bool loading = true;
+    private bool busy;
+    private bool recalculating;
+    private string? notice;
+
+    private CompiledDocType? AttendanceMeta => Metadata.Current.TryGet("Attendance", out var m) ? m : null;
+    private bool CanView => Current.User is { } u && AttendanceMeta is { } m && Perms.Can(u, m, DocActions.Read) && Perms.ScopeFor(u, m, DocActions.Read) is RowScope.AllRows;
+    private bool CanRecalculate => CanView && Perms.Can(Current.Required, AttendanceMeta!, DocActions.Write);
+
+    private DateOnly Today => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(Clock.GetUtcNow(), FieldTypeSettings.DefaultTimeZone).DateTime);
+    private (DateOnly From, DateOnly To) Range
+    {
+        get
+        {
+            var first = DateOnly.ParseExact(month + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture);
+            return (first, first.AddMonths(1).AddDays(-1));
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!CanView) return;
+        month = Today.ToString("yyyy-MM", CultureInfo.InvariantCulture);
+        units = (await new Masters(Store, Current.Required.TenantId).QueryAsync("Employee", [], default, take: 20000))
+            .Select(e => e.Data.Str("organization_unit")).OfType<string>().Distinct().Order(StringComparer.CurrentCultureIgnoreCase).ToList();
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        loading = true;
+        try
+        {
+            var (from, to) = Range;
+            rows = await AttendanceDays.RecapAsync(Store, Current.Required.TenantId, from, to, default,
+                organizationUnit: string.IsNullOrEmpty(unit) ? null : unit, today: Today);
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task ChangeMonthAsync(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || !DateOnly.TryParseExact(value + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _)) return;
+        month = value;
+        notice = null;
+        await LoadAsync();
+    }
+
+    private async Task ChangeUnitAsync(string? value)
+    {
+        unit = value ?? "";
+        await LoadAsync();
+    }
+
+    private async Task RecalculateAsync()
+    {
+        if (busy || !CanRecalculate) return;
+        busy = recalculating = true;
+        try
+        {
+            var (from, to) = Range;
+            var last = to < Today ? to : Today;
+            if (last < from) { notice = T["This month has not started yet."]; return; }
+            var r = await AttendanceDays.EnsureAsync(Docs, Store, Current.Required.TenantId, from, last, recalculateAll: true, Clock,
+                Loggers.CreateLogger("AttendanceRecap"), default);
+            notice = T.Format("{0} days created, {1} recalculated, {2} skipped (payroll month locked or being edited).", r.Created, r.Recalculated, r.Failed);
+            await LoadAsync();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Toasts.Error(T.Message(ex.Message), T["Error"]);
+        }
+        finally
+        {
+            busy = recalculating = false;
+        }
+    }
+
+    private async Task ExportAsync(string format)
+    {
+        busy = true;
+        try
+        {
+            string[] headers = ["Employee ID", "Employee", "Unit", .. Columns, "Late days", "Late minutes", "Early-out days", "Early-out minutes", "Days without final code"];
+            var data = rows.Select(r => (object?[])[r.Employee, r.EmployeeName, r.OrganizationUnit, .. Columns.Select(c => (object?)r.Count(c)),
+                r.LateDays, r.LateMinutes, r.EarlyOutDays, r.EarlyOutMinutes, r.UnclassifiedDays]).ToList();
+            var name = $"attendance-recap-{month}{(string.IsNullOrEmpty(unit) ? "" : "-" + unit)}";
+            ReportOutput output;
+            if (format == "csv")
+            {
+                var sb = new StringBuilder();
+                sb.AppendLine(string.Join(",", headers.Select(Csv)));
+                foreach (var row in data) sb.AppendLine(string.Join(",", row.Select(v => Csv(Convert.ToString(v, CultureInfo.InvariantCulture) ?? ""))));
+                output = new ReportOutput(Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(sb.ToString())).ToArray(), name + ".csv", "text/csv", data.Count);
+            }
+            else
+            {
+                var bytes = XlsxWriter.Build([new XlsxSheet { Name = "Recap " + month, Headers = headers, Rows = data }]);
+                output = new ReportOutput(bytes, name + ".xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", data.Count);
+            }
+            var token = Downloads.Put(Current.Required.TenantId, Current.Required.Id, output);
+            await JS.InvokeVoidAsync("frogframe.downloadUrl", $"/report-downloads/{token}", output.FileName);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    /// <summary>Quotes a CSV cell; a leading =, +, - or @ is prefixed with ' so spreadsheet apps do not run it as a formula.</summary>
+    private static string Csv(string value)
+    {
+        if (value.Length > 0 && "=+-@".Contains(value[0]) && !decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out _)) value = "'" + value;
+        return value.IndexOfAny([',', '"', '\n', '\r']) >= 0 ? "\"" + value.Replace("\"", "\"\"") + "\"" : value;
+    }
+
+    private static string CodeTitle(string code) => code switch
+    {
+        AttendanceCodes.OnTime => "On time",
+        AttendanceCodes.LateIn => "Late in",
+        AttendanceCodes.EarlyOut => "Early out",
+        AttendanceCodes.LateInEarlyOut => "Late in and early out",
+        AttendanceCodes.NoClockIn => "No clock-in",
+        AttendanceCodes.NoClockOut => "No clock-out",
+        AttendanceCodes.Absent => "Absent",
+        AttendanceCodes.TimeOffPaid => "Time off, no deduction",
+        AttendanceCodes.TimeOffDeduction => "Time off, salary deducted",
+        AttendanceCodes.DayOff => "Day off",
+        _ => "Invalid",
+    };
+}

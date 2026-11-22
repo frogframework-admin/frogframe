@@ -43,6 +43,8 @@ public static class DemoUsers
         var accounts = scope.ServiceProvider.GetRequiredService<IUserAccountRepository>();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<UserAccount>>();
         var pwd = string.IsNullOrWhiteSpace(password) ? DefaultPassword : password;
+        foreach (var tenant in All.Select(p => p.TenantId).Distinct())
+            await Framework.Web.Tenancy.TenantRegistration.EnsureAsync(scope.ServiceProvider, tenant, tenant == "acme" ? "ACME (demo)" : null, ct);
 
         // Clean up legacy demo accounts that have been replaced or dropped
         string[] legacyDemoIds = ["andi", "budi", "citra", "joko", "maya", "rina", "sari", "dewi", "tono"];

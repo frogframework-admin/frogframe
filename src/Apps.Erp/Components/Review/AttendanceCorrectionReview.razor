@@ -1,0 +1,105 @@
+@using Apps.Erp.Ess
+@using Framework.Localization
+@inject EssReviewService Reviews
+@inject CurrentUser Current
+@inject UiText T
+
+@* Form panel of AttendanceCorrection: schedule, recorded vs corrected times with the attendance code each gives, and the
+   day's mobile punches (including refused ones) as evidence. *@
+@if (review is { } r)
+{
+    <ReviewFrame Title="Correction review" Icon="clock-alert" Status="r.Status" Checks="r.Checks">
+        <div class="review-schedule">
+            <LucideIcon Name="calendar-clock" Size="15" />
+            @if (r.ScheduledStart is { } s)
+            {
+                <span>@T.Format("Shift {0}: {1} – {2}", r.ShiftType ?? "-", s.ToString("ddd dd MMM HH:mm"), r.ScheduledEnd?.ToString("HH:mm") ?? "?")</span>
+            }
+            else
+            {
+                <span>@T["No shift scheduled for this day"]</span>
+            }
+            @if (r.ScheduleType is { } st && st != "WORK") { <span class="desk-status-pill tone-neutral">@st</span> }
+            @if (r.AttendanceName is { } an) { <a class="doc-code" href="/app/Attendance/@Uri.EscapeDataString(an)">@an</a> }
+        </div>
+        <div class="desk-table-card">
+            <table class="review-compare">
+                <thead>
+                    <tr><th></th><th>@T["Check-in"]</th><th>@T["Check-out"]</th><th>@T["Code"]</th><th>@T["Late"]</th><th>@T["Early out"]</th><th>@T["Hours"]</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <th scope="row">@T["Recorded"]</th>
+                        @Cells(r.Before, null)
+                    </tr>
+                    @if (r.After is { } a)
+                    {
+                        <tr class="review-after">
+                            <th scope="row">@T[r.AfterIsPreview ? "After correction (preview)" : "After correction"]</th>
+                            @Cells(a, r.Before)
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        @if (r.After?.Reason is { } why) { <p class="review-hint">@T.Format("Code reason: {0}", why)</p> }
+
+        <div class="review-label">@T["Mobile punches that day"]</div>
+        @if (r.Punches.Count == 0)
+        {
+            <p class="review-hint">@T["None recorded."]</p>
+        }
+        else
+        {
+            <ul class="review-punches">
+                @foreach (var p in r.Punches)
+                {
+                    <li>
+                        <span class="review-punch-time">@p.Time.ToString("HH:mm")</span>
+                        <span>@T[p.Type == "in" ? "Clock-in" : "Clock-out"]</span>
+                        <span class="desk-status-pill tone-@(p.Status switch { "accepted" => "positive", "flagged" => "warning", _ => "negative" })"><span class="dot"></span>@T[p.Status]</span>
+                        @if (p.Reasons.Length > 0) { <span class="muted small">@p.Reasons</span> }
+                        @if (p.DistanceM is { } dist) { <span class="muted small">@T.Format("{0:0} m from {1}", dist, p.Location ?? T["site"])</span> }
+                        @if (p.Mock) { <span class="muted small">@T["mock location"]</span> }
+                        @if (p.Offline) { <span class="muted small">@T["sent offline"]</span> }
+                    </li>
+                }
+            </ul>
+        }
+        @if (r.Attachment is { } att)
+        {
+            <a class="desk-act-btn" href="@att" target="_blank" rel="noopener"><LucideIcon Name="paperclip" Size="14" /> @T["Open supporting document"]</a>
+        }
+    </ReviewFrame>
+}
+else if (error is not null)
+{
+    <div class="review-panel review-error">@error</div>
+}
+
+@code {
+    [Parameter] public Document Doc { get; set; } = default!;
+    [Parameter] public CompiledDocType Meta { get; set; } = default!;
+    private CorrectionReview? review;
+    private string? error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Current.User is not { } u) return;
+        try { review = await Reviews.CorrectionAsync(u, Doc.Name); }
+        catch (Exception ex) when (ex is DocumentNotFoundException or PermissionDeniedException) { error = T["The review is not available."]; }
+    }
+
+    private RenderFragment Cells(DayTimes t, DayTimes? before) => __builder =>
+    {
+        <td class="@(before is not null && !Equals(t.CheckIn, before.CheckIn) ? "review-changed" : null)">@Time(t.CheckIn)</td>
+        <td class="@(before is not null && !Equals(t.CheckOut, before.CheckOut) ? "review-changed" : null)">@Time(t.CheckOut)</td>
+        <td class="@(before is not null && !Equals(t.Code, before.Code) ? "review-changed" : null)">@if (t.Code is { } c) { <span class="review-code">@c</span> } else { <span class="muted">-</span> }</td>
+        <td class="@(before is not null && !Equals(t.LateMinutes, before.LateMinutes) ? "review-changed" : null)">@Minutes(t.LateMinutes)</td>
+        <td class="@(before is not null && !Equals(t.EarlyOutMinutes, before.EarlyOutMinutes) ? "review-changed" : null)">@Minutes(t.EarlyOutMinutes)</td>
+        <td class="@(before is not null && !Equals(t.Hours, before.Hours) ? "review-changed" : null)">@(t.Hours is { } h ? h.ToString("0.##") : "-")</td>
+    };
+
+    private string Time(DateTime? t) => t?.ToString("ddd HH:mm") ?? T["missing"];
+    private static string Minutes(int m) => m > 0 ? $"{m} min" : "-";
+}

@@ -590,11 +590,53 @@ public sealed class DocumentService(
         return result;
     }
 
-    /// <summary>Recent documents visible to the user (prioritizing workflow/submittable documents) along with available workflow actions.</summary>
+    /// <summary>How many DocTypes the home page queries at the same time (each query uses one pooled connection).</summary>
+    private const int HomeQueryParallelism = 6;
+
+    /// <summary>
+    /// Documents that wait for a decision by this user: in a non-initial workflow state that has a transition the user's
+    /// roles allow and that does not cancel the document (a requester's "Withdraw" is not a decision). Only those states
+    /// are queried, without a total count, and DocTypes where the user can decide nothing are not queried at all.
+    /// Conditions and row scope are applied as in <see cref="PendingActionsAsync"/>.
+    /// </summary>
+    public async Task<IReadOnlyList<(CompiledDocType Meta, Document Doc, IReadOnlyList<string> Actions)>> DecisionQueueAsync(
+        UserContext user, int takePerDocType = 100, CancellationToken ct = default)
+    {
+        var targets = new List<(CompiledDocType Meta, List<object?> States)>();
+        foreach (var meta in Meta.DocTypes.Values.Where(m => m.Workflow is not null && permissions.Can(user, m, DocActions.Read)))
+        {
+            var wf = meta.Workflow!;
+            var states = wf.Transitions
+                .Where(t => t.Def.From != wf.Def.InitialState && t.Def.AllowedRoles.Any(user.HasRole)
+                            && !(wf.States.TryGetValue(t.Def.To, out var to) && to.DocStatus == DocStatus.Cancelled))
+                .Select(t => (object?)t.Def.From).Distinct().ToList();
+            if (states.Count > 0) targets.Add((meta, states));
+        }
+
+        var found = new System.Collections.Concurrent.ConcurrentBag<(CompiledDocType, Document, IReadOnlyList<string>)>();
+        await Parallel.ForEachAsync(targets, new ParallelOptions { MaxDegreeOfParallelism = HomeQueryParallelism, CancellationToken = ct }, async (t, token) =>
+        {
+            var scope = await ScopeAsync(user, t.Meta, DocActions.Read, token);
+            var open = await store.QueryAsync(new StoreQuery(user.TenantId, t.Meta.Name, scope,
+                [new FilterClause(StandardFields.DocStatus, "in", new List<object?> { 0m, 1m }), new FilterClause(StandardFields.WorkflowState, "in", t.States)],
+                null, [], [new SortDef { Field = StandardFields.Modified, Direction = "asc" }], 0, takePerDocType) { CountTotal = false }, token);
+            foreach (var d in open.Items)
+            {
+                var available = workflow.Available(t.Meta, d, user);
+                var decides = available.Any(x => !(t.Meta.Workflow!.States.TryGetValue(x.Def.To, out var to) && to.DocStatus == DocStatus.Cancelled));
+                if (decides) found.Add((t.Meta, RedactForRead(user, t.Meta, d), available.Select(x => x.Def.Action).ToList()));
+            }
+        });
+        return found.OrderBy(x => x.Item2.Modified).ToList();
+    }
+
+    /// <summary>
+    /// Recent documents visible to the user (workflow/submittable DocTypes first) with their available workflow actions.
+    /// DocTypes are queried a few at a time without a total count; actions are evaluated only for the documents returned.
+    /// </summary>
     public async Task<IReadOnlyList<(CompiledDocType Meta, Document Doc, IReadOnlyList<string> Actions)>> RecentDocumentsAsync(
         UserContext user, int limit = 8, CancellationToken ct = default)
     {
-        var candidates = new List<(CompiledDocType Meta, Document Doc, IReadOnlyList<string> Actions)>();
         var docTypes = Meta.DocTypes.Values
             .Where(m => !m.Def.IsChild && permissions.Can(user, m, DocActions.Read))
             .OrderByDescending(m => m.Workflow is not null || m.Def.Document.AllowSubmit)
@@ -605,30 +647,23 @@ public sealed class DocumentService(
         var targets = transactional.Count > 0 ? transactional : docTypes;
         var sort = new List<SortDef> { new() { Field = StandardFields.Modified, Direction = "desc" } };
 
+        var candidates = new System.Collections.Concurrent.ConcurrentBag<(CompiledDocType Meta, Document Doc)>();
         await Parallel.ForEachAsync(
             targets,
-            new ParallelOptions { MaxDegreeOfParallelism = 8, CancellationToken = ct },
+            new ParallelOptions { MaxDegreeOfParallelism = HomeQueryParallelism, CancellationToken = ct },
             async (meta, token) =>
             {
                 var scope = await ScopeAsync(user, meta, DocActions.Read, token);
-                var res = await store.QueryAsync(new StoreQuery(user.TenantId, meta.Name, scope, [], null, [], sort, 0, limit), token);
-                if (res.Items.Count == 0) return;
-
-                var batch = new List<(CompiledDocType Meta, Document Doc, IReadOnlyList<string> Actions)>(res.Items.Count);
-                foreach (var d in res.Items)
-                {
-                    var actions = meta.Workflow is not null
-                        ? workflow.Available(meta, d, user).Select(t => t.Def.Action).ToList()
-                        : [];
-                    batch.Add((meta, RedactForRead(user, meta, d), actions));
-                }
-                lock (candidates) candidates.AddRange(batch);
+                var res = await store.QueryAsync(new StoreQuery(user.TenantId, meta.Name, scope, [], null, [], sort, 0, limit) { CountTotal = false }, token);
+                foreach (var d in res.Items) candidates.Add((meta, d));
             });
 
         return candidates
             .OrderByDescending(x => x.Doc.Modified)
-            .ThenByDescending(x => x.Doc.Name)
+            .ThenByDescending(x => x.Doc.Name, StringComparer.Ordinal)
             .Take(limit)
+            .Select(x => (x.Meta, RedactForRead(user, x.Meta, x.Doc),
+                (IReadOnlyList<string>)(x.Meta.Workflow is not null ? workflow.Available(x.Meta, x.Doc, user).Select(t => t.Def.Action).ToList() : [])))
             .ToList();
     }
 

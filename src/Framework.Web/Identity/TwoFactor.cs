@@ -131,32 +131,57 @@ public static class TwoFactorSetup
 /// but has not enrolled is sent to the enrolment page (browser) or gets 403 (API). Account pages, static files and
 /// health checks stay reachable. API keys (service accounts) are not affected.
 /// </summary>
-public sealed class TwoFactorRequirementMiddleware(RequestDelegate next, IOptionsMonitor<TwoFactorOptions> options)
+public sealed class TwoFactorRequirementMiddleware(RequestDelegate next, IOptionsMonitor<TwoFactorOptions> options,
+    Framework.Tenancy.TenantDirectory? tenants = null)
 {
     public const string EnrolPath = "/account/two-factor";
 
-    public Task InvokeAsync(HttpContext context)
+    public async Task InvokeAsync(HttpContext context)
     {
-        var o = options.CurrentValue;
         var user = context.User;
-        if (o.EffectiveRequiredRoles.Count == 0 || user.Identity?.IsAuthenticated != true
-            || user.HasClaim(c => c.Type == ApiKeyDefaults.KeyIdClaim) || TwoFactorSetup.Satisfies(user, o))
-            return next(context);
+        if (user.Identity?.IsAuthenticated != true || user.HasClaim(c => c.Type == ApiKeyDefaults.KeyIdClaim))
+        {
+            await next(context);
+            return;
+        }
+        var o = await EffectiveOptionsAsync(user, context.RequestAborted);
+        if (o.EffectiveRequiredRoles.Count == 0 || TwoFactorSetup.Satisfies(user, o))
+        {
+            await next(context);
+            return;
+        }
 
         var path = context.Request.Path;
         if (path.StartsWithSegments("/account") || path.StartsWithSegments("/api/auth") || path.StartsWithSegments("/health")
             || path.StartsWithSegments("/_framework") || path.StartsWithSegments("/_content") || path.StartsWithSegments("/error")
             || Path.HasExtension(path.Value))
-            return next(context);
+        {
+            await next(context);
+            return;
+        }
 
         if (path.StartsWithSegments("/api") || path.StartsWithSegments("/_blazor"))
         {
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
             context.Response.ContentType = "application/problem+json";
-            return context.Response.WriteAsync("{\"title\":\"Two-factor authentication required\",\"status\":403,\"detail\":\"Your role requires two-factor authentication. Enable it at /account/two-factor, then sign in again.\"}");
+            await context.Response.WriteAsync("{\"title\":\"Two-factor authentication required\",\"status\":403,\"detail\":\"Your role requires two-factor authentication. Enable it at /account/two-factor, then sign in again.\"}");
+            return;
         }
         context.Response.Redirect(EnrolPath + "?required=1");
-        return Task.CompletedTask;
+    }
+
+    /// <summary>Installation roles (<c>Security:TwoFactor:RequiredForRoles</c>) plus the roles the user's tenant requires.</summary>
+    private async Task<TwoFactorOptions> EffectiveOptionsAsync(ClaimsPrincipal user, CancellationToken ct)
+    {
+        var o = options.CurrentValue;
+        if (tenants is null || user.FindFirst(FrogFrameClaims.Tenant)?.Value is not { Length: > 0 } tenantId) return o;
+        var extra = (await tenants.SettingsAsync(tenantId, ct)).TwoFactorRequiredRoles;
+        if (extra.Count == 0) return o;
+        return new TwoFactorOptions
+        {
+            Issuer = o.Issuer, TrustSingleSignOn = o.TrustSingleSignOn, RecoveryCodeCount = o.RecoveryCodeCount,
+            RequiredForRoles = [.. o.EffectiveRequiredRoles.Concat(extra).Distinct(StringComparer.Ordinal)],
+        };
     }
 }
 

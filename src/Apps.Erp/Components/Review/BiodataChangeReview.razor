@@ -1,0 +1,84 @@
+@using Apps.Erp.Ess
+@using Framework.Localization
+@inject EssReviewService Reviews
+@inject CurrentUser Current
+@inject UiText T
+
+@* Form panel of BiodataChangeRequest: each field with the value on the employee record now and the requested value;
+   tables row by row with added, removed and changed rows marked. *@
+@if (review is { } r)
+{
+    <ReviewFrame Title="Biodata change review" Icon="user-pen" Status="r.Status" Checks="r.Checks">
+        <div class="review-schedule"><LucideIcon Name="folder-pen" Size="15" /><span>@T[r.Category]</span></div>
+        <div class="desk-table-card">
+            <table class="review-compare review-biodata">
+                <thead><tr><th>@T["Field"]</th><th>@T[r.Status.Decided ? "Before" : "Now on the employee record"]</th><th>@T["Requested"]</th></tr></thead>
+                <tbody>
+                    @foreach (var c in r.Changes)
+                    {
+                        <tr>
+                            <th scope="row">@T[c.Label]@if (c.ChangedSinceRequest) { <span class="review-flag" title="@T["Changed after the request was made"]"><LucideIcon Name="triangle-alert" Size="13" /></span> }</th>
+                            @if (c.IsTable)
+                            {
+                                <td colspan="2" data-label="@T["Requested"]">
+                                    <table class="review-rows">
+                                        <thead><tr><th></th>@foreach (var col in c.Columns) { <th>@T[col]</th> }</tr></thead>
+                                        <tbody>
+                                            @foreach (var row in c.Rows)
+                                            {
+                                                <tr class="row-@row.Kind">
+                                                    <td class="review-row-kind">@T[row.Kind]</td>
+                                                    @for (var i = 0; i < c.Columns.Count; i++)
+                                                    {
+                                                        var o = i < row.Old.Count ? row.Old[i] : null;
+                                                        var n = i < row.New.Count ? row.New[i] : null;
+                                                        <td>
+                                                            @if (row.Kind == "changed" && o != n)
+                                                            {
+                                                                <span class="review-old">@(o ?? "–")</span> <span class="review-new">@(n ?? "–")</span>
+                                                            }
+                                                            else { @(row.Kind == "removed" ? o : n ?? o) }
+                                                        </td>
+                                                    }
+                                                </tr>
+                                            }
+                                            @if (c.Rows.Count == 0) { <tr><td colspan="@(c.Columns.Count + 1)" class="muted">@T["Empty"]</td></tr> }
+                                        </tbody>
+                                    </table>
+                                </td>
+                            }
+                            else
+                            {
+                                <td data-label="@T[r.Status.Decided ? "Before" : "Now on the employee record"]">@if (c.Current is { } cur) { <span class="@(cur != c.Requested ? "review-old" : null)">@cur</span> } else { <span class="muted">@T["empty"]</span> }</td>
+                                <td data-label="@T["Requested"]">@if (c.Requested is { } req) { <span class="@(req != c.Current ? "review-new" : null)">@req</span> } else { <span class="muted">@T["empty"]</span> }</td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        @if (r.Attachment is { } att)
+        {
+            <a class="desk-act-btn" href="@att" target="_blank" rel="noopener"><LucideIcon Name="paperclip" Size="14" /> @T["Open supporting document"]</a>
+        }
+        <p class="review-hint">@T["On approval the requested values are written to the employee record; a table replaces the whole table."]</p>
+    </ReviewFrame>
+}
+else if (error is not null)
+{
+    <div class="review-panel review-error">@error</div>
+}
+
+@code {
+    [Parameter] public Document Doc { get; set; } = default!;
+    [Parameter] public CompiledDocType Meta { get; set; } = default!;
+    private BiodataReview? review;
+    private string? error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Current.User is not { } u) return;
+        try { review = await Reviews.BiodataAsync(u, Doc.Name); }
+        catch (Exception ex) when (ex is DocumentNotFoundException or PermissionDeniedException) { error = T["The review is not available."]; }
+    }
+}

@@ -82,8 +82,34 @@ services.AddHomeQuickAction(new HomeQuickAction("payables", "Payables desk", "/a
 - To let users hide a panel, store its id with `HomePreferences.DismissAsync` and check
   `HomePreferences.DismissedAsync` (user preference `home.dismissed`).
 
+## Performance
+
+Measured on PostgreSQL 16 with 63,000 documents (20,000 leave applications, 30,000 journal entries, 10,000 purchase
+requests, 3,000 payslips), local socket, after one warm-up call:
+
+| Section | Before | After |
+|---|---|---|
+| Needs your action (admin / manager / employee) | 148 / 57 / 104 ms | 2 / 3 / 3 ms |
+| Recent documents (admin / manager / employee) | 98 / 32 / 39 ms | 6 / 9 / 5 ms |
+| My day (employee) | 77–94 ms | 30 ms |
+
+What changed:
+
+- **Decision queue** (`DocumentService.DecisionQueueAsync`): only workflow states with a decision the user's roles
+  allow are queried, so approved, rejected and draft documents are no longer loaded. DocTypes where the user can
+  decide nothing are not queried.
+- **No total counts** where only rows are needed: `StoreQuery.CountTotal = false` skips the second `count(*)` query.
+  The home page, the decision queue and the ERP `Masters` helper (used by hooks) use it.
+- **Parallel queries**: the DocTypes of the decision queue and of recent documents are queried six at a time; the
+  page starts every section at once and shows each one as soon as its data arrives.
+- **KPIs**: widgets run in parallel, a widget slower than 3 seconds is left out of the home page, and values are
+  cached per user for 5 minutes (`HomeFeed.KpiCacheDuration`). The dashboard itself still shows live values.
+- **ERP**: the latest payslip is one sorted query instead of up to 200 payslips; leave balances read only applications
+  that can overlap the current allocation; the setup checklist checks for one employee with a user instead of reading
+  500 employees.
+- Hero images load lazily, so the hidden light/dark variant is not downloaded.
+
 ## Limits
 
-- "Today's numbers" runs the number widgets of the default dashboard on every home page load. Keep those queries
-  cheap, or leave number widgets off the default dashboard. When reporting is not configured the section is hidden.
-- The approval list is built from up to 200 open documents per workflow DocType, as `PendingActionsAsync` does.
+- The decision queue reads up to 100 open documents per workflow DocType, oldest first.
+- KPI values can be up to 5 minutes old on the home page.

@@ -19,6 +19,12 @@ public sealed record EssAttendancePolicy
     public int OvernightWindowHours { get; init; } = 16;
     /// <summary>Clock skew between device and server (online punch) exceeding this threshold flags the punch.</summary>
     public int MaxClockSkewMinutes { get; init; } = 5;
+    /// <summary>Every punch must carry a face match against the employee's verified Face Registration.</summary>
+    public bool RequireFace { get; init; }
+    /// <summary>Lowest accepted match score (0–1). The threshold sent by the app is ignored.</summary>
+    public decimal MinFaceScore { get; init; } = 0.8m;
+    /// <summary>A score below <see cref="MinFaceScore"/> rejects the punch instead of flagging it.</summary>
+    public bool RejectFaceMismatch { get; init; }
 }
 
 /// <summary>Office/warehouse location with coordinates and attendance radius (DocType Location).</summary>
@@ -42,6 +48,8 @@ public sealed record EssEmployeeProfile
     public string? Position { get; init; }
     public string? JobTitle { get; init; }
     public string? ReportsTo { get; init; }
+    /// <summary>Name of the employee's active (verified) Face Registration.</summary>
+    public string? FaceRegistration { get; init; }
 }
 
 public static class EssAttendanceMode
@@ -67,7 +75,13 @@ public sealed record EssPunchRequest
     public string? DeviceInfo { get; init; }
     public string? AppVersion { get; init; }
     public string? Note { get; init; }
+    /// <summary>Result of the on-device face match (required when HR Settings asks for it).</summary>
+    public EssFaceMatch? Face { get; init; }
 }
+
+/// <param name="Score">Similarity 0–1 computed by the app against the downloaded template.</param>
+/// <param name="Registration">Face Registration the template came from (detects an outdated template on the phone).</param>
+public sealed record EssFaceMatch(decimal? Score, string? Registration, string? ModelVersion, decimal? Liveness);
 
 /// <summary>Reason codes for rejected or flagged attendance punches with user-facing messages.</summary>
 public static class EssReason
@@ -87,6 +101,10 @@ public static class EssReason
     public const string ClockSkew = "clock_skew";
     public const string TooSoon = "too_soon";
     public const string OutWithoutIn = "out_without_in";
+    public const string FaceNotRegistered = "face_not_registered";
+    public const string FaceMissing = "face_missing";
+    public const string FaceMismatch = "face_mismatch";
+    public const string FaceTemplateOutdated = "face_template_outdated";
 
     /// <summary>Reasons that unconditionally reject a punch (others flag the punch for review).</summary>
     public static readonly IReadOnlySet<string> Blocking = new HashSet<string>
@@ -111,6 +129,10 @@ public static class EssReason
         ClockSkew => "Device clock differs significantly from server time; server time was used.",
         TooSoon => "You just recorded a punch. Please wait a moment before punching again.",
         OutWithoutIn => "Clock-out recorded without a preceding clock-in.",
+        FaceNotRegistered => "No verified face registration. Register your face in the app; punch recorded for HR review.",
+        FaceMissing => "Face verification was not performed. Punch recorded for HR review.",
+        FaceMismatch => "The face did not match your registered face.",
+        FaceTemplateOutdated => "Your face template on this phone is outdated. Open the app online to refresh it.",
         _ => code,
     };
 }
@@ -214,7 +236,20 @@ public static class EssAttendanceRules
                 reasons.Add(EssReason.OutWithoutIn);
         }
 
+        // Face match (computed on the phone against the verified template).
+        if (policy.RequireFace)
+        {
+            if (emp.FaceRegistration is null) reasons.Add(EssReason.FaceNotRegistered);
+            else if (req.Face?.Score is not { } score) reasons.Add(EssReason.FaceMissing);
+            else
+            {
+                if (score < policy.MinFaceScore) reasons.Add(EssReason.FaceMismatch);
+                if (req.Face.Registration is { Length: > 0 } reg && reg != emp.FaceRegistration) reasons.Add(EssReason.FaceTemplateOutdated);
+            }
+        }
+
         var blocking = reasons.Any(EssReason.Blocking.Contains)
+                       || (policy.RejectFaceMismatch && reasons.Contains(EssReason.FaceMismatch))
                        || (policy.RejectMockLocation && reasons.Contains(EssReason.MockLocation))
                        || (policy.RejectOutsideGeofence && (reasons.Contains(EssReason.OutsideGeofence) || reasons.Contains(EssReason.LocationMissing)));
         var status = blocking ? EssPunchStatus.Rejected : reasons.Count > 0 ? EssPunchStatus.Flagged : EssPunchStatus.Accepted;

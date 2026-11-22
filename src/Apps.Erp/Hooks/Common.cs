@@ -127,6 +127,7 @@ internal sealed class Masters(IDocumentStore store, string tenant)
 {
     private readonly Dictionary<(string, string), Document?> _cache = new();
     public string Tenant => tenant;
+    public IDocumentStore Store => store;
 
     public async Task<Document?> GetAsync(string docType, string? name, CancellationToken ct)
     {
@@ -152,7 +153,8 @@ internal sealed class Masters(IDocumentStore store, string tenant)
     {
         var sort = new List<SortDef>();
         if (sortField is not null) sort.Add(new SortDef { Field = sortField, Direction = direction });
-        return (await store.QueryAsync(new StoreQuery(tenant, docType, RowScope.All, filters, null, [], sort, 0, take), ct)).Items;
+        // Callers use the rows only: skip the total count round trip.
+        return (await store.QueryAsync(new StoreQuery(tenant, docType, RowScope.All, filters, null, [], sort, 0, take) { CountTotal = false }, ct)).Items;
     }
 }
 
@@ -359,7 +361,8 @@ internal static class ErpEvents
         JobChangeApply = "erp.jobchange.apply", SeparationApply = "erp.separation.apply", FiscalYearStatus = "erp.fiscalyear.status",
         TaxInvoiceCreate = "erp.taxinvoice.create", PurchaseFollowUps = "erp.purchase.followups",
         QuotationWon = "erp.quotation.won", QuotationBilled = "erp.quotation.billed", AdvanceTouch = "erp.touch",
-        EmployeeUser = "erp.employee.user", PaymentRunExecute = "erp.paymentrun.execute";
+        EmployeeUser = "erp.employee.user", PaymentRunExecute = "erp.paymentrun.execute",
+        FaceActivated = "erp.face.activated", AttendanceCorrectionApply = "erp.attendance.correction", BiodataApply = "erp.biodata.apply";
 
     public static void Emit(HookContext c, string type, Dictionary<string, string?> payload)
     {

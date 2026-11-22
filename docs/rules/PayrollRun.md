@@ -12,21 +12,21 @@ Aturan yang dijalankan kode saat dokumen Payroll Run (PayrollRun) disimpan, di-s
 
 ## Validasi (dokumen ditolak): Saat simpan/submit (validasi)
 
-- `period`: "{dup.Name} already covers this company, period, and unit" — terjadi bila `dup is not null` (PayrollRunHook, PayrollHooks.cs:406)
+- `period`: "{dup.Name} already covers this company, period, and unit" — terjadi bila `dup is not null` (PayrollRunHook, PayrollHooks.cs:428)
 
 ## Validasi (dokumen ditolak): Setelah simpan/submit (posting, efek ke dokumen lain)
 
-- `name`: "{all.Count(s => s.DocStatus == DocStatus.Draft)} payslips are still draft; submit or delete them first" — terjadi bila `!(c.Doc.DocStatus != DocStatus.Submitted || c.Previous?.DocStatus != DocStatus.Draft) && all.Any(s => s.DocStatus == DocStatus.Draft)` (PayrollRunHook, PayrollHooks.cs:426)
-- `name`: "There are no submitted payslips in this payroll run" — terjadi bila `!(c.Doc.DocStatus != DocStatus.Submitted || c.Previous?.DocStatus != DocStatus.Draft) && all.Count == 0` (PayrollRunHook, PayrollHooks.cs:427)
-- `posting_date`: "The posting date is required" — terjadi bila `!(c.Doc.DocStatus != DocStatus.Submitted || c.Previous?.DocStatus != DocStatus.Draft) && !(all.Count == 0)` (PayrollRunHook, PayrollHooks.cs:429)
-- `name`: "Set '{label}' in Payroll Settings" — terjadi bila `!(c.Doc.DocStatus != DocStatus.Submitted || c.Previous?.DocStatus != DocStatus.Draft) && !(all.Count == 0)` (PayrollRunHook, PayrollHooks.cs:432)
-- `name`: "Payroll entry is out of balance by {posting.Difference}" — terjadi bila `!(c.Doc.DocStatus != DocStatus.Submitted || c.Previous?.DocStatus != DocStatus.Draft) && !(all.Count == 0) && posting.Difference != 0` (PayrollRunHook, PayrollHooks.cs:453)
+- `name`: "{all.Count(s => s.DocStatus == DocStatus.Draft)} payslips are still draft; submit or delete them first" — terjadi bila `!(c.Doc.DocStatus != DocStatus.Submitted || c.Previous?.DocStatus != DocStatus.Draft) && all.Any(s => s.DocStatus == DocStatus.Draft)` (PayrollRunHook, PayrollHooks.cs:448)
+- `name`: "There are no submitted payslips in this payroll run" — terjadi bila `!(c.Doc.DocStatus != DocStatus.Submitted || c.Previous?.DocStatus != DocStatus.Draft) && all.Count == 0` (PayrollRunHook, PayrollHooks.cs:449)
+- `posting_date`: "The posting date is required" — terjadi bila `!(c.Doc.DocStatus != DocStatus.Submitted || c.Previous?.DocStatus != DocStatus.Draft) && !(all.Count == 0)` (PayrollRunHook, PayrollHooks.cs:451)
+- `name`: "Set '{label}' in Payroll Settings" — terjadi bila `!(c.Doc.DocStatus != DocStatus.Submitted || c.Previous?.DocStatus != DocStatus.Draft) && !(all.Count == 0)` (PayrollRunHook, PayrollHooks.cs:454)
+- `name`: "Payroll entry is out of balance by {posting.Difference}" — terjadi bila `!(c.Doc.DocStatus != DocStatus.Submitted || c.Previous?.DocStatus != DocStatus.Draft) && !(all.Count == 0) && posting.Difference != 0` (PayrollRunHook, PayrollHooks.cs:475)
 
 ## Tombol aksi gagal: Saat tombol aksi diklik
 
-- "Set the period first" — terjadi bila `period is null` (PayrollRunCreatePayslipsAction, PayrollHooks.cs:477)
-- "{msg} Failed: {string.Join("; ", failed.Take(10))}" — terjadi bila `!(period is null)` (PayrollRunCreatePayslipsAction, PayrollHooks.cs:515)
-- "{msg} Failed: {string.Join("; ", failed.Take(10))}" (PayrollRunSubmitPayslipsAction, PayrollHooks.cs:544)
+- "Set the period first" — terjadi bila `period is null` (PayrollRunCreatePayslipsAction, PayrollHooks.cs:499)
+- "{msg} Failed: {string.Join("; ", failed.Take(10))}" — terjadi bila `!(period is null)` (PayrollRunCreatePayslipsAction, PayrollHooks.cs:537)
+- "{msg} Failed: {string.Join("; ", failed.Take(10))}" (PayrollRunSubmitPayslipsAction, PayrollHooks.cs:566)
 
 ## Tombol aksi: Create payslips
 

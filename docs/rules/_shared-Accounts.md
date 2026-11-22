@@ -6,6 +6,6 @@ Dipakai oleh: EmployeeAdvance, ExpenseClaim, JournalEntry, PaymentEntry, Purchas
 
 ## Validasi (dokumen ditolak)
 
-- `{path}`: "Account {acc.Name} is a group account" — terjadi bila `acc.Data.Bool("is_group")` (Accounts, Common.cs:437)
-- `{path}`: "Account {acc.Name} is inactive" — terjadi bila `acc.Data.TryGetValue("is_active", out var active) && active is false` (Accounts, Common.cs:438)
-- `{path}`: "Account {acc.Name} is frozen" — terjadi bila `acc.Data.Bool("is_frozen") && !user.IsAdmin` (Accounts, Common.cs:439)
+- `{path}`: "Account {acc.Name} is a group account" — terjadi bila `acc.Data.Bool("is_group")` (Accounts, Common.cs:440)
+- `{path}`: "Account {acc.Name} is inactive" — terjadi bila `acc.Data.TryGetValue("is_active", out var active) && active is false` (Accounts, Common.cs:441)
+- `{path}`: "Account {acc.Name} is frozen" — terjadi bila `acc.Data.Bool("is_frozen") && !user.IsAdmin` (Accounts, Common.cs:442)

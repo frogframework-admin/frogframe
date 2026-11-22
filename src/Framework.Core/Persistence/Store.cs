@@ -39,7 +39,14 @@ public sealed record StoreQuery(
     IReadOnlyList<string> SearchFields,
     IReadOnlyList<SortDef> Sort,
     int Skip,
-    int Take);
+    int Take)
+{
+    /// <summary>
+    /// False when the caller needs only the rows (dashboards, home page, lookups): the store skips the second
+    /// "count(*)" round trip and <see cref="QueryResult.Total"/> is the number of rows returned.
+    /// </summary>
+    public bool CountTotal { get; init; } = true;
+}
 
 /// <param name="TotalCapped">True bila jumlah sebenarnya melebihi <see cref="QueryLimits.CountCap"/> (Total = batas).</param>
 public sealed record QueryResult(IReadOnlyList<Document> Items, int Total, bool TotalCapped = false);

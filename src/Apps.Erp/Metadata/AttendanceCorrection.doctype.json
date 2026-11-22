@@ -1,0 +1,254 @@
+{
+  "name": "AttendanceCorrection",
+  "version": 1,
+  "title": "Attendance Correction",
+  "module": "HR",
+  "description": "Request to correct a day's clock-in/clock-out. Approved by the line approver, then HR; the attendance is updated and its code recalculated.",
+  "naming": {
+    "pattern": "ACR-{YYYY}-{######}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "workflow": "AttendanceCorrectionApproval",
+  "rules": [
+    {
+      "name": "one_time_required",
+      "expr": "!empty(requested_check_in) || !empty(requested_check_out)",
+      "message": "Enter the correct check-in, check-out or both",
+      "field": "requested_check_in"
+    },
+    {
+      "name": "out_after_in",
+      "expr": "empty(requested_check_in) || empty(requested_check_out) || requested_check_out > requested_check_in",
+      "message": "Check-out must be after check-in",
+      "field": "requested_check_out"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Employee",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete"
+      ],
+      "scope": "match:employee=employee"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "match:approver=employee"
+    },
+    {
+      "role": "HR-Admin",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Employee-Management",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Time-Attendance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "cancel",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "employee_name",
+    "searchFields": [
+      "name",
+      "employee_name"
+    ],
+    "filters": [
+      "attendance_date",
+      "correction_type",
+      "workflow_state"
+    ],
+    "defaultSort": [
+      {
+        "field": "attendance_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  },
+  "fields": [
+    {
+      "name": "employee",
+      "type": "Link",
+      "label": "Employee",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "default": "$employee",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Request"
+    },
+    {
+      "name": "employee_name",
+      "type": "Data",
+      "label": "Employee name",
+      "fetchFrom": "employee.full_name",
+      "inListView": true,
+      "section": "Request"
+    },
+    {
+      "name": "approver",
+      "type": "Data",
+      "label": "Approver",
+      "readOnlyWhen": "true",
+      "section": "Request",
+      "description": "The employee's line approver (or the Acting holder), set when the draft is saved; HR approves afterwards"
+    },
+    {
+      "name": "attendance_date",
+      "type": "Date",
+      "label": "Attendance date",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Request",
+      "column": 2
+    },
+    {
+      "name": "correction_type",
+      "type": "Select",
+      "label": "Correction",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Request",
+      "column": 2,
+      "options": [
+        "Missing clock-in",
+        "Missing clock-out",
+        "Missing both",
+        "Wrong clock-in time",
+        "Wrong clock-out time",
+        "Wrong times"
+      ]
+    },
+    {
+      "name": "attendance",
+      "type": "Link",
+      "label": "Attendance",
+      "linkTo": "Attendance",
+      "readOnlyWhen": "true",
+      "section": "Request",
+      "column": 2
+    },
+    {
+      "name": "current_check_in",
+      "type": "Datetime",
+      "label": "Recorded check-in",
+      "readOnlyWhen": "true",
+      "section": "Times"
+    },
+    {
+      "name": "current_check_out",
+      "type": "Datetime",
+      "label": "Recorded check-out",
+      "readOnlyWhen": "true",
+      "section": "Times"
+    },
+    {
+      "name": "current_code",
+      "type": "Data",
+      "label": "Recorded code",
+      "readOnlyWhen": "true",
+      "section": "Times"
+    },
+    {
+      "name": "requested_check_in",
+      "type": "Datetime",
+      "label": "Correct check-in",
+      "section": "Times",
+      "column": 2
+    },
+    {
+      "name": "requested_check_out",
+      "type": "Datetime",
+      "label": "Correct check-out",
+      "section": "Times",
+      "column": 2
+    },
+    {
+      "name": "reason",
+      "type": "Text",
+      "label": "Reason",
+      "requiredWhen": "true",
+      "section": "Reason"
+    },
+    {
+      "name": "attachment",
+      "type": "Attach",
+      "label": "Supporting document",
+      "section": "Reason",
+      "column": 2,
+      "description": "e.g. visitor log, assignment letter"
+    },
+    {
+      "name": "applied",
+      "type": "Check",
+      "label": "Applied to attendance",
+      "default": false,
+      "readOnlyWhen": "true",
+      "section": "Reason",
+      "column": 2
+    },
+    {
+      "name": "period",
+      "type": "Data",
+      "label": "Payroll period",
+      "readOnlyWhen": "true",
+      "section": "Reason",
+      "column": 2
+    }
+  ]
+}

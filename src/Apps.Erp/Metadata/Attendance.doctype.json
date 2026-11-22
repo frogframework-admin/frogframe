@@ -61,10 +61,62 @@
         "Work from home",
         "Half day",
         "Absent",
-        "On leave"
+        "On leave",
+        "Day off"
       ],
       "default": "Present",
       "inListView": true,
+      "section": "Attendance",
+      "column": 2,
+      "description": "Follows the attendance code unless 'Code set by HR' is ticked"
+    },
+    {
+      "name": "attendance_code",
+      "type": "Select",
+      "label": "Attendance code",
+      "options": [
+        "ONT",
+        "LI",
+        "LO",
+        "LI/LO",
+        "NCIN",
+        "NCOUT",
+        "ABS",
+        "TO-ND",
+        "TO-D",
+        "DO",
+        "INV"
+      ],
+      "readOnlyWhen": "!code_manual",
+      "inListView": true,
+      "section": "Attendance",
+      "column": 2,
+      "description": "ONT on time · LI late in · LO early out · LI/LO both · NCIN no clock-in · NCOUT no clock-out · ABS absent · TO-ND time off (paid) · TO-D time off (salary deducted) · DO day off · INV invalid. Set by the system from the schedule, punches and approved leave"
+    },
+    {
+      "name": "code_manual",
+      "type": "Check",
+      "label": "Code set by HR",
+      "default": false,
+      "section": "Attendance",
+      "column": 2,
+      "description": "Tick to set the code and status by hand; the system then leaves this day alone"
+    },
+    {
+      "name": "code_final",
+      "type": "Check",
+      "label": "Code final",
+      "default": false,
+      "readOnlyWhen": "true",
+      "section": "Attendance",
+      "column": 2,
+      "description": "Off while the shift is running or punches are incomplete before the deadline (scheduled end + HR Settings hours)"
+    },
+    {
+      "name": "code_reason",
+      "type": "Data",
+      "label": "Why this code",
+      "readOnlyWhen": "true",
       "section": "Attendance",
       "column": 2
     },
@@ -154,7 +206,8 @@
       "options": [
         "Manual",
         "Mobile app",
-        "Machine"
+        "Machine",
+        "System"
       ],
       "default": "Manual",
       "inListView": true,
@@ -185,7 +238,17 @@
       "inListView": true,
       "section": "Time",
       "column": 2,
-      "description": "After the shift start plus grace period (hook)"
+      "description": "After the scheduled start minus the shift's late grace (hook)"
+    },
+    {
+      "name": "early_out_minutes",
+      "type": "Int",
+      "label": "Early out (minutes)",
+      "readOnlyWhen": "true",
+      "inListView": true,
+      "section": "Time",
+      "column": 2,
+      "description": "Before the scheduled end minus the shift's early-out grace (hook)"
     },
     {
       "name": "leave_application",
@@ -297,6 +360,7 @@
     ],
     "filters": [
       "attendance_date",
+      "attendance_code",
       "status",
       "employee"
     ],

@@ -54,7 +54,7 @@ public static class LocalizationSetup
 
     /// <summary>
     /// Request localization: the UI culture follows the user's language (cookie, then saved preference, then
-    /// <c>Localization:DefaultLanguage</c>, default English); the format culture is always id-ID.
+    /// the tenant's default language, then <c>Localization:DefaultLanguage</c>, default English); the format culture is always id-ID.
     /// Also maps <c>GET /ui/language/{code}?returnUrl=…</c>, used by the language switcher.
     /// Call after <c>UseAuthentication</c> so the saved preference of signed-in users can be read.
     /// </summary>
@@ -116,7 +116,14 @@ public static class LocalizationSetup
             string? language;
             try { language = Languages.Normalize(await prefs.GetAsync<string>(user.TenantId, user.Id, PreferenceKey, http.RequestAborted)); }
             catch (Exception) { return null; } // never fail a request because of the language
-            if (language is null) return null;
+            if (language is null)
+            {
+                // No personal choice: the tenant's default language, if the group administrator set one (no cookie, so a
+                // later change of the tenant default still applies).
+                var tenantDefault = http.RequestServices.GetService<Framework.Tenancy.TenantDirectory>() is { } tenants
+                    ? Languages.Normalize((await tenants.SettingsAsync(user.TenantId, http.RequestAborted)).DefaultLanguage) : null;
+                return tenantDefault is null ? null : new ProviderCultureResult(FormatCulture, Languages.UiCultureName(tenantDefault));
+            }
             if (!http.Response.HasStarted) SetCookie(http, language);
             return new ProviderCultureResult(FormatCulture, Languages.UiCultureName(language));
         }

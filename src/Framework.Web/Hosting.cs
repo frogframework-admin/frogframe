@@ -305,6 +305,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<HookRunner>();
         services.AddSingleton<DocumentService>();
         // Home page (/): panels and "Create new" shortcuts registered by applications, plus the approval queue and KPIs.
+        // Tenant registry: status (suspend) and settings per tenant, managed at /platform/tenants.
+        Framework.Web.Tenancy.TenancyServiceCollectionExtensions.AddFrogFrameworkTenancy(services);
         services.AddSingleton<Framework.Web.Home.HomeRegistry>();
         services.AddSingleton<Framework.Web.Home.HomeFeed>();
         services.AddSingleton<OutboxProcessor>();

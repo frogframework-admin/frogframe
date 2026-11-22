@@ -94,7 +94,8 @@ public sealed class PostgresDistributedLock(NpgsqlDataSource dataSource, ILogger
 }
 
 /// <summary>
-/// Discovers active tenants from frogframe_users table in PostgreSQL.
+/// Tenants whose scheduled jobs run: tenants with active users or registered as active, minus suspended tenants
+/// (frogframe_tenants, migration 045).
 /// </summary>
 public sealed class PostgresTenantProvider(NpgsqlDataSource dataSource, string defaultTenant = "acme") : ITenantProvider
 {
@@ -105,7 +106,13 @@ public sealed class PostgresTenantProvider(NpgsqlDataSource dataSource, string d
         {
             await using var conn = await dataSource.OpenConnectionAsync(ct).ConfigureAwait(false);
             await using var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT DISTINCT tenant_id FROM frogframe_users WHERE is_active = true ORDER BY tenant_id";
+            cmd.CommandText = """
+                SELECT t FROM (
+                    SELECT tenant_id AS t FROM frogframe_users WHERE is_active = true
+                    UNION SELECT id FROM frogframe_tenants WHERE status = 'Active') x
+                WHERE NOT EXISTS (SELECT 1 FROM frogframe_tenants s WHERE s.id = x.t AND s.status <> 'Active')
+                ORDER BY t
+                """;
             await using var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
             while (await reader.ReadAsync(ct).ConfigureAwait(false))
             {

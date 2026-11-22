@@ -10,7 +10,7 @@ Aturan yang dijalankan kode saat dokumen Payslip (Payslip) disimpan, di-submit, 
 
 ## Validasi (dokumen ditolak): Saat cancel
 
-- `name`: "{run.Name} is submitted; cancel the payroll run first" — terjadi bila `run is not null && run.DocStatus == DocStatus.Submitted` (PayslipHook, PayrollHooks.cs:387)
+- `name`: "{run.Name} is submitted; cancel the payroll run first" — terjadi bila `run is not null && run.DocStatus == DocStatus.Submitted` (PayslipHook, PayrollHooks.cs:409)
 
 ## Validasi (dokumen ditolak): Saat simpan/submit (validasi)
 

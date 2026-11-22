@@ -68,6 +68,8 @@ public sealed class EssAttendanceService(IEssPunchStore punches, IDocumentStore 
             Position = d.Str("position"),
             JobTitle = position?.Data.Str("position_title") ?? d.Str("job_profile"),
             ReportsTo = d.Str("reports_to"),
+            FaceRegistration = (await m.QueryAsync("FaceRegistration", [new("employee", "=", emp.Name)], ct, take: 20))
+                .FirstOrDefault(f => f.WorkflowState == "Active")?.Name,
         };
         cache.Set(key, profile, ProfileTtl);
         return profile;
@@ -121,6 +123,9 @@ public sealed class EssAttendanceService(IEssPunchStore punches, IDocumentStore 
             MinPunchIntervalMinutes = Num("ess_min_punch_interval_minutes", defaults.MinPunchIntervalMinutes),
             RequirePhoto = Flag("ess_require_photo", defaults.RequirePhoto),
             OvernightWindowHours = Num("ess_overnight_window_hours", defaults.OvernightWindowHours),
+            RequireFace = Flag("ess_require_face", defaults.RequireFace),
+            MinFaceScore = hs.TryGetValue("ess_min_face_score", out var fs) && fs is not null && D.ToDec(fs) is var score && score is > 0 and <= 1 ? score : defaults.MinFaceScore,
+            RejectFaceMismatch = Flag("ess_reject_face_mismatch", defaults.RejectFaceMismatch),
         };
         cache.Set(key, policy, PolicyTtl);
         return policy;

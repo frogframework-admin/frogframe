@@ -1,0 +1,261 @@
+{
+  "name": "FaceRegistration",
+  "version": 1,
+  "title": "Face Registration",
+  "module": "HR",
+  "description": "Face enrolment for mobile attendance: photos for HR verification and the face template used by the ESS app to match the employee at clock-in. One active registration per employee.",
+  "naming": {
+    "pattern": "FACE-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": false,
+    "allowDelete": false
+  },
+  "workflow": "FaceRegistrationApproval",
+  "rules": [
+    {
+      "name": "consent_required",
+      "expr": "consent == true",
+      "message": "The employee's consent is required to register a face",
+      "field": "consent"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Employee",
+      "actions": [
+        "read",
+        "create",
+        "write"
+      ],
+      "scope": "match:employee=employee"
+    },
+    {
+      "role": "HR-Admin",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Employee-Management",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Time-Attendance",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "cancel",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "employee_name",
+    "searchFields": [
+      "name",
+      "employee",
+      "employee_name"
+    ],
+    "filters": [
+      "workflow_state",
+      "is_active",
+      "employee"
+    ],
+    "defaultSort": [
+      {
+        "field": "modified",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read"
+    ]
+  },
+  "fields": [
+    {
+      "name": "employee",
+      "type": "Link",
+      "label": "Employee",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "default": "$employee",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Registration"
+    },
+    {
+      "name": "employee_name",
+      "type": "Data",
+      "label": "Employee name",
+      "fetchFrom": "employee.full_name",
+      "inListView": true,
+      "section": "Registration"
+    },
+    {
+      "name": "is_active",
+      "type": "Check",
+      "label": "Active for attendance",
+      "default": false,
+      "readOnlyWhen": "true",
+      "inListView": true,
+      "section": "Registration",
+      "column": 2,
+      "description": "Set when HR verifies the registration; a newer verified registration replaces it"
+    },
+    {
+      "name": "consent",
+      "type": "Check",
+      "label": "Employee consent to biometric processing",
+      "default": false,
+      "section": "Registration",
+      "column": 2,
+      "description": "Required (UU 27/2022 PDP: biometric data is specific personal data)"
+    },
+    {
+      "name": "consent_at",
+      "type": "Datetime",
+      "label": "Consent given at",
+      "readOnlyWhen": "true",
+      "section": "Registration",
+      "column": 2
+    },
+    {
+      "name": "photo_1",
+      "type": "Image",
+      "label": "Face photo 1",
+      "requiredWhen": "true",
+      "section": "Photos"
+    },
+    {
+      "name": "photo_2",
+      "type": "Image",
+      "label": "Face photo 2",
+      "section": "Photos",
+      "column": 2
+    },
+    {
+      "name": "photo_3",
+      "type": "Image",
+      "label": "Face photo 3",
+      "section": "Photos",
+      "column": 2
+    },
+    {
+      "name": "template_file",
+      "type": "Attach",
+      "label": "Face template (encrypted)",
+      "readOnlyWhen": "true",
+      "section": "Template",
+      "description": "Face embedding made by the mobile app, encrypted at rest; only the employee's own app can read it through the ESS API"
+    },
+    {
+      "name": "template_sha256",
+      "type": "Data",
+      "label": "Template fingerprint",
+      "readOnlyWhen": "true",
+      "section": "Template",
+      "column": 2
+    },
+    {
+      "name": "model_name",
+      "type": "Data",
+      "label": "Face model",
+      "section": "Template"
+    },
+    {
+      "name": "model_version",
+      "type": "Data",
+      "label": "Model version",
+      "section": "Template",
+      "column": 2
+    },
+    {
+      "name": "template_dimensions",
+      "type": "Int",
+      "label": "Template length",
+      "readOnlyWhen": "true",
+      "section": "Template",
+      "column": 2
+    },
+    {
+      "name": "quality_score",
+      "type": "Float",
+      "label": "Capture quality (0–1)",
+      "section": "Template"
+    },
+    {
+      "name": "liveness_score",
+      "type": "Float",
+      "label": "Liveness score (0–1)",
+      "section": "Template",
+      "column": 2
+    },
+    {
+      "name": "device_id",
+      "type": "Data",
+      "label": "Device",
+      "section": "Template"
+    },
+    {
+      "name": "app_version",
+      "type": "Data",
+      "label": "App version",
+      "section": "Template",
+      "column": 2
+    },
+    {
+      "name": "verified_by",
+      "type": "Data",
+      "label": "Verified by",
+      "readOnlyWhen": "true",
+      "section": "Verification"
+    },
+    {
+      "name": "verified_at",
+      "type": "Datetime",
+      "label": "Verified at",
+      "readOnlyWhen": "true",
+      "section": "Verification",
+      "column": 2
+    },
+    {
+      "name": "remarks",
+      "type": "Text",
+      "label": "Remarks",
+      "section": "Verification"
+    }
+  ]
+}

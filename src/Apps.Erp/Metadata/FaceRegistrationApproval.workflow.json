@@ -1,0 +1,87 @@
+{
+  "name": "FaceRegistrationApproval",
+  "docType": "FaceRegistration",
+  "version": 1,
+  "initialState": "Draft",
+  "states": [
+    {
+      "name": "Draft",
+      "docStatus": 0,
+      "tone": "neutral"
+    },
+    {
+      "name": "Pending Verification",
+      "docStatus": 1,
+      "tone": "pending"
+    },
+    {
+      "name": "Active",
+      "docStatus": 1,
+      "tone": "positive"
+    },
+    {
+      "name": "Rejected",
+      "docStatus": 2,
+      "tone": "negative"
+    },
+    {
+      "name": "Cancelled",
+      "docStatus": 2,
+      "tone": "negative"
+    },
+    {
+      "name": "Revoked",
+      "docStatus": 2,
+      "tone": "negative"
+    }
+  ],
+  "transitions": [
+    {
+      "from": "Draft",
+      "to": "Pending Verification",
+      "action": "Submit for verification",
+      "allowedRoles": [
+        "Employee",
+        "HR-Time-Attendance"
+      ],
+      "condition": "employee == user.employee || has_role('HR-Time-Attendance')"
+    },
+    {
+      "from": "Pending Verification",
+      "to": "Active",
+      "action": "Verify",
+      "allowedRoles": [
+        "HR-Time-Attendance"
+      ],
+      "condition": "employee != user.employee"
+    },
+    {
+      "from": "Pending Verification",
+      "to": "Rejected",
+      "action": "Reject",
+      "allowedRoles": [
+        "HR-Time-Attendance"
+      ],
+      "condition": "employee != user.employee",
+      "requireComment": true
+    },
+    {
+      "from": "Pending Verification",
+      "to": "Cancelled",
+      "action": "Withdraw",
+      "allowedRoles": [
+        "Employee"
+      ],
+      "condition": "employee == user.employee"
+    },
+    {
+      "from": "Active",
+      "to": "Revoked",
+      "action": "Revoke",
+      "allowedRoles": [
+        "HR-Time-Attendance"
+      ],
+      "requireComment": true
+    }
+  ]
+}

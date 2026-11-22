@@ -255,6 +255,15 @@ Response (201 created, 200 replayed/duplicate, 422 rejected):
 | `offline` | flagged | Offline punch synced later; device timestamp was used |
 | `clock_skew` | flagged | Device clock differs > 5 minutes from server (online punch still uses server time) |
 | `out_without_in` | flagged | Clock-out recorded without matching clock-in |
+| `face_not_registered` | flagged | Face match required, but the employee has no verified Face Registration (see 12.1) |
+| `face_missing` | flagged | Face match required, but the punch carries no `face.score` |
+| `face_mismatch` | flagged* | `face.score` below HR Settings *Minimum face match score* (*rejected when *Reject punches below the face score* is on) |
+| `face_template_outdated` | flagged | `face.registration` is not the active registration: download the template again |
+
+**Face match.** When HR Settings › *Require face match on every punch* is on, add to the punch body:
+`"face": { "score": 0.91, "registration": "FACE-2026-00012", "modelVersion": "1.2", "liveness": 0.97 }`.
+The app compares the live face with the template from `GET /face/template` on the phone; the server checks the score
+against its own threshold (the app's threshold is ignored).
 
 GPS accuracy is evaluated with tolerance: if the accuracy circle (up to `maxAccuracyMeters`) intersects the site radius circle, the punch is considered within geofence boundaries.
 
@@ -298,7 +307,7 @@ curl -X GET "http://localhost:5080/api/ess/v1/attendance?from=2026-11-01&to=2026
       "attendance": {
         "name": "ATT-2026-0000123", "date": "2026-11-18", "status": "Present",
         "checkIn": "2026-11-18T08:01:13+07:00", "checkOut": "2026-11-18T17:03:40+07:00",
-        "workingHours": 8.04, "lateMinutes": 0, "leaveApplication": null, "source": "Mobile app", "notes": null
+        "workingHours": 8.04, "lateMinutes": 0, "leaveApplication": null, "code": "ONT", "codeFinal": true, "earlyOutMinutes": 0, "source": "Mobile app", "notes": null
       },
       "punches": [
         {
@@ -346,7 +355,7 @@ curl -X GET "http://localhost:5080/api/ess/v1/attendance?from=2026-11-01&to=2026
 ```
 - `submit` (defaults to `true`): Directly submits to supervisor (`Pending Approval`). `false` = save as draft.
 - 201 → object schema identical to 5.2. 422 → business rule rejection (insufficient balance, date overlap, max consecutive days exceeded, attachment required) with server message.
-- Leave types requiring medical/supporting certificates (`requiresAttachment`) are routed to HR/web desk in v1.
+- Leave types requiring a supporting certificate (`requiresAttachment`): upload it first with `POST /files/LeaveApplication/attachment` (12.6) and send `"attachmentFileId": "f_…"`.
 
 ### 5.4 `POST /api/ess/v1/leave/applications/{name}/withdraw`
 Withdraws a pending application still in `Pending Approval` state. 200 → latest updated leave application object.
@@ -376,23 +385,68 @@ Retrieves finalized (submitted) payslips only.
 ### 6.3 PDF Download
 `GET {pdfUrl}` with Bearer authorization header → `application/pdf`. Store in client app-private sandbox (not public device gallery) and avoid caching in shared storage.
 
-## 7. Manager Approvals
+## 7. Supervisor & HR Approvals
 
-### 7.1 `GET /api/ess/v1/approvals`
-Subordinate requests pending approval by the authenticated user (leave, overtime, expense claims, advances), sorted oldest first.
+One inbox serves every approver: line supervisors, project approvers, the shift-swap colleague and HR. What appears is
+driven by the workflows, not by a hard-coded list: a request is listed when the authenticated user has a workflow action
+on it in its current state (the same rule as the web desk's decision queue). Covered request types: `LeaveApplication`,
+`OvertimeRequest`, `ShiftSwapRequest`, `AttendanceCorrection`, `FaceRegistration`, `BiodataChangeRequest`,
+`ExpenseClaim`, `EmployeeAdvance`. Nobody sees their own requests.
+
+| Stage | Who | Examples |
+|---|---|---|
+| `supervisor` | The approver set on the request (leave approver, overtime/correction approver, swap manager) | Leave, overtime, attendance correction (first step), shift swap (after both employees agree), expense claim, advance |
+| `project` | The project approver | Overtime charged to a project |
+| `peer` | The colleague asked to swap | Shift swap |
+| `hr` | HR roles (`HR-Time-Attendance`, `HR-Employee-Management`) | Face registration (Verify), attendance correction (second step), biodata change |
+
+HR can also decide a request still waiting for the supervisor (an *override*, e.g. when the supervisor is away). Overrides
+are hidden by default so the HR inbox only shows HR's own work; pass `includeOverrides=true` to list them
+(`isOverride: true`). Override actions require a comment.
+
+### 7.1 `GET /api/ess/v1/approvals?stage=hr&includeOverrides=false`
+Both parameters are optional. `counts` always covers the whole inbox (for tab badges); `items` is filtered by `stage`.
 ```json
-{ "items": [ {
-  "doctype": "LeaveApplication", "name": "LV-2026-000045", "employee": "EMP-0001", "employeeName": "Ahmad Fadilah",
-  "title": "Annual Leave 2026-12-22 to 2026-12-24 (3 days)", "amount": null, "reason": "Year-end vacation",
-  "state": "Pending Approval", "submittedAt": "2026-11-18T02:10:00+00:00", "actions": ["approve", "reject"]
+{ "counts": { "supervisor": 3, "hr": 2 },
+  "items": [ {
+  "doctype": "AttendanceCorrection", "doctypeTitle": "Attendance Correction", "name": "ACR-2026-000012",
+  "employee": "EMP-0001", "employeeName": "Ahmad Fadilah",
+  "title": "Attendance correction 2026-11-18: Missing clock-out", "amount": null, "reason": "Phone battery died",
+  "state": "Pending HR Approval", "stage": "hr", "isOverride": false, "submittedAt": "2026-11-18T02:10:00+00:00",
+  "actions": [
+    { "action": "Approve (HR)", "kind": "approve", "toState": "Approved", "requireComment": false },
+    { "action": "Reject (HR)", "kind": "reject", "toState": "Rejected", "requireComment": true } ]
 } ] }
 ```
+`actions` lists the workflow actions this user may take; `kind` tells the app which button to draw.
 
-### 7.2 `POST /api/ess/v1/approvals/{doctype}/{name}/{decision}`
-`decision` = `approve` or `reject`. Request body: `{ "comment": "..." }` (mandatory for `reject`).
-200 → `{ "doctype": "...", "name": "...", "state": "Approved", "docstatus": 1 }`.
-403/409 if already handled by another supervisor or if user is not authorized → client reloads the approval list.
-Expense claims and employee advances transition to Finance verification (web desk) upon supervisor approval.
+### 7.2 `GET /api/ess/v1/approvals/{doctype}/{name}`
+Detail screen: `{ "summary": { ...same as an item above... }, "details": { ... } }`. `details` depends on the type:
+face registration returns the photo URLs (`/files/{id}`, open with the bearer token), the capture quality scores and
+consent; attendance correction returns the requested times next to the recorded punches; biodata change returns each
+field with its current and requested value; leave, overtime and shift swap return their request fields; attachments are
+returned as file URLs. 404 if the request is not in the user's inbox.
+
+### 7.3 `POST /api/ess/v1/approvals/{doctype}/{name}/{decision}`
+`decision` = `approve` or `reject`. Body: `{ "comment": "...", "action": null }`.
+- The server maps the decision to the workflow action available to the user: `approve` becomes `Approve`,
+  `Approve (HR)`, `Verify` (face registration) or the project approval, whichever applies. When more than one matches,
+  the supervisor's own action wins over the HR override.
+- `action` (optional) picks a specific action from `actions`, e.g. `"Approve (HR)"` for an override.
+- `comment` is mandatory when the action has `requireComment` (all rejections and HR overrides) → 422 otherwise.
+
+200 → `{ "doctype": "...", "name": "...", "state": "Pending HR Approval", "docstatus": 1 }`.
+403 when the user has no such action (e.g. their own request, or someone else already decided); 409 on a concurrent
+decision → the client reloads the list.
+
+What happens next: an approved attendance correction moves to the HR stage and, after HR approval, is applied to the
+attendance; a verified face registration becomes the active template; an approved biodata change is written to the
+employee record; expense claims and advances go to Finance verification on the web desk.
+
+### 7.4 Notifications
+The approver gets an inbox notification when a request reaches their stage (the supervisor or project approver by
+employee link, HR by role), and the requester when it is approved or rejected. Notifications carry `docType`/`docName`
+so the app can open the approval detail directly.
 
 ## 8. General Document API Integration (Transitional)
 
@@ -430,3 +484,107 @@ DocType schema metadata: `GET /api/meta/OvertimeRequest` (also `ExpenseClaim`, `
 
 - `v1` is backwards-compatible: newly added properties will be additive (clients should ignore unrecognized fields); breaking changes will be versioned under `v2`.
 - Mobile clients should supply `appVersion` with every punch payload to assist HR and IT support in diagnosing outdated client builds.
+
+## 12. Self-Service Requests
+
+All requests are created **as the employee** and, unless `"submit": false`, submitted at once. Permissions, workflow
+conditions and validation are the same as on the web desk; a 422 carries the server's field errors. Each list returns
+the employee's own documents, newest first; `withdraw` works while the request is pending.
+
+| Request | Endpoints | Approval |
+|---|---|---|
+| Face registration | `GET /face`, `GET /face/template`, `POST /face/registrations`, `POST /face/registrations/{name}/withdraw` | HR (HR-Time-Attendance) verifies |
+| Time off | section 5 | Leave workflow |
+| Shift change (swap) | `GET/POST /shift-swaps`, `POST /shift-swaps/{name}/accept\|decline\|withdraw` | Colleague, then manager |
+| Attendance correction | `GET/POST /attendance/corrections`, `POST /attendance/corrections/{name}/withdraw` | Line approver, then HR (HR-Time-Attendance) |
+| Overtime | `GET/POST /overtime`, `POST /overtime/{name}/withdraw` | Project approver (if any), then line approver |
+| Biodata change | `GET /profile/biodata`, `GET/POST /profile/change-requests`, `POST /profile/change-requests/{name}/withdraw` | HR (HR-Employee-Management) |
+| Attachments | `POST /files/{doctype}/{field}` | — |
+
+### 12.1 Face registration
+
+Face recognition runs **on the phone**: the app computes a face template (embedding) with its model, the server stores
+it **encrypted** (ASP.NET Data Protection) together with 1–3 photos for HR, and returns it only to the employee's own app.
+
+`POST /api/ess/v1/face/registrations` — `multipart/form-data`:
+
+| Field | Required | Content |
+|---|---|---|
+| `photo1` … `photo3` | 1–3 files | JPEG/PNG/WebP face photos, max 2 MB each, shown to HR when verifying |
+| `template` | yes | JSON array of 32–4096 numbers, e.g. `[0.0123, -0.0456, …]` |
+| `consent` | yes | `true`: the employee agreed to biometric processing (UU 27/2022 PDP); stored with the time |
+| `modelName`, `modelVersion` | recommended | e.g. `MobileFaceNet`, `1.2`; the app must match with the same model |
+| `qualityScore`, `livenessScore` | optional | 0–1 values from the capture |
+| `deviceId`, `appVersion` | optional | |
+
+201 → `{ "name": "FACE-2026-00012", "state": "Pending Verification", "active": false, "photos": 2, "modelName": "…", "modelVersion": "…", "sha256": "…", "dimensions": 128, "verifiedAt": null }`.
+
+HR verifies on the desk (*Face Registration* › **Verify** or **Reject** with a reason). Verifying makes it the active
+registration; the previous one is revoked. HR can **Revoke** an active registration.
+
+`GET /api/ess/v1/face` → `{ "required": true, "minScore": 0.8, "rejectMismatch": false, "status": "active|pending|rejected|none", "active": {…}, "registrations": [ … ] }`.
+
+`GET /api/ess/v1/face/template` → `{ "registration": "FACE-2026-00012", "modelName": "…", "modelVersion": "…", "sha256": "…", "template": [ … ] }`
+(404 without a verified registration; `Cache-Control: no-store`). Keep the template in the phone's secure storage and
+refresh it when `sha256` or `registration` in `GET /face` changes.
+
+### 12.2 Shift change
+
+`POST /shift-swaps` with `{ "targetEmployee": "EMP-0007", "swapDate": "2026-11-25", "targetSwapDate": null, "reason": "…", "submit": true }` creates the request. The colleague answers with
+`POST /shift-swaps/{name}/accept` or `/decline` (`{ "comment": "…" }` required to decline); the requester can
+`/withdraw`. The manager approves on the desk or through approvals.
+
+### 12.3 Attendance correction
+
+```json
+POST /api/ess/v1/attendance/corrections
+{ "date": "2026-11-19", "correctionType": "Missing clock-out", "checkIn": null, "checkOut": "2026-11-19T17:05",
+  "reason": "Phone battery empty", "attachmentFileId": null, "submit": true }
+```
+
+- `correctionType`: `Missing clock-in`, `Missing clock-out`, `Missing both`, `Wrong clock-in time`, `Wrong clock-out time`, `Wrong times`.
+- Times are local (application time zone) or carry an offset. Check-in on the date (from 18:00 the day before, for
+  night shifts); check-out on the date or the next morning. At least one time is required.
+- Only today or past days; refused when the month's payslip is submitted; one open correction per day.
+- 201 → `{ "name": "ACR-2026-000031", "date": "…", "recordedCheckIn": "…", "recordedCheckOut": "…", "recordedCode": "NCOUT", "checkIn": null, "checkOut": "…", "approver": "EMP-0002", "state": "Pending Approval", … }`.
+- When HR approves, the attendance of that day gets the corrected times (created if missing), the mobile-punch review
+  notes are cleared and the attendance code is recalculated (`docs/guides/attendance-codes.md`).
+
+### 12.4 Overtime
+
+```json
+POST /api/ess/v1/overtime
+{ "date": "2026-11-20", "hours": 2, "dayType": null, "project": null, "reason": "Month-end closing", "submit": true }
+```
+
+`dayType` defaults to *Working day* (a scheduled rest day or holiday is detected from the roster). With a `project`
+the project approver approves first. 201 → `{ "name": "OT-2026-000120", "date": "…", "hours": 2, "weightedHours": 3.5, "approver": "…", "state": "Pending Approval", … }`.
+
+### 12.5 Biodata change
+
+`GET /api/ess/v1/profile/biodata` lists the categories, their fields (with options, or columns for tables) and the
+current values.
+
+| Category | Fields | Supporting document |
+|---|---|---|
+| `Contact & address` | `mobile`, `personal_email`, `current_address`, `permanent_address`, `emergency_contacts` (table) | no |
+| `Marital status & dependents` | `marital_status`, `ptkp_status`, `dependents` (table) | required |
+| `Bank account` | `bank_accounts` (table) | required (bank book) |
+| `Identity numbers` | `nik`, `npwp`, `bpjs_health_no`, `bpjs_employment_no`, `identity_documents` (table) | required |
+
+```json
+POST /api/ess/v1/profile/change-requests
+{ "category": "Bank account",
+  "changes": { "bank_accounts": [ { "bank": "BCA", "account_no": "8800123456", "account_holder": "Rina Wati", "is_default": true } ] },
+  "reason": "New payroll account", "attachmentFileId": "f_…", "submit": true }
+```
+
+A table value replaces the whole table. Values are checked (options, e-mail, NIK of 16 digits, known columns);
+other fields are refused. When HR approves, the employee record is updated.
+
+### 12.6 Attachments
+
+`POST /api/ess/v1/files/{doctype}/{field}` (`multipart/form-data`, field `file`, max 10 MB, PDF/Office/image) →
+`{ "fileId": "f_…", "fileName": "…", "size": 12345 }`. Allowed: `LeaveApplication/attachment`,
+`AttendanceCorrection/attachment`, `BiodataChangeRequest/attachment`. Send the `fileId` in the request; the file is
+visible only to the uploader until the request is saved.

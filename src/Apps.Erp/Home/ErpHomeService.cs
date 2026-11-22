@@ -82,7 +82,8 @@ public sealed class ErpHomeService(IDocumentStore store, IMetadataProvider metad
         var attendanceTask = m.QueryAsync("Attendance", [new("employee", "=", emp), new("attendance_date", "=", D.Iso(today))], ct, take: 1);
         var policyTask = ess.GetPolicyAsync(user.TenantId, ct);
         var balancesTask = EssLeave.BalancesAsync(m, emp, today, ct);
-        var payslipTask = m.QueryAsync("Payslip", [new("employee", "=", emp)], ct, take: 200);
+        var payslipTask = m.QueryAsync("Payslip", [new("employee", "=", emp), new(StandardFields.DocStatus, "=", (decimal)DocStatus.Submitted)],
+            ct, "period", "desc", take: 1);
 
         await Task.WhenAll(schedTask, punchesTask, attendanceTask, policyTask, balancesTask, payslipTask);
 
@@ -107,8 +108,7 @@ public sealed class ErpHomeService(IDocumentStore store, IMetadataProvider metad
 
         var balances = (await balancesTask).Where(b => b.IsAnnualQuota && b.Allocated is not null).ToList();
 
-        var payslip = (await payslipTask)
-            .Where(p => p.DocStatus == DocStatus.Submitted).OrderByDescending(p => p.Data.Str("period")).FirstOrDefault();
+        var payslip = (await payslipTask).FirstOrDefault();
         string? net = null;
         if (payslip is not null && metadata.Current.TryGet("Payslip", out var pm) && pm.ByName.TryGetValue("net_pay", out var nf))
             net = Fmt.Value(nf, payslip.Data.GetValueOrDefault("net_pay"));
@@ -225,9 +225,7 @@ public sealed class ErpHomeService(IDocumentStore store, IMetadataProvider metad
         var accountsTask = Any("Account");
         var fiscalTask = Any("FiscalYear", [new("start_date", "<=", D.Iso(today)), new("end_date", ">=", D.Iso(today))]);
         var holidaysTask = Any("HolidayList", [new("to_date", ">=", D.Iso(today))]);
-        var linkedTask = metadata.Current.TryGet("Employee", out _)
-            ? m.QueryAsync("Employee", [], ct, take: 500).ContinueWith(t => t.Result.Any(e => e.Data.Str("user_id") is not null), ct, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default)
-            : Task.FromResult(false);
+        var linkedTask = Any("Employee", [new("user_id", "!=", null)]);
         var dir = services.GetService<IUserDirectory>();
         var usersTask = dir is not null
             ? dir.ListAsync(user.TenantId, ct).ContinueWith(t => t.Result.Count > 1, ct, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default)

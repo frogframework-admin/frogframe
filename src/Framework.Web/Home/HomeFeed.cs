@@ -4,6 +4,7 @@ using Framework.Metadata;
 using Framework.Security;
 using Framework.Social;
 using Framework.Tasks;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Framework.Web.Home;
@@ -60,26 +61,11 @@ public sealed class HomeFeed(DocumentService docs, IServiceProvider services)
     private static readonly string[] RequesterFields = ["employee_name", "requester_name", "customer_name", "supplier_name", "party_name", "requested_by"];
     private static readonly string[] AmountFields = ["grand_total", "total_claimed", "advance_amount", "total_amount", "net_pay", "total", "amount"];
 
-    /// <summary>Documents waiting for this user's workflow action, oldest first.</summary>
+    /// <summary>Documents waiting for this user's decision, oldest first (see <see cref="DocumentService.DecisionQueueAsync"/>).</summary>
     public async Task<IReadOnlyList<HomeApprovalItem>> ApprovalQueueAsync(UserContext user, CancellationToken ct = default)
     {
-        var pending = await docs.PendingActionsAsync(user, ct);
-        return pending.Where(p => NeedsDecision(p.Meta, p.Doc, p.Actions))
-            .Select(p => ToItem(p.Meta, p.Doc, p.Actions)).OrderBy(i => i.WaitingSince).ToList();
-    }
-
-    /// <summary>
-    /// "Needs your action" lists decisions, not every document the user could touch: documents still in the workflow's
-    /// initial state (the user's own drafts, shown under recent documents) and documents whose only actions cancel them
-    /// (for example a requester's "Withdraw") are left out.
-    /// </summary>
-    internal static bool NeedsDecision(CompiledDocType meta, Document doc, IReadOnlyList<string> actions)
-    {
-        if (meta.Workflow is not { } wf) return actions.Count > 0;
-        var state = doc.WorkflowState ?? wf.Def.InitialState;
-        if (string.Equals(state, wf.Def.InitialState, StringComparison.Ordinal)) return false;
-        return actions.Any(a => wf.Transitions.Where(t => t.Def.Action == a && t.Def.From == state)
-            .Any(t => !wf.States.TryGetValue(t.Def.To, out var to) || to.DocStatus != DocStatus.Cancelled));
+        var pending = await docs.DecisionQueueAsync(user, ct: ct);
+        return pending.Select(p => ToItem(p.Meta, p.Doc, p.Actions)).OrderBy(i => i.WaitingSince).ToList();
     }
 
     internal static HomeApprovalItem ToItem(CompiledDocType meta, Document doc, IReadOnlyList<string> actionNames)
@@ -124,34 +110,59 @@ public sealed class HomeFeed(DocumentService docs, IServiceProvider services)
     public Task<Document> RunAsync(UserContext user, HomeApprovalItem item, string action, string? comment, CancellationToken ct = default) =>
         docs.RunActionAsync(user, item.Meta.Name, item.Doc.Name, action, item.Doc.Version, string.IsNullOrWhiteSpace(comment) ? null : comment.Trim(), ct);
 
+    /// <summary>How long KPI values are reused per user. Widgets are SQL over the reporting views and can be slow.</summary>
+    public static readonly TimeSpan KpiCacheDuration = TimeSpan.FromMinutes(5);
+
+    /// <summary>A widget slower than this is left out of the home page (it still shows on the dashboard).</summary>
+    public static readonly TimeSpan KpiTimeout = TimeSpan.FromSeconds(3);
+
     /// <summary>
     /// Values of the "single number" widgets on the user's default dashboard (the first one marked default that the
-    /// user may view), in layout order. Empty when reporting is not configured or no such widget exists.
+    /// user may view), in layout order. Widgets run in parallel with a time limit, and results are cached per user
+    /// for <see cref="KpiCacheDuration"/>. Empty when reporting is not configured or no such widget exists.
     /// </summary>
     public async Task<IReadOnlyList<HomeKpi>> KpisAsync(UserContext user, int max = 4, CancellationToken ct = default)
+    {
+        var cache = services.GetService<IMemoryCache>();
+        var key = $"home:kpi:{user.TenantId}:{user.Id}";
+        if (cache?.TryGetValue(key, out IReadOnlyList<HomeKpi>? cached) == true && cached is not null) return cached;
+        var result = await LoadKpisAsync(user, max, ct);
+        cache?.Set(key, result, KpiCacheDuration);
+        return result;
+    }
+
+    private async Task<IReadOnlyList<HomeKpi>> LoadKpisAsync(UserContext user, int max, CancellationToken ct)
     {
         if (services.GetService<DashboardService>() is not { } dashboards) return [];
         try
         {
             var list = await dashboards.ListDashboardsAsync(user, ct);
             var dash = list.FirstOrDefault(d => d.IsDefault) ?? list.FirstOrDefault(d => d.Id == DashboardDef.DefaultDashboardId);
-            if (dash is null) return [];
-            var result = new List<HomeKpi>();
-            foreach (var item in dash.Layout.Items)
+            if (dash is null || dash.Layout.Items.Count == 0) return [];
+            var href = $"/dashboard/{Uri.EscapeDataString(dash.Id)}";
+
+            var widgets = await Task.WhenAll(dash.Layout.Items.Take(24).Select(i => dashboards.GetAsync(user, i.WidgetId, ct)));
+            var numbers = widgets.Where(w => w is not null && w.Config.Visual.Type == ChartTypes.Number).Take(max).ToList();
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeout.CancelAfter(KpiTimeout);
+            var runs = await Task.WhenAll(numbers.Select(async w =>
             {
-                if (result.Count >= max) break;
-                var widget = await dashboards.GetAsync(user, item.WidgetId, ct);
-                if (widget is null || widget.Config.Visual.Type != ChartTypes.Number) continue;
-                var run = await dashboards.RunWidgetAsync(user, widget, new DashboardFilters(null, null, null), ct);
-                if (run.Result is not { Rows.Count: > 0 } r) continue;
-                var col = widget.Config.Visual.YColumns.FirstOrDefault();
+                try { return await dashboards.RunWidgetAsync(user, w!, new DashboardFilters(null, null, null), timeout.Token); }
+                catch (OperationCanceledException) when (!ct.IsCancellationRequested) { return null; }
+            }));
+
+            var result = new List<HomeKpi>();
+            foreach (var run in runs)
+            {
+                if (run?.Result is not { Rows.Count: > 0 } r) continue;
+                var col = run.Widget.Config.Visual.YColumns.FirstOrDefault();
                 var idx = col is null ? 0 : Math.Max(0, r.Columns.ToList().FindIndex(c => c.Name == col));
                 var raw = idx < r.Rows[0].Length ? r.Rows[0][idx] : null;
-                result.Add(new HomeKpi(widget.Name, FormatNumber(raw), $"/dashboard/{Uri.EscapeDataString(dash.Id)}"));
+                result.Add(new HomeKpi(run.Widget.Name, FormatNumber(raw), href));
             }
             return result;
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
             return []; // KPIs are a convenience: never break the home page.
         }

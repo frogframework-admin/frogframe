@@ -1,6 +1,7 @@
 using System.Globalization;
 using Apps.Erp.Hooks;
 using Framework.Documents;
+using Framework.Files;
 using Framework.Metadata;
 using Framework.Persistence;
 using Framework.Security;
@@ -20,7 +21,6 @@ namespace Apps.Erp.Ess;
 public static class EssEndpoints
 {
     public const string Prefix = "/api/ess/v1";
-    private static readonly string[] ApprovalDocTypes = ["LeaveApplication", "OvertimeRequest", "ExpenseClaim", "EmployeeAdvance"];
 
     public static IEndpointRouteBuilder MapEssApi(this IEndpointRouteBuilder app)
     {
@@ -70,9 +70,9 @@ public static class EssEndpoints
             var payslip = (await m.QueryAsync("Payslip", [new("employee", "=", emp)], ct, take: 200))
                 .Where(p => p.DocStatus == DocStatus.Submitted).OrderByDescending(p => p.Data.Str("period")).FirstOrDefault();
             var myPending = 0;
-            foreach (var dt in ApprovalDocTypes)
-                myPending += (await m.QueryAsync(dt, [new("employee", "=", emp)], ct, take: 500))
-                    .Count(d => d.DocStatus == DocStatus.Draft && d.WorkflowState is { } s && s.StartsWith("Pending", StringComparison.Ordinal));
+            foreach (var dt in EssRequestService.ApprovalDocTypes)
+                myPending += (await m.QueryAsync(dt, [new(dt == "ShiftSwapRequest" ? "requester" : "employee", "=", emp)], ct, take: 500))
+                    .Count(d => d.WorkflowState is { } s && s.StartsWith("Pending", StringComparison.Ordinal));
             return Results.Ok(new
             {
                 serverTime = now,
@@ -86,7 +86,7 @@ public static class EssEndpoints
                 },
                 leave = await LeaveTypesAsync(m, emp, today, ct),
                 latestPayslip = payslip is null ? null : PayslipSummary(payslip),
-                pendingApprovals = (await PendingApprovalsAsync(m, emp, ct)).Count,
+                pendingApprovals = (await sp.GetRequiredService<EssRequestService>().ApprovalInboxAsync(user, includeOverrides: false, ct)).Count,
                 myPendingRequests = myPending,
             });
         })));
@@ -254,6 +254,7 @@ public static class EssEndpoints
                 ["employee"] = emp, ["leave_type"] = body.LeaveType, ["from_date"] = body.FromDate, ["to_date"] = body.ToDate,
                 ["half_day"] = body.HalfDay, ["reason"] = body.Reason,
             };
+            if (!string.IsNullOrWhiteSpace(body.AttachmentFileId)) payload["attachment"] = body.AttachmentFileId;
             var doc = await docs.InsertAsync(user, "LeaveApplication", payload, ct);
             if (body.Submit != false)
                 doc = await docs.RunActionAsync(user, "LeaveApplication", doc.Name, "Submit for approval", doc.Version, null, ct);
@@ -300,29 +301,161 @@ public static class EssEndpoints
             });
         }));
 
-        // ---------------- Approvals (Manager) ----------------
-        g.MapGet("/approvals", (Func<HttpContext, Task<IResult>>)(http => Ess(http, async (user, emp, sp, ct) =>
+        // ---------------- Shift swap: peer answer & withdraw ----------------
+        g.MapPost("/shift-swaps/{name}/{answer}", (HttpContext http, string name, string answer, EssDecisionBody? body) => Ess(http, async (user, emp, sp, ct) =>
         {
-            var m = new Masters(sp.GetRequiredService<IDocumentStore>(), user.TenantId);
-            return Results.Ok(new { items = (await PendingApprovalsAsync(m, emp, ct)).Select(ApprovalDto) });
+            var docs = sp.GetRequiredService<DocumentService>();
+            var doc = await docs.GetAsync(user, "ShiftSwapRequest", name, ct);
+            var (action, field) = answer.ToLowerInvariant() switch
+            {
+                "accept" => ("Accept swap", "target_employee"),
+                "decline" => ("Decline swap", "target_employee"),
+                "withdraw" => ("Withdraw", "requester"),
+                _ => throw new ValidationFailedException([new FieldError("answer", "Use accept, decline or withdraw")]),
+            };
+            if (doc.Data.Str(field) != emp) throw new DocumentNotFoundException("ShiftSwapRequest", name);
+            if (action == "Decline swap" && string.IsNullOrWhiteSpace(body?.Comment))
+                throw new ValidationFailedException([new FieldError("comment", "A reason is required to decline")]);
+            doc = await docs.RunActionAsync(user, "ShiftSwapRequest", name, action, doc.Version, body?.Comment, ct);
+            return Results.Ok(SwapDto(doc));
+        }));
+
+        // ---------------- Face registration (face recognition on the phone) ----------------
+        g.MapGet("/face", (Func<HttpContext, Task<IResult>>)(http => Ess(http, async (user, emp, sp, ct) =>
+        {
+            var svc = sp.GetRequiredService<EssRequestService>();
+            var (all, active) = await svc.FaceStatusAsync(user, emp, ct);
+            var policy = await sp.GetRequiredService<EssAttendanceService>().GetPolicyAsync(user.TenantId, ct);
+            return Results.Ok(new
+            {
+                required = policy.RequireFace, minScore = policy.MinFaceScore, rejectMismatch = policy.RejectFaceMismatch,
+                status = active is not null ? "active" : all.FirstOrDefault()?.WorkflowState switch
+                {
+                    "Pending Verification" => "pending",
+                    "Rejected" => "rejected",
+                    _ => "none",
+                },
+                active = active is null ? null : FaceDto(active),
+                registrations = all.Select(FaceDto),
+            });
         })));
+
+        g.MapGet("/face/template", (Func<HttpContext, Task<IResult>>)(http => Ess(http, async (user, emp, sp, ct) =>
+        {
+            var result = await sp.GetRequiredService<EssRequestService>().ActiveTemplateAsync(user, emp, ct);
+            if (result is not { } r)
+                return DocApi.ProblemResult(404, "No verified face registration", "Register your face; HR verifies it before it can be used.");
+            http.Response.Headers.CacheControl = "no-store";
+            return Results.Ok(new
+            {
+                registration = r.Registration.Name, modelName = r.Registration.Data.Str("model_name"), modelVersion = r.Registration.Data.Str("model_version"),
+                sha256 = r.Registration.Data.Str("template_sha256"), template = r.Template,
+            });
+        })));
+
+        g.MapPost("/face/registrations", (HttpContext http) => Ess(http, async (user, emp, sp, ct) =>
+        {
+            if (!http.Request.HasFormContentType)
+                throw new ValidationFailedException([new FieldError("photos", "Send multipart/form-data with photo files and a 'template' field")]);
+            var form = await http.Request.ReadFormAsync(ct);
+            var photos = new List<(byte[], string)>();
+            foreach (var file in form.Files.Where(f => f.Name.StartsWith("photo", StringComparison.OrdinalIgnoreCase)).Take(EssRequestService.MaxFacePhotos + 1))
+            {
+                if (file.Length > FileService.MaxImageBytes)
+                    throw new ValidationFailedException([new FieldError(file.Name, "Each photo can be at most 2 MB")]);
+                using var ms = new MemoryStream();
+                await file.CopyToAsync(ms, ct);
+                photos.Add((ms.ToArray(), file.FileName));
+            }
+            double[]? template;
+            try { template = System.Text.Json.JsonSerializer.Deserialize<double[]>(form["template"].ToString()); }
+            catch (System.Text.Json.JsonException) { template = null; }
+            decimal? Num(string key) => decimal.TryParse(form[key].ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var v) ? v : null;
+            var doc = await sp.GetRequiredService<EssRequestService>().RegisterFaceAsync(user, emp, new EssFaceRegistrationInput
+            {
+                Photos = photos, Template = template ?? [],
+                ModelName = form["modelName"].ToString(), ModelVersion = form["modelVersion"].ToString(),
+                Consent = bool.TryParse(form["consent"].ToString(), out var consent) && consent,
+                QualityScore = Num("qualityScore"), LivenessScore = Num("livenessScore"),
+                DeviceId = form["deviceId"].ToString(), AppVersion = form["appVersion"].ToString(),
+            }, ct);
+            return Results.Json(FaceDto(doc), statusCode: StatusCodes.Status201Created);
+        })).DisableAntiforgery();
+
+        g.MapPost("/face/registrations/{name}/withdraw", (HttpContext http, string name) => Ess(http, async (user, emp, sp, ct) =>
+            Results.Ok(FaceDto(await sp.GetRequiredService<EssRequestService>().WithdrawAsync(user, "FaceRegistration", "employee", emp, name, ct)))));
+
+        // ---------------- Overtime ----------------
+        g.MapGet("/overtime", (Func<HttpContext, Task<IResult>>)(http => Ess(http, async (user, emp, sp, ct) =>
+            Results.Ok(new { items = (await sp.GetRequiredService<EssRequestService>().MineAsync(user, "OvertimeRequest", "employee", emp, 100, ct)).Select(OvertimeDto) }))));
+
+        g.MapPost("/overtime", (HttpContext http, EssOvertimeRequest body) => Ess(http, async (user, emp, sp, ct) =>
+            Results.Json(OvertimeDto(await sp.GetRequiredService<EssRequestService>().CreateOvertimeAsync(user, emp, body, ct)), statusCode: StatusCodes.Status201Created)));
+
+        g.MapPost("/overtime/{name}/withdraw", (HttpContext http, string name) => Ess(http, async (user, emp, sp, ct) =>
+            Results.Ok(OvertimeDto(await sp.GetRequiredService<EssRequestService>().WithdrawAsync(user, "OvertimeRequest", "employee", emp, name, ct)))));
+
+        // ---------------- Attendance correction ----------------
+        g.MapGet("/attendance/corrections", (Func<HttpContext, Task<IResult>>)(http => Ess(http, async (user, emp, sp, ct) =>
+            Results.Ok(new { items = (await sp.GetRequiredService<EssRequestService>().MineAsync(user, "AttendanceCorrection", "employee", emp, 100, ct)).Select(CorrectionDto) }))));
+
+        g.MapPost("/attendance/corrections", (HttpContext http, EssCorrectionRequest body) => Ess(http, async (user, emp, sp, ct) =>
+            Results.Json(CorrectionDto(await sp.GetRequiredService<EssRequestService>().CreateCorrectionAsync(user, emp, body, ct)), statusCode: StatusCodes.Status201Created)));
+
+        g.MapPost("/attendance/corrections/{name}/withdraw", (HttpContext http, string name) => Ess(http, async (user, emp, sp, ct) =>
+            Results.Ok(CorrectionDto(await sp.GetRequiredService<EssRequestService>().WithdrawAsync(user, "AttendanceCorrection", "employee", emp, name, ct)))));
+
+        // ---------------- Biodata change ----------------
+        g.MapGet("/profile/biodata", (Func<HttpContext, Task<IResult>>)(http => Ess(http, async (user, emp, sp, ct) =>
+            Results.Ok(new { categories = await sp.GetRequiredService<EssRequestService>().BiodataAsync(user, emp, ct) }))));
+
+        g.MapGet("/profile/change-requests", (Func<HttpContext, Task<IResult>>)(http => Ess(http, async (user, emp, sp, ct) =>
+            Results.Ok(new { items = (await sp.GetRequiredService<EssRequestService>().MineAsync(user, "BiodataChangeRequest", "employee", emp, 50, ct)).Select(BiodataDto) }))));
+
+        g.MapPost("/profile/change-requests", (HttpContext http, EssBiodataRequest body) => Ess(http, async (user, emp, sp, ct) =>
+            Results.Json(BiodataDto(await sp.GetRequiredService<EssRequestService>().CreateBiodataChangeAsync(user, emp, body, ct)), statusCode: StatusCodes.Status201Created)));
+
+        g.MapPost("/profile/change-requests/{name}/withdraw", (HttpContext http, string name) => Ess(http, async (user, emp, sp, ct) =>
+            Results.Ok(BiodataDto(await sp.GetRequiredService<EssRequestService>().WithdrawAsync(user, "BiodataChangeRequest", "employee", emp, name, ct)))));
+
+        // ---------------- Attachments for requests ----------------
+        g.MapPost("/files/{doctype}/{field}", (HttpContext http, string doctype, string field) => Ess(http, async (user, emp, sp, ct) =>
+        {
+            if (!http.Request.HasFormContentType)
+                throw new ValidationFailedException([new FieldError("file", "Send multipart/form-data with a 'file' field")]);
+            var form = await http.Request.ReadFormAsync(ct);
+            var file = form.Files.GetFile("file") ?? form.Files.FirstOrDefault()
+                       ?? throw new ValidationFailedException([new FieldError("file", "Upload a file in the 'file' form field")]);
+            await using var stream = file.OpenReadStream();
+            var id = await sp.GetRequiredService<EssRequestService>().UploadAsync(user, doctype, field, file.FileName, stream, ct);
+            return Results.Json(new { fileId = id, fileName = file.FileName, size = file.Length }, statusCode: StatusCodes.Status201Created);
+        })).DisableAntiforgery();
+
+        // ---------------- Approvals (Manager) ----------------
+        g.MapGet("/approvals", (HttpContext http, string? stage, bool? includeOverrides) => Ess(http, async (user, emp, sp, ct) =>
+        {
+            var inbox = await sp.GetRequiredService<EssRequestService>().ApprovalInboxAsync(user, includeOverrides == true, ct);
+            var items = inbox.Where(i => string.IsNullOrWhiteSpace(stage) || string.Equals(i.Stage, stage, StringComparison.OrdinalIgnoreCase)).ToList();
+            return Results.Ok(new
+            {
+                counts = inbox.GroupBy(i => i.Stage).ToDictionary(g => g.Key, g => g.Count()),
+                items = items.Select(ApprovalDto),
+            });
+        }));
+
+        g.MapGet("/approvals/{doctype}/{name}", (HttpContext http, string doctype, string name) => Ess(http, async (user, emp, sp, ct) =>
+        {
+            var item = (await sp.GetRequiredService<EssRequestService>().ApprovalInboxAsync(user, includeOverrides: true, ct))
+                .FirstOrDefault(i => i.Meta.Name == doctype && i.Doc.Name == name) ?? throw new DocumentNotFoundException(doctype, name);
+            return Results.Ok(new { summary = ApprovalDto(item), details = ApprovalDetails(item.Doc) });
+        }));
 
         g.MapPost("/approvals/{doctype}/{name}/{decision}", (HttpContext http, string doctype, string name, string decision, EssDecisionBody? body) =>
             Ess(http, async (user, emp, sp, ct) =>
             {
-                if (!ApprovalDocTypes.Contains(doctype)) throw new DocumentNotFoundException(doctype, name);
-                var action = decision.ToLowerInvariant() switch
-                {
-                    "approve" => "Approve",
-                    "reject" => "Reject",
-                    _ => throw new ValidationFailedException([new FieldError("decision", "decision must be 'approve' or 'reject'")]),
-                };
-                if (action == "Reject" && string.IsNullOrWhiteSpace(body?.Comment))
-                    throw new ValidationFailedException([new FieldError("comment", "Rejection reason is required")]);
-                var docs = sp.GetRequiredService<DocumentService>();
-                var doc = await docs.GetAsync(user, doctype, name, ct);
-                // Workflow guard conditions (approver == current employee and requester != current employee) are verified by DocumentService.
-                doc = await docs.RunActionAsync(user, doctype, name, action, doc.Version, body?.Comment, ct);
+                // The workflow decides who may act (supervisor, project approver, HR); the action matching the decision is
+                // chosen from the actions available to this user in the document's current state.
+                var doc = await sp.GetRequiredService<EssRequestService>().DecideAsync(user, doctype, name, decision, body?.Action, body?.Comment, ct);
                 return Results.Ok(new { doctype, name, state = doc.WorkflowState, docstatus = (int)doc.DocStatus });
             }));
 
@@ -375,7 +508,43 @@ public static class EssEndpoints
         name = d.Name, date = d.Data.Str("attendance_date"), status = d.Data.Str("status"),
         checkIn = DatetimeFieldType.ToZone(d.Data.GetValueOrDefault("check_in")), checkOut = DatetimeFieldType.ToZone(d.Data.GetValueOrDefault("check_out")),
         workingHours = d.Data.Dec("working_hours"), lateMinutes = d.Data.Dec("late_minutes"), leaveApplication = d.Data.Str("leave_application"),
+        code = d.Data.Str("attendance_code"), codeFinal = d.Data.Bool("code_final"), earlyOutMinutes = d.Data.Dec("early_out_minutes"),
         source = d.Data.Str("source"), notes = d.Data.Str("ess_flags"),
+    };
+
+    private static object FaceDto(Document d) => new
+    {
+        name = d.Name, state = d.WorkflowState ?? "Draft", active = d.Data.Bool("is_active"),
+        photos = new[] { d.Data.Str("photo_1"), d.Data.Str("photo_2"), d.Data.Str("photo_3") }.Where(p => p is not null).Count(),
+        modelName = d.Data.Str("model_name"), modelVersion = d.Data.Str("model_version"), sha256 = d.Data.Str("template_sha256"),
+        dimensions = d.Data.Dec("template_dimensions"), verifiedAt = DatetimeFieldType.ToZone(d.Data.GetValueOrDefault("verified_at")),
+        created = d.Created,
+    };
+
+    private static object OvertimeDto(Document d) => new
+    {
+        name = d.Name, date = d.Data.Str("overtime_date"), hours = d.Data.Dec("hours"), dayType = d.Data.Str("day_type"),
+        weightedHours = d.Data.Dec("weighted_hours"), project = d.Data.Str("project"), reason = d.Data.Str("reason"),
+        approver = d.Data.Str("approver"), projectApprover = d.Data.Str("project_approver"), period = d.Data.Str("period"),
+        state = d.WorkflowState ?? "Draft", docstatus = (int)d.DocStatus,
+    };
+
+    private static object CorrectionDto(Document d) => new
+    {
+        name = d.Name, date = d.Data.Str("attendance_date"), correctionType = d.Data.Str("correction_type"),
+        recordedCheckIn = DatetimeFieldType.ToZone(d.Data.GetValueOrDefault("current_check_in")),
+        recordedCheckOut = DatetimeFieldType.ToZone(d.Data.GetValueOrDefault("current_check_out")), recordedCode = d.Data.Str("current_code"),
+        checkIn = DatetimeFieldType.ToZone(d.Data.GetValueOrDefault("requested_check_in")),
+        checkOut = DatetimeFieldType.ToZone(d.Data.GetValueOrDefault("requested_check_out")),
+        reason = d.Data.Str("reason"), attachment = d.Data.Str("attachment"), approver = d.Data.Str("approver"),
+        state = d.WorkflowState ?? "Draft", docstatus = (int)d.DocStatus,
+    };
+
+    private static object BiodataDto(Document d) => new
+    {
+        name = d.Name, category = d.Data.Str("category"), reason = d.Data.Str("reason"), attachment = d.Data.Str("attachment"),
+        changes = d.Data.Rows("changes").Select(r => new { field = r.Str("field"), label = r.Str("label"), currentValue = r.Str("current_value"), newValue = r.Str("new_value") }),
+        state = d.WorkflowState ?? "Draft", docstatus = (int)d.DocStatus, created = d.Created,
     };
 
     private static object LeaveDto(Document d) => new
@@ -399,40 +568,51 @@ public static class EssEndpoints
             validFrom = b.ValidFrom, validTo = b.ValidTo,
         }).ToList();
 
-    private static readonly (string DocType, string ApproverField, string State)[] ApprovalSources =
-    [
-        ("LeaveApplication", "leave_approver", "Pending Approval"),
-        ("OvertimeRequest", "project_approver", "Pending Project Approval"),
-        ("OvertimeRequest", "approver", "Pending Approval"),
-        ("ExpenseClaim", "project_approver", "Pending Project Approval"),
-        ("ExpenseClaim", "expense_approver", "Pending Manager"),
-        ("EmployeeAdvance", "expense_approver", "Pending Manager"),
-        ("PurchaseRequest", "project_approver", "Pending Project Approval"),
-    ];
-
-    private static async Task<List<Document>> PendingApprovalsAsync(Masters m, string emp, CancellationToken ct)
+    private static object ApprovalDto(EssApproval item)
     {
-        var list = new List<Document>();
-        foreach (var (docType, field, state) in ApprovalSources)
-            list.AddRange((await m.QueryAsync(docType, [new(field, "=", emp)], ct, take: 500))
-                .Where(d => d.DocStatus == DocStatus.Draft && d.WorkflowState == state && d.Data.Str("employee") != emp));
-        return list.OrderBy(d => d.Modified).ToList();
-    }
-
-    private static object ApprovalDto(Document d)
-    {
+        var d = item.Doc;
         var x = d.Data;
         var (title, amount) = d.DocType switch
         {
             "LeaveApplication" => ($"{x.Str("leave_type")} {x.Str("from_date")} to {x.Str("to_date")} ({x.Dec("total_days"):0.#} days)", (decimal?)null),
             "OvertimeRequest" => ($"Overtime {x.Str("overtime_date")} {x.Dec("hours"):0.#} hours", (decimal?)null),
+            "ShiftSwapRequest" => ($"Shift swap {x.Str("swap_date")} with {x.Str("target_employee_name") ?? x.Str("target_employee")}", (decimal?)null),
+            "AttendanceCorrection" => ($"Attendance correction {x.Str("attendance_date")}: {x.Str("correction_type")}", (decimal?)null),
+            "FaceRegistration" => ("Face registration", (decimal?)null),
+            "BiodataChangeRequest" => ($"Biodata change: {x.Str("category")}", (decimal?)null),
             "ExpenseClaim" => ($"Expense Claim: {x.Str("purpose")}", (decimal?)x.Dec("total_claimed")),
             _ => ($"Employee Advance: {x.Str("purpose")}", (decimal?)x.Dec("advance_amount")),
         };
         return new
         {
-            doctype = d.DocType, name = d.Name, employee = x.Str("employee"), employeeName = x.Str("employee_name"), title, amount,
-            reason = x.Str("reason") ?? x.Str("purpose"), state = d.WorkflowState, submittedAt = d.Modified, actions = new[] { "approve", "reject" },
+            doctype = d.DocType, doctypeTitle = item.Meta.Title, name = d.Name,
+            employee = x.Str("employee") ?? x.Str("requester"), employeeName = x.Str("employee_name") ?? x.Str("requester_name"),
+            title, amount, reason = x.Str("reason") ?? x.Str("purpose"), state = d.WorkflowState, stage = item.Stage, isOverride = item.IsOverride,
+            submittedAt = d.Modified,
+            actions = item.Actions.Select(a => new { action = a.Action, kind = a.Kind, toState = a.ToState, requireComment = a.RequireComment }),
+        };
+    }
+
+    /// <summary>What the approver needs to decide: requested vs recorded values, photos and attachments (as <c>/files/{id}</c> URLs).</summary>
+    private static object ApprovalDetails(Document d)
+    {
+        var x = d.Data;
+        string? Url(string field) => x.Str(field) is { } id ? $"/files/{Uri.EscapeDataString(id)}" : null;
+        return d.DocType switch
+        {
+            "FaceRegistration" => new
+            {
+                photos = new[] { Url("photo_1"), Url("photo_2"), Url("photo_3") }.Where(u => u is not null),
+                modelName = x.Str("model_name"), modelVersion = x.Str("model_version"), dimensions = x.Dec("template_dimensions"),
+                qualityScore = x.Dec("quality_score"), livenessScore = x.Dec("liveness_score"),
+                consentAt = DatetimeFieldType.ToZone(x.GetValueOrDefault("consent_at")), deviceId = x.Str("device_id"),
+            },
+            "AttendanceCorrection" => CorrectionDto(d),
+            "BiodataChangeRequest" => BiodataDto(d) is var b ? new { request = b, attachment = Url("attachment") } : null,
+            "OvertimeRequest" => OvertimeDto(d),
+            "LeaveApplication" => LeaveDto(d) is var l ? new { request = l, attachment = Url("attachment") } : null,
+            "ShiftSwapRequest" => SwapDto(d),
+            _ => (object)x.Where(kv => kv.Value is string or decimal or bool or long or int).ToDictionary(kv => kv.Key, kv => kv.Value),
         };
     }
 
@@ -482,7 +662,8 @@ public static class EssEndpoints
     };
 }
 
-public sealed record EssLeaveRequest(string? LeaveType, string? FromDate, string? ToDate, bool HalfDay, string? Reason, bool? Submit);
+public sealed record EssLeaveRequest(string? LeaveType, string? FromDate, string? ToDate, bool HalfDay, string? Reason, bool? Submit, string? AttachmentFileId = null);
 public sealed record EssShiftSwapRequest(string TargetEmployee, string SwapDate, string? TargetSwapDate, string? Reason, bool? Submit);
 public sealed record EssShiftPreferenceRequest(string? PreferenceType, string? ShiftType, string? FromDate, string? ToDate, string? DaysOfWeek, int? Weight, string? Reason);
-public sealed record EssDecisionBody(string? Comment);
+/// <param name="Action">Optional: the exact workflow action when the state offers several (e.g. "Approve (HR)").</param>
+public sealed record EssDecisionBody(string? Comment, string? Action = null);

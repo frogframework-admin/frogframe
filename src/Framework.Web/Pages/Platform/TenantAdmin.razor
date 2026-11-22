@@ -1,0 +1,407 @@
+@page "/platform/tenants"
+@using Framework.Localization
+@using Framework.Security
+@using Framework.Tenancy
+@using Framework.Web.Tenancy
+@inject TenantAdminService Tenants
+@inject PlatformAdmins PlatformAdmins
+@inject RoleCatalog RoleCatalogSvc
+@inject CurrentUser Current
+@inject ToastService Toasts
+@inject UiText T
+
+<PageTitle>@T["Tenants"] · FrogFrame</PageTitle>
+
+@if (!PlatformAdmins.IsPlatformAdmin(Current.User))
+{
+    <ErrorState StatusCode="403" Description="@T["This page is for group administrators listed in Platform:Administrators (FROGFRAME_PLATFORM_ADMINS)."]" />
+}
+else
+{
+    <header class="page-head">
+        <div>
+            <h1>@T["Tenants"]</h1>
+            <p>@T["Companies of the group that use this installation. Each tenant has its own users and data; suspending a tenant blocks its sign-in, sessions, API keys and scheduled jobs."]</p>
+        </div>
+        <div class="row" style="gap:.5rem;flex-wrap:wrap">
+            <BbButton Variant="ButtonVariant.Outline" Disabled="busy" OnClick="() => LoadAsync(refreshUsage: true)"><LucideIcon Name="refresh-cw" Size="16" /> @T["Refresh usage"]</BbButton>
+            <BbButton OnClick="StartCreate"><LucideIcon Name="plus" Size="16" /> @T["New tenant"]</BbButton>
+        </div>
+    </header>
+
+    @if (created is { } c)
+    {
+        <BbAlert Variant="AlertVariant.Warning" Class="props-block">
+            <BbAlertTitle>@T.Format("Tenant {0} created", c.TenantId)</BbAlertTitle>
+            <BbAlertDescription>
+                @T.Format("Administrator {0}, temporary password:", c.UserName) <code class="temp-password">@c.Password</code>
+                — @T["send it through a secure channel; it is not shown again. Ask the administrator to change it and turn on two-factor authentication after the first sign-in."]
+            </BbAlertDescription>
+        </BbAlert>
+    }
+
+    @if (rows is null)
+    {
+        <div class="stack"><BbSkeleton Height="3rem" /><BbSkeleton Height="3rem" /></div>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="perm-table tenant-table">
+                <thead>
+                    <tr>
+                        <th>@T["Tenant"]</th>
+                        <th>@T["Status"]</th>
+                        <th class="num">@T["Active users"]</th>
+                        <th class="num">@T["Documents"]</th>
+                        <th>@T["Last activity"]</th>
+                        <th>@T["Settings"]</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var (tenant, registered, usage) in rows)
+                    {
+                        var t = tenant;
+                        <tr>
+                            <td>
+                                <strong>@t.Name</strong>
+                                <div class="muted small"><code>@t.Id</code>@(t.Id == Current.Required.TenantId ? " · " + T["your tenant"] : "")</div>
+                            </td>
+                            <td>
+                                @if (!registered)
+                                {
+                                    <BbBadge Variant="BadgeVariant.Outline" title="@T["Has users or data but no registry entry yet; it counts as active. Save its settings to register it."]">@T["Not registered"]</BbBadge>
+                                }
+                                else if (t.IsActive)
+                                {
+                                    <BbBadge Variant="BadgeVariant.Secondary">@T["Active"]</BbBadge>
+                                }
+                                else
+                                {
+                                    <BbBadge Variant="BadgeVariant.Destructive">@T["Suspended"]</BbBadge>
+                                    <div class="muted small">@t.SuspendedReason</div>
+                                }
+                            </td>
+                            <td class="num">
+                                @(usage?.ActiveUsers ?? 0)@(t.Settings.MaxUsers is { } max ? $" / {max}" : "")
+                                @if (usage is { } u && u.Users > u.ActiveUsers)
+                                {
+                                    <div class="muted small">@T.Format("{0} inactive", u.Users - u.ActiveUsers)</div>
+                                }
+                            </td>
+                            <td class="num">@((usage?.Documents ?? 0).ToString("N0"))</td>
+                            <td>@(usage?.LastActivity is { } last ? Fmt.When(last) : "—")</td>
+                            <td class="muted small">
+                                @string.Join(" · ", SettingsSummary(t.Settings))
+                            </td>
+                            <td style="white-space:nowrap">
+                                <BbButton Size="ButtonSize.Small" Variant="ButtonVariant.Outline" Disabled="busy" OnClick="() => StartEdit(t)"><LucideIcon Name="pencil" Size="14" /> @T["Edit"]</BbButton>
+                                @if (t.IsActive || !registered)
+                                {
+                                    <BbButton Size="ButtonSize.Small" Variant="ButtonVariant.Outline" Disabled="@(busy || t.Id == Current.Required.TenantId)" OnClick="() => StartSuspend(t)"><LucideIcon Name="pause" Size="14" /> @T["Suspend"]</BbButton>
+                                }
+                                else
+                                {
+                                    <BbButton Size="ButtonSize.Small" Disabled="busy" OnClick="() => ReactivateAsync(t)"><LucideIcon Name="play" Size="14" /> @T["Activate"]</BbButton>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <p class="muted small" style="margin-top:.5rem">@T["Usage is counted at most every 10 minutes; use Refresh usage for current numbers."]</p>
+    }
+
+    <AdminDrawer Open="@(mode is not null)" OpenChanged="v => { if (!v) Close(); }"
+                 WidthScale="@(mode == "suspend" ? 1.0 : 2.0)"
+                 Title="@(mode == "create" ? T["New tenant"] : mode == "suspend" ? T.Format("Suspend {0}", form.Name) : T.Format("Edit: {0}", form.Name))"
+                 Description="@(mode == "create" ? T["Creates the tenant and its first System Manager. The tenant code cannot be changed later."] : null)">
+        <ChildContent>
+            @if (error is not null)
+            {
+                <BbAlert Variant="AlertVariant.Danger"><BbAlertDescription>@error</BbAlertDescription></BbAlert>
+            }
+            @if (mode == "suspend")
+            {
+                <p>@T["Users of this tenant are signed out within a minute, its API keys and scheduled jobs stop. Data is kept; activating the tenant restores access."]</p>
+                <BbField>
+                    <BbFieldLabel For="t-reason">@T["Reason"]</BbFieldLabel>
+                    <FormTextInput Id="t-reason" Immediate="true" @bind-Value="reason" Placeholder="@T["e.g. company sold, contract ended"]" />
+                </BbField>
+            }
+            else if (mode is not null)
+            {
+                <div class="form-cols cols-2">
+                    <BbField>
+                        <BbFieldLabel For="t-name">@T["Name"]</BbFieldLabel>
+                        <FormTextInput Id="t-name" Immediate="true" @bind-Value="form.Name" Placeholder="@T["e.g. PT Maju Jaya"]" />
+                    </BbField>
+                    @if (mode == "create")
+                    {
+                        <BbField>
+                            <BbFieldLabel For="t-id">@T["Tenant code"]</BbFieldLabel>
+                            <FormTextInput Id="t-id" Immediate="true" @bind-Value="form.Id" Placeholder="@T["e.g. maju-jaya"]" />
+                            <BbFieldDescription>@T["2–32 lower-case letters, digits or hyphens. Permanent."]</BbFieldDescription>
+                        </BbField>
+                    }
+                    else
+                    {
+                        <BbField>
+                            <BbFieldLabel>@T["Tenant code"]</BbFieldLabel>
+                            <div class="field-static"><code>@form.Id</code></div>
+                        </BbField>
+                    }
+                </div>
+
+                @if (mode == "create")
+                {
+                    <div class="props-sub">@T["First administrator (System Manager)"]</div>
+                    <div class="form-cols cols-2">
+                        <BbField>
+                            <BbFieldLabel For="t-admin-name">@T["Full name"]</BbFieldLabel>
+                            <FormTextInput Id="t-admin-name" Immediate="true" @bind-Value="form.AdminFullName" />
+                        </BbField>
+                        <BbField>
+                            <BbFieldLabel For="t-admin-user">@T["Username"]</BbFieldLabel>
+                            <FormTextInput Id="t-admin-user" Immediate="true" @bind-Value="form.AdminUserName" Placeholder="@T["e.g. admin.majujaya"]" />
+                            <BbFieldDescription>@T["User names are unique across all tenants."]</BbFieldDescription>
+                        </BbField>
+                    </div>
+                    <BbField>
+                        <BbFieldLabel For="t-admin-email">@T["Email"]</BbFieldLabel>
+                        <FormTextInput Id="t-admin-email" Type="email" Immediate="true" @bind-Value="form.AdminEmail" />
+                    </BbField>
+                }
+
+                <div class="props-sub">@T["Settings"]</div>
+                <div class="form-cols cols-2">
+                    <BbField>
+                        <BbFieldLabel For="t-lang">@T["Default language"]</BbFieldLabel>
+                        <select id="t-lang" class="auth-input" @bind="form.DefaultLanguage">
+                            <option value="">@T["Installation default"]</option>
+                            @foreach (var l in Languages.Supported)
+                            {
+                                <option value="@l.Code">@l.Name</option>
+                            }
+                        </select>
+                        <BbFieldDescription>@T["For users who have not chosen a language."]</BbFieldDescription>
+                    </BbField>
+                    <BbField>
+                        <BbFieldLabel For="t-max">@T["Maximum active users"]</BbFieldLabel>
+                        <FormTextInput Id="t-max" Type="number" Immediate="true" @bind-Value="form.MaxUsers" Placeholder="@T["No limit"]" />
+                        <BbFieldDescription>@T["API service accounts count too. Existing users are not deactivated."]</BbFieldDescription>
+                    </BbField>
+                </div>
+                <BbField>
+                    <BbFieldLabel>@T["Roles that must use two-factor authentication"]</BbFieldLabel>
+                    <div class="role-check-grid" style="max-height:14rem;overflow-y:auto;padding:.5rem .75rem;border:1px solid var(--border);border-radius:var(--radius)">
+                        @foreach (var role in KnownRoles)
+                        {
+                            var r = role;
+                            <div class="label-row">
+                                <BbCheckbox Id="@($"t-2fa-{r}")" Checked="form.TwoFactorRoles.Contains(r)" CheckedChanged="v => ToggleTwoFactorRole(r, v)" />
+                                <BbLabel For="@($"t-2fa-{r}")" title="@(RoleGroups.IsGroup(r) ? "Group: grants " + string.Join(", ", RoleGroups.MembersOf(r)) : null)">@r@(RoleGroups.IsGroup(r) ? " (group)" : "")</BbLabel>
+                            </div>
+                        }
+                    </div>
+                    <BbFieldDescription>@T["Added to the installation-wide list."]</BbFieldDescription>
+                </BbField>
+                <BbField>
+                    <BbFieldLabel For="t-notes">@T["Notes"]</BbFieldLabel>
+                    <FormTextInput Id="t-notes" Immediate="true" @bind-Value="form.Notes" Placeholder="@T["Contact person, contract, remarks"]" />
+                </BbField>
+            }
+        </ChildContent>
+        <FooterContent>
+            <div class="row" style="gap:.5rem">
+                @if (mode == "suspend")
+                {
+                    <BbButton Variant="ButtonVariant.Destructive" Disabled="@(busy || string.IsNullOrWhiteSpace(reason))" Loading="busy" OnClick="SuspendAsync"><LucideIcon Name="pause" Size="16" /> @T["Suspend tenant"]</BbButton>
+                }
+                else
+                {
+                    <BbButton Disabled="busy" Loading="busy" OnClick="SaveAsync"><LucideIcon Name="check" Size="16" /> @(mode == "create" ? T["Create tenant"] : T["Save"])</BbButton>
+                }
+                <BbButton Variant="ButtonVariant.Ghost" OnClick="Close">@T["Cancel"]</BbButton>
+            </div>
+        </FooterContent>
+    </AdminDrawer>
+}
+
+@code {
+    private sealed class TenantForm
+    {
+        public string? Id { get; set; }
+        public string? Name { get; set; }
+        public string? AdminUserName { get; set; }
+        public string? AdminFullName { get; set; }
+        public string? AdminEmail { get; set; }
+        public string? DefaultLanguage { get; set; }
+        public string? MaxUsers { get; set; }
+        public HashSet<string> TwoFactorRoles { get; set; } = new(StringComparer.Ordinal);
+        public string? Notes { get; set; }
+    }
+
+    private sealed record Created(string TenantId, string UserName, string Password);
+
+    private IReadOnlyList<(Tenant Tenant, bool Registered, TenantUsage? Usage)>? rows;
+    private TenantForm form = new();
+    private string? mode; // create | edit | suspend
+    private string? reason;
+    private string? error;
+    private bool busy;
+    private Created? created;
+
+    protected override Task OnInitializedAsync() => PlatformAdmins.IsPlatformAdmin(Current.User) ? LoadAsync(false) : Task.CompletedTask;
+
+    private async Task LoadAsync(bool refreshUsage)
+    {
+        busy = true;
+        try { rows = await Tenants.ListAsync(Current.Required, refreshUsage); }
+        finally { busy = false; }
+    }
+
+    private IEnumerable<string> SettingsSummary(TenantSettings s)
+    {
+        if (s.DefaultLanguage is { } l) yield return T.Format("language {0}", l);
+        if (s.TwoFactorRequiredRoles.Count > 0) yield return T.Format("2FA: {0}", string.Join(", ", s.TwoFactorRequiredRoles));
+        if (!string.IsNullOrWhiteSpace(s.Notes)) yield return s.Notes!;
+    }
+
+    private IEnumerable<string> KnownRoles =>
+        RoleCatalogSvc.Names(mode == "edit" && !string.IsNullOrWhiteSpace(form.Id) ? form.Id : Current.Required.TenantId)
+            .Concat(form.TwoFactorRoles)
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.OrdinalIgnoreCase);
+
+    private void ToggleTwoFactorRole(string role, bool enabled)
+    {
+        if (enabled) form.TwoFactorRoles.Add(role);
+        else form.TwoFactorRoles.Remove(role);
+    }
+
+    private void StartCreate()
+    {
+        form = new TenantForm();
+        mode = "create";
+        error = null;
+    }
+
+    private void StartEdit(Tenant t)
+    {
+        form = new TenantForm
+        {
+            Id = t.Id, Name = t.Name, DefaultLanguage = t.Settings.DefaultLanguage, MaxUsers = t.Settings.MaxUsers?.ToString(),
+            TwoFactorRoles = new HashSet<string>(t.Settings.TwoFactorRequiredRoles, StringComparer.Ordinal), Notes = t.Settings.Notes,
+        };
+        mode = "edit";
+        error = null;
+    }
+
+    private void StartSuspend(Tenant t)
+    {
+        form = new TenantForm { Id = t.Id, Name = t.Name };
+        reason = "";
+        mode = "suspend";
+        error = null;
+    }
+
+    private void Close()
+    {
+        mode = null;
+        error = null;
+    }
+
+    private TenantSettings Settings() => new()
+    {
+        DefaultLanguage = string.IsNullOrWhiteSpace(form.DefaultLanguage) ? null : form.DefaultLanguage,
+        MaxUsers = int.TryParse(form.MaxUsers, out var max) ? max : null,
+        TwoFactorRequiredRoles = form.TwoFactorRoles.Order(StringComparer.OrdinalIgnoreCase).ToList(),
+        Notes = string.IsNullOrWhiteSpace(form.Notes) ? null : form.Notes.Trim(),
+    };
+
+    private async Task SaveAsync()
+    {
+        if (busy) return;
+        if (!string.IsNullOrWhiteSpace(form.MaxUsers) && !int.TryParse(form.MaxUsers, out _))
+        {
+            error = T["Maximum active users must be a whole number."];
+            return;
+        }
+        busy = true;
+        error = null;
+        try
+        {
+            if (mode == "create")
+            {
+                var password = TenantAdminService.TemporaryPassword();
+                var tenant = await Tenants.CreateAsync(Current.Required, new NewTenantRequest(form.Id ?? "", form.Name ?? "", form.AdminUserName ?? "",
+                    form.AdminFullName ?? "", form.AdminEmail, password, Settings()));
+                created = new Created(tenant.Id, form.AdminUserName!.Trim(), password);
+                Toasts.Success(T.Format("Tenant {0} created", tenant.Id), T["Tenants"]);
+            }
+            else
+            {
+                await Tenants.UpdateAsync(Current.Required, form.Id!, form.Name ?? "", Settings());
+                Toasts.Success(T["Settings saved."], form.Name ?? form.Id!);
+            }
+            mode = null;
+            busy = false;
+            await LoadAsync(refreshUsage: true);
+        }
+        catch (Exception ex) when (ex is TenantAdminException or PermissionDeniedException)
+        {
+            error = T.Message(ex.Message);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task SuspendAsync()
+    {
+        if (busy) return;
+        busy = true;
+        error = null;
+        try
+        {
+            await Tenants.SetStatusAsync(Current.Required, form.Id!, active: false, reason);
+            Toasts.Success(T.Format("{0} is suspended.", form.Name ?? form.Id!), T["Tenants"]);
+            mode = null;
+            busy = false;
+            await LoadAsync(false);
+        }
+        catch (Exception ex) when (ex is TenantAdminException or PermissionDeniedException)
+        {
+            error = T.Message(ex.Message);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task ReactivateAsync(Tenant t)
+    {
+        if (busy) return;
+        busy = true;
+        try
+        {
+            await Tenants.SetStatusAsync(Current.Required, t.Id, active: true, null);
+            Toasts.Success(T.Format("{0} is active again.", t.Name), T["Tenants"]);
+            busy = false;
+            await LoadAsync(false);
+        }
+        catch (Exception ex) when (ex is TenantAdminException or PermissionDeniedException)
+        {
+            Toasts.Error(T.Message(ex.Message), T["Error"]);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+}

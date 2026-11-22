@@ -299,6 +299,7 @@ src/Framework.Web/
 │   ├── DocumentForm.razor       # Metadata-driven form renderer (tabs, sections, columns, live expressions, actions)
 │   ├── FieldInput.razor         # Switches editor by field type (Data, Currency, Date, Select, Check, Link, Image)
 │   ├── Fmt.cs                   # Culture-aware Indonesian formatting helpers (currency, dates, badges)
+│   ├── FormPanels.cs            # AddFormPanel<T>(docType): application components above a DocType's form tabs (docs/guides/form-panels.md)
 │   ├── ImageInput.razor         # Drag-and-drop / file picker image uploader with thumbnail preview
 │   ├── LinkInput.razor          # Server-searched BbCombobox + optional LookupDialog trigger button
 │   ├── LookupDialog.razor       # Generic modal table dialog driven by target DocType's listView metadata
@@ -356,9 +357,11 @@ src/Apps.Erp/
 │   └── PostgresLedger*.cs       # PostgreSQL append-only ledger extension handler & reader
 ├── Components/
 │   ├── Pages/OrgChart.razor     # Interactive Organization Unit & Position hierarchy tree
+│   ├── Review/                  # Approval review form panels: face registration, attendance correction, biodata change
 │   └── App.razor                # Root HTML document shell loading theme.css, blazorblueprint.css, desk.css
 ├── Ess/
 │   ├── EssEndpoints.cs          # Minimal API endpoints for /api/ess/v1 (profile, home, punches, leave, payslips, approvals)
+│   ├── EssReview.cs             # Evidence and checks for the approval review panels (EssReviewService)
 │   ├── EssPunches.cs            # Lean punch store, PostgreSQL insert, duplicate check, and query logic
 │   ├── EssAttendanceRules.cs    # Geofencing, mock GPS detection, device binding, and shift rules
 │   └── EssAttendanceAggregationJob.cs # Background 5-min job aggregating raw punches into Attendance documents
@@ -624,6 +627,7 @@ All migrations live in `src/Framework.Persistence.PostgreSql/Migrations/` and ar
 | `/account/login` | `Login.razor` | Anonymous | Sign in with username & password |
 | `/account/password` | `AccountPassword.razor` | Authenticated | Change own password |
 | `/` | `Desk.razor` | Authenticated | Home: decisions waiting (inline workflow actions), tasks, recent documents, KPIs, jobs, bookmarks and panels registered by applications |
+| `/platform/tenants` | `Platform/TenantAdmin.razor` | `Platform:Administrators` | Tenants of the group: create with first administrator, suspend, settings, usage (docs/guides/tenants.md) |
 | `/app/{DocType}` | `DocList.razor` | DocType `Read` | Paginated list view, search, filters, and Import button |
 | `/app/{DocType}/new` | `DocNew.razor` | DocType `Create` | Dynamic creation form |
 | `/app/{DocType}/{Name}` | `DocDetail.razor` | DocType `Read` | Dynamic detail form, workflow action buttons, print/PDF, audit timeline |

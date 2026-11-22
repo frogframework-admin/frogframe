@@ -16,6 +16,7 @@
 @inject ToastService Toasts
 @inject IJSRuntime JS
 @inject UiText T
+@inject Framework.Web.Tenancy.PlatformAdmins PlatformAdmins
 @inject SystemConnectivityService Connectivity
 @inject Microsoft.Extensions.Configuration.IConfiguration Config
 
@@ -148,12 +149,25 @@
                                      && !explicitHrefs.Contains(i.Href.TrimStart('/')))
                             .ToList();
 
-                        @if (grpDocTypes.Count > 0 || grpDeskItems.Count > 0 || grpMenus.Count > 0)
+                        var showManageTenantsInGroup = string.Equals(grp.Name, "System & Users", StringComparison.OrdinalIgnoreCase)
+                            && PlatformAdmins.IsPlatformAdmin(u)
+                            && !explicitHrefs.Contains("platform/tenants")
+                            && !grpDeskItems.Any(i => string.Equals(i.Href.TrimStart('/'), "platform/tenants", StringComparison.OrdinalIgnoreCase));
+
+                        @if (grpDocTypes.Count > 0 || grpDeskItems.Count > 0 || grpMenus.Count > 0 || showManageTenantsInGroup)
                         {
                             <BbSidebarGroup>
                                 <BbSidebarGroupLabel>@T[grp.Name]</BbSidebarGroupLabel>
                                 <BbSidebarGroupContent>
                                     <BbSidebarMenu>
+                                        @if (showManageTenantsInGroup)
+                                        {
+                                            <BbSidebarMenuItem>
+                                                <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="platform/tenants" Match="NavLinkMatch.Prefix" Tooltip="@(T["Manage tenants"])">
+                                                    <LucideIcon Name="building-2" Size="18" /><span>@T["Manage tenants"]</span>
+                                                </BbSidebarMenuButton>
+                                            </BbSidebarMenuItem>
+                                        }
                                         @foreach (var d in grpDocTypes)
                                         {
                                             <BbSidebarMenuItem>
@@ -293,6 +307,14 @@
                                         <LucideIcon Name="shield-check" Size="15" />
                                         <span>@T["Two-Factor Authentication"]</span>
                                     </a>
+                                    @if (PlatformAdmins.IsPlatformAdmin(Current.User))
+                                    {
+                                        <a href="/platform/tenants" class="header-logout-btn" style="color:var(--popover-foreground, #0f172a);text-decoration:none;justify-content:flex-start;padding:0.45rem 0.6rem;width:100%;font-weight:400;"
+                                           @onclick="CloseUserDropdown">
+                                            <LucideIcon Name="building-2" Size="15" />
+                                            <span>@T["Manage tenants"]</span>
+                                        </a>
+                                    }
                                     <div style="height:1px;background:var(--border, #e2e8f0);margin:0.2rem 0;"></div>
                                     <button type="button" class="header-logout-btn" style="color:var(--destructive, #ef4444);justify-content:flex-start;padding:0.45rem 0.6rem;width:100%;font-weight:500;"
                                             @onclick="LogoutFromDropdown">
@@ -1000,6 +1022,13 @@
             return (Metadata.Current.TryGet("OrganizationUnit", out var ou) && Perms.Can(u, ou, DocActions.Read))
                 || (Metadata.Current.TryGet("Employee", out var emp) && Perms.Can(u, emp, DocActions.Read));
         }
+        else if (href.Equals("hr/attendance-recap", StringComparison.OrdinalIgnoreCase)
+                 || href.Equals("hr/rekap-absensi", StringComparison.OrdinalIgnoreCase))
+        {
+            return Metadata.Current.TryGet("Attendance", out var att)
+                && Perms.Can(u, att, DocActions.Read)
+                && Perms.ScopeFor(u, att, DocActions.Read) is RowScope.AllRows;
+        }
 
         return true;
     }
@@ -1163,6 +1192,7 @@
             {
                 "organizational-chart" or "struktur-organisasi" or "org-chart" or "organizational-structure" => "Organizational Chart",
                 "roster-calendar" => "Roster Calendar",
+                "attendance-recap" or "rekap-absensi" => "Attendance Recap",
                 "schedule-optimization" => "Schedule Optimization",
                 _ => ToTitleCase(parts[1])
             };

@@ -1,0 +1,52 @@
+@using Apps.Erp.Ess
+@using Framework.Localization
+@inject UiText T
+
+@* Shared frame of the approval review panels: title, where the request stands, the checks, then the panel's content. *@
+<section class="review-panel" aria-label="@T[Title]">
+    <header class="review-head">
+        <div class="review-title">
+            <LucideIcon Name="@Icon" Size="18" />
+            <h2>@T[Title]</h2>
+        </div>
+        @if (Status is not null)
+        {
+            <div class="review-status">
+                @if (Status.WaitingFor is { } who)
+                {
+                    <span class="review-waiting"><LucideIcon Name="hourglass" Size="14" /> @T.Format("Waiting for {0}", who)</span>
+                }
+                else if (Status.Decided)
+                {
+                    <span class="review-waiting"><LucideIcon Name="check-check" Size="14" /> @T.Format("Decided: {0}", T[Status.State])</span>
+                }
+            </div>
+        }
+    </header>
+    @if (Checks is { Count: > 0 })
+    {
+        <ul class="review-checks">
+            @foreach (var c in Checks)
+            {
+                <li class="tone-@c.Tone"><LucideIcon Name="@CheckIcon(c.Tone)" Size="15" /><span>@c.Text</span></li>
+            }
+        </ul>
+    }
+    @ChildContent
+</section>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter] public string Icon { get; set; } = "clipboard-check";
+    [Parameter] public ReviewStatus? Status { get; set; }
+    [Parameter] public IReadOnlyList<ReviewCheck>? Checks { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private static string CheckIcon(string tone) => tone switch
+    {
+        "positive" => "circle-check",
+        "warning" => "triangle-alert",
+        "negative" => "octagon-x",
+        _ => "info",
+    };
+}

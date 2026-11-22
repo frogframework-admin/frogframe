@@ -93,7 +93,7 @@ public sealed class PostgresDocumentStore(NpgsqlDataSource db, IServiceProvider 
 
         // Optimization: when fetching the first page (Skip == 0) and fewer rows than Take are returned,
         // the total count is simply items.Count — avoiding a second SQL query and 400+ index planner overhead.
-        if (q.Skip == 0 && items.Count < q.Take)
+        if ((q.Skip == 0 && items.Count < q.Take) || !q.CountTotal)
         {
             return new QueryResult(items, items.Count, false);
         }
@@ -953,6 +953,7 @@ public static class PostgreSqlServiceCollectionExtensions
         services.Replace(ServiceDescriptor.Singleton<Framework.Security.IRoleStore, PostgresRoleStore>());
         services.Replace(ServiceDescriptor.Singleton<Framework.Jobs.IDistributedLock, PostgresDistributedLock>());
         services.Replace(ServiceDescriptor.Singleton<Framework.Jobs.ITenantProvider, PostgresTenantProvider>());
+        services.Replace(ServiceDescriptor.Singleton<Framework.Tenancy.ITenantStore, PostgresTenantStore>());
         services.Replace(ServiceDescriptor.Singleton<Framework.Jobs.IScheduledJobLogStore, PostgresScheduledJobLogStore>());
         services.Replace(ServiceDescriptor.Singleton<Framework.Observability.IErrorLogStore, PostgresErrorLogStore>());
         services.Replace(ServiceDescriptor.Singleton<Framework.Localization.ITranslationStore, PostgresTranslationStore>());

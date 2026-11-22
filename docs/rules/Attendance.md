@@ -13,11 +13,6 @@ Aturan yang dijalankan kode saat dokumen Attendance (Attendance) disimpan, di-su
 - `attendance_date`: "The date is required" — terjadi bila `d.Date("attendance_date") tidak ditemukan/kosong` (AttendanceHook, TimeHooks.cs:91)
 - `attendance_date`: "{emp.Name} already has attendance {dup.Name} on {D.Iso(date)}" — terjadi bila `dup is not null` (AttendanceHook, TimeHooks.cs:95)
 
-## Peringatan (dokumen tetap tersimpan): Saat simpan/submit (validasi)
-
-- "Scheduled {schedule.Data.Str("day_category")?.ToLowerInvariant() ?? "rest/holiday day"} on {D.Iso(date)}; attendance qualifies for rest-day or holiday overtime." — terjadi bila `schedule.Data.Str("schedule_type") is "REST" or "HOLIDAY" && d.Str("status") == "Present"` (AttendanceHook, TimeHooks.cs:108)
-- "Approved leave {leave.Name} covers this date; consider status 'On leave'" — terjadi bila `leave is not null && d.Str("status") is "Present" or "Absent"` (AttendanceHook, TimeHooks.cs:139)
-
 ## Aturan bersama yang juga berlaku
 
 - Approval: lihat `_shared-Approval.md`

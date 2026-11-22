@@ -76,6 +76,15 @@
       "column": 2
     },
     {
+      "name": "early_out_grace_minutes",
+      "type": "Int",
+      "label": "Early-out grace (minutes)",
+      "default": 0,
+      "min": 0,
+      "column": 2,
+      "description": "Leaving this many minutes before the end still counts as on time"
+    },
+    {
       "name": "is_night_shift",
       "type": "Check",
       "label": "Night shift (crosses midnight)",

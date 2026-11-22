@@ -7716,3 +7716,77 @@ aside[data-state="collapsed"] .sidebar-user-chevron {
   .home-banner-text { flex-basis: calc(100% - 2.5rem); }
   .home-banner-close { position: absolute; top: .5rem; right: .5rem; }
 }
+
+/* ------------------------------------------------------------------ Form panels: approval review (ESS requests) */
+.review-panel {
+  margin: .75rem 0 0;
+  padding: 1rem 1.1rem 1.1rem;
+  border-radius: 1rem;
+  border: 1px solid color-mix(in oklch, var(--primary) 22%, var(--border));
+  background: var(--card);
+  display: flex;
+  flex-direction: column;
+  gap: .8rem;
+}
+.review-error { color: var(--muted-foreground); font-size: .875rem; }
+.review-head { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap; }
+.review-title { display: flex; align-items: center; gap: .5rem; color: var(--primary); }
+.review-title h2 { margin: 0; font-size: 1rem; font-weight: 650; color: var(--foreground); }
+.review-waiting { display: inline-flex; align-items: center; gap: .35rem; font-size: .8rem; color: var(--muted-foreground); }
+.review-checks { list-style: none; margin: 0; padding: 0; display: grid; gap: .35rem; }
+.review-checks li { display: flex; gap: .5rem; align-items: flex-start; font-size: .85rem; line-height: 1.35; padding: .45rem .65rem; border-radius: .6rem; }
+.review-checks li svg { flex-shrink: 0; margin-top: .1rem; }
+.review-checks .tone-positive { background: #dcfce7; color: #166534; }
+.review-checks .tone-info { background: color-mix(in oklch, var(--muted) 80%, transparent); color: var(--foreground); }
+.review-checks .tone-warning { background: #fef3c7; color: #92400e; }
+.review-checks .tone-negative { background: #fee2e2; color: #991b1b; }
+.dark .review-checks .tone-positive { background: color-mix(in oklch, #16a34a 22%, transparent); color: #bbf7d0; }
+.dark .review-checks .tone-warning { background: color-mix(in oklch, #d97706 24%, transparent); color: #fde68a; }
+.dark .review-checks .tone-negative { background: color-mix(in oklch, #dc2626 24%, transparent); color: #fecaca; }
+.review-label { font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted-foreground); margin-bottom: .35rem; }
+.review-hint { margin: 0; font-size: .8rem; color: var(--muted-foreground); }
+.review-face { display: flex; gap: 1.25rem; flex-wrap: wrap; }
+.review-face-group:first-child { flex: 1 1 22rem; }
+.review-photos { display: flex; gap: .5rem; flex-wrap: wrap; }
+.review-photo { width: 8.5rem; aspect-ratio: 3 / 4; border-radius: .75rem; overflow: hidden; border: 1px solid var(--border); background: var(--muted); display: flex; align-items: center; justify-content: center; font-size: .75rem; color: var(--muted-foreground); }
+.review-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.review-photo:hover { outline: 2px solid var(--primary); outline-offset: 1px; }
+.review-facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); gap: .5rem 1rem; margin: 0; }
+.review-facts dt { font-size: .72rem; color: var(--muted-foreground); }
+.review-facts dd { margin: 0; font-size: .875rem; font-weight: 500; }
+.review-schedule { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; font-size: .875rem; }
+table.review-compare { width: 100%; border-collapse: collapse; font-size: .875rem; }
+table.review-compare th, table.review-compare td { padding: .55rem .75rem; text-align: left; border-bottom: 1px solid color-mix(in oklch, var(--border) 70%, transparent); vertical-align: top; }
+table.review-compare thead th { font-size: .72rem; font-weight: 600; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: .03em; }
+table.review-compare tbody tr:last-child > * { border-bottom: 0; }
+table.review-compare tbody th { font-weight: 600; white-space: nowrap; }
+.review-after { background: color-mix(in oklch, var(--primary) 5%, transparent); }
+td.review-changed { font-weight: 650; color: var(--primary); }
+.review-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; font-weight: 700; padding: .1rem .4rem; border-radius: .35rem; background: var(--muted); }
+.review-punches { list-style: none; margin: 0; padding: 0; display: grid; gap: .3rem; }
+.review-punches li { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; font-size: .85rem; }
+.review-punch-time { font-variant-numeric: tabular-nums; font-weight: 600; min-width: 3rem; }
+.review-old { text-decoration: line-through; color: #b91c1c; background: #fee2e2; padding: 0 .25rem; border-radius: .25rem; }
+.review-new { color: #166534; background: #dcfce7; padding: 0 .25rem; border-radius: .25rem; font-weight: 600; }
+.dark .review-old { background: color-mix(in oklch, #dc2626 25%, transparent); color: #fecaca; }
+.dark .review-new { background: color-mix(in oklch, #16a34a 25%, transparent); color: #bbf7d0; }
+.review-flag { color: #b45309; margin-left: .3rem; display: inline-flex; vertical-align: -2px; }
+table.review-rows { width: 100%; border-collapse: collapse; font-size: .82rem; }
+table.review-rows th, table.review-rows td { padding: .3rem .5rem; border-bottom: 1px dashed color-mix(in oklch, var(--border) 70%, transparent); text-align: left; }
+table.review-rows thead th { font-size: .7rem; color: var(--muted-foreground); font-weight: 600; }
+.review-row-kind { font-size: .7rem; text-transform: uppercase; color: var(--muted-foreground); width: 4.5rem; }
+table.review-rows tr.row-added td { background: color-mix(in oklch, #16a34a 9%, transparent); }
+table.review-rows tr.row-removed td { background: color-mix(in oklch, #dc2626 9%, transparent); text-decoration: line-through; color: var(--muted-foreground); }
+table.review-rows tr.row-removed td.review-row-kind { text-decoration: none; }
+@media (max-width: 640px) {
+  .review-face-group:first-child { flex-basis: 100%; }
+  .review-photo { width: calc((100vw - 7rem) / 3); max-width: 6.5rem; }
+  table.review-compare th, table.review-compare td { padding: .45rem .5rem; }
+  /* Biodata: one block per field, values labelled, instead of a wide table. */
+  table.review-biodata, table.review-biodata > tbody, table.review-biodata > tbody > tr, table.review-biodata > tbody > tr > th, table.review-biodata > tbody > tr > td { display: block; width: auto; }
+  table.review-biodata > thead { display: none; }
+  table.review-biodata > tbody > tr { padding: .5rem .75rem; border-bottom: 1px solid color-mix(in oklch, var(--border) 70%, transparent); }
+  table.review-biodata > tbody > tr > th, table.review-biodata > tbody > tr > td { padding: .15rem 0; border: 0; }
+  table.review-biodata > tbody > tr > td::before { content: attr(data-label); display: block; font-size: .7rem; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: .03em; }
+  table.review-biodata .review-rows { display: block; overflow-x: auto; }
+}

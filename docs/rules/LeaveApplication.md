@@ -6,6 +6,7 @@ Aturan yang dijalankan kode saat dokumen Leave Application (LeaveApplication) di
 
 ## Ringkasan perilaku
 
+- **EssApprovalNotifier**: Inbox notifications for self-service requests: the next approver (supervisor, project approver or the HR role) when a request reaches their stage, and the requester when it is decided. The ESS app shows them and links to the approval.
 - **LeaveApplicationHook**: Leave application: calculated &amp; validated on save and before approval transition. When approved, updates materialized EmployeeDailySchedule rows to LEAVE and checks shift manpower coverage.
 
 ## Validasi (dokumen ditolak): Pemeriksaan CheckAsync

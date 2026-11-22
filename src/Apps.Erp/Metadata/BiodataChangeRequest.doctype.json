@@ -1,0 +1,159 @@
+{
+  "name": "BiodataChangeRequest",
+  "version": 1,
+  "title": "Biodata Change Request",
+  "module": "HR",
+  "description": "Employee request to correct personal data (contact & address, marital status & dependents, bank account, identity numbers). HR approves; the employee record is updated.",
+  "naming": {
+    "pattern": "BIO-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "workflow": "BiodataChangeApproval",
+  "permissions": [
+    {
+      "role": "Employee",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete"
+      ],
+      "scope": "match:employee=employee"
+    },
+    {
+      "role": "HR-Admin",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Employee-Management",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "cancel",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "employee_name",
+    "searchFields": [
+      "name",
+      "employee_name"
+    ],
+    "filters": [
+      "category",
+      "workflow_state"
+    ],
+    "defaultSort": [
+      {
+        "field": "modified",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  },
+  "fields": [
+    {
+      "name": "employee",
+      "type": "Link",
+      "label": "Employee",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "default": "$employee",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Request"
+    },
+    {
+      "name": "employee_name",
+      "type": "Data",
+      "label": "Employee name",
+      "fetchFrom": "employee.full_name",
+      "inListView": true,
+      "section": "Request"
+    },
+    {
+      "name": "category",
+      "type": "Select",
+      "label": "Category",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Request",
+      "column": 2,
+      "options": [
+        "Contact & address",
+        "Marital status & dependents",
+        "Bank account",
+        "Identity numbers"
+      ]
+    },
+    {
+      "name": "reason",
+      "type": "Text",
+      "label": "Reason",
+      "section": "Request",
+      "column": 2
+    },
+    {
+      "name": "changes",
+      "type": "Table",
+      "label": "Changes",
+      "childDocType": "BiodataChangeItem",
+      "section": "Changes"
+    },
+    {
+      "name": "attachment",
+      "type": "Attach",
+      "label": "Supporting document",
+      "requiredWhen": "category == 'Bank account' || category == 'Identity numbers' || category == 'Marital status & dependents'",
+      "section": "Changes",
+      "description": "Bank book, KTP, NPWP, BPJS card, marriage or birth certificate"
+    },
+    {
+      "name": "applied",
+      "type": "Check",
+      "label": "Applied to employee",
+      "default": false,
+      "readOnlyWhen": "true",
+      "section": "Changes",
+      "column": 2
+    }
+  ]
+}

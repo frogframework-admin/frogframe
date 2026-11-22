@@ -42,6 +42,12 @@
       href: guides/tags-bookmarks-follow.md
     - name: Home Page
       href: guides/home-page.md
+    - name: Form Panels & Approval Review
+      href: guides/form-panels.md
+    - name: Tenants (Group Companies)
+      href: guides/tenants.md
+    - name: Attendance Codes & Monthly Recap
+      href: guides/attendance-codes.md
     - name: Background Jobs
       href: guides/background-jobs.md
     - name: Roles

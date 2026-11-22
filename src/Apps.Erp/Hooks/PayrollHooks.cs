@@ -348,6 +348,27 @@ public sealed class PayslipHook(IDocumentStore store) : IBeforeValidate<Payslip>
     /// dikurangi cuti tidak dibayar yang disetujui dan (opsional) absensi Absent. Pendapatan regular dikali hari dibayar ÷ hari kerja.
     /// Setelah dibuat, nominal bisa diubah manual; hook tidak memproporsikan ulang.
     /// </summary>
+    /// <summary>Attendance codes of the payslip's employment days in the month, for payroll formulas and review (docs/guides/attendance-codes.md).</summary>
+    private static async Task FillAttendanceSummaryAsync(Masters m, Document emp, IDictionary<string, object?> d, DateOnly from, DateOnly to, CancellationToken ct)
+    {
+        if (to < from) return;
+        var row = (await AttendanceDays.RecapAsync(m.Store, m.Tenant, from, to, ct, employee: emp.Name)).FirstOrDefault();
+        if (row is null) return;
+        d["att_on_time_days"] = (decimal)row.Count(AttendanceCodes.OnTime);
+        d["att_late_days"] = (decimal)row.LateDays;
+        d["att_late_minutes"] = (decimal)row.LateMinutes;
+        d["att_early_out_days"] = (decimal)row.EarlyOutDays;
+        d["att_early_out_minutes"] = (decimal)row.EarlyOutMinutes;
+        d["att_no_clock_in_days"] = (decimal)row.Count(AttendanceCodes.NoClockIn);
+        d["att_no_clock_out_days"] = (decimal)row.Count(AttendanceCodes.NoClockOut);
+        d["att_absent_days"] = (decimal)row.Count(AttendanceCodes.Absent);
+        d["att_invalid_days"] = (decimal)row.Count(AttendanceCodes.Invalid);
+        d["att_time_off_paid_days"] = (decimal)row.Count(AttendanceCodes.TimeOffPaid);
+        d["att_time_off_deduction_days"] = (decimal)row.Count(AttendanceCodes.TimeOffDeduction);
+        d["att_day_off_days"] = (decimal)row.Count(AttendanceCodes.DayOff);
+        d["att_unclassified_days"] = (decimal)row.UnclassifiedDays;
+    }
+
     private static async Task ProrateAsync(Masters m, Payroll.Settings s, Document emp, IDictionary<string, object?> d, string period, CancellationToken ct)
     {
         var end = Payroll.PeriodEnd(period); var start = new DateOnly(end.Year, end.Month, 1);
@@ -373,6 +394,7 @@ public sealed class PayslipHook(IDocumentStore store) : IBeforeValidate<Payslip>
 
         var payable = Math.Max(0m, employed - unpaid - absent);
         d["working_days"] = working; d["unpaid_leave_days"] = unpaid; d["absent_days"] = absent; d["payable_days"] = payable;
+        await FillAttendanceSummaryAsync(m, emp, d, from, to, ct);
         if (payable >= working) return;
         var factor = payable / working;
         foreach (var r in d.Rows("earnings"))

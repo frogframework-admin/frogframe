@@ -137,7 +137,7 @@
    "shared": true
   },
   {
-   "id": "EssAttendanceService.cs:142",
+   "id": "EssAttendanceService.cs:147",
    "kind": "Error",
    "message": "id (UUID from mobile app) is required",
    "pattern": "id\\s+\\(UUID\\s+from\\s+mobile\\s+app\\)\\s+is\\s+required",
@@ -153,11 +153,11 @@
    "className": "EssAttendanceService",
    "method": "PunchAsync",
    "file": "src/Apps.Erp/Ess/EssAttendanceService.cs",
-   "line": 142,
+   "line": 147,
    "shared": true
   },
   {
-   "id": "EssAttendanceService.cs:143",
+   "id": "EssAttendanceService.cs:148",
    "kind": "Error",
    "message": "type must be 'in' or 'out'",
    "pattern": "type\\s+must\\s+be\\s+'in'\\s+or\\s+'out'",
@@ -173,11 +173,11 @@
    "className": "EssAttendanceService",
    "method": "PunchAsync",
    "file": "src/Apps.Erp/Ess/EssAttendanceService.cs",
-   "line": 143,
+   "line": 148,
    "shared": true
   },
   {
-   "id": "EssAttendanceService.cs:149",
+   "id": "EssAttendanceService.cs:154",
    "kind": "Error",
    "message": "This punch ID is already in use",
    "pattern": "This\\s+punch\\s+ID\\s+is\\s+already\\s+in\\s+use",
@@ -193,11 +193,11 @@
    "className": "EssAttendanceService",
    "method": "PunchAsync",
    "file": "src/Apps.Erp/Ess/EssAttendanceService.cs",
-   "line": 149,
+   "line": 154,
    "shared": true
   },
   {
-   "id": "EssAttendanceService.cs:169",
+   "id": "EssAttendanceService.cs:174",
    "kind": "Error",
    "message": "This punch ID is already in use",
    "pattern": "This\\s+punch\\s+ID\\s+is\\s+already\\s+in\\s+use",
@@ -213,11 +213,11 @@
    "className": "EssAttendanceService",
    "method": "PunchAsync",
    "file": "src/Apps.Erp/Ess/EssAttendanceService.cs",
-   "line": 169,
+   "line": 174,
    "shared": true
   },
   {
-   "id": "EssAttendanceService.cs:212",
+   "id": "EssAttendanceService.cs:217",
    "kind": "Error",
    "message": "Photo size cannot exceed 1 MB",
    "pattern": "Photo\\s+size\\s+cannot\\s+exceed\\s+1\\s+MB",
@@ -233,11 +233,11 @@
    "className": "EssAttendanceService",
    "method": "AttachPhotoAsync",
    "file": "src/Apps.Erp/Ess/EssAttendanceService.cs",
-   "line": 212,
+   "line": 217,
    "shared": true
   },
   {
-   "id": "EssAttendanceService.cs:216",
+   "id": "EssAttendanceService.cs:221",
    "kind": "Error",
    "message": "Photo format must be JPEG, PNG, or WebP",
    "pattern": "Photo\\s+format\\s+must\\s+be\\s+JPEG,\\s+PNG,\\s+or\\s+WebP",
@@ -253,7 +253,7 @@
    "className": "EssAttendanceService",
    "method": "AttachPhotoAsync",
    "file": "src/Apps.Erp/Ess/EssAttendanceService.cs",
-   "line": 216,
+   "line": 221,
    "shared": true
   },
   {
@@ -302,12 +302,27 @@
    "shared": true
   },
   {
+   "id": "EssEndpoints.cs:314",
+   "kind": "Error",
+   "message": "Use accept, decline or withdraw",
+   "pattern": "Use\\s+accept,\\s+decline\\s+or\\s+withdraw",
+   "field": "answer",
+   "condition": null,
+   "docTypes": [],
+   "event": "Pemeriksaan Lines",
+   "className": "EssEndpoints",
+   "method": "Lines",
+   "file": "src/Apps.Erp/Ess/EssEndpoints.cs",
+   "line": 314,
+   "shared": true
+  },
+  {
    "id": "EssEndpoints.cs:318",
    "kind": "Error",
-   "message": "decision must be 'approve' or 'reject'",
-   "pattern": "decision\\s+must\\s+be\\s+'approve'\\s+or\\s+'reject'",
-   "field": "decision",
-   "condition": null,
+   "message": "A reason is required to decline",
+   "pattern": "A\\s+reason\\s+is\\s+required\\s+to\\s+decline",
+   "field": "comment",
+   "condition": "!(doc.Data.Str(field) != emp) && action == \"Decline swap\" && string.IsNullOrWhiteSpace(body?.Comment)",
    "docTypes": [],
    "event": "Pemeriksaan Lines",
    "className": "EssEndpoints",
@@ -317,33 +332,78 @@
    "shared": true
   },
   {
-   "id": "EssEndpoints.cs:321",
+   "id": "EssEndpoints.cs:359",
    "kind": "Error",
-   "message": "Rejection reason is required",
-   "pattern": "Rejection\\s+reason\\s+is\\s+required",
-   "field": "comment",
-   "condition": "!(!ApprovalDocTypes.Contains(doctype)) && action == \"Reject\" && string.IsNullOrWhiteSpace(body?.Comment)",
+   "message": "Send multipart/form-data with photo files and a 'template' field",
+   "pattern": "Send\\s+multipart/form\\-data\\s+with\\s+photo\\s+files\\s+and\\s+a\\s+'template'\\s+field",
+   "field": "photos",
+   "condition": "!http.Request.HasFormContentType",
    "docTypes": [],
    "event": "Pemeriksaan Lines",
    "className": "EssEndpoints",
    "method": "Lines",
    "file": "src/Apps.Erp/Ess/EssEndpoints.cs",
-   "line": 321,
+   "line": 359,
    "shared": true
   },
   {
-   "id": "EssEndpoints.cs:346",
+   "id": "EssEndpoints.cs:365",
+   "kind": "Error",
+   "message": "Each photo can be at most 2 MB",
+   "pattern": "Each\\s+photo\\s+can\\s+be\\s+at\\s+most\\s+2\\s+MB",
+   "field": "{file.Name}",
+   "condition": "file.Length > FileService.MaxImageBytes",
+   "docTypes": [],
+   "event": "Pemeriksaan Lines",
+   "className": "EssEndpoints",
+   "method": "Lines",
+   "file": "src/Apps.Erp/Ess/EssEndpoints.cs",
+   "line": 365,
+   "shared": true
+  },
+  {
+   "id": "EssEndpoints.cs:425",
+   "kind": "Error",
+   "message": "Send multipart/form-data with a 'file' field",
+   "pattern": "Send\\s+multipart/form\\-data\\s+with\\s+a\\s+'file'\\s+field",
+   "field": "file",
+   "condition": "!http.Request.HasFormContentType",
+   "docTypes": [],
+   "event": "Pemeriksaan Lines",
+   "className": "EssEndpoints",
+   "method": "Lines",
+   "file": "src/Apps.Erp/Ess/EssEndpoints.cs",
+   "line": 425,
+   "shared": true
+  },
+  {
+   "id": "EssEndpoints.cs:428",
+   "kind": "Error",
+   "message": "Upload a file in the 'file' form field",
+   "pattern": "Upload\\s+a\\s+file\\s+in\\s+the\\s+'file'\\s+form\\s+field",
+   "field": "file",
+   "condition": "!(!http.Request.HasFormContentType)",
+   "docTypes": [],
+   "event": "Pemeriksaan Lines",
+   "className": "EssEndpoints",
+   "method": "Lines",
+   "file": "src/Apps.Erp/Ess/EssEndpoints.cs",
+   "line": 428,
+   "shared": true
+  },
+  {
+   "id": "EssEndpoints.cs:479",
    "kind": "Error",
    "message": "Date format must be yyyy-MM-dd",
    "pattern": "Date\\s+format\\s+must\\s+be\\s+yyyy\\-MM\\-dd",
    "field": "{field}",
-   "condition": "\"/api/ess/v1\"; private static readonly string[] ApprovalDocTypes = [\"LeaveApplication\", \"OvertimeRequest\", \"ExpenseClaim\", \"EmployeeAdvance\"]; public static IEndpointRouteBuilder MapEssApi(this IEndpointRouteBuilder app) { var g = app.MapGroup(Prefix).RequireRateLimiting(ServiceCollectionExtensions.ApiRateLimit); // ---------------- Profile & Home ---------------- g.MapGet(\"/me\", (Func<HttpContext, Task<IResult>>)(http => Ess(http, async (user, emp, sp, ct) => { var svc = sp.GetRequiredService<EssAttendanceService>(); var p = await svc.GetProfileAsync(user.TenantId, emp, ct) tidak ditemukan/kosong",
+   "condition": "\"/api/ess/v1\"; public static IEndpointRouteBuilder MapEssApi(this IEndpointRouteBuilder app) { var g = app.MapGroup(Prefix).RequireRateLimiting(ServiceCollectionExtensions.ApiRateLimit); // ---------------- Profile & Home ---------------- g.MapGet(\"/me\", (Func<HttpContext, Task<IResult>>)(http => Ess(http, async (user, emp, sp, ct) => { var svc = sp.GetRequiredService<EssAttendanceService>(); var p = await svc.GetProfileAsync(user.TenantId, emp, ct) tidak ditemukan/kosong",
    "docTypes": [],
    "event": "Pemeriksaan ParseDate",
    "className": "EssEndpoints",
    "method": "ParseDate",
    "file": "src/Apps.Erp/Ess/EssEndpoints.cs",
-   "line": 346,
+   "line": 479,
    "shared": true
   },
   {
@@ -359,6 +419,130 @@
    "method": "InsertAsync",
    "file": "src/Apps.Erp/Ess/EssPunches.cs",
    "line": 157,
+   "shared": true
+  },
+  {
+   "id": "EssRequests.cs:65",
+   "kind": "Error",
+   "message": "The employee's consent is required to register a face",
+   "pattern": "The\\s+employee's\\s+consent\\s+is\\s+required\\s+to\\s+register\\s+a\\s+face",
+   "field": "consent",
+   "condition": "!input.Consent",
+   "docTypes": [],
+   "event": "Pemeriksaan RegisterFaceAsync",
+   "className": "EssRequestService",
+   "method": "RegisterFaceAsync",
+   "file": "src/Apps.Erp/Ess/EssRequests.cs",
+   "line": 65,
+   "shared": true
+  },
+  {
+   "id": "EssRequests.cs:67",
+   "kind": "Error",
+   "message": "Send 1–{MaxFacePhotos} face photos",
+   "pattern": "Send\\s+1–.+?\\s+face\\s+photos",
+   "field": "photos",
+   "condition": "!(!input.Consent) && input.Photos.Count is < 1 or > MaxFacePhotos",
+   "docTypes": [],
+   "event": "Pemeriksaan RegisterFaceAsync",
+   "className": "EssRequestService",
+   "method": "RegisterFaceAsync",
+   "file": "src/Apps.Erp/Ess/EssRequests.cs",
+   "line": 67,
+   "shared": true
+  },
+  {
+   "id": "EssRequests.cs:149",
+   "kind": "Error",
+   "message": "Use yyyy-MM-ddTHH:mm",
+   "pattern": "Use\\s+yyyy\\-MM\\-ddTHH:mm",
+   "field": "{field}",
+   "condition": "!(string.IsNullOrWhiteSpace(value)) && value.EndsWith('Z') || value.Length > 19 && (value[^6] is '+' or '-')",
+   "docTypes": [],
+   "event": "Pemeriksaan ToUtc",
+   "className": "EssRequestService",
+   "method": "ToUtc",
+   "file": "src/Apps.Erp/Ess/EssRequests.cs",
+   "line": 149,
+   "shared": true
+  },
+  {
+   "id": "EssRequests.cs:151",
+   "kind": "Error",
+   "message": "Use yyyy-MM-ddTHH:mm",
+   "pattern": "Use\\s+yyyy\\-MM\\-ddTHH:mm",
+   "field": "{field}",
+   "condition": "!(string.IsNullOrWhiteSpace(value)) && !(value.EndsWith('Z') || value.Length > 19 && (value[^6] is '+' or '-')) && !DateTime.TryParse(value, CultureInfo.InvariantCulture, styles, out var local)",
+   "docTypes": [],
+   "event": "Pemeriksaan ToUtc",
+   "className": "EssRequestService",
+   "method": "ToUtc",
+   "file": "src/Apps.Erp/Ess/EssRequests.cs",
+   "line": 151,
+   "shared": true
+  },
+  {
+   "id": "EssRequests.cs:241",
+   "kind": "Error",
+   "message": "decision must be 'approve' or 'reject'",
+   "pattern": "decision\\s+must\\s+be\\s+'approve'\\s+or\\s+'reject'",
+   "field": "decision",
+   "condition": null,
+   "docTypes": [],
+   "event": "Pemeriksaan DecideAsync",
+   "className": "EssRequestService",
+   "method": "DecideAsync",
+   "file": "src/Apps.Erp/Ess/EssRequests.cs",
+   "line": 241,
+   "shared": true
+  },
+  {
+   "id": "EssRequests.cs:255",
+   "kind": "Error",
+   "message": "A comment is required for '{chosen.Action}'",
+   "pattern": "A\\s+comment\\s+is\\s+required\\s+for\\s+'.+?'",
+   "field": "comment",
+   "condition": "!(!ApprovalDocTypes.Contains(docType)) && chosen.RequireComment && string.IsNullOrWhiteSpace(comment)",
+   "docTypes": [],
+   "event": "Pemeriksaan DecideAsync",
+   "className": "EssRequestService",
+   "method": "DecideAsync",
+   "file": "src/Apps.Erp/Ess/EssRequests.cs",
+   "line": 255,
+   "shared": true
+  },
+  {
+   "id": "FaceTemplates.cs:26",
+   "kind": "Error",
+   "message": "The face template must have {MinDimensions}–{MaxDimensions} numbers",
+   "pattern": "The\\s+face\\s+template\\s+must\\s+have\\s+.+?–.+?\\s+numbers",
+   "field": "template",
+   "condition": "vector is null || vector.Count is < MinDimensions or > MaxDimensions",
+   "docTypes": [
+    "FaceRegistration"
+   ],
+   "event": "Pemeriksaan Canonical",
+   "className": "FaceTemplates",
+   "method": "Canonical",
+   "file": "src/Apps.Erp/Ess/FaceTemplates.cs",
+   "line": 26,
+   "shared": true
+  },
+  {
+   "id": "FaceTemplates.cs:28",
+   "kind": "Error",
+   "message": "The face template contains invalid numbers",
+   "pattern": "The\\s+face\\s+template\\s+contains\\s+invalid\\s+numbers",
+   "field": "template",
+   "condition": "vector.Any(v => double.IsNaN(v) || double.IsInfinity(v))",
+   "docTypes": [
+    "FaceRegistration"
+   ],
+   "event": "Pemeriksaan Canonical",
+   "className": "FaceTemplates",
+   "method": "Canonical",
+   "file": "src/Apps.Erp/Ess/FaceTemplates.cs",
+   "line": 28,
    "shared": true
   },
   {
@@ -1113,12 +1297,12 @@
    "shared": false
   },
   {
-   "id": "Common.cs:139",
+   "id": "Common.cs:140",
    "kind": "Error",
    "message": "{label} '{name}' not found",
    "pattern": ".+?\\s+'.+?'\\s+not\\s+found",
    "field": "{path}",
-   "condition": "nama DocType (DocHookRegistration memakai typeof(TDoc).Name). // --------------------------------------------------------------------------------------------- public sealed class Account { } public sealed class AccountingPeriod { } public sealed class FiscalYear { } public sealed class JournalEntry { } public sealed class SalesInvoice { } public sealed class SalesCreditNote { } public sealed class PurchaseInvoice { } public sealed class PurchaseDebitNote { } public sealed class PaymentEntry { } public sealed class CurrencyExchangeRate { } public sealed class Address { } public sealed class Contact { } public sealed class PeriodClosingVoucher { } public sealed class TaxInvoice { } public sealed class WithholdingCertificate { } public sealed class Asset { } public sealed class DepreciationRun { } public sealed class AssetDisposal { } public sealed class ExpenseClaim { } public sealed class EmployeeAdvance { } public sealed class BankStatement { } public sealed class BankReconciliation { } public sealed class PaymentReconciliation { } public sealed class Employee { } public sealed class Position { } public sealed class OrganizationUnit { } public sealed class OrganizationUnitType { } public sealed class EmployeeAssignment { } public sealed class JobChange { } public sealed class EmployeeSeparation { } public sealed class EmploymentContract { } public sealed class LeaveAllocation { } public sealed class LeaveApplication { } public sealed class ShiftGroup { } public sealed class ShiftPattern { } public sealed class ShiftAssignment { } public sealed class EmployeeDailySchedule { } public sealed class ScheduleGeneration { } public sealed class WorkScheduleRule { } public sealed class ShiftOverride { } public sealed class ShiftSwapRequest { } public sealed class ShiftRequirement { } public sealed class ShiftPreference { } public sealed class ScheduleOptimization { } public sealed class Project { } public sealed class Lead { } public sealed class Opportunity { } public sealed class Quotation { } /// <summary>Akses aman ke Document.Data (nilai sudah dinormalisasi framework: decimal, bool, \"yyyy-MM-dd\", List&lt;Dictionary&gt;).</summary> internal static class D { public static string? Str(this IDictionary<string, object?> d, string key) => d.TryGetValue(key, out var v) && v is string { Length: > 0 } s ? s : null; public static decimal Dec(this IDictionary<string, object?> d, string key) => d.TryGetValue(key, out var v) ? ToDec(v) : 0m; public static bool Bool(this IDictionary<string, object?> d, string key) => d.TryGetValue(key, out var v) && v is true; public static DateOnly? Date(this IDictionary<string, object?> d, string key) => d.TryGetValue(key, out var v) ? ToDate(v) : null; public static List<Dictionary<string, object?>> Rows(this IDictionary<string, object?> d, string key) => d.TryGetValue(key, out var v) && v is IEnumerable<Dictionary<string, object?>> rows ? rows.ToList() : []; public static decimal ToDec(object? v) => v switch { null => 0m, decimal x => x, long x => x, int x => x, double x => (decimal)x, string s when decimal.TryParse(s, NumberStyles.Number, CultureInfo.InvariantCulture, out var r) => r, _ => 0m, }; public static DateOnly? ToDate(object? v) => v switch { DateOnly x => x, string s when DateOnly.TryParseExact(s, \"yyyy-MM-dd\", CultureInfo.InvariantCulture, DateTimeStyles.None, out var r) => r, _ => null, }; /// <summary>Isi nilai bila field belum ada/kosong. (Jangan memakai d[key] ??= v: getter Dictionary melempar bila key belum ada.)</summary> public static void SetIfEmpty(this IDictionary<string, object?> d, string key, object? value) { if (value is null) return; if (!d.TryGetValue(key, out var current) || current is null || current is string { Length: 0 }) d[key] = value; } public static string Iso(DateOnly d) => d.ToString(\"yyyy-MM-dd\", CultureInfo.InvariantCulture); /// <summary>Sama dengan fungsi round() di ekspresi metadata (AwayFromZero).</summary> public static decimal R2(decimal v) => Math.Round(v, 2, MidpointRounding.AwayFromZero); } /// <summary>Pengumpul error per field; dilempar sekaligus agar pengguna melihat semua masalah.</summary> internal sealed class Errors { private readonly List<FieldError> _list = []; public void Add(string path, string message) => _list.Add(new FieldError(path, message)); public bool Any => _list.Count > 0; public void ThrowIfAny() { if (_list.Count > 0) throw new ValidationFailedException(_list); } public static Exception One(string path, string message) => new ValidationFailedException([new FieldError(path, message)]); } /// <summary> /// Pembaca master langsung dari store (dibatasi tenant, tidak dibatasi role user). Hook harus bisa membaca Account/Company/TaxCode /// walaupun user yang menyimpan dokumen (mis. Sales, Employee) tidak punya izin baca master tersebut. Di-cache per operasi. /// </summary> internal sealed class Masters(IDocumentStore store, string tenant) { private readonly Dictionary<(string, string), Document?> _cache = new(); public string Tenant => tenant; public async Task<Document?> GetAsync(string docType, string? name, CancellationToken ct) { if (string.IsNullOrEmpty(name)) return null; if (_cache.TryGetValue((docType, name), out var hit)) return hit; var doc = await store.GetAsync(tenant, docType, name, ct); _cache[(docType, name)] = doc; return doc; } public async Task<Document> RequireAsync(string docType, string? name, string path, string label, CancellationToken ct) => await GetAsync(docType, name, ct) tidak ditemukan/kosong",
+   "condition": "nama DocType (DocHookRegistration memakai typeof(TDoc).Name). // --------------------------------------------------------------------------------------------- public sealed class Account { } public sealed class AccountingPeriod { } public sealed class FiscalYear { } public sealed class JournalEntry { } public sealed class SalesInvoice { } public sealed class SalesCreditNote { } public sealed class PurchaseInvoice { } public sealed class PurchaseDebitNote { } public sealed class PaymentEntry { } public sealed class CurrencyExchangeRate { } public sealed class Address { } public sealed class Contact { } public sealed class PeriodClosingVoucher { } public sealed class TaxInvoice { } public sealed class WithholdingCertificate { } public sealed class Asset { } public sealed class DepreciationRun { } public sealed class AssetDisposal { } public sealed class ExpenseClaim { } public sealed class EmployeeAdvance { } public sealed class BankStatement { } public sealed class BankReconciliation { } public sealed class PaymentReconciliation { } public sealed class Employee { } public sealed class Position { } public sealed class OrganizationUnit { } public sealed class OrganizationUnitType { } public sealed class EmployeeAssignment { } public sealed class JobChange { } public sealed class EmployeeSeparation { } public sealed class EmploymentContract { } public sealed class LeaveAllocation { } public sealed class LeaveApplication { } public sealed class ShiftGroup { } public sealed class ShiftPattern { } public sealed class ShiftAssignment { } public sealed class EmployeeDailySchedule { } public sealed class ScheduleGeneration { } public sealed class WorkScheduleRule { } public sealed class ShiftOverride { } public sealed class ShiftSwapRequest { } public sealed class ShiftRequirement { } public sealed class ShiftPreference { } public sealed class ScheduleOptimization { } public sealed class Project { } public sealed class Lead { } public sealed class Opportunity { } public sealed class Quotation { } /// <summary>Akses aman ke Document.Data (nilai sudah dinormalisasi framework: decimal, bool, \"yyyy-MM-dd\", List&lt;Dictionary&gt;).</summary> internal static class D { public static string? Str(this IDictionary<string, object?> d, string key) => d.TryGetValue(key, out var v) && v is string { Length: > 0 } s ? s : null; public static decimal Dec(this IDictionary<string, object?> d, string key) => d.TryGetValue(key, out var v) ? ToDec(v) : 0m; public static bool Bool(this IDictionary<string, object?> d, string key) => d.TryGetValue(key, out var v) && v is true; public static DateOnly? Date(this IDictionary<string, object?> d, string key) => d.TryGetValue(key, out var v) ? ToDate(v) : null; public static List<Dictionary<string, object?>> Rows(this IDictionary<string, object?> d, string key) => d.TryGetValue(key, out var v) && v is IEnumerable<Dictionary<string, object?>> rows ? rows.ToList() : []; public static decimal ToDec(object? v) => v switch { null => 0m, decimal x => x, long x => x, int x => x, double x => (decimal)x, string s when decimal.TryParse(s, NumberStyles.Number, CultureInfo.InvariantCulture, out var r) => r, _ => 0m, }; public static DateOnly? ToDate(object? v) => v switch { DateOnly x => x, string s when DateOnly.TryParseExact(s, \"yyyy-MM-dd\", CultureInfo.InvariantCulture, DateTimeStyles.None, out var r) => r, _ => null, }; /// <summary>Isi nilai bila field belum ada/kosong. (Jangan memakai d[key] ??= v: getter Dictionary melempar bila key belum ada.)</summary> public static void SetIfEmpty(this IDictionary<string, object?> d, string key, object? value) { if (value is null) return; if (!d.TryGetValue(key, out var current) || current is null || current is string { Length: 0 }) d[key] = value; } public static string Iso(DateOnly d) => d.ToString(\"yyyy-MM-dd\", CultureInfo.InvariantCulture); /// <summary>Sama dengan fungsi round() di ekspresi metadata (AwayFromZero).</summary> public static decimal R2(decimal v) => Math.Round(v, 2, MidpointRounding.AwayFromZero); } /// <summary>Pengumpul error per field; dilempar sekaligus agar pengguna melihat semua masalah.</summary> internal sealed class Errors { private readonly List<FieldError> _list = []; public void Add(string path, string message) => _list.Add(new FieldError(path, message)); public bool Any => _list.Count > 0; public void ThrowIfAny() { if (_list.Count > 0) throw new ValidationFailedException(_list); } public static Exception One(string path, string message) => new ValidationFailedException([new FieldError(path, message)]); } /// <summary> /// Pembaca master langsung dari store (dibatasi tenant, tidak dibatasi role user). Hook harus bisa membaca Account/Company/TaxCode /// walaupun user yang menyimpan dokumen (mis. Sales, Employee) tidak punya izin baca master tersebut. Di-cache per operasi. /// </summary> internal sealed class Masters(IDocumentStore store, string tenant) { private readonly Dictionary<(string, string), Document?> _cache = new(); public string Tenant => tenant; public IDocumentStore Store => store; public async Task<Document?> GetAsync(string docType, string? name, CancellationToken ct) { if (string.IsNullOrEmpty(name)) return null; if (_cache.TryGetValue((docType, name), out var hit)) return hit; var doc = await store.GetAsync(tenant, docType, name, ct); _cache[(docType, name)] = doc; return doc; } public async Task<Document> RequireAsync(string docType, string? name, string path, string label, CancellationToken ct) => await GetAsync(docType, name, ct) tidak ditemukan/kosong",
    "docTypes": [
     "Account",
     "AccountingPeriod",
@@ -1127,8 +1311,10 @@
     "Asset",
     "AssetDisposal",
     "Attendance",
+    "AttendanceCorrection",
     "BankReconciliation",
     "BankStatement",
+    "BiodataChangeRequest",
     "Budget",
     "Campaign",
     "CommissionStatement",
@@ -1143,6 +1329,7 @@
     "EmployeeSeparation",
     "EmploymentContract",
     "ExpenseClaim",
+    "FaceRegistration",
     "FiscalYear",
     "GoodsReceipt",
     "HRSettings",
@@ -1194,11 +1381,11 @@
    "className": "Masters",
    "method": "RequireAsync",
    "file": "src/Apps.Erp/Hooks/Common.cs",
-   "line": 139,
+   "line": 140,
    "shared": true
   },
   {
-   "id": "Common.cs:186",
+   "id": "Common.cs:188",
    "kind": "Error",
    "message": "No {rateType} exchange rate {from}→{to} for {day}. Add a Currency Exchange Rate or type the rate manually.",
    "pattern": "No\\s+.+?\\s+exchange\\s+rate\\s+.+?→.+?\\s+for\\s+.+?\\.\\s+Add\\s+a\\s+Currency\\s+Exchange\\s+Rate\\s+or\\s+type\\s+the\\s+rate\\s+manually\\.",
@@ -1217,11 +1404,11 @@
    "className": "Rates",
    "method": "Find",
    "file": "src/Apps.Erp/Hooks/Common.cs",
-   "line": 186,
+   "line": 188,
    "shared": true
   },
   {
-   "id": "Common.cs:214",
+   "id": "Common.cs:216",
    "kind": "Error",
    "message": "No accounting period exists for {D.Iso(date)}",
    "pattern": "No\\s+accounting\\s+period\\s+exists\\s+for\\s+.+?",
@@ -1250,11 +1437,11 @@
    "className": "Periods",
    "method": "CheckAsync",
    "file": "src/Apps.Erp/Hooks/Common.cs",
-   "line": 214,
+   "line": 216,
    "shared": true
   },
   {
-   "id": "Common.cs:215",
+   "id": "Common.cs:217",
    "kind": "Error",
    "message": "Period {period.Name} is closed",
    "pattern": "Period\\s+.+?\\s+is\\s+closed",
@@ -1283,11 +1470,11 @@
    "className": "Periods",
    "method": "CheckAsync",
    "file": "src/Apps.Erp/Hooks/Common.cs",
-   "line": 215,
+   "line": 217,
    "shared": true
   },
   {
-   "id": "Common.cs:217",
+   "id": "Common.cs:219",
    "kind": "Error",
    "message": "Period {period.Name} is locked for this transaction (subledger close)",
    "pattern": "Period\\s+.+?\\s+is\\s+locked\\s+for\\s+this\\s+transaction\\s+\\(subledger\\s+close\\)",
@@ -1316,11 +1503,11 @@
    "className": "Periods",
    "method": "CheckAsync",
    "file": "src/Apps.Erp/Hooks/Common.cs",
-   "line": 217,
+   "line": 219,
    "shared": true
   },
   {
-   "id": "Common.cs:221",
+   "id": "Common.cs:223",
    "kind": "Error",
    "message": "Books are frozen until {D.Iso(frozen)}",
    "pattern": "Books\\s+are\\s+frozen\\s+until\\s+.+?",
@@ -1349,11 +1536,11 @@
    "className": "Periods",
    "method": "CheckAsync",
    "file": "src/Apps.Erp/Hooks/Common.cs",
-   "line": 221,
+   "line": 223,
    "shared": true
   },
   {
-   "id": "Common.cs:227",
+   "id": "Common.cs:229",
    "kind": "Error",
    "message": "The posting date cannot be in the future (see Accounting Settings)",
    "pattern": "The\\s+posting\\s+date\\s+cannot\\s+be\\s+in\\s+the\\s+future\\s+\\(see\\s+Accounting\\s+Settings\\)",
@@ -1382,11 +1569,11 @@
    "className": "Periods",
    "method": "CheckFutureAsync",
    "file": "src/Apps.Erp/Hooks/Common.cs",
-   "line": 227,
+   "line": 229,
    "shared": true
   },
   {
-   "id": "Common.cs:266",
+   "id": "Common.cs:268",
    "kind": "Error",
    "message": "Entry is out of balance by {diff} (exceeds the {what} tolerance of {tolerance})",
    "pattern": "Entry\\s+is\\s+out\\s+of\\s+balance\\s+by\\s+.+?\\s+\\(exceeds\\s+the\\s+.+?\\s+tolerance\\s+of\\s+.+?\\)",
@@ -1415,11 +1602,11 @@
    "className": "Posting",
    "method": "Balance",
    "file": "src/Apps.Erp/Hooks/Common.cs",
-   "line": 266,
+   "line": 268,
    "shared": true
   },
   {
-   "id": "Common.cs:268",
+   "id": "Common.cs:270",
    "kind": "Error",
    "message": "There is a {what} difference of {diff}; set the {what} account on the Company",
    "pattern": "There\\s+is\\s+a\\s+.+?\\s+difference\\s+of\\s+.+?;\\s+set\\s+the\\s+.+?\\s+account\\s+on\\s+the\\s+Company",
@@ -1448,11 +1635,11 @@
    "className": "Posting",
    "method": "Balance",
    "file": "src/Apps.Erp/Hooks/Common.cs",
-   "line": 268,
+   "line": 270,
    "shared": true
   },
   {
-   "id": "Common.cs:276",
+   "id": "Common.cs:278",
    "kind": "Error",
    "message": "A posting needs at least 2 lines",
    "pattern": "A\\s+posting\\s+needs\\s+at\\s+least\\s+2\\s+lines",
@@ -1481,11 +1668,11 @@
    "className": "Posting",
    "method": "Build",
    "file": "src/Apps.Erp/Hooks/Common.cs",
-   "line": 276,
+   "line": 278,
    "shared": true
   },
   {
-   "id": "Common.cs:437",
+   "id": "Common.cs:440",
    "kind": "Error",
    "message": "Account {acc.Name} is a group account",
    "pattern": "Account\\s+.+?\\s+is\\s+a\\s+group\\s+account",
@@ -1505,11 +1692,11 @@
    "className": "Accounts",
    "method": "RequirePostableAsync",
    "file": "src/Apps.Erp/Hooks/Common.cs",
-   "line": 437,
+   "line": 440,
    "shared": true
   },
   {
-   "id": "Common.cs:438",
+   "id": "Common.cs:441",
    "kind": "Error",
    "message": "Account {acc.Name} is inactive",
    "pattern": "Account\\s+.+?\\s+is\\s+inactive",
@@ -1529,11 +1716,11 @@
    "className": "Accounts",
    "method": "RequirePostableAsync",
    "file": "src/Apps.Erp/Hooks/Common.cs",
-   "line": 438,
+   "line": 441,
    "shared": true
   },
   {
-   "id": "Common.cs:439",
+   "id": "Common.cs:442",
    "kind": "Error",
    "message": "Account {acc.Name} is frozen",
    "pattern": "Account\\s+.+?\\s+is\\s+frozen",
@@ -1553,7 +1740,7 @@
    "className": "Accounts",
    "method": "RequirePostableAsync",
    "file": "src/Apps.Erp/Hooks/Common.cs",
-   "line": 439,
+   "line": 442,
    "shared": true
   },
   {
@@ -1888,6 +2075,8 @@
    "condition": "emp.Data.Str(\"status\") == \"Left\"",
    "docTypes": [
     "Attendance",
+    "AttendanceCorrection",
+    "BiodataChangeRequest",
     "Employee",
     "EmployeeAdvance",
     "EmployeeAssignment",
@@ -1895,6 +2084,7 @@
     "EmployeeSeparation",
     "EmploymentContract",
     "ExpenseClaim",
+    "FaceRegistration",
     "JobChange",
     "LeaveAllocation",
     "LeaveApplication",
@@ -2176,6 +2366,329 @@
    "method": "OnCancelAsync",
    "file": "src/Apps.Erp/Hooks/EmployeeFinanceHooks.cs",
    "line": 184,
+   "shared": false
+  },
+  {
+   "id": "EssRequestHooks.cs:37",
+   "kind": "Error",
+   "message": "Face templates need ASP.NET Data Protection, which is not configured",
+   "pattern": "Face\\s+templates\\s+need\\s+ASP\\.NET\\s+Data\\s+Protection,\\s+which\\s+is\\s+not\\s+configured",
+   "field": "template_file",
+   "condition": "templateId is not null && templateId != c.Previous?.Data.Str(\"template_file\")",
+   "docTypes": [
+    "FaceRegistration"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "FaceRegistrationHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/EssRequestHooks.cs",
+   "line": 37,
+   "shared": false
+  },
+  {
+   "id": "EssRequestHooks.cs:40",
+   "kind": "Error",
+   "message": "The face template must be registered from the ESS mobile app",
+   "pattern": "The\\s+face\\s+template\\s+must\\s+be\\s+registered\\s+from\\s+the\\s+ESS\\s+mobile\\s+app",
+   "field": "template_file",
+   "condition": "vector is null",
+   "docTypes": [
+    "FaceRegistration"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "FaceRegistrationHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/EssRequestHooks.cs",
+   "line": 40,
+   "shared": false
+  },
+  {
+   "id": "EssRequestHooks.cs:54",
+   "kind": "Error",
+   "message": "The employee's consent is required to register a face",
+   "pattern": "The\\s+employee's\\s+consent\\s+is\\s+required\\s+to\\s+register\\s+a\\s+face",
+   "field": "consent",
+   "condition": "!d.Bool(\"consent\")",
+   "docTypes": [
+    "FaceRegistration"
+   ],
+   "event": "Saat aksi workflow (approve/reject/...)",
+   "className": "FaceRegistrationHook",
+   "method": "BeforeTransitionAsync",
+   "file": "src/Apps.Erp/Hooks/EssRequestHooks.cs",
+   "line": 54,
+   "shared": false
+  },
+  {
+   "id": "EssRequestHooks.cs:55",
+   "kind": "Error",
+   "message": "At least one face photo is required",
+   "pattern": "At\\s+least\\s+one\\s+face\\s+photo\\s+is\\s+required",
+   "field": "photo_1",
+   "condition": "!(!d.Bool(\"consent\")) && d.Str(\"photo_1\") is null",
+   "docTypes": [
+    "FaceRegistration"
+   ],
+   "event": "Saat aksi workflow (approve/reject/...)",
+   "className": "FaceRegistrationHook",
+   "method": "BeforeTransitionAsync",
+   "file": "src/Apps.Erp/Hooks/EssRequestHooks.cs",
+   "line": 55,
+   "shared": false
+  },
+  {
+   "id": "EssRequestHooks.cs:56",
+   "kind": "Error",
+   "message": "The face template is missing; register again from the ESS app",
+   "pattern": "The\\s+face\\s+template\\s+is\\s+missing;\\s+register\\s+again\\s+from\\s+the\\s+ESS\\s+app",
+   "field": "template_file",
+   "condition": "!(!d.Bool(\"consent\")) && !(d.Str(\"photo_1\") is null) && d.Str(\"template_file\") is null",
+   "docTypes": [
+    "FaceRegistration"
+   ],
+   "event": "Saat aksi workflow (approve/reject/...)",
+   "className": "FaceRegistrationHook",
+   "method": "BeforeTransitionAsync",
+   "file": "src/Apps.Erp/Hooks/EssRequestHooks.cs",
+   "line": 56,
+   "shared": false
+  },
+  {
+   "id": "EssRequestHooks.cs:92",
+   "kind": "Error",
+   "message": "The date is required",
+   "pattern": "The\\s+date\\s+is\\s+required",
+   "field": "attendance_date",
+   "condition": "d.Date(\"attendance_date\") tidak ditemukan/kosong",
+   "docTypes": [
+    "AttendanceCorrection"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "AttendanceCorrectionHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/EssRequestHooks.cs",
+   "line": 92,
+   "shared": false
+  },
+  {
+   "id": "EssRequestHooks.cs:94",
+   "kind": "Error",
+   "message": "Attendance can only be corrected for today or past days",
+   "pattern": "Attendance\\s+can\\s+only\\s+be\\s+corrected\\s+for\\s+today\\s+or\\s+past\\s+days",
+   "field": "attendance_date",
+   "condition": "date > today",
+   "docTypes": [
+    "AttendanceCorrection"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "AttendanceCorrectionHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/EssRequestHooks.cs",
+   "line": 94,
+   "shared": false
+  },
+  {
+   "id": "EssRequestHooks.cs:115",
+   "kind": "Error",
+   "message": "Check-in must be on {D.Iso(date)}",
+   "pattern": "Check\\-in\\s+must\\s+be\\s+on\\s+.+?",
+   "field": "requested_check_in",
+   "condition": "!(date > today) && AttendanceHook.LocalTime(d.GetValueOrDefault(\"requested_check_in\")) is { } ci && (ci < dayStart.AddHours(-6) || ci >= dayStart.AddDays(1))",
+   "docTypes": [
+    "AttendanceCorrection"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "AttendanceCorrectionHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/EssRequestHooks.cs",
+   "line": 115,
+   "shared": false
+  },
+  {
+   "id": "EssRequestHooks.cs:117",
+   "kind": "Error",
+   "message": "Check-out must be on {D.Iso(date)} or the next morning",
+   "pattern": "Check\\-out\\s+must\\s+be\\s+on\\s+.+?\\s+or\\s+the\\s+next\\s+morning",
+   "field": "requested_check_out",
+   "condition": "!(date > today) && AttendanceHook.LocalTime(d.GetValueOrDefault(\"requested_check_out\")) is { } co && (co <= dayStart || co >= dayStart.AddDays(2))",
+   "docTypes": [
+    "AttendanceCorrection"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "AttendanceCorrectionHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/EssRequestHooks.cs",
+   "line": 117,
+   "shared": false
+  },
+  {
+   "id": "EssRequestHooks.cs:121",
+   "kind": "Error",
+   "message": "Correction {open.Name} for {D.Iso(date)} is still open",
+   "pattern": "Correction\\s+.+?\\s+for\\s+.+?\\s+is\\s+still\\s+open",
+   "field": "attendance_date",
+   "condition": "!(date > today) && open is not null",
+   "docTypes": [
+    "AttendanceCorrection"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "AttendanceCorrectionHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/EssRequestHooks.cs",
+   "line": 121,
+   "shared": false
+  },
+  {
+   "id": "EssRequestHooks.cs:188",
+   "kind": "Error",
+   "message": "Choose a category",
+   "pattern": "Choose\\s+a\\s+category",
+   "field": "category",
+   "condition": "!Fields.TryGetValue(category, out var allowed)",
+   "docTypes": [
+    "BiodataChangeRequest"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "BiodataChangeRequestHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/EssRequestHooks.cs",
+   "line": 188,
+   "shared": false
+  },
+  {
+   "id": "EssRequestHooks.cs:191",
+   "kind": "Error",
+   "message": "Add at least one change",
+   "pattern": "Add\\s+at\\s+least\\s+one\\s+change",
+   "field": "changes",
+   "condition": "!(!Fields.TryGetValue(category, out var allowed)) && rows.Count == 0",
+   "docTypes": [
+    "BiodataChangeRequest"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "BiodataChangeRequestHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/EssRequestHooks.cs",
+   "line": 191,
+   "shared": false
+  },
+  {
+   "id": "EssRequestHooks.cs:199",
+   "kind": "Error",
+   "message": "'{field}' cannot be changed under {category}. Allowed: {string.Join(\", \", allowed)}",
+   "pattern": "'.+?'\\s+cannot\\s+be\\s+changed\\s+under\\s+.+?\\.\\s+Allowed:\\s+.+?",
+   "field": "changes[{i}].field",
+   "condition": "!allowed.Contains(field) || !empMeta.ByName.TryGetValue(field, out var f)",
+   "docTypes": [
+    "BiodataChangeRequest"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "BiodataChangeRequestHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/EssRequestHooks.cs",
+   "line": 199,
+   "shared": false
+  },
+  {
+   "id": "EssRequestHooks.cs:200",
+   "kind": "Error",
+   "message": "'{field}' appears twice",
+   "pattern": "'.+?'\\s+appears\\s+twice",
+   "field": "changes[{i}].field",
+   "condition": "!seen.Add(field)",
+   "docTypes": [
+    "BiodataChangeRequest"
+   ],
+   "event": "Saat simpan/submit (validasi)",
+   "className": "BiodataChangeRequestHook",
+   "method": "BeforeValidateAsync",
+   "file": "src/Apps.Erp/Hooks/EssRequestHooks.cs",
+   "line": 200,
+   "shared": false
+  },
+  {
+   "id": "EssRequestHooks.cs:223",
+   "kind": "Error",
+   "message": "{f.Label}: send the rows as a JSON array",
+   "pattern": ".+?:\\s+send\\s+the\\s+rows\\s+as\\s+a\\s+JSON\\s+array",
+   "field": "{path}",
+   "condition": null,
+   "docTypes": [
+    "BiodataChangeRequest"
+   ],
+   "event": "Pemeriksaan NormalizeValue",
+   "className": "BiodataChangeRequestHook",
+   "method": "NormalizeValue",
+   "file": "src/Apps.Erp/Hooks/EssRequestHooks.cs",
+   "line": 223,
+   "shared": false
+  },
+  {
+   "id": "EssRequestHooks.cs:230",
+   "kind": "Error",
+   "message": "{f.Label}: unknown column '{k}'",
+   "pattern": ".+?:\\s+unknown\\s+column\\s+'.+?'",
+   "field": "{path}",
+   "condition": "!child.ByName.TryGetValue(k, out var cf) || cf.IsLayout",
+   "docTypes": [
+    "BiodataChangeRequest"
+   ],
+   "event": "Pemeriksaan NormalizeValue",
+   "className": "BiodataChangeRequestHook",
+   "method": "NormalizeValue",
+   "file": "src/Apps.Erp/Hooks/EssRequestHooks.cs",
+   "line": 230,
+   "shared": false
+  },
+  {
+   "id": "EssRequestHooks.cs:246",
+   "kind": "Error",
+   "message": "{f.Label}: choose one of {string.Join(\", \", options)}",
+   "pattern": ".+?:\\s+choose\\s+one\\s+of\\s+.+?",
+   "field": "{path}",
+   "condition": "!(string.IsNullOrEmpty(value)) && f.Def.Type == \"Select\" && f.Def.Options is { Count: > 0 } options && !options.Contains(value)",
+   "docTypes": [
+    "BiodataChangeRequest"
+   ],
+   "event": "Pemeriksaan NormalizeValue",
+   "className": "BiodataChangeRequestHook",
+   "method": "NormalizeValue",
+   "file": "src/Apps.Erp/Hooks/EssRequestHooks.cs",
+   "line": 246,
+   "shared": false
+  },
+  {
+   "id": "EssRequestHooks.cs:248",
+   "kind": "Error",
+   "message": "{f.Label}: not a valid e-mail address",
+   "pattern": ".+?:\\s+not\\s+a\\s+valid\\s+e\\-mail\\s+address",
+   "field": "{path}",
+   "condition": "!(string.IsNullOrEmpty(value)) && f.Def.Type == \"Email\" && !System.Net.Mail.MailAddress.TryCreate(value, out _)",
+   "docTypes": [
+    "BiodataChangeRequest"
+   ],
+   "event": "Pemeriksaan NormalizeValue",
+   "className": "BiodataChangeRequestHook",
+   "method": "NormalizeValue",
+   "file": "src/Apps.Erp/Hooks/EssRequestHooks.cs",
+   "line": 248,
+   "shared": false
+  },
+  {
+   "id": "EssRequestHooks.cs:250",
+   "kind": "Error",
+   "message": "NIK must be 16 digits",
+   "pattern": "NIK\\s+must\\s+be\\s+16\\s+digits",
+   "field": "{path}",
+   "condition": "!(string.IsNullOrEmpty(value)) && f.Name is \"nik\" && (value.Length != 16 || !value.All(char.IsDigit))",
+   "docTypes": [
+    "BiodataChangeRequest"
+   ],
+   "event": "Pemeriksaan NormalizeValue",
+   "className": "BiodataChangeRequestHook",
+   "method": "NormalizeValue",
+   "file": "src/Apps.Erp/Hooks/EssRequestHooks.cs",
+   "line": 250,
    "shared": false
   },
   {
@@ -4446,7 +4959,7 @@
    "shared": false
   },
   {
-   "id": "PayrollHooks.cs:387",
+   "id": "PayrollHooks.cs:409",
    "kind": "Error",
    "message": "{run.Name} is submitted; cancel the payroll run first",
    "pattern": ".+?\\s+is\\s+submitted;\\s+cancel\\s+the\\s+payroll\\s+run\\s+first",
@@ -4459,11 +4972,11 @@
    "className": "PayslipHook",
    "method": "OnCancelAsync",
    "file": "src/Apps.Erp/Hooks/PayrollHooks.cs",
-   "line": 387,
+   "line": 409,
    "shared": false
   },
   {
-   "id": "PayrollHooks.cs:406",
+   "id": "PayrollHooks.cs:428",
    "kind": "Error",
    "message": "{dup.Name} already covers this company, period, and unit",
    "pattern": ".+?\\s+already\\s+covers\\s+this\\s+company,\\s+period,\\s+and\\s+unit",
@@ -4476,11 +4989,11 @@
    "className": "PayrollRunHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/PayrollHooks.cs",
-   "line": 406,
+   "line": 428,
    "shared": false
   },
   {
-   "id": "PayrollHooks.cs:426",
+   "id": "PayrollHooks.cs:448",
    "kind": "Error",
    "message": "{all.Count(s => s.DocStatus == DocStatus.Draft)} payslips are still draft; submit or delete them first",
    "pattern": ".+?\\s+payslips\\s+are\\s+still\\s+draft;\\s+submit\\s+or\\s+delete\\s+them\\s+first",
@@ -4493,11 +5006,11 @@
    "className": "PayrollRunHook",
    "method": "AfterSaveAsync",
    "file": "src/Apps.Erp/Hooks/PayrollHooks.cs",
-   "line": 426,
+   "line": 448,
    "shared": false
   },
   {
-   "id": "PayrollHooks.cs:427",
+   "id": "PayrollHooks.cs:449",
    "kind": "Error",
    "message": "There are no submitted payslips in this payroll run",
    "pattern": "There\\s+are\\s+no\\s+submitted\\s+payslips\\s+in\\s+this\\s+payroll\\s+run",
@@ -4510,11 +5023,11 @@
    "className": "PayrollRunHook",
    "method": "AfterSaveAsync",
    "file": "src/Apps.Erp/Hooks/PayrollHooks.cs",
-   "line": 427,
+   "line": 449,
    "shared": false
   },
   {
-   "id": "PayrollHooks.cs:429",
+   "id": "PayrollHooks.cs:451",
    "kind": "Error",
    "message": "The posting date is required",
    "pattern": "The\\s+posting\\s+date\\s+is\\s+required",
@@ -4527,11 +5040,11 @@
    "className": "PayrollRunHook",
    "method": "AfterSaveAsync",
    "file": "src/Apps.Erp/Hooks/PayrollHooks.cs",
-   "line": 429,
+   "line": 451,
    "shared": false
   },
   {
-   "id": "PayrollHooks.cs:432",
+   "id": "PayrollHooks.cs:454",
    "kind": "Error",
    "message": "Set '{label}' in Payroll Settings",
    "pattern": "Set\\s+'.+?'\\s+in\\s+Payroll\\s+Settings",
@@ -4544,11 +5057,11 @@
    "className": "PayrollRunHook",
    "method": "AfterSaveAsync",
    "file": "src/Apps.Erp/Hooks/PayrollHooks.cs",
-   "line": 432,
+   "line": 454,
    "shared": false
   },
   {
-   "id": "PayrollHooks.cs:453",
+   "id": "PayrollHooks.cs:475",
    "kind": "Error",
    "message": "Payroll entry is out of balance by {posting.Difference}",
    "pattern": "Payroll\\s+entry\\s+is\\s+out\\s+of\\s+balance\\s+by\\s+.+?",
@@ -4561,11 +5074,11 @@
    "className": "PayrollRunHook",
    "method": "AfterSaveAsync",
    "file": "src/Apps.Erp/Hooks/PayrollHooks.cs",
-   "line": 453,
+   "line": 475,
    "shared": false
   },
   {
-   "id": "PayrollHooks.cs:477",
+   "id": "PayrollHooks.cs:499",
    "kind": "ActionFailure",
    "message": "Set the period first",
    "pattern": "Set\\s+the\\s+period\\s+first",
@@ -4578,11 +5091,11 @@
    "className": "PayrollRunCreatePayslipsAction",
    "method": "ExecuteAsync",
    "file": "src/Apps.Erp/Hooks/PayrollHooks.cs",
-   "line": 477,
+   "line": 499,
    "shared": false
   },
   {
-   "id": "PayrollHooks.cs:515",
+   "id": "PayrollHooks.cs:537",
    "kind": "ActionFailure",
    "message": "{msg} Failed: {string.Join(\"; \", failed.Take(10))}",
    "pattern": ".+?\\s+Failed:\\s+.+?",
@@ -4595,11 +5108,11 @@
    "className": "PayrollRunCreatePayslipsAction",
    "method": "ExecuteAsync",
    "file": "src/Apps.Erp/Hooks/PayrollHooks.cs",
-   "line": 515,
+   "line": 537,
    "shared": false
   },
   {
-   "id": "PayrollHooks.cs:544",
+   "id": "PayrollHooks.cs:566",
    "kind": "ActionFailure",
    "message": "{msg} Failed: {string.Join(\"; \", failed.Take(10))}",
    "pattern": ".+?\\s+Failed:\\s+.+?",
@@ -4612,7 +5125,7 @@
    "className": "PayrollRunSubmitPayslipsAction",
    "method": "ExecuteAsync",
    "file": "src/Apps.Erp/Hooks/PayrollHooks.cs",
-   "line": 544,
+   "line": 566,
    "shared": false
   },
   {
@@ -5617,6 +6130,7 @@
    "condition": "paid is not null",
    "docTypes": [
     "Attendance",
+    "AttendanceCorrection",
     "EmployeeDailySchedule",
     "OvertimeRequest",
     "Payslip",
@@ -5666,41 +6180,7 @@
    "shared": false
   },
   {
-   "id": "TimeHooks.cs:108",
-   "kind": "Warning",
-   "message": "Scheduled {schedule.Data.Str(\"day_category\")?.ToLowerInvariant() ?? \"rest/holiday day\"} on {D.Iso(date)}; attendance qualifies for rest-day or holiday overtime.",
-   "pattern": "Scheduled\\s+.+?\\s+on\\s+.+?;\\s+attendance\\s+qualifies\\s+for\\s+rest\\-day\\s+or\\s+holiday\\s+overtime\\.",
-   "field": null,
-   "condition": "schedule.Data.Str(\"schedule_type\") is \"REST\" or \"HOLIDAY\" && d.Str(\"status\") == \"Present\"",
-   "docTypes": [
-    "Attendance"
-   ],
-   "event": "Saat simpan/submit (validasi)",
-   "className": "AttendanceHook",
-   "method": "BeforeValidateAsync",
-   "file": "src/Apps.Erp/Hooks/TimeHooks.cs",
-   "line": 108,
-   "shared": false
-  },
-  {
-   "id": "TimeHooks.cs:139",
-   "kind": "Warning",
-   "message": "Approved leave {leave.Name} covers this date; consider status 'On leave'",
-   "pattern": "Approved\\s+leave\\s+.+?\\s+covers\\s+this\\s+date;\\s+consider\\s+status\\s+'On\\s+leave'",
-   "field": null,
-   "condition": "leave is not null && d.Str(\"status\") is \"Present\" or \"Absent\"",
-   "docTypes": [
-    "Attendance"
-   ],
-   "event": "Saat simpan/submit (validasi)",
-   "className": "AttendanceHook",
-   "method": "BeforeValidateAsync",
-   "file": "src/Apps.Erp/Hooks/TimeHooks.cs",
-   "line": 139,
-   "shared": false
-  },
-  {
-   "id": "TimeHooks.cs:162",
+   "id": "TimeHooks.cs:213",
    "kind": "Error",
    "message": "The date is required",
    "pattern": "The\\s+date\\s+is\\s+required",
@@ -5713,11 +6193,11 @@
    "className": "OvertimeRequestHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/TimeHooks.cs",
-   "line": 162,
+   "line": 213,
    "shared": false
   },
   {
-   "id": "TimeHooks.cs:189",
+   "id": "TimeHooks.cs:240",
    "kind": "Error",
    "message": "'Public holiday on the shortest working day' only applies to a 6-day work week",
    "pattern": "'Public\\s+holiday\\s+on\\s+the\\s+shortest\\s+working\\s+day'\\s+only\\s+applies\\s+to\\s+a\\s+6\\-day\\s+work\\s+week",
@@ -5730,11 +6210,11 @@
    "className": "OvertimeRequestHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/TimeHooks.cs",
-   "line": 189,
+   "line": 240,
    "shared": false
   },
   {
-   "id": "TimeHooks.cs:192",
+   "id": "TimeHooks.cs:243",
    "kind": "Error",
    "message": "At most {max} overtime hours on a {dayType.ToLowerInvariant()} ({week}-day work week)",
    "pattern": "At\\s+most\\s+.+?\\s+overtime\\s+hours\\s+on\\s+a\\s+.+?\\s+\\(.+?\\-day\\s+work\\s+week\\)",
@@ -5747,11 +6227,11 @@
    "className": "OvertimeRequestHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/TimeHooks.cs",
-   "line": 192,
+   "line": 243,
    "shared": false
   },
   {
-   "id": "TimeHooks.cs:201",
+   "id": "TimeHooks.cs:252",
    "kind": "Error",
    "message": "Overtime would total {others + hours} hours in the week of {D.Iso(monday)}; the limit is {Overtime.MaxPerWeek} hours",
    "pattern": "Overtime\\s+would\\s+total\\s+.+?\\s+hours\\s+in\\s+the\\s+week\\s+of\\s+.+?;\\s+the\\s+limit\\s+is\\s+.+?\\s+hours",
@@ -5764,7 +6244,7 @@
    "className": "OvertimeRequestHook",
    "method": "BeforeValidateAsync",
    "file": "src/Apps.Erp/Hooks/TimeHooks.cs",
-   "line": 201,
+   "line": 252,
    "shared": false
   },
   {

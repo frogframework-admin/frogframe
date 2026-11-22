@@ -28,6 +28,7 @@ public static class ErpRegistration
             ? new Ess.PostgresEssPunchStore(db)
             : new Ess.InMemoryEssPunchStore());
         services.TryAddSingleton<Ess.EssAttendanceService>();
+        services.TryAddSingleton<Ess.EssRequestService>();
         services.AddDocHook<Employee, Ess.EssCacheInvalidationHook>();
         services.AddDocHook<Ess.Location, Ess.EssCacheInvalidationHook>();
         services.AddDocHook<Ess.ShiftType, Ess.EssCacheInvalidationHook>();
@@ -167,6 +168,20 @@ public static class ErpRegistration
         services.AddDocHook<ShiftRequirement, ShiftRequirementHook>();
         services.AddDocHook<Attendance, AttendanceHook>();
         services.AddDocHook<OvertimeRequest, OvertimeRequestHook>();
+        // ESS requests (docs/guides/ess-mobile-api.md): face registration, attendance correction, biodata change.
+        services.AddDocHook<FaceRegistration, FaceRegistrationHook>();
+        services.AddDocHook<AttendanceCorrection, AttendanceCorrectionHook>();
+        services.AddDocHook<BiodataChangeRequest, BiodataChangeRequestHook>();
+        // Approval review panels on the desk forms of the self-service requests.
+        services.TryAddSingleton<Ess.EssReviewService>();
+        services.AddFormPanel<Components.Review.FaceRegistrationReview>("FaceRegistration");
+        services.AddFormPanel<Components.Review.AttendanceCorrectionReview>("AttendanceCorrection");
+        services.AddFormPanel<Components.Review.BiodataChangeReview>("BiodataChangeRequest");
+        services.AddDocHook<LeaveApplication, EssApprovalNotifier>();
+        services.AddDocHook<OvertimeRequest, EssApprovalNotifier>();
+        services.AddDocHook<AttendanceCorrection, EssApprovalNotifier>();
+        services.AddDocHook<FaceRegistration, EssApprovalNotifier>();
+        services.AddDocHook<BiodataChangeRequest, EssApprovalNotifier>();
 
         // RECRUITMENT
         services.AddDocHook<JobRequisition, JobRequisitionHook>();
@@ -204,6 +219,7 @@ public static class ErpRegistration
         // Efek lintas dokumen & job harian
         services.AddEventHandler<ErpEventHandler>();
         services.AddScheduledJob<JournalAutoReverseJob>();
+        services.AddScheduledJob<AttendanceDailyJob>(); // daily attendance codes (ABS, DO, NCIN/NCOUT…), docs/guides/attendance-codes.md
         services.AddScheduledJob<HrEffectiveDateJob>();
         services.AddScheduledJob<RosterRollingHorizonJob>();
         services.AddScheduledJob<ApprovalDelegationRefreshJob>();

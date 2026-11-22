@@ -1,0 +1,116 @@
+{
+  "name": "AttendanceCorrectionApproval",
+  "docType": "AttendanceCorrection",
+  "version": 1,
+  "initialState": "Draft",
+  "states": [
+    {
+      "name": "Draft",
+      "docStatus": 0,
+      "tone": "neutral"
+    },
+    {
+      "name": "Pending Approval",
+      "docStatus": 1,
+      "tone": "pending"
+    },
+    {
+      "name": "Pending HR Approval",
+      "docStatus": 1,
+      "tone": "pending"
+    },
+    {
+      "name": "Approved",
+      "docStatus": 1,
+      "tone": "positive"
+    },
+    {
+      "name": "Rejected",
+      "docStatus": 2,
+      "tone": "negative"
+    },
+    {
+      "name": "Cancelled",
+      "docStatus": 2,
+      "tone": "negative"
+    }
+  ],
+  "transitions": [
+    {
+      "from": "Draft",
+      "to": "Pending Approval",
+      "action": "Submit for approval",
+      "allowedRoles": [
+        "Employee",
+        "HR-Time-Attendance"
+      ],
+      "condition": "(employee == user.employee || has_role('HR-Time-Attendance')) && !empty(approver)"
+    },
+    {
+      "from": "Draft",
+      "to": "Pending HR Approval",
+      "action": "Submit to HR",
+      "allowedRoles": [
+        "Employee",
+        "HR-Time-Attendance"
+      ],
+      "condition": "(employee == user.employee || has_role('HR-Time-Attendance')) && empty(approver)"
+    },
+    {
+      "from": "Pending Approval",
+      "to": "Pending HR Approval",
+      "action": "Approve",
+      "allowedRoles": [
+        "Employee"
+      ],
+      "condition": "approver == user.employee && employee != user.employee"
+    },
+    {
+      "from": "Pending Approval",
+      "to": "Rejected",
+      "action": "Reject",
+      "allowedRoles": [
+        "Employee"
+      ],
+      "condition": "approver == user.employee && employee != user.employee",
+      "requireComment": true
+    },
+    {
+      "from": "Pending Approval",
+      "to": "Cancelled",
+      "action": "Withdraw",
+      "allowedRoles": [
+        "Employee"
+      ],
+      "condition": "employee == user.employee"
+    },
+    {
+      "from": "Pending HR Approval",
+      "to": "Approved",
+      "action": "Approve (HR)",
+      "allowedRoles": [
+        "HR-Time-Attendance"
+      ],
+      "condition": "employee != user.employee"
+    },
+    {
+      "from": "Pending HR Approval",
+      "to": "Rejected",
+      "action": "Reject (HR)",
+      "allowedRoles": [
+        "HR-Time-Attendance"
+      ],
+      "condition": "employee != user.employee",
+      "requireComment": true
+    },
+    {
+      "from": "Pending HR Approval",
+      "to": "Cancelled",
+      "action": "Withdraw",
+      "allowedRoles": [
+        "Employee"
+      ],
+      "condition": "employee == user.employee"
+    }
+  ]
+}

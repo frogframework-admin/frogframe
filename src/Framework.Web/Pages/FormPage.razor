@@ -33,6 +33,7 @@
 @inject UiText T
 @inject IConfiguration Config
 @inject SystemConnectivityService Connectivity
+@inject IEnumerable<FormPanel> FormPanels
 
 <PageTitle>@(meta is null ? Name : meta.Def.IsSingle ? T.Title(meta) : IsNew ? T.Format("New {0}", T.Title(meta)) : Name) · FrogFrame</PageTitle>
 
@@ -228,6 +229,16 @@ else if (meta is not null && doc is not null)
                 <ul class="error-list">@foreach (var e in errors) { <li><a href="#@Anchor(e.Key)">@e.Value</a></li> }</ul>
             </BbAlertDescription>
         </BbAlert>
+    }
+
+    @if (!IsNew && doc is not null)
+    {
+        @* Application panels for this DocType (e.g. approval review); rebuilt on every reload via the version key. *@
+        @foreach (var panel in FormPanels.For(User, doc))
+        {
+            <DynamicComponent Type="panel.Component" @key="@($"{panel.Component.FullName}|{doc.Version}")"
+                              Parameters="@(new Dictionary<string, object> { ["Doc"] = doc, ["Meta"] = meta! })" />
+        }
     }
 
     @* Client Scripts: Select options narrowed by a script reach FieldInput through this cascading value. *@

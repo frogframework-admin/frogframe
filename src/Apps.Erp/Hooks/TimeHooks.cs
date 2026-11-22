@@ -81,7 +81,7 @@ internal static class Overtime
 /// Attendance: one per employee per work date; resolves shift &amp; cross-midnight window from materialized EmployeeDailySchedule
 /// (falling back to Employee shift / HRSettings); links to approved leave; locked once the month's payslip is submitted.
 /// </summary>
-public sealed class AttendanceHook(IDocumentStore store) : IBeforeValidate<Attendance>, IBeforeDelete<Attendance>
+public sealed class AttendanceHook(IDocumentStore store, TimeProvider? clock = null) : IBeforeValidate<Attendance>, IBeforeDelete<Attendance>
 {
     public async Task BeforeValidateAsync(HookContext c, CancellationToken ct)
     {
@@ -93,7 +93,15 @@ public sealed class AttendanceHook(IDocumentStore store) : IBeforeValidate<Atten
         var dup = (await m.QueryAsync("Attendance", [new FilterClause("employee", "=", emp.Name), new FilterClause("attendance_date", "=", D.Iso(date))], ct, take: 5))
             .FirstOrDefault(x => x.Name != c.Doc.Name);
         if (dup is not null) throw Errors.One("attendance_date", $"{emp.Name} already has attendance {dup.Name} on {D.Iso(date)}");
+        await ClassifyAsync(m, emp, date, d, c.Messages, ct);
+    }
 
+    /// <summary>
+    /// Fills schedule, working hours, late/early minutes and the attendance code of one employee-day into <paramref name="d"/>
+    /// (the Attendance fields). Also used on a copy of the data to preview what an attendance correction would change.
+    /// </summary>
+    internal async Task ClassifyAsync(Masters m, Document emp, DateOnly date, Dictionary<string, object?> d, ICollection<string>? messages, CancellationToken ct)
+    {
         var schedule = (await m.QueryAsync("EmployeeDailySchedule",
             [new FilterClause("employee", "=", emp.Name), new FilterClause("work_date", "=", D.Iso(date))], ct, take: 1)).FirstOrDefault();
         if (schedule is not null)
@@ -105,7 +113,7 @@ public sealed class AttendanceHook(IDocumentStore store) : IBeforeValidate<Atten
             if (schedule.Data.Str("shift_type") is { } schedShift)
                 d.SetIfEmpty("shift_type", schedShift);
             if (schedule.Data.Str("schedule_type") is "REST" or "HOLIDAY" && d.Str("status") == "Present")
-                c.Messages.Add($"Scheduled {schedule.Data.Str("day_category")?.ToLowerInvariant() ?? "rest/holiday day"} on {D.Iso(date)}; attendance qualifies for rest-day or holiday overtime.");
+                messages?.Add($"Scheduled {schedule.Data.Str("day_category")?.ToLowerInvariant() ?? "rest/holiday day"} on {D.Iso(date)}; attendance qualifies for rest-day or holiday overtime.");
         }
 
         if (schedule is null || schedule.Data.Str("schedule_type") == "WORK")
@@ -119,24 +127,67 @@ public sealed class AttendanceHook(IDocumentStore store) : IBeforeValidate<Atten
             if (winEnd is not null) d["scheduled_end_datetime"] = winEnd;
         }
 
-        if (LocalTime(d.GetValueOrDefault("check_in")) is { } inAt)
-        {
-            if (LocalTime(d.GetValueOrDefault("check_out")) is { } outAt && outAt > inAt)
-                d["working_hours"] = Math.Round((decimal)(outAt - inAt).TotalHours - (shift?.Data.Dec("break_minutes") ?? 0) / 60m, 2);
+        var inAt = LocalTime(d.GetValueOrDefault("check_in"));
+        var outAt = LocalTime(d.GetValueOrDefault("check_out"));
+        d["working_hours"] = inAt is { } wi && outAt is { } wo && wo > wi
+            ? Math.Round((decimal)(wo - wi).TotalHours - (shift?.Data.Dec("break_minutes") ?? 0) / 60m, 2)
+            : null;
 
-            if (shift?.Data.Str("start_time") is { } st && TimeOnly.TryParse(st, CultureInfo.InvariantCulture, out var start))
-            {
-                var schedStart = LocalTime(d.GetValueOrDefault("scheduled_start_datetime")) ?? date.ToDateTime(start);
-                var late = (int)(inAt - schedStart).TotalMinutes - (int)shift.Data.Dec("late_grace_minutes");
-                d["late_minutes"] = (long)(late > 0 && late < 12 * 60 ? late : 0);
-            }
-        }
-
-        var leave = (await m.QueryAsync("LeaveApplication", [new FilterClause("employee", "=", emp.Name)], ct, take: 500))
+        var leave = (await m.QueryAsync("LeaveApplication", [new FilterClause("employee", "=", emp.Name), new FilterClause("to_date", ">=", D.Iso(date))], ct, take: 500))
             .FirstOrDefault(l => l.WorkflowState == Approval.Approved && l.Data.Date("from_date") <= date && l.Data.Date("to_date") >= date);
         d["leave_application"] = leave?.Name;
-        if (leave is not null && d.Str("status") is "Present" or "Absent")
-            c.Messages.Add($"Approved leave {leave.Name} covers this date; consider status 'On leave'");
+        var leaveType = leave is null ? null : await m.GetAsync("LeaveType", leave.Data.Str("leave_type"), ct);
+
+        var settings = await m.SingleAsync("HRSettings", ct);
+        var isDayOff = schedule is null && await IsDayOffWithoutScheduleAsync(m, emp, settings, date, ct);
+        var dayOffOrHoliday = schedule?.Data.Str("schedule_type") is "REST" or "HOLIDAY" || schedule?.Data.Bool("is_public_holiday") == true || isDayOff;
+        var overtime = dayOffOrHoliday && (inAt is not null || outAt is not null)
+            && (await m.QueryAsync("OvertimeRequest", [new FilterClause("employee", "=", emp.Name), new FilterClause("overtime_date", "=", D.Iso(date))], ct, take: 5))
+                .Any(o => o.WorkflowState == Approval.Approved);
+
+        var now = TimeZoneInfo.ConvertTime((clock ?? TimeProvider.System).GetUtcNow(), Framework.Metadata.FieldTypeSettings.DefaultTimeZone).DateTime;
+        var result = AttendanceClassifier.Classify(new AttendanceDayInput
+        {
+            ScheduleType = schedule?.Data.Str("schedule_type") ?? (isDayOff ? "REST" : null),
+            IsPublicHoliday = schedule?.Data.Bool("is_public_holiday") == true,
+            HasShift = shift is not null,
+            ScheduledStart = LocalTime(d.GetValueOrDefault("scheduled_start_datetime")),
+            ScheduledEnd = LocalTime(d.GetValueOrDefault("scheduled_end_datetime")),
+            CheckIn = inAt,
+            CheckOut = outAt,
+            LateGraceMinutes = (int)(shift?.Data.Dec("late_grace_minutes") ?? 0),
+            EarlyOutGraceMinutes = (int)(shift?.Data.Dec("early_out_grace_minutes") ?? 0),
+            FlaggedPunches = d.Str("ess_flags"),
+            LeaveIsPaid = leave is null ? null : leaveType?.Data.Bool("is_paid") ?? true,
+            LeaveIsHalfDay = leave?.Data.Bool("half_day") == true,
+            LeaveType = leave?.Data.Str("leave_type"),
+            HasApprovedOvertime = overtime,
+            CurrentStatus = d.Str("status"),
+            Now = now,
+            FinalizeAfterHours = settings.ContainsKey("attendance_finalize_hours") ? (int)settings.Dec("attendance_finalize_hours") : 4,
+            WindowHours = settings.ContainsKey("attendance_window_hours") ? (int)settings.Dec("attendance_window_hours") : 4,
+        });
+        d["late_minutes"] = (long)result.LateMinutes;
+        d["early_out_minutes"] = (long)result.EarlyOutMinutes;
+        if (d.Bool("code_manual"))
+        {
+            // HR decided this day: keep their code and status; the minutes above stay informative.
+            d["code_final"] = true;
+            d["code_reason"] = "Set by HR";
+            return;
+        }
+        d["attendance_code"] = result.Code;
+        d["code_final"] = result.Final;
+        d["code_reason"] = result.Reason;
+        if (result.Code is { } code) d["status"] = AttendanceCodes.StatusFor(code, d.Str("status"));
+    }
+
+    /// <summary>Without a daily schedule: weekly off of the employee's shift or holiday list, or a date in that holiday list.</summary>
+    private static async Task<bool> IsDayOffWithoutScheduleAsync(Masters m, Document emp, IDictionary<string, object?> settings, DateOnly date, CancellationToken ct)
+    {
+        var hl = await m.GetAsync("HolidayList", emp.Data.Str("holiday_list") ?? settings.Str("default_holiday_list"), ct);
+        if (hl?.Data.Rows("holidays").Any(h => h.Date("holiday_date") == date) == true) return true;
+        return (await LeaveMath.WeeklyOffAsync(m, emp, hl, ct)).Contains(date.DayOfWeek);
     }
 
     internal static DateTime? LocalTime(object? stored) =>

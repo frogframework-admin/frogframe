@@ -72,6 +72,27 @@ public sealed class ErpEventHandler(IServiceProvider services, IDocumentStore st
                     await HrApply.SeparationAsync(sys, services.GetService<IUserAccountRepository>(), sep, ct);
                 break;
 
+            case ErpEvents.FaceActivated:
+            {
+                var employee = p.GetValueOrDefault("employee");
+                if (p.GetValueOrDefault("state") == "Active" && employee is not null)
+                    foreach (var old in (await m.QueryAsync("FaceRegistration", [new FilterClause("employee", "=", employee)], ct, take: 50))
+                             .Where(f => f.Name != name && f.WorkflowState == "Active"))
+                        await sys.ActionAsync("FaceRegistration", old.Name, "Revoke", $"Replaced by {name}", ct);
+                if (employee is not null) services.GetService<Ess.EssAttendanceService>()?.InvalidateProfile(tenant, employee);
+                break;
+            }
+
+            case ErpEvents.AttendanceCorrectionApply:
+                if (await m.GetAsync("AttendanceCorrection", name, ct) is { WorkflowState: Approval.Approved } corr)
+                    await AttendanceCorrectionHook.ApplyAsync(sys, m, corr, ct);
+                break;
+
+            case ErpEvents.BiodataApply:
+                if (await m.GetAsync("BiodataChangeRequest", name, ct) is { WorkflowState: Approval.Approved } bio)
+                    await BiodataChangeRequestHook.ApplyAsync(sys, services.GetRequiredService<IMetadataProvider>(), bio, ct);
+                break;
+
             case ErpEvents.FiscalYearStatus:
                 if (p.GetValueOrDefault("fiscal_year") is { } fy && p.GetValueOrDefault("status") is { } status
                     && (await m.GetAsync("FiscalYear", fy, ct))?.Data.Str("status") != status)

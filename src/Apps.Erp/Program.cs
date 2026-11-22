@@ -8,6 +8,7 @@ using Framework.Security;
 using Framework.Web;
 using Framework.Web.Layout;
 using Framework.Web.Identity;
+using Framework.Web.Tenancy;
 using Framework.Persistence.PostgreSql;
 using Npgsql;
 
@@ -137,6 +138,7 @@ app.UseFrogFrameSecurityHeaders();
 app.UseFrogFrameStartupGate();
 
 app.UseAuthentication();
+app.UseFrogFrameTenantStatus(); // suspended tenants: sign out / 403 (see /platform/tenants)
 // Bahasa UI per pengguna (Indonesia/Inggris: cookie → preferensi tersimpan → Localization:DefaultLanguage).
 // Format angka & tanggal tetap Indonesia; penyimpanan dan API tetap memakai format invarian (yyyy-MM-dd, titik desimal).
 app.UseFrogFrameLocalization();
@@ -200,6 +202,10 @@ async Task InitializeDatabaseAndSeedAsync(CancellationToken ct)
     var allTenants = new HashSet<string>(auditTenants, StringComparer.OrdinalIgnoreCase) { tenantToSeed };
     try
     {
+        // Tenants created at /platform/tenants (docs/guides/tenants.md).
+        foreach (var t in await app.Services.GetRequiredService<Framework.Tenancy.ITenantStore>().ListAsync(ct))
+            if (t.IsActive) allTenants.Add(t.Id);
+
         var navStore = app.Services.GetRequiredService<Framework.Navigation.INavigationMenuStore>();
         var roleStore = app.Services.GetRequiredService<Framework.Security.IRoleStore>();
         foreach (var t in allTenants)

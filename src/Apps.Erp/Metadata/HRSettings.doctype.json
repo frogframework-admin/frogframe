@@ -166,6 +166,65 @@
       "section": "Mobile attendance (ESS)",
       "column": 2,
       "description": "A check-out after midnight within this window belongs to the check-in date"
+    },
+    {
+      "name": "ess_require_face",
+      "type": "Check",
+      "label": "Require face match on every punch",
+      "default": false,
+      "section": "Mobile attendance (ESS)",
+      "description": "The app compares the face with the employee's verified Face Registration and sends the match score"
+    },
+    {
+      "name": "ess_min_face_score",
+      "type": "Float",
+      "label": "Minimum face match score (0–1)",
+      "default": 0.8,
+      "min": 0,
+      "max": 1,
+      "section": "Mobile attendance (ESS)",
+      "column": 2
+    },
+    {
+      "name": "ess_reject_face_mismatch",
+      "type": "Check",
+      "label": "Reject punches below the face score",
+      "default": false,
+      "section": "Mobile attendance (ESS)",
+      "column": 2,
+      "description": "Off = accept but flag for HR review (the day becomes INV until HR decides)"
+    },
+    {
+      "name": "attendance_finalize_hours",
+      "type": "Int",
+      "label": "Decide missing clock-in/out after (hours)",
+      "default": 4,
+      "min": 0,
+      "max": 48,
+      "section": "Attendance codes",
+      "description": "Hours after the scheduled end before a working day without punches becomes ABS, or a single punch becomes NCIN/NCOUT"
+    },
+    {
+      "name": "attendance_window_hours",
+      "type": "Int",
+      "label": "Clock-in accepted from (hours before shift)",
+      "default": 4,
+      "min": 0,
+      "max": 12,
+      "section": "Attendance codes",
+      "column": 2,
+      "description": "Earlier clock-ins, clock-ins after the shift end and clock-outs before the shift start are INV"
+    },
+    {
+      "name": "attendance_backfill_days",
+      "type": "Int",
+      "label": "Create daily attendance for the last (days)",
+      "default": 7,
+      "min": 1,
+      "max": 62,
+      "section": "Attendance codes",
+      "column": 2,
+      "description": "The attendance job creates and finalizes records for this many past days; use the monthly recap's Recalculate for older days"
     }
   ],
   "permissions": [

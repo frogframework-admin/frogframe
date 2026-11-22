@@ -28,8 +28,8 @@
 
 <div class="launcher-page home-page">
     <header class="desk-hero home-hero">
-        <img class="desk-hero-bg desk-hero-bg-light" src="/_content/Framework.Web/img/desk-hero-light.png" alt="" aria-hidden="true" />
-        <img class="desk-hero-bg desk-hero-bg-dark" src="/_content/Framework.Web/img/desk-hero-dark.png" alt="" aria-hidden="true" />
+        <img class="desk-hero-bg desk-hero-bg-light" src="/_content/Framework.Web/img/desk-hero-light.png" loading="lazy" decoding="async" alt="" aria-hidden="true" />
+        <img class="desk-hero-bg desk-hero-bg-dark" src="/_content/Framework.Web/img/desk-hero-dark.png" loading="lazy" decoding="async" alt="" aria-hidden="true" />
         <div class="desk-hero-content">
             <div class="home-date">@HomeDate()</div>
             <h1>@T[HomeClock.GreetingKey(HomeClock.LocalNow(Clock).Hour)], @FirstName(Current.User?.FullName)</h1>
@@ -420,33 +420,44 @@
         await LoadDataAsync();
     }
 
+    /// <summary>
+    /// Starts every source at once and renders each section as soon as its data arrives, so the page costs about as
+    /// long as its slowest section instead of the sum of all of them.
+    /// </summary>
     private async Task LoadDataAsync()
     {
         if (Current.User is not { } u) return;
-        await EnsureActiveModuleAsync(u);
 
         quickActions = Registry.QuickActionsFor(u);
         unreadCount = Notifications.ForUser(u.TenantId, u.Id).Count(n => !n.Read);
 
-        var dismissedTask = HomePreferences.DismissedAsync(Prefs, u);
-        var tasksTask = RefreshTasksAsync();
+        var module = EnsureActiveModuleAsync(u);
+        var tasks = RefreshTasksAsync();
         var queueTask = Feed.ApprovalQueueAsync(u);
         var recentTask = Docs.RecentDocumentsAsync(u, limit: 6);
-        var kpisTask = Feed.KpisAsync(u);
-        var jobsTask = Feed.ActiveJobsAsync(u);
         var savedTask = Feed.SavedAsync(u);
-        var twoFactorTask = NeedsTwoFactorAsync();
+        var jobsTask = Feed.ActiveJobsAsync(u);
+        var kpiTask = Feed.KpisAsync(u);
+        var nudgeTask = TwoFactorNudgeAsync(u);
 
-        await Task.WhenAll(dismissedTask, tasksTask, queueTask, recentTask, kpisTask, jobsTask, savedTask, twoFactorTask);
-
-        dismissed = await dismissedTask;
+        await module;
+        await tasks;
         queue = await queueTask;
-        recentDocs = await recentTask;
-        kpis = await kpisTask;
-        jobs = await jobsTask;
-        saved = await savedTask;
-        showTwoFactorNudge = !dismissed.Contains("two-factor") && await twoFactorTask;
         loaded = true;
+        StateHasChanged();
+        recentDocs = await recentTask;
+        StateHasChanged();
+        saved = await savedTask;
+        jobs = await jobsTask;
+        showTwoFactorNudge = await nudgeTask;
+        StateHasChanged();
+        kpis = await kpiTask;
+    }
+
+    private async Task<bool> TwoFactorNudgeAsync(UserContext u)
+    {
+        dismissed = await HomePreferences.DismissedAsync(Prefs, u);
+        return !dismissed.Contains("two-factor") && await NeedsTwoFactorAsync();
     }
 
     /// <summary>The sidebar shows the active module's menu: pick the first visible module when none (or a hidden one) is active.</summary>

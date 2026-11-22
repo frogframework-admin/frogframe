@@ -16,9 +16,13 @@ internal static class EssLeave
     /// </summary>
     internal static async Task<List<EssLeaveBalance>> BalancesAsync(Masters m, string emp, DateOnly today, CancellationToken ct)
     {
-        var apps = (await m.QueryAsync("LeaveApplication", [new("employee", "=", emp)], ct, take: 1000)).Where(LeaveMath.Active).ToList();
         var allocations = (await m.QueryAsync("LeaveAllocation", [new("employee", "=", emp)], ct, take: 200))
             .Where(a => a.DocStatus == DocStatus.Submitted).ToList();
+        // Only applications that can overlap an allocation valid today count: skip years of history.
+        var windowStart = allocations.Where(a => a.Data.Date("from_date") <= today && today <= a.Data.Date("to_date"))
+            .Select(a => a.Data.Date("from_date") ?? today).DefaultIfEmpty(today).Min();
+        var apps = (await m.QueryAsync("LeaveApplication", [new("employee", "=", emp), new("to_date", ">=", D.Iso(windowStart))], ct, take: 1000))
+            .Where(LeaveMath.Active).ToList();
         var result = new List<EssLeaveBalance>();
         foreach (var type in await m.QueryAsync("LeaveType", [], ct, take: 200))
         {

@@ -115,6 +115,117 @@
       "description": "Working days within employment dates − unpaid leave − absence. Regular earnings are prorated by payable ÷ working days"
     },
     {
+      "name": "att_on_time_days",
+      "type": "Float",
+      "label": "On time (ONT) days",
+      "readOnlyWhen": "true",
+      "tab": "Pay",
+      "section": "Attendance summary",
+      "description": "Counted from Attendance codes of the payslip month when the payslip is created (see the monthly attendance recap). LI/LO days count as late and as early out."
+    },
+    {
+      "name": "att_late_days",
+      "type": "Float",
+      "label": "Late in (LI) days",
+      "readOnlyWhen": "true",
+      "tab": "Pay",
+      "section": "Attendance summary"
+    },
+    {
+      "name": "att_late_minutes",
+      "type": "Float",
+      "label": "Late minutes",
+      "readOnlyWhen": "true",
+      "tab": "Pay",
+      "section": "Attendance summary",
+      "column": 2
+    },
+    {
+      "name": "att_early_out_days",
+      "type": "Float",
+      "label": "Early out (LO) days",
+      "readOnlyWhen": "true",
+      "tab": "Pay",
+      "section": "Attendance summary"
+    },
+    {
+      "name": "att_early_out_minutes",
+      "type": "Float",
+      "label": "Early-out minutes",
+      "readOnlyWhen": "true",
+      "tab": "Pay",
+      "section": "Attendance summary",
+      "column": 2
+    },
+    {
+      "name": "att_no_clock_in_days",
+      "type": "Float",
+      "label": "No clock-in (NCIN) days",
+      "readOnlyWhen": "true",
+      "tab": "Pay",
+      "section": "Attendance summary"
+    },
+    {
+      "name": "att_no_clock_out_days",
+      "type": "Float",
+      "label": "No clock-out (NCOUT) days",
+      "readOnlyWhen": "true",
+      "tab": "Pay",
+      "section": "Attendance summary",
+      "column": 2
+    },
+    {
+      "name": "att_absent_days",
+      "type": "Float",
+      "label": "Absent (ABS) days",
+      "readOnlyWhen": "true",
+      "tab": "Pay",
+      "section": "Attendance summary"
+    },
+    {
+      "name": "att_invalid_days",
+      "type": "Float",
+      "label": "Invalid (INV) days",
+      "readOnlyWhen": "true",
+      "tab": "Pay",
+      "section": "Attendance summary",
+      "column": 2
+    },
+    {
+      "name": "att_time_off_paid_days",
+      "type": "Float",
+      "label": "Time off, no deduction (TO-ND) days",
+      "readOnlyWhen": "true",
+      "tab": "Pay",
+      "section": "Attendance summary"
+    },
+    {
+      "name": "att_time_off_deduction_days",
+      "type": "Float",
+      "label": "Time off, deducted (TO-D) days",
+      "readOnlyWhen": "true",
+      "tab": "Pay",
+      "section": "Attendance summary",
+      "column": 2
+    },
+    {
+      "name": "att_day_off_days",
+      "type": "Float",
+      "label": "Day off (DO) days",
+      "readOnlyWhen": "true",
+      "tab": "Pay",
+      "section": "Attendance summary"
+    },
+    {
+      "name": "att_unclassified_days",
+      "type": "Float",
+      "label": "Days without a final code",
+      "readOnlyWhen": "true",
+      "tab": "Pay",
+      "section": "Attendance summary",
+      "column": 2
+    },
+    {
       "name": "earnings",
       "type": "Table",
       "label": "Earnings",

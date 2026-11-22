@@ -1,0 +1,73 @@
+{
+  "name": "BiodataChangeApproval",
+  "docType": "BiodataChangeRequest",
+  "version": 1,
+  "initialState": "Draft",
+  "states": [
+    {
+      "name": "Draft",
+      "docStatus": 0,
+      "tone": "neutral"
+    },
+    {
+      "name": "Pending HR Approval",
+      "docStatus": 1,
+      "tone": "pending"
+    },
+    {
+      "name": "Approved",
+      "docStatus": 1,
+      "tone": "positive"
+    },
+    {
+      "name": "Rejected",
+      "docStatus": 2,
+      "tone": "negative"
+    },
+    {
+      "name": "Cancelled",
+      "docStatus": 2,
+      "tone": "negative"
+    }
+  ],
+  "transitions": [
+    {
+      "from": "Draft",
+      "to": "Pending HR Approval",
+      "action": "Submit for approval",
+      "allowedRoles": [
+        "Employee",
+        "HR-Employee-Management"
+      ],
+      "condition": "employee == user.employee || has_role('HR-Employee-Management')"
+    },
+    {
+      "from": "Pending HR Approval",
+      "to": "Approved",
+      "action": "Approve (HR)",
+      "allowedRoles": [
+        "HR-Employee-Management"
+      ],
+      "condition": "employee != user.employee"
+    },
+    {
+      "from": "Pending HR Approval",
+      "to": "Rejected",
+      "action": "Reject (HR)",
+      "allowedRoles": [
+        "HR-Employee-Management"
+      ],
+      "condition": "employee != user.employee",
+      "requireComment": true
+    },
+    {
+      "from": "Pending HR Approval",
+      "to": "Cancelled",
+      "action": "Withdraw",
+      "allowedRoles": [
+        "Employee"
+      ],
+      "condition": "employee == user.employee"
+    }
+  ]
+}

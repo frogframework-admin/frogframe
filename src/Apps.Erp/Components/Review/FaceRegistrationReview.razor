@@ -1,0 +1,70 @@
+@using Apps.Erp.Ess
+@using Framework.Localization
+@inject EssReviewService Reviews
+@inject CurrentUser Current
+@inject UiText T
+
+@* Form panel of FaceRegistration: the photos next to the employee photo and the registration it replaces. *@
+@if (review is { } r)
+{
+    <ReviewFrame Title="Face verification" Icon="scan-face" Status="r.Status" Checks="r.Checks">
+        <div class="review-face">
+            <div class="review-face-group">
+                <div class="review-label">@T["Photos sent with this registration"]</div>
+                <div class="review-photos">
+                    @foreach (var (url, i) in r.Photos.Select((u, i) => (u, i)))
+                    {
+                        <a href="@url" target="_blank" rel="noopener" class="review-photo"><img src="@url" alt="@T.Format("Photo {0}", i + 1)" loading="lazy" /></a>
+                    }
+                    @if (r.Photos.Count == 0) { <div class="review-photo empty">@T["No photos"]</div> }
+                </div>
+            </div>
+            <div class="review-face-group">
+                <div class="review-label">@T["Employee record"]</div>
+                <div class="review-photos">
+                    @if (r.EmployeePhoto is { } ep) { <a href="@ep" target="_blank" rel="noopener" class="review-photo"><img src="@ep" alt="@T["Employee photo"]" loading="lazy" /></a> }
+                    else { <div class="review-photo empty">@T["No photo"]</div> }
+                </div>
+            </div>
+            @if (r.Previous is { } p)
+            {
+                <div class="review-face-group">
+                    <div class="review-label">@T.Format("Active registration {0}", p.Name)</div>
+                    <div class="review-photos">
+                        @foreach (var url in p.Photos.Take(1)) { <a href="@url" target="_blank" rel="noopener" class="review-photo"><img src="@url" alt="@p.Name" loading="lazy" /></a> }
+                    </div>
+                </div>
+            }
+        </div>
+        <dl class="review-facts">
+            <div><dt>@T["Image quality"]</dt><dd>@Score(r.Quality)</dd></div>
+            <div><dt>@T["Liveness"]</dt><dd>@Score(r.Liveness)</dd></div>
+            <div><dt>@T["Consent"]</dt><dd>@(r.Consent ? (r.ConsentAt is { } at ? Fmt.When(at) : T["Yes"]) : T["Not given"])</dd></div>
+            <div><dt>@T["Face model"]</dt><dd>@(r.Model ?? "-") @r.ModelVersion @(r.Dimensions is { } dim ? $"· {dim}d" : "")</dd></div>
+            <div><dt>@T["Device"]</dt><dd>@(r.DeviceId ?? "-") @(r.AppVersion is { } v ? $"· app {v}" : "")</dd></div>
+            <div><dt>@T["Punch matching"]</dt><dd>@(r.RequireFace ? T.Format("Required, minimum score {0:0.00}", r.MinMatchScore) : T["Not required (HR Settings)"])</dd></div>
+            @if (r.VerifiedAt is { } va) { <div><dt>@T["Verified"]</dt><dd>@r.VerifiedBy · @Fmt.When(va)</dd></div> }
+        </dl>
+        <p class="review-hint">@T["Verify only if every photo clearly shows the same person as the employee record. Use Reject with a reason (e.g. blurred, another person, face covered) so the employee can register again."]</p>
+    </ReviewFrame>
+}
+else if (error is not null)
+{
+    <div class="review-panel review-error">@error</div>
+}
+
+@code {
+    [Parameter] public Document Doc { get; set; } = default!;
+    [Parameter] public CompiledDocType Meta { get; set; } = default!;
+    private FaceReview? review;
+    private string? error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Current.User is not { } u) return;
+        try { review = await Reviews.FaceAsync(u, Doc.Name); }
+        catch (Exception ex) when (ex is DocumentNotFoundException or PermissionDeniedException) { error = T["The review is not available."]; }
+    }
+
+    private string Score(decimal? v) => v is { } s ? s.ToString(s <= 1 ? "0.00" : "0.#", System.Globalization.CultureInfo.InvariantCulture) : "-";
+}

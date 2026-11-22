@@ -92,7 +92,8 @@ public sealed class FrogFrameClaimsFactory(IOptions<IdentityOptions> options) : 
 }
 
 /// <summary>Adapter ASP.NET Core Identity → IUserAccountRepository (in-memory atau PostgreSQL).</summary>
-public sealed class FrogFrameUserStore(IUserAccountRepository repo, TimeProvider clock, IDataProtectionProvider dataProtection) :
+public sealed class FrogFrameUserStore(IUserAccountRepository repo, TimeProvider clock, IDataProtectionProvider dataProtection,
+    Framework.Tenancy.TenantDirectory? tenants = null) :
     IUserPasswordStore<UserAccount>, IUserSecurityStampStore<UserAccount>, IUserLockoutStore<UserAccount>, IUserEmailStore<UserAccount>,
     IUserTwoFactorStore<UserAccount>, IUserAuthenticatorKeyStore<UserAccount>, IUserTwoFactorRecoveryCodeStore<UserAccount>
 {
@@ -110,15 +111,28 @@ public sealed class FrogFrameUserStore(IUserAccountRepository repo, TimeProvider
     {
         if (string.IsNullOrEmpty(user.Id)) user.Id = user.UserName.Trim().ToLowerInvariant();
         if (user.CreatedAt == default) user.CreatedAt = clock.GetUtcNow();
+        if (user.IsActive && await UserLimitErrorAsync(user, ct) is { } limit) return IdentityResult.Failed(limit);
         try { await repo.CreateAsync(user, ct); return IdentityResult.Success; }
         catch (DuplicateAccountException ex) { return IdentityResult.Failed(new IdentityError { Code = "DuplicateUserName", Description = ex.Message }); }
     }
 
     public async Task<IdentityResult> UpdateAsync(UserAccount user, CancellationToken ct)
     {
+        // Re-activating an account counts against the tenant's user limit like a new one.
+        if (user.IsActive && await repo.FindByIdAsync(user.Id, ct) is { IsActive: false } && await UserLimitErrorAsync(user, ct) is { } limit)
+            return IdentityResult.Failed(limit);
         user.ConcurrencyStamp = Guid.NewGuid().ToString("N");
         try { await repo.UpdateAsync(user, ct); return IdentityResult.Success; }
         catch (DuplicateAccountException ex) { return IdentityResult.Failed(new IdentityError { Code = "DuplicateUserName", Description = ex.Message }); }
+    }
+
+    /// <summary>The tenant's <see cref="Framework.Tenancy.TenantSettings.MaxUsers"/> counts active accounts, API service accounts included.</summary>
+    private async Task<IdentityError?> UserLimitErrorAsync(UserAccount user, CancellationToken ct)
+    {
+        if (tenants is null || (await tenants.SettingsAsync(user.TenantId, ct)).MaxUsers is not { } max) return null;
+        var active = (await repo.ListAsync(user.TenantId, ct)).Count(a => a.IsActive && a.Id != user.Id);
+        return active < max ? null
+            : new IdentityError { Code = "TenantUserLimit", Description = $"This organization may have at most {max} active users. Deactivate a user or ask the group administrator to raise the limit." };
     }
 
     public async Task<IdentityResult> DeleteAsync(UserAccount user, CancellationToken ct) { await repo.DeleteAsync(user.Id, ct); return IdentityResult.Success; }
@@ -214,9 +228,11 @@ public sealed class FrogFrameUserStore(IUserAccountRepository repo, TimeProvider
 }
 
 /// <summary>Akun nonaktif tidak bisa login, walau password benar.</summary>
-public sealed class ActiveUserConfirmation : IUserConfirmation<UserAccount>
+/// <summary>An account may sign in (password, single sign-on, two-factor) only when it is active and its tenant is not suspended.</summary>
+public sealed class ActiveUserConfirmation(Framework.Tenancy.TenantDirectory? tenants = null) : IUserConfirmation<UserAccount>
 {
-    public Task<bool> IsConfirmedAsync(UserManager<UserAccount> manager, UserAccount user) => Task.FromResult(user.IsActive);
+    public async Task<bool> IsConfirmedAsync(UserManager<UserAccount> manager, UserAccount user) =>
+        user.IsActive && (tenants is null || await tenants.IsActiveAsync(user.TenantId));
 }
 
 /// <summary>
@@ -234,6 +250,8 @@ public sealed class IdentityRevalidatingAuthenticationStateProvider(ILoggerFacto
         var users = scope.ServiceProvider.GetRequiredService<UserManager<UserAccount>>();
         var user = await users.GetUserAsync(state.User);
         if (user is null || !user.IsActive) return false;
+        // A suspended tenant ends open Blazor sessions within the revalidation interval.
+        if (scope.ServiceProvider.GetService<Framework.Tenancy.TenantDirectory>() is { } tenants && !await tenants.IsActiveAsync(user.TenantId, ct)) return false;
         var stamp = state.User.FindFirstValue(options.Value.ClaimsIdentity.SecurityStampClaimType);
         return stamp == user.SecurityStamp;
     }
@@ -349,6 +367,7 @@ public static class BootstrapAdmin
         if (string.IsNullOrWhiteSpace(s["AdminUserName"]) || string.IsNullOrWhiteSpace(s["AdminPassword"])) return;
         await using var scope = sp.CreateAsyncScope();
         if (await scope.ServiceProvider.GetRequiredService<IUserAccountRepository>().AnyAsync()) return;
+        await Framework.Web.Tenancy.TenantRegistration.EnsureAsync(scope.ServiceProvider, s["TenantId"] ?? "default", s["TenantName"]);
         var users = scope.ServiceProvider.GetRequiredService<UserManager<UserAccount>>();
         var result = await users.CreateAsync(new UserAccount
         {

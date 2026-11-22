@@ -77,6 +77,9 @@ Comprehensive human capital management covering employee profiles, organizationa
 | `JobOffer` | Job Offer | Document | No | `JobOfferLifecycle` | Offer to a candidate (Workday Offer). Workflow: Draft → Sent → Accepted/Declined/Expired. 'Create employee' turns an accepted offer into an Employee. |
 | `JobProfile` | Job Profile | Document | No | - | Generic job definition (Workday Job Profile / SAP Job). A position is its instance. |
 | `JobRequisition` | Job Requisition | Document | No | - | Approved request to hire (Workday Job Requisition). Submit = approved and open for applicants. |
+| `FaceRegistration` | Face Registration | Document | No | `FaceRegistrationApproval` | Face enrolment for mobile attendance: photos for HR verification and the encrypted face template used by the ESS app. One active registration per employee. |
+| `BiodataChangeRequest` | Biodata Change Request | Document | No | `BiodataChangeApproval` | Employee request to correct personal data (contact & address, marital status & dependents, bank account, identity numbers). HR approves; the employee record is updated. |
+| `AttendanceCorrection` | Attendance Correction | Document | No | `AttendanceCorrectionApproval` | Request to correct a day's clock-in/clock-out. Approved by the line approver, then HR; the attendance is updated and its code recalculated. |
 | `LeaveAllocation` | Leave Allocation | Document | No | - | Leave balance per employee per period. Created in bulk by the scheduler from LeavePolicy. |
 | `LeaveApplication` | Leave Application | Document | No | `LeaveApproval` | Leave request approved by the employee's leave approver (Workday Request Time Off). |
 | `LeavePolicy` | Leave Policy | Document | No | - | Leave entitlement package per employee group (Workday Time Off Plan). |
