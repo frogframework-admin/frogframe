@@ -1,0 +1,45 @@
+{
+  "name": "OnboardingChecklistItem",
+  "version": 1,
+  "title": "Onboarding Checklist",
+  "module": "HR",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "task",
+      "type": "Data",
+      "label": "Task",
+      "requiredWhen": "true",
+      "description": "e.g. Provision laptop, set up email account, schedule orientation"
+    },
+    {
+      "name": "responsible",
+      "type": "Select",
+      "label": "Custodian",
+      "requiredWhen": "true",
+      "options": [
+        "HR",
+        "Manager",
+        "IT",
+        "Finance",
+        "General Affairs"
+      ]
+    },
+    {
+      "name": "due_date",
+      "type": "Date",
+      "label": "Due date"
+    },
+    {
+      "name": "is_done",
+      "type": "Check",
+      "label": "Completed",
+      "default": false
+    },
+    {
+      "name": "notes",
+      "type": "Data",
+      "label": "Notes"
+    }
+  ]
+}

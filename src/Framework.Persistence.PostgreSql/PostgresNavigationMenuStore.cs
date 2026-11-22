@@ -673,6 +673,40 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
             if (await fixGroupIconsCmd.ExecuteNonQueryAsync(ct) > 0) added = true;
         }
 
+        // 12. Rename 'Employees & Structure' to 'Personnel Management' and move organization/job design items to 'Organization and Job Design'
+        await using (var renameHrEmpGrpCmd = db.CreateCommand(
+            "UPDATE frogframe_navigation_menu_groups SET name = 'Personnel Management', updated_at = $3 " +
+            "WHERE tenant_id = $1 AND id = $2 AND is_system = true AND name <> 'Personnel Management'"))
+        {
+            renameHrEmpGrpCmd.Parameters.AddWithValue(tenantId);
+            renameHrEmpGrpCmd.Parameters.AddWithValue(NavigationMenuDefaults.GroupHrEmployeesId(tenantId));
+            renameHrEmpGrpCmd.Parameters.AddWithValue(now);
+            if (await renameHrEmpGrpCmd.ExecuteNonQueryAsync(ct) > 0) added = true;
+        }
+
+        await using (var updateHrEmpMenuGroupNameCmd = db.CreateCommand(
+            "UPDATE frogframe_navigation_menus SET group_name = 'Personnel Management', updated_at = $3 " +
+            "WHERE tenant_id = $1 AND group_id = $2 AND is_system = true AND group_name <> 'Personnel Management'"))
+        {
+            updateHrEmpMenuGroupNameCmd.Parameters.AddWithValue(tenantId);
+            updateHrEmpMenuGroupNameCmd.Parameters.AddWithValue(NavigationMenuDefaults.GroupHrEmployeesId(tenantId));
+            updateHrEmpMenuGroupNameCmd.Parameters.AddWithValue(now);
+            if (await updateHrEmpMenuGroupNameCmd.ExecuteNonQueryAsync(ct) > 0) added = true;
+        }
+
+        await using (var moveOrgJobCmd = db.CreateCommand(
+            "UPDATE frogframe_navigation_menus " +
+            "SET group_id = $2, group_name = 'Organization and Job Design', updated_at = $3 " +
+            "WHERE tenant_id = $1 AND is_system = true " +
+            "AND href IN ('app/OrganizationUnitType', 'app/OrganizationUnit', 'hr/organizational-chart', 'app/JobFamilyGroup', 'app/JobFamily', 'app/JobProfile', 'app/Position', 'app/Grade') " +
+            "AND (group_id IS DISTINCT FROM $2 OR group_name <> 'Organization and Job Design')"))
+        {
+            moveOrgJobCmd.Parameters.AddWithValue(tenantId);
+            moveOrgJobCmd.Parameters.AddWithValue(NavigationMenuDefaults.GroupHrOrgJobDesignId(tenantId));
+            moveOrgJobCmd.Parameters.AddWithValue(now);
+            if (await moveOrgJobCmd.ExecuteNonQueryAsync(ct) > 0) added = true;
+        }
+
         seededTenants[tenantId] = true;
         if (added) Changed?.Invoke();
     }

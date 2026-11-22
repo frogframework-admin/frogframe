@@ -1,0 +1,210 @@
+{
+  "name": "OffboardingList",
+  "version": 1,
+  "title": "Offboarding List",
+  "module": "HR",
+  "description": "Tracks offboarding clearance tasks and exit readiness for departing employees.",
+  "naming": {
+    "pattern": "OFF-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "employee",
+      "type": "Link",
+      "label": "Employee",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Offboarding Details"
+    },
+    {
+      "name": "employee_name",
+      "type": "Data",
+      "label": "Employee name",
+      "fetchFrom": "employee.full_name",
+      "inListView": true,
+      "section": "Offboarding Details"
+    },
+    {
+      "name": "employee_separation",
+      "type": "Link",
+      "label": "Employee Separation",
+      "linkTo": "EmployeeSeparation",
+      "lookupDialog": true,
+      "section": "Offboarding Details"
+    },
+    {
+      "name": "organization_unit",
+      "type": "Link",
+      "label": "Organization Unit",
+      "linkTo": "OrganizationUnit",
+      "fetchFrom": "employee.organization_unit",
+      "inListView": true,
+      "section": "Offboarding Details"
+    },
+    {
+      "name": "last_working_date",
+      "type": "Date",
+      "label": "Last working date",
+      "fetchFrom": "employee_separation.last_working_date",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Offboarding Details",
+      "column": 2
+    },
+    {
+      "name": "target_completion_date",
+      "type": "Date",
+      "label": "Target completion date",
+      "section": "Offboarding Details",
+      "column": 2
+    },
+    {
+      "name": "status",
+      "type": "Select",
+      "label": "Status",
+      "requiredWhen": "true",
+      "default": "Pending",
+      "inListView": true,
+      "section": "Offboarding Details",
+      "column": 2,
+      "options": [
+        "Pending",
+        "In Progress",
+        "Completed",
+        "Cancelled"
+      ]
+    },
+    {
+      "name": "exit_interview_done",
+      "type": "Check",
+      "label": "Exit interview done",
+      "default": false,
+      "section": "Offboarding Details",
+      "column": 2
+    },
+    {
+      "name": "notes",
+      "type": "Text",
+      "label": "Notes",
+      "section": "Offboarding Details"
+    },
+    {
+      "name": "checklist",
+      "type": "Table",
+      "label": "Offboarding Tasks",
+      "childDocType": "SeparationChecklistItem",
+      "section": "Checklist"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR-Admin",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Recruitment",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Employee-Management",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Time-Attendance",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Talent",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "match:employee=employee"
+    }
+  ],
+  "listView": {
+    "titleField": "employee_name",
+    "searchFields": [
+      "name",
+      "employee_name"
+    ],
+    "filters": [
+      "status",
+      "organization_unit",
+      "last_working_date"
+    ],
+    "defaultSort": [
+      {
+        "field": "last_working_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

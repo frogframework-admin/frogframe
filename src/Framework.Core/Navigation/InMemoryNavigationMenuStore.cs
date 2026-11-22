@@ -54,9 +54,17 @@ public sealed class InMemoryNavigationMenuStore(TimeProvider clock) : INavigatio
 
         foreach (var defGrp in NavigationMenuDefaults.CreateDefaultGroups(tenantId, now))
         {
-            if (!groups.Values.Any(x => x.TenantId == tenantId && (x.Id == defGrp.Id || string.Equals(x.Name, defGrp.Name, StringComparison.OrdinalIgnoreCase))))
+            var existingGrp = groups.Values.FirstOrDefault(x => x.TenantId == tenantId && (x.Id == defGrp.Id || string.Equals(x.Name, defGrp.Name, StringComparison.OrdinalIgnoreCase)));
+            if (existingGrp is null)
             {
                 groups[defGrp.Id] = defGrp;
+                modified = true;
+            }
+            else if (existingGrp.IsSystem && (existingGrp.Name != defGrp.Name || existingGrp.SortOrder != defGrp.SortOrder || existingGrp.Icon != defGrp.Icon))
+            {
+                existingGrp.Name = defGrp.Name;
+                existingGrp.SortOrder = defGrp.SortOrder;
+                existingGrp.Icon = defGrp.Icon;
                 modified = true;
             }
         }
