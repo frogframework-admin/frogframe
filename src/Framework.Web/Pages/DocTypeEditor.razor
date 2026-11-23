@@ -1109,7 +1109,6 @@ else
         if (dragField is { } f) { design!.Move(f, sec, col, index); selected = f; }
         else if (dragType is { } type && lastGoodSnapshot is not null) selected = design!.AddField(type, sec, col, index, lastGoodSnapshot);
         currentSection = sec;
-        isDrawerOpen = true;
         EndDrag();
         Recompile();
     }
