@@ -1,0 +1,218 @@
+{
+  "name": "CompetencyCatalog",
+  "version": 1,
+  "title": "Competency Catalog",
+  "module": "HR",
+  "description": "Standardized competency catalog with categories, proficiency levels, behavioral indicators, and assessment criteria.",
+  "naming": {
+    "pattern": "field:catalog_code"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "catalog_code",
+      "type": "Data",
+      "label": "Catalog code",
+      "requiredWhen": "true",
+      "maxLength": 30,
+      "inListView": true,
+      "section": "Catalog",
+      "description": "Example: COMP-LEAD-001, COMP-TECH-005"
+    },
+    {
+      "name": "catalog_name",
+      "type": "Data",
+      "label": "Catalog name",
+      "requiredWhen": "true",
+      "maxLength": 140,
+      "inListView": true,
+      "section": "Catalog"
+    },
+    {
+      "name": "competency",
+      "type": "Link",
+      "label": "Competency",
+      "linkTo": "Competency",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Catalog",
+      "column": 2
+    },
+    {
+      "name": "category",
+      "type": "Select",
+      "label": "Category",
+      "requiredWhen": "true",
+      "options": [
+        "Core Value",
+        "Leadership",
+        "Functional",
+        "Technical"
+      ],
+      "default": "Functional",
+      "inListView": true,
+      "section": "Catalog",
+      "column": 2
+    },
+    {
+      "name": "is_active",
+      "type": "Check",
+      "label": "Active",
+      "default": true,
+      "inListView": true,
+      "section": "Catalog",
+      "column": 2
+    },
+    {
+      "name": "proficiency_level",
+      "type": "Select",
+      "label": "Proficiency level",
+      "options": [
+        "1 - Awareness",
+        "2 - Basic",
+        "3 - Intermediate",
+        "4 - Advanced",
+        "5 - Expert"
+      ],
+      "default": "3 - Intermediate",
+      "inListView": true,
+      "section": "Proficiency & Criteria"
+    },
+    {
+      "name": "job_family",
+      "type": "Link",
+      "label": "Job family",
+      "linkTo": "JobFamily",
+      "lookupDialog": true,
+      "section": "Proficiency & Criteria",
+      "column": 2
+    },
+    {
+      "name": "description",
+      "type": "Text",
+      "label": "Description",
+      "section": "Proficiency & Criteria"
+    },
+    {
+      "name": "behavioral_indicators",
+      "type": "Text",
+      "label": "Behavioral indicators",
+      "section": "Proficiency & Criteria"
+    },
+    {
+      "name": "assessment_criteria",
+      "type": "Text",
+      "label": "Assessment criteria",
+      "section": "Proficiency & Criteria"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR-Admin",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Talent",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Recruitment",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Employee-Management",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Time-Attendance",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "catalog_name",
+    "searchFields": [
+      "catalog_code",
+      "catalog_name",
+      "competency"
+    ],
+    "filters": [
+      "category",
+      "proficiency_level",
+      "is_active"
+    ],
+    "defaultSort": [
+      {
+        "field": "catalog_code",
+        "direction": "asc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  },
+  "import": {
+    "enabled": true
+  }
+}

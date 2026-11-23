@@ -1,7 +1,7 @@
 {
   "name": "KpiDefinition",
   "version": 1,
-  "title": "KPI Definition",
+  "title": "KPI Catalog",
   "module": "CORE",
   "description": "KPI catalog: definitions, formulas, targets, source DocTypes, and dashboard widgets calculating them.",
   "naming": {

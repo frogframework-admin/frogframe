@@ -848,6 +848,66 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
             if (await delHrSettingsCmd.ExecuteNonQueryAsync(ct) > 0) added = true;
         }
 
+        // 16. Move OnboardingList, OffboardingList, and KpiDefinition to Documents; move Location to Organization and Job Design; reorder HR groups
+        await using (var delDocsMenusCmd = db.CreateCommand(
+            "DELETE FROM frogframe_navigation_menus WHERE tenant_id = $1 AND is_system = true " +
+            "AND (href IN ('app/OnboardingList', 'app/OffboardingList', 'app/KpiDefinition') OR id IN ($2, $3, $4))"))
+        {
+            delDocsMenusCmd.Parameters.AddWithValue(tenantId);
+            delDocsMenusCmd.Parameters.AddWithValue($"menu_{tenantId}_onboarding_list");
+            delDocsMenusCmd.Parameters.AddWithValue($"menu_{tenantId}_offboarding_list");
+            delDocsMenusCmd.Parameters.AddWithValue($"menu_{tenantId}_kpi_definition");
+            if (await delDocsMenusCmd.ExecuteNonQueryAsync(ct) > 0) added = true;
+        }
+
+        await using (var moveLocationCmd = db.CreateCommand(
+            "UPDATE frogframe_navigation_menus " +
+            "SET group_id = $2, group_name = 'Organization and Job Design', sort_order = 90, updated_at = $3 " +
+            "WHERE tenant_id = $1 AND is_system = true AND href = 'app/Location' " +
+            "AND (group_id IS DISTINCT FROM $2 OR group_name <> 'Organization and Job Design' OR sort_order IS DISTINCT FROM 90)"))
+        {
+            moveLocationCmd.Parameters.AddWithValue(tenantId);
+            moveLocationCmd.Parameters.AddWithValue(NavigationMenuDefaults.GroupHrOrgJobDesignId(tenantId));
+            moveLocationCmd.Parameters.AddWithValue(now);
+            if (await moveLocationCmd.ExecuteNonQueryAsync(ct) > 0) added = true;
+        }
+
+        await using (var reorderHrGroupsCmd = db.CreateCommand(
+            "UPDATE frogframe_navigation_menu_groups SET sort_order = CASE id " +
+            "  WHEN $2 THEN 10 " +
+            "  WHEN $3 THEN 20 " +
+            "  WHEN $4 THEN 30 " +
+            "  WHEN $5 THEN 40 " +
+            "  WHEN $6 THEN 50 " +
+            "  WHEN $7 THEN 60 " +
+            "  WHEN $8 THEN 70 " +
+            "  WHEN $9 THEN 80 " +
+            "  ELSE sort_order END, updated_at = $10 " +
+            "WHERE tenant_id = $1 AND is_system = true AND id IN ($2, $3, $4, $5, $6, $7, $8, $9) " +
+            "AND sort_order IS DISTINCT FROM CASE id " +
+            "  WHEN $2 THEN 10 " +
+            "  WHEN $3 THEN 20 " +
+            "  WHEN $4 THEN 30 " +
+            "  WHEN $5 THEN 40 " +
+            "  WHEN $6 THEN 50 " +
+            "  WHEN $7 THEN 60 " +
+            "  WHEN $8 THEN 70 " +
+            "  WHEN $9 THEN 80 " +
+            "  ELSE sort_order END"))
+        {
+            reorderHrGroupsCmd.Parameters.AddWithValue(tenantId);
+            reorderHrGroupsCmd.Parameters.AddWithValue(NavigationMenuDefaults.GroupHrOrgJobDesignId(tenantId));
+            reorderHrGroupsCmd.Parameters.AddWithValue(NavigationMenuDefaults.GroupHrRecruitmentId(tenantId));
+            reorderHrGroupsCmd.Parameters.AddWithValue(NavigationMenuDefaults.GroupHrEmployeesId(tenantId));
+            reorderHrGroupsCmd.Parameters.AddWithValue(NavigationMenuDefaults.GroupHrShiftRosterId(tenantId));
+            reorderHrGroupsCmd.Parameters.AddWithValue(NavigationMenuDefaults.GroupHrLeaveId(tenantId));
+            reorderHrGroupsCmd.Parameters.AddWithValue(NavigationMenuDefaults.GroupHrAttendanceId(tenantId));
+            reorderHrGroupsCmd.Parameters.AddWithValue(NavigationMenuDefaults.GroupHrPayrollId(tenantId));
+            reorderHrGroupsCmd.Parameters.AddWithValue(NavigationMenuDefaults.GroupHrTalentId(tenantId));
+            reorderHrGroupsCmd.Parameters.AddWithValue(now);
+            if (await reorderHrGroupsCmd.ExecuteNonQueryAsync(ct) > 0) added = true;
+        }
+
         seededTenants[tenantId] = true;
         if (added) Changed?.Invoke();
     }
