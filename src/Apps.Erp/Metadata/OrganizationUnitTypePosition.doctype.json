@@ -1,0 +1,68 @@
+{
+  "name": "OrganizationUnitTypePosition",
+  "version": 1,
+  "title": "Position Template Line",
+  "module": "HR",
+  "isChild": true,
+  "description": "One line of a unit type's position template: a job profile and how many positions every unit of this type gets.",
+  "fields": [
+    {
+      "name": "job_profile",
+      "type": "Link",
+      "label": "Job profile",
+      "linkTo": "JobProfile",
+      "linkFilters": [
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "requiredWhen": "true"
+    },
+    {
+      "name": "quantity",
+      "type": "Int",
+      "label": "Positions per unit",
+      "requiredWhen": "true",
+      "default": 1,
+      "min": 1,
+      "max": 500
+    },
+    {
+      "name": "is_head",
+      "type": "Check",
+      "label": "Head position",
+      "default": false,
+      "description": "The unit's head position. At most one line, with quantity 1."
+    },
+    {
+      "name": "title_pattern",
+      "type": "Data",
+      "label": "Position title pattern",
+      "maxLength": 140,
+      "description": "Optional. {job} = job title, {unit} = unit name, {n} = sequence. Default: '{job} {unit}' (+ ' {n}' when quantity > 1)."
+    },
+    {
+      "name": "worker_type",
+      "type": "Select",
+      "label": "Worker type",
+      "options": [
+        "Permanent (PKWTT)",
+        "Fixed-term (PKWT)",
+        "Casual",
+        "Intern",
+        "Outsourced"
+      ]
+    },
+    {
+      "name": "time_type",
+      "type": "Select",
+      "label": "Working time",
+      "options": [
+        "Full-time",
+        "Part-time"
+      ]
+    }
+  ]
+}

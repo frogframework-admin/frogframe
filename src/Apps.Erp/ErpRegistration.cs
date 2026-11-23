@@ -140,6 +140,7 @@ public static class ErpRegistration
         services.AddDocHook<Employee, EmployeeHook>();
         services.AddDocHook<Position, PositionHook>();
         services.AddDocHook<OrganizationUnitType, OrganizationUnitTypeHook>();
+        services.AddFormAction<OrganizationUnitType, OrganizationUnitTypeSyncPositionsAction>();
         services.AddDocHook<OrganizationUnit, OrganizationUnitHook>();
         services.AddFormAction<OrganizationUnit, OrganizationUnitActivateAction>();
         services.AddDocHook<EmployeeAssignment, EmployeeAssignmentHook>();

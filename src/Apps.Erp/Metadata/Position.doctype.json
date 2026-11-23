@@ -133,6 +133,17 @@
       "column": 2
     },
     {
+      "name": "auto_created",
+      "type": "Check",
+      "label": "Created from unit type template",
+      "default": false,
+      "readOnlyWhen": "true",
+      "noCopy": true,
+      "section": "Status",
+      "column": 2,
+      "description": "Set by the system. Only vacant auto-created positions are closed when a template quantity is lowered."
+    },
+    {
       "name": "effective_from",
       "type": "Date",
       "label": "Effective from",

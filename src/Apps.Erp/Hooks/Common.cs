@@ -358,6 +358,7 @@ internal static class ErpEvents
 {
     public const string Prefix = "erp.";
     public const string PositionSync = "erp.position.sync", OrgManagerChanged = "erp.org.manager_changed",
+        OrgPositionTemplate = "erp.org.position_template",
         JobChangeApply = "erp.jobchange.apply", SeparationApply = "erp.separation.apply", FiscalYearStatus = "erp.fiscalyear.status",
         TaxInvoiceCreate = "erp.taxinvoice.create", PurchaseFollowUps = "erp.purchase.followups",
         QuotationWon = "erp.quotation.won", QuotationBilled = "erp.quotation.billed", AdvanceTouch = "erp.touch",

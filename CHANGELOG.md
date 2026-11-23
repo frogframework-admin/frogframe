@@ -11,6 +11,7 @@ Releases are tagged `vMAJOR.MINOR.PATCH` on `main`. Add every user-visible chang
 ## [Unreleased]
 
 ### Added
+- Position template per organization unit type (`docs/guides/position-templates.md`): a unit type lists job profiles and how many positions each unit gets (one head line). A new active unit with staffing model *Position* gets its positions automatically (head first, staff report to the head, the head reports to the parent unit's head, the unit's head position is set). *Sync positions to units* on the unit type adds new lines to existing units and closes vacant auto-created positions above a lowered quantity; filled positions are reported, never closed. New child DocType `OrganizationUnitTypePosition`; new Position field *Created from unit type template*.
 - ESS self-service API (`docs/guides/ess-mobile-api.md` section 12):
   - face registration for on-device face recognition: photos for HR, face template stored encrypted (Data Protection) and returned only to the employee's app, HR verification, one active registration per employee, consent recorded (UU PDP); optional face match on every punch (HR Settings: required, minimum score, reject or flag);
   - attendance correction (new DocType, line approver then HR); on approval the day's attendance gets the corrected times and its code is recalculated;
@@ -74,6 +75,7 @@ Releases are tagged `vMAJOR.MINOR.PATCH` on `main`. Add every user-visible chang
   - migration `042_two_factor.sql`.
 
 ### Changed
+- Approval delegation job (`Erp.ApprovalDelegationRefresh`): when the approver of a pending document has left and there is no Acting (Plt.), the document moves to the requester's current approver; when the line approver moved and no longer is the requester's line approver (job change, reorganization), the document moves to the current line approver (an active Acting for that approver keeps it). Audit action *Approver reassigned*; the new approver and the requester get an inbox notice.
 - Attendance: the status follows the attendance code (ABS → Absent, time off → On leave, new status *Day off*). Because absent days are now recorded automatically, payroll's *Prorate for absence* deducts working days without punches; review the monthly recap before running payroll.
 - Home page loads faster: the approval list queries only the workflow states the user can decide, store queries that need only rows skip the total count (`StoreQuery.CountTotal`, also used by the ERP `Masters` helper), DocTypes are queried in parallel, sections appear as their data arrives, and KPI widgets run in parallel with a 3-second limit and a 5-minute cache. With 63,000 documents the approval list went from 57–148 ms to 2–3 ms. See `docs/guides/home-page.md`.
 - Home page: users with decisions waiting see them first; other users see their own day first. Recent documents show type, party or title, amount and status (the "Available actions" column and the arbitrary "View all" link are gone). The card "Tasks & unread notifications", which counted only notifications, is replaced by the summary chips.
@@ -96,6 +98,7 @@ Releases are tagged `vMAJOR.MINOR.PATCH` on `main`. Add every user-visible chang
 - Outside Development the application refuses to start while a secret in use is a `change-me` placeholder, a repository default, or shorter than 12 characters.
 
 ### Fixed
+- When an employee leaves (Employee Separation) or a manager changes position (Job Change), their direct reports kept the old supervisor, so new leave and expense requests went to someone who had left or moved. Their supervisor is now recomputed from position and unit, the leave and expense approvers follow (manual overrides to other people are kept), and HR (HR-Employee-Management) gets an inbox notice for employees left without a supervisor.
 - ESS approvals list no longer misses requests whose pending state is already submitted (overtime, attendance corrections), shows shift swaps waiting for the manager, and no longer fails on project or HR steps by always sending `Approve`/`Reject`; the home *my pending requests* count includes the same requests.
 - Home page greeting, date and My Tasks "due today" / "overdue" use the application time zone instead of the server clock (UTC in a container without `TZ`), and the greeting has four periods (Indonesian "Selamat sore" between 15:00 and 18:00).
 - DocType editor: a "Tab in section" is now drawn inside its section card (tab strip, then the selected tab's fields), as in Preview and the form, instead of as a separate card below the section. Fields can be dropped on a tab in the strip to move them into it.

@@ -1291,24 +1291,29 @@ public sealed class RosterRollingHorizonJob : IScheduledJob
 }
 
 /// <summary>
-/// Daily scheduled job: checks pending approval documents whose current approver is on approved leave (or left)
-/// and delegates them to an active Acting (Plt.) holder, sending in-app notifications to the substitute and requester.
+/// Daily scheduled job: keeps the approver of pending approval documents valid, with in-app notices to the new approver
+/// and the requester, and an audit entry per change:
+/// - approver on approved leave → active Acting (Plt.) holder, if any (otherwise the document waits);
+/// - approver left → active Acting (Plt.) holder, else the requester's current approver by structure;
+/// - approver moved and no longer the requester's line approver (job change, reorganization) → the current line approver,
+///   unless the approver is an active Acting (Plt.) for that line approver.
+/// Workflow guards compare the stored approver field with the user, so moving the field moves the right to approve.
 /// </summary>
 public sealed class ApprovalDelegationRefreshJob : IScheduledJob
 {
     public string Name => "Erp.ApprovalDelegationRefresh";
     public string Schedule => "@daily";
 
-    private static readonly (string DocType, string ApproverField, string RequesterField, string PendingState)[] Targets =
+    private static readonly (string DocType, string ApproverField, string RequesterField, string PendingState, string? LineField)[] Targets =
     [
-        ("LeaveApplication", "leave_approver", "employee", "Pending Approval"),
-        ("OvertimeRequest", "approver", "employee", "Pending Approval"),
-        ("OvertimeRequest", "project_approver", "employee", "Pending Project Approval"),
-        ("ExpenseClaim", "expense_approver", "employee", "Pending Manager"),
-        ("ExpenseClaim", "project_approver", "employee", "Pending Project Approval"),
-        ("EmployeeAdvance", "expense_approver", "employee", "Pending Manager"),
-        ("PurchaseRequest", "approver", "requested_by", "Pending Approval"),
-        ("PurchaseRequest", "project_approver", "requested_by", "Pending Project Approval"),
+        ("LeaveApplication", "leave_approver", "employee", "Pending Approval", "leave_approver"),
+        ("OvertimeRequest", "approver", "employee", "Pending Approval", "leave_approver"),
+        ("OvertimeRequest", "project_approver", "employee", "Pending Project Approval", null),
+        ("ExpenseClaim", "expense_approver", "employee", "Pending Manager", "expense_approver"),
+        ("ExpenseClaim", "project_approver", "employee", "Pending Project Approval", null),
+        ("EmployeeAdvance", "expense_approver", "employee", "Pending Manager", "expense_approver"),
+        ("PurchaseRequest", "approver", "requested_by", "Pending Approval", "expense_approver"),
+        ("PurchaseRequest", "project_approver", "requested_by", "Pending Project Approval", null),
     ];
 
     public async Task ExecuteAsync(ScheduledJobContext context, CancellationToken ct)
@@ -1320,7 +1325,7 @@ public sealed class ApprovalDelegationRefreshJob : IScheduledJob
         var today = DateOnly.FromDateTime(context.ScheduledTime.Date);
         var now = DateTimeOffset.UtcNow;
 
-        foreach (var (docType, approverField, requesterField, pendingState) in Targets)
+        foreach (var (docType, approverField, requesterField, pendingState, lineField) in Targets)
         {
             // Filter on the state in the query: the pending documents are a small part of all documents.
             var docs = await m.QueryAsync(docType, [new FilterClause("workflow_state", "=", pendingState)], ct, take: 10_000);
@@ -1332,15 +1337,39 @@ public sealed class ApprovalDelegationRefreshJob : IScheduledJob
                 if (curApprover is null) continue;
 
                 var approverDoc = await m.GetAsync("Employee", curApprover, ct);
-                var unavailable = approverDoc is null || approverDoc.Data.Str("status") == Hr.Left
-                    || await Hr.IsOnApprovedLeaveAsync(m, curApprover, today, ct);
-                if (!unavailable) continue;
+                var left = approverDoc is null || approverDoc.Data.Str("status") == Hr.Left;
+                var onLeave = !left && await Hr.IsOnApprovedLeaveAsync(m, curApprover, today, ct);
 
-                var acting = await Hr.FindActingDelegateAsync(m, curApprover, approverDoc?.Data.Str("position"), requester, today, ct);
-                if (acting is null || acting == curApprover) continue;
+                string? target = null;
+                var viaActing = false;
+                string reason;
+                if (left || onLeave)
+                {
+                    target = await Hr.FindActingDelegateAsync(m, curApprover, approverDoc?.Data.Str("position"), requester, today, ct);
+                    viaActing = target is not null;
+                    reason = $"{curApprover} is {(left ? "no longer employed" : "on approved leave")} on {D.Iso(today)}";
+                    if (target is null && left)
+                        target = await CurrentApproverAsync(m, doc, requester, lineField, today, ct);
+                }
+                else
+                {
+                    // Still available: only a line approver who no longer is the requester's line approver is replaced.
+                    if (lineField is null) continue;
+                    var requesterDoc = await m.GetAsync("Employee", requester, ct);
+                    if (requesterDoc is null || requesterDoc.Data.Str("status") == Hr.Left) continue;
+                    var resolved = await Hr.ResolveApproversAsync(m, requesterDoc, null, today, ct, lineField);
+                    var expected = resolved.LineApprover;
+                    if (expected is null || expected == curApprover || curApprover == resolved.OriginalLineApprover) continue;
+                    if (await IsActingForAsync(m, curApprover, resolved.OriginalLineApprover, today, ct)) continue;
+                    target = expected;
+                    viaActing = resolved.LineDelegated;
+                    reason = $"{curApprover} is no longer the line approver of {requester} on {D.Iso(today)}";
+                }
+
+                if (target is null || target == curApprover || target == requester) continue;
 
                 var clone = doc.Clone();
-                clone.Data[approverField] = acting;
+                clone.Data[approverField] = target;
                 clone.Version = doc.Version + 1;
                 clone.Modified = now;
                 clone.ModifiedBy = "system";
@@ -1352,11 +1381,11 @@ public sealed class ApprovalDelegationRefreshJob : IScheduledJob
                     TenantId = doc.TenantId,
                     DocType = doc.DocType,
                     DocName = doc.Name,
-                    Action = "Approver delegated",
+                    Action = viaActing ? "Approver delegated" : "Approver reassigned",
                     Actor = "system",
                     At = now,
-                    Changes = [new FieldChange(approverField, curApprover, acting)],
-                    Comment = $"{curApprover} is unavailable on {D.Iso(today)}; delegated to Acting (Plt.) {acting}",
+                    Changes = [new FieldChange(approverField, curApprover, target)],
+                    Comment = viaActing ? $"{reason}; delegated to Acting (Plt.) {target}" : $"{reason}; reassigned to {target}",
                     SchemaVersion = doc.SchemaVersion,
                 });
                 try { await store.CommitAsync(uow, ct); }
@@ -1364,19 +1393,42 @@ public sealed class ApprovalDelegationRefreshJob : IScheduledJob
 
                 if (users is not null && inbox is not null)
                 {
-                    await Notify.ToEmployeesAsync(users, inbox, context.TenantId, [acting],
-                        $"Delegated approval: {docType} {doc.Name}",
-                        $"You have been assigned as Acting (Plt.) approver for {docType} {doc.Name} while {curApprover} is unavailable.",
-                        docType, doc.Name, $"deleg-act|{docType}|{doc.Name}|{acting}|{D.Iso(today)}", ct);
+                    var role = viaActing ? "Acting (Plt.) approver" : "approver";
+                    await Notify.ToEmployeesAsync(users, inbox, context.TenantId, [target],
+                        $"Approval assigned: {docType} {doc.Name}",
+                        $"You are now the {role} for {docType} {doc.Name} ({reason}).",
+                        docType, doc.Name, $"deleg-act|{docType}|{doc.Name}|{target}|{D.Iso(today)}", ct);
                     if (!string.IsNullOrEmpty(requester))
                     {
                         await Notify.ToEmployeesAsync(users, inbox, context.TenantId, [requester],
-                            $"Approver delegated for {docType} {doc.Name}",
-                            $"Pending approval for {docType} {doc.Name} has been delegated from {curApprover} to Acting approver {acting}.",
-                            docType, doc.Name, $"deleg-req|{docType}|{doc.Name}|{acting}|{D.Iso(today)}", ct);
+                            $"Approver changed for {docType} {doc.Name}",
+                            $"Pending approval for {docType} {doc.Name} moved from {curApprover} to {target} ({reason}).",
+                            docType, doc.Name, $"deleg-req|{docType}|{doc.Name}|{target}|{D.Iso(today)}", ct);
                     }
                 }
             }
         }
+    }
+
+    /// <summary>The requester's approver as a new submission would get it today: line approver, or project approver for project stages.</summary>
+    private static async Task<string?> CurrentApproverAsync(Masters m, Document doc, string requester, string? lineField, DateOnly today, CancellationToken ct)
+    {
+        var requesterDoc = await m.GetAsync("Employee", requester, ct);
+        if (requesterDoc is null) return null;
+        if (lineField is not null)
+            return (await Hr.ResolveApproversAsync(m, requesterDoc, null, today, ct, lineField)).LineApprover;
+        if (doc.Data.Str("project") is not { } project) return null;
+        return (await Hr.ResolveApproversAsync(m, requesterDoc, project, today, ct)).ProjectApprover;
+    }
+
+    /// <summary>True when <paramref name="employee"/> holds an active Acting (Plt.) assignment for <paramref name="manager"/> or the manager's position.</summary>
+    private static async Task<bool> IsActingForAsync(Masters m, string employee, string? manager, DateOnly today, CancellationToken ct)
+    {
+        if (manager is null) return false;
+        var managerPosition = (await m.GetAsync("Employee", manager, ct))?.Data.Str("position");
+        return (await m.QueryAsync("EmployeeAssignment",
+                [new FilterClause("employee", "=", employee), new FilterClause("assignment_type", "=", "Acting"), new FilterClause("status", "=", "Active")], ct, take: 50))
+            .Where(a => (a.Data.Date("start_date") is not { } s || s <= today) && (a.Data.Date("end_date") is not { } e || today <= e))
+            .Any(a => a.Data.Str("acting_for") == manager || (managerPosition is not null && a.Data.Str("position") == managerPosition));
     }
 }

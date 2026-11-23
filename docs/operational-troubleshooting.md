@@ -337,3 +337,38 @@ docker stats frogframe-app frogframe-postgres frogframe-seaweedfs
 # Inspect recent unhandled application crashes
 docker logs --tail 200 frogframe-app
 ```
+
+---
+
+## 5. Docker Daemon & Virtual Disk (WSL2/Linux) Hangs
+
+When Docker commands hang indefinitely or fail with:
+`error during connect: ... open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified` or `request returned 500 Internal Server Error`:
+
+### 5.1 Root Causes
+1. **WSL2 Distro Hung during Initialization**: `docker-desktop-data` stuck in state `Installing` (state value `3` in Windows registry `HKCU\Software\Microsoft\Windows\CurrentVersion\Lxss\`).
+2. **Path Misconfiguration / Missing VHDX**: Registry points to a non-existent path (e.g. `RecoveredDockerData`) instead of the active disk location (`DockerDesktopWSL\disk\docker_data.vhdx`).
+3. **Underlying Hardware / CRC Disk Errors**: Drive bad sectors (reported as Windows error `Operating system error 23 (Data error (cyclic redundancy check))` in event logs).
+
+### 5.2 Resolution Steps
+1. **Force Terminate Stuck Docker & WSL Sessions**:
+   ```powershell
+   Stop-Process -Name "Docker Desktop", "com.docker.backend", "com.docker.build" -Force -ErrorAction SilentlyContinue
+   wsl --shutdown
+   ```
+2. **Inspect & Fix Distro Registry State (PowerShell)**:
+   ```powershell
+   # Inspect registered WSL distros
+   Get-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Lxss\*" | Select-Object DistributionName, State, BasePath
+
+   # If docker-desktop-data is stuck in State 3, reset to State 1 (Installed) and verify valid BasePath:
+   # Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Lxss\<GUID>" -Name "State" -Value 1
+   ```
+3. **Restart Docker Engine & Verify**:
+   ```powershell
+   Start-Process "C:\Program Files\Docker\Docker\Docker Desktop.exe"
+   docker ps
+   ```
+4. **Production Recommendation**:
+   Do **not** use Docker Desktop with WSL2 in production environments. Run native Docker Engine (`dockerd`) on Linux servers (Ubuntu/Debian) with separated hardware mounts for PostgreSQL and object storage.
+

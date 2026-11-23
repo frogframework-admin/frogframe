@@ -34,6 +34,8 @@
       href: guides/doctype-and-workflow-catalog.md
     - name: DocType Data Entry Sequence
       href: guides/doctype-data-entry-sequence.md
+    - name: Position Templates & Supervisor Changes
+      href: guides/position-templates.md
     - name: List Views (Board, Calendar & Tree)
       href: guides/list-views-board-and-calendar.md
     - name: Row Sharing
@@ -108,6 +110,8 @@
       href: guides/multi-language.md
 - name: Architecture & Reliability
   items:
+    - name: Production Deployment & Operations
+      href: guides/production-deployment.md
     - name: Security Baseline (OWASP Top 10)
       href: security-baseline.md
     - name: Observability & Telemetry

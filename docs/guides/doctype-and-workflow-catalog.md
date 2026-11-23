@@ -86,6 +86,8 @@ Comprehensive human capital management covering employee profiles, organizationa
 | `LeavePolicyDetail` | Leave Entitlement | Document | No | - | Leave Entitlement entity. |
 | `LeaveType` | Leave Type | Document | No | - | Leave type (Workday Time Off Type). |
 | `OrganizationUnit` | Organization Unit | Document | No | - | Organization unit/management hierarchy (Workday Supervisory Organization / SAP OM Org Unit). Org chart via OrgTree. |
+| `OrganizationUnitType` | Organization Unit Type | Document | No | - | Unit type (Division, Department, Branch, ...). Holds the position template: positions created for every new unit of the type. |
+| `OrganizationUnitTypePosition` | Position Template Line | Child | No | - | Job profile and number of positions per unit; one line can be the head position. |
 | `OvertimeRequest` | Overtime Request | Document | No | `OvertimeApproval` | Overtime request with approval; approved overtime is paid on the payslip of its month (PP 35/2021: hourly wage = 1/173 of the monthly wage). |
 | `PayrollRun` | Payroll Run | Document | No | - | Monthly payroll for a company (Workday Pay Run). 'Create payslips' drafts one payslip per employee; submit posts the payroll journal from the submitted payslips. |
 | `PayrollSettings` | Payroll Settings | Document | No | - | Statutory rates and accounts for payroll. Values reflect the rules in force in November 2026; verify each year. |

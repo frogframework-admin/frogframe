@@ -48,7 +48,13 @@ public sealed class ErpEventHandler(IServiceProvider services, IDocumentStore st
             }
 
             case ErpEvents.JobChangeApply:
-                if (await m.GetAsync("JobChange", name, ct) is { } jc) await HrApply.JobChangeAsync(sys, jc, ct);
+                if (await m.GetAsync("JobChange", name, ct) is { } jc)
+                    await HrNotices.SupervisorGapsAsync(services, tenant, "JobChange", jc.Name, await HrApply.JobChangeAsync(sys, store, jc, ct), ct);
+                break;
+
+            case ErpEvents.OrgPositionTemplate:
+                if (await m.GetAsync("OrganizationUnit", name, ct) is { } unit && !await Hr.IsReorganizedVersionAsync(m, unit, ct))
+                    await Hr.ApplyPositionTemplateAsync(sys, m, unit, closeSurplus: false, Hr.Today(services.GetService<TimeProvider>() ?? TimeProvider.System), ct);
                 break;
 
             case ErpEvents.PaymentRunExecute:
@@ -69,7 +75,8 @@ public sealed class ErpEventHandler(IServiceProvider services, IDocumentStore st
 
             case ErpEvents.SeparationApply:
                 if (await m.GetAsync("EmployeeSeparation", name, ct) is { } sep)
-                    await HrApply.SeparationAsync(sys, services.GetService<IUserAccountRepository>(), sep, ct);
+                    await HrNotices.SupervisorGapsAsync(services, tenant, "EmployeeSeparation", sep.Name,
+                        await HrApply.SeparationAsync(sys, store, services.GetService<IUserAccountRepository>(), sep, ct), ct);
                 break;
 
             case ErpEvents.FaceActivated:
@@ -176,11 +183,13 @@ public sealed class HrEffectiveDateJob : IScheduledJob
             await Safe(context, planned.Name, () => Hr.ActivatePlannedUnitAsync(sys, m, planned, planned.Data.Date("effective_from") ?? todayDate, ct));
         foreach (var jc in (await m.QueryAsync("JobChange", [new FilterClause("effective_date", "<=", today)], ct, "effective_date", "asc", 5000))
                  .Where(j => j.DocStatus == DocStatus.Submitted))
-            await Safe(context, jc.Name, () => HrApply.JobChangeAsync(sys, jc, ct));
+            await Safe(context, jc.Name, async () =>
+                await HrNotices.SupervisorGapsAsync(context.Services, context.TenantId, "JobChange", jc.Name, await HrApply.JobChangeAsync(sys, m.Store, jc, ct), ct));
         var accounts = context.Services.GetService<IUserAccountRepository>();
         foreach (var sep in (await m.QueryAsync("EmployeeSeparation", [new FilterClause("last_working_date", "<=", today)], ct, take: 5000))
                  .Where(s => s.DocStatus == DocStatus.Submitted))
-            await Safe(context, sep.Name, () => HrApply.SeparationAsync(sys, accounts, sep, ct));
+            await Safe(context, sep.Name, async () =>
+                await HrNotices.SupervisorGapsAsync(context.Services, context.TenantId, "EmployeeSeparation", sep.Name, await HrApply.SeparationAsync(sys, m.Store, accounts, sep, ct), ct));
     }
 
     internal static async Task Safe(ScheduledJobContext context, string what, Func<Task> work)
@@ -330,5 +339,22 @@ public sealed class CrmDailyJob : IScheduledJob
                 k.Data.Bool("auto_renew") ? "Auto-renew is on: prepare the renewal contract." : "Decide on renewal with the customer.",
                 "CustomerContract", k.Name, $"contract-end|{k.Name}", ct);
         }
+    }
+}
+
+/// <summary>Inbox notices to HR about employees who need manual follow-up after an automatic HR change.</summary>
+internal static class HrNotices
+{
+    public static async Task SupervisorGapsAsync(IServiceProvider services, string tenant, string docType, string docName,
+        IReadOnlyList<string> problems, CancellationToken ct)
+    {
+        if (problems.Count == 0) return;
+        var users = services.GetService<IUserDirectory>();
+        var inbox = services.GetService<INotificationStore>();
+        if (users is null || inbox is null) return;
+        await Notify.ToRoleAsync(users, inbox, tenant, ErpRoles.HrEmployeeManagement,
+            $"Supervisor review needed after {docType} {docName}",
+            $"Set the supervisor (or an Acting/Plt. assignment) for: {string.Join("; ", problems)}.",
+            docType, docName, $"supervisor-gap|{docType}|{docName}", ct);
     }
 }

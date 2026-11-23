@@ -77,6 +77,14 @@
       "description": "Seeded system types cannot be deleted"
     },
     {
+      "name": "position_template",
+      "type": "Table",
+      "label": "Position template",
+      "childDocType": "OrganizationUnitTypePosition",
+      "section": "Position template",
+      "description": "Positions created for every new active unit of this type (staffing model Position). Use 'Sync positions to units' to add new lines to existing units."
+    },
+    {
       "name": "description",
       "type": "Text",
       "label": "Description",

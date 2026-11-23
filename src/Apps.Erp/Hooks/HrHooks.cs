@@ -330,6 +330,122 @@ internal static class Hr
         }
         return movedPositions;
     }
+
+    // ---------------------------------------------------------------------------------------------
+    // Position template per unit type
+    // ---------------------------------------------------------------------------------------------
+
+    public sealed record PositionTemplateResult(int Created, int Closed, IReadOnlyList<string> FilledSurplus)
+    {
+        public static readonly PositionTemplateResult None = new(0, 0, []);
+    }
+
+    /// <summary>True when the unit takes part in the Position staffing model and is active.</summary>
+    public static bool UsesPositionTemplate(IDictionary<string, object?> unit) =>
+        (unit.Str("staffing_model") ?? "Position") == "Position"
+        && (unit.Str("status") ?? "Active") == "Active"
+        && unit.Bool("is_active");
+
+    /// <summary>
+    /// True for a unit that is a new version of an existing unit (effective-dated reorganization). Its positions are migrated
+    /// from the predecessor by <see cref="ActivatePlannedUnitAsync"/>, so the template must not create them again.
+    /// </summary>
+    public static async Task<bool> IsReorganizedVersionAsync(Masters m, Document unit, CancellationToken ct)
+    {
+        if (unit.Data.Str("previous_version") is not null) return true;
+        var baseCode = unit.Data.Str("base_unit_code") ?? unit.Data.Str("org_unit_code") ?? unit.Name;
+        var versions = await m.QueryAsync("OrganizationUnit", [new FilterClause("base_unit_code", "=", baseCode)], ct, take: 20);
+        return versions.Any(u => u.Name != unit.Name);
+    }
+
+    /// <summary>
+    /// Brings a unit's positions in line with the position template of its unit type. Idempotent: only the missing positions
+    /// per job profile are created (every open position of that job profile in the unit counts, manual or not).
+    /// With <paramref name="closeSurplus"/>, vacant auto-created positions above the template quantity are closed; filled
+    /// positions and the unit's head position are never closed, they are reported instead.
+    /// </summary>
+    public static async Task<PositionTemplateResult> ApplyPositionTemplateAsync(
+        SystemDocs sys, Masters m, Document unit, bool closeSurplus, DateOnly today, CancellationToken ct)
+    {
+        var u = unit.Data;
+        if (!UsesPositionTemplate(u)) return PositionTemplateResult.None;
+        var unitType = await m.GetAsync("OrganizationUnitType", u.Str("unit_type"), ct);
+        var lines = unitType?.Data.Rows("position_template")
+            .Where(r => r.Str("job_profile") is not null)
+            .OrderByDescending(r => r.Bool("is_head"))
+            .ToList() ?? [];
+        if (lines.Count == 0) return PositionTemplateResult.None;
+
+        var open = (await m.QueryAsync("Position", [new FilterClause("organization_unit", "=", unit.Name)], ct, take: 2000))
+            .Where(p => p.Data.Str("status") != "Closed")
+            .ToList();
+
+        // Head of this unit: the unit's head position, else an open head position in the unit.
+        string? headPos = null;
+        if (u.Str("manager_position") is { } mp && open.Any(p => p.Name == mp)) headPos = mp;
+        headPos ??= open.FirstOrDefault(p => p.Data.Bool("is_manager_position"))?.Name;
+        // The head reports to the head of the parent unit (if it has one).
+        var parentHead = (await m.GetAsync("OrganizationUnit", u.Str("parent_org_unit"), ct))?.Data.Str("manager_position");
+
+        var unitName = u.Str("org_unit_name") ?? unit.Name;
+        var created = 0; var closed = 0;
+        var filledSurplus = new List<string>();
+
+        foreach (var line in lines)
+        {
+            var jobName = line.Str("job_profile")!;
+            var job = await m.GetAsync("JobProfile", jobName, ct);
+            if (job is null) continue;
+            var isHead = line.Bool("is_head");
+            var quantity = isHead ? 1 : Math.Max(1, (int)line.Dec("quantity"));
+            var have = open.Where(p => p.Data.Str("job_profile") == jobName).ToList();
+
+            for (var n = have.Count + 1; n <= quantity; n++)
+            {
+                var payload = new Dictionary<string, object?>
+                {
+                    ["position_title"] = PositionTitle(line.Str("title_pattern"), job.Data.Str("job_title") ?? jobName, unitName, n, quantity),
+                    ["job_profile"] = jobName,
+                    ["organization_unit"] = unit.Name,
+                    ["is_manager_position"] = isHead,
+                    ["effective_from"] = D.Iso(u.Date("effective_from") is { } ef && ef > today ? ef : today),
+                    ["auto_created"] = true,
+                };
+                if ((isHead ? parentHead : headPos) is { } reportsTo) payload["reports_to_position"] = reportsTo;
+                if (u.Str("location") is { } loc) payload["location"] = loc;
+                if (line.Str("worker_type") is { } wt) payload["worker_type"] = wt;
+                if (line.Str("time_type") is { } tt) payload["time_type"] = tt;
+                var pos = await sys.InsertAsync("Position", payload, $"Created from the position template of unit type {unitType!.Name}", ct);
+                open.Add(pos);
+                created++;
+                if (isHead) headPos ??= pos.Name;
+            }
+
+            if (!closeSurplus || have.Count <= quantity) continue;
+            var surplus = have.Count - quantity;
+            var closable = have
+                .Where(p => p.Data.Bool("auto_created") && p.Data.Str("status") == "Vacant" && p.Name != headPos)
+                .OrderByDescending(p => p.Name, StringComparer.Ordinal)
+                .Take(surplus)
+                .ToList();
+            foreach (var p in closable)
+                if (await sys.UpdateAsync("Position", p.Name, new Dictionary<string, object?> { ["status"] = "Closed" }, ct) is not null)
+                    closed++;
+            if (surplus > closable.Count)
+                filledSurplus.Add($"{unit.Name}: {surplus - closable.Count} x {jobName}");
+        }
+
+        if (u.Str("manager_position") is null && headPos is not null)
+            await sys.UpdateAsync("OrganizationUnit", unit.Name, new Dictionary<string, object?> { ["manager_position"] = headPos }, ct);
+
+        return new PositionTemplateResult(created, closed, filledSurplus);
+    }
+
+    private static string PositionTitle(string? pattern, string job, string unit, int n, int quantity)
+    {
+        var p = string.IsNullOrWhiteSpace(pattern) ? (quantity > 1 ? "{job} {unit} {n}" : "{job} {unit}") : pattern;
+        return p.Replace("{job}", job).Replace("{unit}", unit).Replace("{n}", n.ToString("00", System.Globalization.CultureInfo.InvariantCulture)).Trim();
+    }
 }
 
 /// <summary>Organization unit type: dynamic hierarchy level definition; system-seeded types cannot be deleted.</summary>
@@ -351,6 +467,26 @@ public sealed class OrganizationUnitTypeHook(IDocumentStore store)
         var existing = await m.QueryAsync("OrganizationUnitType", [new FilterClause("type_code", "=", code)], ct, take: 10);
         if (existing.FirstOrDefault(x => x.Name != name && x.Name != c.Doc.Name) is { } dup)
             errors.Add("type_code", $"Type code {code} is already used by {dup.Name}");
+
+        // Position template: one line per job profile, at most one head line (quantity 1), active job profiles only.
+        var lines = d.Rows("position_template");
+        var jobs = new HashSet<string>(StringComparer.Ordinal);
+        var heads = 0;
+        for (var i = 0; i < lines.Count; i++)
+        {
+            var r = lines[i]; var p = $"position_template[{i}]";
+            if (r.Str("job_profile") is not { } jp) continue;
+            if (!jobs.Add(jp)) errors.Add($"{p}.job_profile", $"Job profile {jp} appears more than once in the position template");
+            if (await m.GetAsync("JobProfile", jp, ct) is { } job && job.Data.TryGetValue("is_active", out var active) && active is false)
+                errors.Add($"{p}.job_profile", $"Job profile {jp} is inactive");
+            if (r.Dec("quantity") < 1) errors.Add($"{p}.quantity", "The quantity must be at least 1");
+            if (r.Bool("is_head"))
+            {
+                heads++;
+                if (r.Dec("quantity") > 1) errors.Add($"{p}.quantity", "The head position line must have quantity 1");
+            }
+        }
+        if (heads > 1) errors.Add("position_template", "Only one line can be the head position");
 
         errors.ThrowIfAny();
     }
@@ -573,6 +709,12 @@ public sealed class OrganizationUnitHook(IDocumentStore store)
         if (c.Previous is not null && oldPos != newPos)
             ErpEvents.Emit(c, ErpEvents.OrgManagerChanged, new() { ["old_position"] = oldPos, ["new_position"] = newPos });
 
+        // Position template: create the unit's positions when it becomes an active Position-model unit (new, activated,
+        // switched to the Position model) or changes unit type. The handler skips reorganized versions and is idempotent.
+        if (Hr.UsesPositionTemplate(c.Doc.Data)
+            && (c.Previous is null || !Hr.UsesPositionTemplate(c.Previous.Data) || c.Previous.Data.Str("unit_type") != c.Doc.Data.Str("unit_type")))
+            ErpEvents.Emit(c, ErpEvents.OrgPositionTemplate, new());
+
         if (c.Previous is null) return;
         var oldPath = c.Previous.Data.Str("materialized_path");
         var newPath = c.Doc.Data.Str("materialized_path");
@@ -663,6 +805,53 @@ public sealed class OrganizationUnitActivateAction(IDocumentStore store, TimePro
         var effDate = ctx.Doc.Data.Date("effective_from") ?? Hr.Today(clock);
         var moved = await Hr.ActivatePlannedUnitAsync(sys, m, ctx.Doc, effDate, ct);
         return FormActionResult.Ok($"Organization unit {ctx.Doc.Name} activated effective {D.Iso(effDate)} ({moved} position(s) migrated).");
+    }
+}
+
+/// <summary>
+/// Form action on an OrganizationUnitType: applies its position template to every active Position-model unit of the type.
+/// Adds missing positions (e.g. a new template line), closes vacant auto-created positions above a lowered quantity,
+/// and reports filled positions that are above the template. Safe to run again.
+/// </summary>
+public sealed class OrganizationUnitTypeSyncPositionsAction(IDocumentStore store, TimeProvider clock) : IFormAction<OrganizationUnitType>
+{
+    public string ActionId => "erp.org.sync_position_template";
+    public string Label => "Sync positions to units";
+    public string Icon => "refresh-cw";
+
+    public bool IsVisible(UserContext user, Document doc) =>
+        doc.Data.Rows("position_template").Count > 0
+        && (user.HasRole(ErpRoles.HrEmployeeManagement) || user.HasRole(ErpRoles.HrAdmin) || user.IsAdmin);
+
+    public async Task<FormActionResult> ExecuteAsync(FormActionContext ctx, CancellationToken ct)
+    {
+        var m = new Masters(store, ctx.Doc.TenantId);
+        var sys = new SystemDocs(ctx.Docs, ctx.Doc.TenantId);
+        var today = Hr.Today(clock);
+        var units = (await m.QueryAsync("OrganizationUnit", [new FilterClause("unit_type", "=", ctx.Doc.Name)], ct, take: 5000))
+            .Where(u => Hr.UsesPositionTemplate(u.Data))
+            .ToList();
+
+        int created = 0, closed = 0;
+        var surplus = new List<string>();
+        var failed = new List<string>();
+        foreach (var unit in units)
+        {
+            try
+            {
+                var r = await Hr.ApplyPositionTemplateAsync(sys, m, unit, closeSurplus: true, today, ct);
+                created += r.Created; closed += r.Closed; surplus.AddRange(r.FilledSurplus);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                failed.Add($"{unit.Name} ({ex.Message})");
+            }
+        }
+
+        var message = $"{units.Count} unit(s) checked: {created} position(s) created, {closed} vacant position(s) closed.";
+        if (surplus.Count > 0) message += $" Filled positions above the template (review manually): {string.Join("; ", surplus)}.";
+        if (failed.Count > 0) message += $" Failed: {string.Join("; ", failed)}.";
+        return failed.Count > 0 && created == 0 && closed == 0 ? FormActionResult.Fail(message) : FormActionResult.Ok(message);
     }
 }
 
@@ -1166,35 +1355,98 @@ public sealed class LeaveApplicationHook(IDocumentStore store, TimeProvider cloc
 /// <summary>Application of HR events to Employee, shared by the event handler (immediate) and daily job (future effective dates).</summary>
 internal static class HrApply
 {
-    public static async Task JobChangeAsync(SystemDocs sys, Document jc, CancellationToken ct)
+    /// <summary>
+    /// Applies a submitted Job Change to the employee. When the position changes, the mover's direct reports whose supervisor
+    /// by structure is no longer the mover get a new supervisor (see <see cref="ReassignReportsAsync"/>).
+    /// Returns the direct reports left without a supervisor (for an HR notice).
+    /// </summary>
+    public static async Task<IReadOnlyList<string>> JobChangeAsync(SystemDocs sys, IDocumentStore store, Document jc, CancellationToken ct)
     {
         var d = jc.Data;
-        if (jc.DocStatus != DocStatus.Submitted || d.Str("employee") is not { } empName) return;
+        if (jc.DocStatus != DocStatus.Submitted || d.Str("employee") is not { } empName) return [];
         var emp = await sys.TryGetAsync("Employee", empName, ct);
-        if (emp is null) return;
+        if (emp is null) return [];
         var eff = d.Date("effective_date");
         var lastDate = emp.Data.Date("last_job_change_date"); var lastName = emp.Data.Str("last_job_change");
         if (lastName == jc.Name || (lastDate is not null && eff is not null && (eff < lastDate || (eff == lastDate && string.CompareOrdinal(jc.Name, lastName) < 0))))
-            return;
+            return [];
         var patch = new Dictionary<string, object?> { ["last_job_change"] = jc.Name, ["last_job_change_date"] = d.Str("effective_date") };
         foreach (var f in new[] { "organization_unit", "position", "job_profile", "grade", "location", "cost_center", "reports_to" })
             if (d.Str($"new_{f}") is { } v) patch[f] = v;
         if (d.Str("new_employment_type") is { } et) patch["employment_type"] = et;
-        await sys.UpdateAsync("Employee", empName, patch, ct);
+        var oldPosition = emp.Data.Str("position");
+        var updated = await sys.UpdateAsync("Employee", empName, patch, ct);
+        if (updated is null || updated.Data.Str("position") == oldPosition) return [];
+        return await ReassignReportsAsync(sys, store, jc.TenantId, empName, ct);
     }
 
-    public static async Task SeparationAsync(SystemDocs sys, IUserAccountRepository? accounts, Document sep, CancellationToken ct)
+    /// <summary>
+    /// Applies a submitted Employee Separation: Employee → Left (EmployeeHook clears the position, so it becomes Vacant),
+    /// user account disabled, and on the first application the leaver's direct reports and approver links are moved to
+    /// the supervisor by structure. Returns the employees left without a supervisor (for an HR notice).
+    /// </summary>
+    public static async Task<IReadOnlyList<string>> SeparationAsync(SystemDocs sys, IDocumentStore store, IUserAccountRepository? accounts, Document sep, CancellationToken ct)
     {
-        if (sep.DocStatus != DocStatus.Submitted || sep.Data.Str("employee") is not { } empName) return;
+        if (sep.DocStatus != DocStatus.Submitted || sep.Data.Str("employee") is not { } empName) return [];
         var emp = await sys.TryGetAsync("Employee", empName, ct);
-        if (emp is null) return;
+        if (emp is null) return [];
+        IReadOnlyList<string> orphans = [];
         if (emp.Data.Str("status") != Hr.Left)
+        {
             await sys.UpdateAsync("Employee", empName, new Dictionary<string, object?> { ["status"] = Hr.Left }, ct);
+            orphans = await ReassignReportsAsync(sys, store, sep.TenantId, empName, ct);
+        }
         if (accounts is not null && emp.Data.Str("user_id") is { } userId && await accounts.FindByIdAsync(userId, ct) is { IsActive: true } account)
         {
             account.IsActive = false;
             await accounts.UpdateAsync(account, ct);
         }
+        return orphans;
+    }
+
+    /// <summary>
+    /// Moves the direct reports of <paramref name="boss"/> to their supervisor by structure (position "reports to", else the
+    /// unit head walking up). The fields are cleared and EmployeeHook recomputes them, so the rules stay in one place:
+    /// reports_to from position/unit, leave/expense approver = reports_to when empty.
+    /// - Boss left: every active employee whose reports_to, leave_approver or expense_approver is the boss.
+    /// - Boss moved: only employees who report to the boss and whose supervisor by structure is no longer the boss;
+    ///   their leave/expense approver follows only when it was the boss. Manual overrides to other people are kept.
+    /// Idempotent. Returns the employees that end up without a supervisor, or could not be updated.
+    /// </summary>
+    public static async Task<IReadOnlyList<string>> ReassignReportsAsync(SystemDocs sys, IDocumentStore store, string tenant, string boss, CancellationToken ct)
+    {
+        var m = new Masters(store, tenant); // fresh reader: the boss's own record has just changed
+        var bossDoc = await m.GetAsync("Employee", boss, ct);
+        var bossGone = bossDoc is null || bossDoc.Data.Str("status") == Hr.Left;
+        var fields = bossGone ? new[] { "reports_to", "leave_approver", "expense_approver" } : new[] { "reports_to" };
+
+        var affected = new Dictionary<string, Document>(StringComparer.Ordinal);
+        foreach (var f in fields)
+            foreach (var e in await m.QueryAsync("Employee", [new FilterClause(f, "=", boss)], ct, take: 5000))
+                if (e.Name != boss && e.Data.Str("status") != Hr.Left) affected.TryAdd(e.Name, e);
+
+        var problems = new List<string>();
+        foreach (var e in affected.Values.OrderBy(x => x.Name, StringComparer.Ordinal))
+        {
+            var d = e.Data;
+            if (!bossGone && await Hr.ManagerForAsync(m, e.Name, d.Str("position"), d.Str("organization_unit"), ct) == boss)
+                continue; // the mover is still this employee's supervisor by structure
+            var patch = new Dictionary<string, object?>();
+            if (d.Str("reports_to") == boss) patch["reports_to"] = null;
+            foreach (var f in new[] { "leave_approver", "expense_approver" })
+                if (d.Str(f) == boss && (bossGone || patch.ContainsKey("reports_to"))) patch[f] = null;
+            if (patch.Count == 0) continue;
+            try
+            {
+                var updated = await sys.UpdateAsync("Employee", e.Name, patch, ct);
+                if (updated is not null && updated.Data.Str("reports_to") is null) problems.Add($"{e.Name} has no supervisor");
+            }
+            catch (ValidationFailedException ex)
+            {
+                problems.Add($"{e.Name} could not be updated: {ex.Message}");
+            }
+        }
+        return problems;
     }
 
     public static async Task<string?> EnsureUserAsync(IServiceProvider services, string tenant, Document emp, string email, CancellationToken ct)
