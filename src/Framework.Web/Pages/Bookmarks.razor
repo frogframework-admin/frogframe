@@ -46,8 +46,9 @@
                         {
                             var it = item;
                             <li>
-                                <a class="doc-link" href="@($"/app/{it.DocType}/{Uri.EscapeDataString(it.Name)}")">@it.Name</a>
-                                @if (it.Title is not null) { <span>@it.Title</span> }
+                                <a class="doc-link" href="@($"/app/{it.DocType}/{Uri.EscapeDataString(it.Name)}")">
+                                    <span class="saved-name">@it.Name</span>@if (it.Title is not null) { <span class="saved-title">@it.Title</span> }
+                                </a>
                                 <span class="muted small">@it.At.ToLocalTime().ToString("d MMM yyyy HH:mm")</span>
                                 <button type="button" class="chip-close" disabled="@busy" @onclick="() => Remove(it)"
                                         title="@T[tab == "bookmarks" ? "Remove from my bookmarks" : "Stop following"]"

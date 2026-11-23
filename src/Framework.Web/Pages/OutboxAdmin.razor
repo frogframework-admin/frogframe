@@ -1,0 +1,47 @@
+@page "/admin/outbox"
+@using Framework.Notifications
+@inject IOutboxStore Outbox
+@inject CurrentUser Current
+
+<PageTitle>Outbox · FrogFrame</PageTitle>
+
+@if (!Current.Required.Roles.Contains(UserContext.SystemManager))
+{
+    <ErrorState StatusCode="403" Description="This administration page is restricted to System Managers / Administrators." />
+}
+else
+{
+    <header class="page-head">
+        <div>
+            <h1>Outbox</h1>
+            <p>Diagnostics: recent events for this tenant and their delivery status.</p>
+        </div>
+    </header>
+
+    <div class="stack">
+        <BbCard>
+            <BbCardContent>
+                <div class="table-wrap">
+                    <table class="data">
+                        <thead><tr><th>Event</th><th>Document</th><th class="num">Attempts</th><th>Status</th></tr></thead>
+                        <tbody>
+                            @foreach (var m in Outbox.Snapshot().Where(m => m.TenantId == Current.Required.TenantId).OrderByDescending(m => m.CreatedAt).Take(50))
+                            {
+                                <tr>
+                                    <td><code>@m.Type</code></td>
+                                    <td>@m.Payload.GetValueOrDefault("name")</td>
+                                    <td class="num">@m.Attempts</td>
+                                    <td>
+                                        @if (m.DeadLettered) { <BbBadge Variant="BadgeVariant.SoftDestructive">dead-letter</BbBadge> }
+                                        else if (m.ProcessedAt is not null) { <BbBadge Variant="BadgeVariant.SoftSuccess">delivered</BbBadge> }
+                                        else { <BbBadge Variant="BadgeVariant.Soft">queued</BbBadge> }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </BbCardContent>
+        </BbCard>
+    </div>
+}

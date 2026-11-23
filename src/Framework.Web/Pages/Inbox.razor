@@ -4,7 +4,6 @@
 @inject INotificationStore Notifications
 @inject INotificationLiveFeed LiveNotifications
 @inject CurrentUser Current
-@inject IOutboxStore Outbox
 @inject NavigationManager Nav
 @implements IDisposable
 
@@ -36,35 +35,6 @@
                         <span class="muted small nowrap">@Fmt.When(n.At)</span>
                     </div>
                 }
-            </BbCardContent>
-        </BbCard>
-    }
-
-    @if (Current.Required.Roles.Contains(UserContext.SystemManager))
-    {
-        <BbCard>
-            <BbCardHeader><BbCardTitle Class="card-title">Outbox</BbCardTitle><BbCardDescription>Diagnostics: recent events for this tenant and their delivery status.</BbCardDescription></BbCardHeader>
-            <BbCardContent>
-                <div class="table-wrap">
-                    <table class="data">
-                        <thead><tr><th>Event</th><th>Document</th><th class="num">Attempts</th><th>Status</th></tr></thead>
-                        <tbody>
-                            @foreach (var m in Outbox.Snapshot().Where(m => m.TenantId == Current.Required.TenantId).OrderByDescending(m => m.CreatedAt).Take(15))
-                            {
-                                <tr>
-                                    <td><code>@m.Type</code></td>
-                                    <td>@m.Payload.GetValueOrDefault("name")</td>
-                                    <td class="num">@m.Attempts</td>
-                                    <td>
-                                        @if (m.DeadLettered) { <BbBadge Variant="BadgeVariant.SoftDestructive">dead-letter</BbBadge> }
-                                        else if (m.ProcessedAt is not null) { <BbBadge Variant="BadgeVariant.SoftSuccess">delivered</BbBadge> }
-                                        else { <BbBadge Variant="BadgeVariant.Soft">queued</BbBadge> }
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
             </BbCardContent>
         </BbCard>
     }

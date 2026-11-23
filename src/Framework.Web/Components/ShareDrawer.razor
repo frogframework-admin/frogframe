@@ -44,7 +44,7 @@
                         <label title="@(rights.CanGrantWrite ? "" : T["You cannot edit this document, so you can only share it read-only."])">
                             <BbCheckbox @bind-Checked="pickWrite" Disabled="@(!rights.CanGrantWrite)" /> @T["Write"]
                         </label>
-                        <label><BbCheckbox @bind-Checked="pickShare" Disabled="@(!rights.CanGrantShare)" /> @T["Share"]</label>
+                        <label><BbCheckbox @bind-Checked="pickShare" Disabled="@(!rights.CanGrantShare)" /> @T["Reshare"]</label>
                     </div>
                     <BbButton Size="ButtonSize.Small" Disabled="@(busy || string.IsNullOrEmpty(pickUser))" OnClick="AddAsync">
                         <LucideIcon Name="share-2" Size="14" /> @T["Share"]
@@ -67,25 +67,11 @@
                     var s = v.Share;
                     var self = string.Equals(s.UserId, Current.Required.Id, StringComparison.OrdinalIgnoreCase);
                     <div class="share-row" @key="s.UserId">
-                        <div class="share-who">
-                            <span class="assignment-avatar-chip">@Initials(v.UserName)</span>
-                            <div>
+                        <div class="share-row-head">
+                            <div class="share-who">
+                                <span class="assignment-avatar-chip">@Initials(v.UserName)</span>
                                 <div><strong>@v.UserName</strong>@(self ? $" ({T["you"]})" : "")</div>
-                                @if (!v.HasRoleRead)
-                                {
-                                    <div class="small share-warn">@T["No role can read this document type: the share has no effect yet."]</div>
-                                }
-                                else if (s.CanWrite && !v.HasRoleWrite)
-                                {
-                                    <div class="small share-warn">@T["No role can edit this document type: the share works as read-only."]</div>
-                                }
                             </div>
-                        </div>
-                        <div class="share-row-rights">
-                            <label><BbCheckbox Checked="@s.CanWrite" CheckedChanged="@(c => ChangeAsync(s, c, s.CanShare))"
-                                               Disabled="@(busy || !rights.CanManage || !rights.CanGrantWrite)" /> @T["Write"]</label>
-                            <label><BbCheckbox Checked="@s.CanShare" CheckedChanged="@(c => ChangeAsync(s, s.CanWrite, c))"
-                                               Disabled="@(busy || !rights.CanManage || !rights.CanGrantShare)" /> @T["Share"]</label>
                             @if (rights.CanManage || self)
                             {
                                 <BbButton Variant="ButtonVariant.Ghost" Size="ButtonSize.Small" Disabled="@busy" OnClick="@(() => RemoveAsync(s, self))"
@@ -93,6 +79,20 @@
                                     <LucideIcon Name="@(self ? "log-out" : "x")" Size="14" />
                                 </BbButton>
                             }
+                        </div>
+                        @if (!v.HasRoleRead)
+                        {
+                            <div class="small share-warn">@T["No role can read this document type: the share has no effect yet."]</div>
+                        }
+                        else if (s.CanWrite && !v.HasRoleWrite)
+                        {
+                            <div class="small share-warn">@T["No role can edit this document type: the share works as read-only."]</div>
+                        }
+                        <div class="share-row-rights">
+                            <label><BbCheckbox Checked="@s.CanWrite" CheckedChanged="@(c => ChangeAsync(s, c, s.CanShare))"
+                                               Disabled="@(busy || !rights.CanManage || !rights.CanGrantWrite)" /> @T["Write"]</label>
+                            <label><BbCheckbox Checked="@s.CanShare" CheckedChanged="@(c => ChangeAsync(s, s.CanWrite, c))"
+                                               Disabled="@(busy || !rights.CanManage || !rights.CanGrantShare)" /> @T["Reshare"]</label>
                         </div>
                     </div>
                 }

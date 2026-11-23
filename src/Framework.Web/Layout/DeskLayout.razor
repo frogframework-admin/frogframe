@@ -2,6 +2,7 @@
 @implements IDisposable
 @using Framework.Navigation
 @using Framework.Notifications
+@using Framework.Social
 @using Framework.Web.AI
 @inject CurrentUser Current
 @inject IMetadataProvider Metadata
@@ -9,6 +10,7 @@
 @inject INotificationStore Notifications
 @inject INotificationLiveFeed LiveNotifications
 @inject AssignmentService AssignmentsSvc
+@inject IDocSocialStore SocialStore
 @inject ReportService Reports
 @inject NavigationManager Nav
 @inject IEnumerable<DeskMenuItem> MenuItems
@@ -77,6 +79,10 @@
                             <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="/bookmarks" Match="NavLinkMatch.Prefix" Tooltip="@(T["Bookmarks"])">
                                 <LucideIcon Name="star" Size="18" /><span>@T["Bookmarks"]</span>
                             </BbSidebarMenuButton>
+                            @if (bookmarksCount > 0)
+                            {
+                                <BbSidebarMenuBadge>@bookmarksCount</BbSidebarMenuBadge>
+                            }
                         </BbSidebarMenuItem>
                         <BbSidebarMenuItem>
                             <BbSidebarMenuButton AsChild="SidebarMenuButtonElement.Anchor" Href="/jobs" Match="NavLinkMatch.Prefix" Tooltip="@(T["Background jobs"])">
@@ -577,6 +583,7 @@
     private int unread;
     private int unreadMentions;
     private int openTasksCount;
+    private int bookmarksCount;
     private PeriodicTimer? timer;
     private IDisposable? liveNotifSub;
     private IReadOnlyList<NavigationApplication> navApplications = [];
@@ -693,6 +700,7 @@
         if (Current.User is null) { RedirectToLogin(); return; }
         RefreshUnread();
         _ = RefreshOpenTasksAsync();
+        _ = RefreshBookmarksCountAsync();
         SubscribeLiveNotifications();
         _ = LoadMenusAsync();
         timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
@@ -885,6 +893,7 @@
             SubscribeLiveNotifications();
             RefreshUnread();
             _ = RefreshOpenTasksAsync();
+            _ = RefreshBookmarksCountAsync();
             _ = LoadMenusAsync();
         }
     }
@@ -932,13 +941,15 @@
                 var before = unread;
                 var beforeMentions = unreadMentions;
                 var beforeTasks = openTasksCount;
+                var beforeBookmarks = bookmarksCount;
                 RefreshUnread();
                 await RefreshOpenTasksAsync();
+                await RefreshBookmarksCountAsync();
                 if (!Connectivity.Current.IsAllHealthy)
                 {
                     await Connectivity.EnsureCheckedAsync(TimeSpan.FromSeconds(10));
                 }
-                if (before != unread || beforeMentions != unreadMentions || beforeTasks != openTasksCount) await InvokeAsync(StateHasChanged);
+                if (before != unread || beforeMentions != unreadMentions || beforeTasks != openTasksCount || beforeBookmarks != bookmarksCount) await InvokeAsync(StateHasChanged);
             }
         }
         catch (ObjectDisposedException) { }
@@ -978,6 +989,25 @@
             else
             {
                 openTasksCount = 0;
+            }
+        }
+        catch (Exception ex)
+        {
+            Connectivity.ReportException(ex);
+        }
+    }
+
+    private async Task RefreshBookmarksCountAsync()
+    {
+        try
+        {
+            if (Current.User is { } u)
+            {
+                bookmarksCount = await SocialStore.CountBookmarksAsync(u.TenantId, u.Id);
+            }
+            else
+            {
+                bookmarksCount = 0;
             }
         }
         catch (Exception ex)

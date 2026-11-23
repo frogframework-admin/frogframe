@@ -259,7 +259,7 @@ else if (meta is not null && doc is not null)
         @foreach (var tab in meta.Layout.Where(TabVisible))
         {
             <BbTabsContent Value="@tab.Title">
-                <div class="stack" style="margin-top:.75rem">
+                <div class="stack" style="margin-top:.75rem" @oninput="MarkDirtyOnInput">
                     @foreach (var sec in tab.Sections.Where(SectionVisible).Select(T.Section))
                     {
                         <BbCard>
@@ -1377,6 +1377,14 @@ else if (meta is not null && doc is not null)
         {
             await UpdatePresenceStatusAsync(dirty ? PresenceStatus.Editing : PresenceStatus.Viewing);
         }
+    }
+
+    private void MarkDirtyOnInput()
+    {
+        if (dirty) return;
+        dirty = true;
+        banner = null;
+        if (!IsNew) _ = UpdatePresenceStatusAsync(PresenceStatus.Editing);
     }
 
     private async Task OnBeforeInternalNavigation(LocationChangingContext context)

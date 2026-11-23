@@ -1,18 +1,26 @@
+@using Framework.Expressions
 @inject DocumentEvaluator Evaluator
 @inject CurrentUser Current
 @inject DocumentService Docs
 @inject IMetadataProvider Metadata
+@inject IJSRuntime JS
 @inject UiText T
 
 <div class="grid-wrap">
-    <table class="grid">
+    <table class="grid" @ref="tableRef">
         <thead>
             <tr>
                 <th class="idx" scope="col">#</th>
                 @foreach (var f in ChildMeta.Fields)
                 {
-                    <th scope="col" class="@(f.Type.Editor == "number" ? "num" : "")">
-                        @T.Label(f)@if (f.Def.RequiredWhen is "true" && !ReadOnly) { <span class="req" aria-hidden="true"> *</span> }
+                    <th scope="col" class="sortable @(f.Type.Editor == "number" ? "num" : "")">
+                        <button type="button" class="grid-sort-btn" @onclick="() => ToggleSort(f.Name)" title="@T["Click to sort"]">
+                            <span>@T.Label(f)</span>@if (f.Def.RequiredWhen is "true" && !ReadOnly) { <span class="req" aria-hidden="true"> *</span> }
+                            @if (sortField == f.Name)
+                            {
+                                <LucideIcon Name="@(sortAsc ? "chevron-up" : "chevron-down")" Size="13" />
+                            }
+                        </button>
                     </th>
                 }
                 @if (!ReadOnly) { <th class="row-act"><span class="sr-only">@T["Actions"]</span></th> }
@@ -83,7 +91,52 @@
     [Parameter] public IReadOnlyDictionary<string, string> Errors { get; set; } = new Dictionary<string, string>();
     [Parameter] public EventCallback OnChanged { get; set; }
 
+    private ElementReference tableRef;
     private bool lookupOpen;
+    private string? sortField;
+    private bool sortAsc = true;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JS.InvokeVoidAsync("frogframe.initResizableTable", tableRef, $"ff-child-{ChildMeta.Name}-cols-v1");
+        }
+    }
+
+    private async Task ToggleSort(string field)
+    {
+        if (sortField == field) sortAsc = !sortAsc;
+        else { sortField = field; sortAsc = true; }
+
+        var fieldDef = ChildMeta.ByName.GetValueOrDefault(field);
+        Rows.Sort((a, b) =>
+        {
+            var va = a.GetValueOrDefault(field);
+            var vb = b.GetValueOrDefault(field);
+            int cmp;
+            if (va is null && vb is null) cmp = 0;
+            else if (va is null) cmp = -1;
+            else if (vb is null) cmp = 1;
+            else if (fieldDef?.Type.Editor == "number")
+            {
+                cmp = (Values.ToDecimal(va) ?? 0m).CompareTo(Values.ToDecimal(vb) ?? 0m);
+            }
+            else if (va is bool ba && vb is bool bb)
+            {
+                cmp = ba.CompareTo(bb);
+            }
+            else
+            {
+                var sa = Convert.ToString(va, CultureInfo.InvariantCulture) ?? "";
+                var sb = Convert.ToString(vb, CultureInfo.InvariantCulture) ?? "";
+                cmp = string.Compare(sa, sb, StringComparison.OrdinalIgnoreCase);
+            }
+            return sortAsc ? cmp : -cmp;
+        });
+
+        if (!ReadOnly) await OnChanged.InvokeAsync();
+    }
     private LookupAddDef? Lookup => Table.Def.AddFromLookup;
     private string? LookupTarget => Lookup is null ? null : ChildMeta.ByName.GetValueOrDefault(Lookup.LinkField)?.Def.LinkTo;
     private string? LookupTitle => LookupTarget is { } t && Metadata.Current.TryGet(t, out var tm) ? T.Title(tm) : LookupTarget;
