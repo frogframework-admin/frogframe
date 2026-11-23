@@ -808,10 +808,30 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
 
         await using (var moveTalentItemsCmd = db.CreateCommand(
             "UPDATE frogframe_navigation_menus " +
-            "SET group_id = $2, group_name = 'Talent Management', updated_at = $3 " +
+            "SET group_id = $2, group_name = 'Talent Management', updated_at = $3, sort_order = CASE href " +
+            "  WHEN 'app/Competency' THEN 10 " +
+            "  WHEN 'app/AppraisalCycle' THEN 20 " +
+            "  WHEN 'app/Appraisal' THEN 30 " +
+            "  WHEN 'app/TalentReview' THEN 40 " +
+            "  WHEN 'app/SuccessionPlan' THEN 50 " +
+            "  WHEN 'app/DevelopmentPlan' THEN 60 " +
+            "  WHEN 'app/TrainingProgram' THEN 70 " +
+            "  WHEN 'app/TrainingRequest' THEN 80 " +
+            "  WHEN 'app/TrainingEvent' THEN 90 " +
+            "  ELSE sort_order END " +
             "WHERE tenant_id = $1 AND is_system = true " +
-            "AND href IN ('app/Appraisal', 'app/AppraisalCycle', 'app/TrainingEvent') " +
-            "AND (group_id IS DISTINCT FROM $2 OR group_name <> 'Talent Management')"))
+            "AND href IN ('app/Competency', 'app/AppraisalCycle', 'app/Appraisal', 'app/TalentReview', 'app/SuccessionPlan', 'app/DevelopmentPlan', 'app/TrainingProgram', 'app/TrainingRequest', 'app/TrainingEvent') " +
+            "AND (group_id IS DISTINCT FROM $2 OR group_name <> 'Talent Management' OR sort_order IS DISTINCT FROM CASE href " +
+            "  WHEN 'app/Competency' THEN 10 " +
+            "  WHEN 'app/AppraisalCycle' THEN 20 " +
+            "  WHEN 'app/Appraisal' THEN 30 " +
+            "  WHEN 'app/TalentReview' THEN 40 " +
+            "  WHEN 'app/SuccessionPlan' THEN 50 " +
+            "  WHEN 'app/DevelopmentPlan' THEN 60 " +
+            "  WHEN 'app/TrainingProgram' THEN 70 " +
+            "  WHEN 'app/TrainingRequest' THEN 80 " +
+            "  WHEN 'app/TrainingEvent' THEN 90 " +
+            "  ELSE sort_order END)"))
         {
             moveTalentItemsCmd.Parameters.AddWithValue(tenantId);
             moveTalentItemsCmd.Parameters.AddWithValue(NavigationMenuDefaults.GroupHrTalentId(tenantId));

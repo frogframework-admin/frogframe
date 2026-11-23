@@ -54,9 +54,20 @@ Comprehensive human capital management covering employee profiles, organizationa
 
 | DocType | Label / Title | Type | Submittable | Workflow | Description |
 |---|---|---|---|---|---|
-| `Appraisal` | Appraisal | Document | No | `AppraisalReview` | Goal-based performance review: employee self-scores, manager scores and completes (Workday Performance Review). Weighted score 1–5 sets the rating. |
+| `Appraisal` | Appraisal | Document | Yes | `AppraisalReview` | Goal and competency performance review: employee self-scores, manager scores and completes (Workday Performance Review). Weighted score 1–5 sets the rating. |
+| `AppraisalCompetency` | Appraisal Competency | Child | No | - | Behavioral/technical competency evaluation row on an Appraisal. |
 | `AppraisalCycle` | Appraisal Cycle | Document | No | - | Performance review period (Workday Review Template / Cycle). |
-| `AppraisalGoal` | Appraisal Goal | Document | No | - | Appraisal Goal entity. |
+| `AppraisalGoal` | Appraisal Goal | Child | No | - | Appraisal Goal entity. |
+| `Competency` | Competency | Document | No | - | Master competency or skill definition used across job profiles, employee profiles, appraisals, and development plans. |
+| `DevelopmentGoal` | Development Goal | Child | No | - | 70-20-10 development action item inside a Development Plan. |
+| `DevelopmentPlan` | Development Plan | Document | No | - | Individual Development Plan (IDP) tracking 70-20-10 learning goals, mentoring, and target role readiness. |
+| `EmployeeCompetency` | Employee Competency | Child | No | - | Employee competency proficiency row synced on Appraisal completion. |
+| `JobProfileCompetency` | Job Profile Competency | Child | No | - | Required competency level on a Job Profile. |
+| `SuccessionCandidate` | Succession Candidate | Child | No | - | Ranked replacement candidate on a Succession Plan. |
+| `SuccessionPlan` | Succession Plan | Document | No | - | Succession plan for a key Position with ranked replacement candidates and readiness. |
+| `TalentReview` | Talent Review | Document | Yes | - | 9-Box Talent Review (Performance vs Potential), flight risk, impact of loss, and talent pool placement per cycle. |
+| `TrainingProgram` | Training Program | Document | No | - | Reusable training course catalog linked to competencies, providers, and estimated cost. |
+| `TrainingRequest` | Training Request | Document | Yes | `TrainingRequestApproval` | Employee or manager request for a training program or external course, routed through manager and HR Talent approval. |
 | `Attendance` | Attendance | Document | No | - | Daily attendance per employee (Workday Time Tracking). Locked once the payslip for its month is submitted. |
 | `Employee` | Employee | Document | No | - | Worker record (Workday Worker). Job changes go through Job Change, exits through Employee Separation. |
 | `EmployeeDependent` | Dependents | Document | No | - | Dependents entity. |

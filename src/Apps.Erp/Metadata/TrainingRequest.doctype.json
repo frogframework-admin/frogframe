@@ -1,0 +1,201 @@
+{
+  "name": "TrainingRequest",
+  "version": 1,
+  "title": "Training Request",
+  "module": "HR",
+  "description": "Employee or manager request for a training program or external course, routed through manager and HR Talent approval.",
+  "naming": {
+    "pattern": "TRQ-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "workflow": "TrainingRequestApproval",
+  "fields": [
+    {
+      "name": "employee",
+      "type": "Link",
+      "label": "Employee",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "default": "$employee",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Request"
+    },
+    {
+      "name": "employee_name",
+      "type": "Data",
+      "label": "Employee name",
+      "fetchFrom": "employee.full_name",
+      "inListView": true,
+      "section": "Request"
+    },
+    {
+      "name": "approver",
+      "type": "Link",
+      "label": "Manager approver",
+      "linkTo": "Employee",
+      "lookupDialog": true,
+      "section": "Request",
+      "description": "Empty = reports-to manager (hook)"
+    },
+    {
+      "name": "training_program",
+      "type": "Link",
+      "label": "Training program",
+      "linkTo": "TrainingProgram",
+      "linkFilters": [
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "inListView": true,
+      "section": "Training",
+      "column": 2
+    },
+    {
+      "name": "training_title",
+      "type": "Data",
+      "label": "Training title",
+      "requiredWhen": "true",
+      "maxLength": 140,
+      "inListView": true,
+      "section": "Training",
+      "column": 2,
+      "description": "Auto-filled from Training Program if selected"
+    },
+    {
+      "name": "training_type",
+      "type": "Select",
+      "label": "Type",
+      "requiredWhen": "true",
+      "options": [
+        "Classroom",
+        "Online",
+        "On the job",
+        "External seminar",
+        "Certification"
+      ],
+      "default": "Classroom",
+      "section": "Training",
+      "column": 2
+    },
+    {
+      "name": "preferred_date",
+      "type": "Date",
+      "label": "Preferred date",
+      "inListView": true,
+      "section": "Training",
+      "column": 2
+    },
+    {
+      "name": "estimated_cost",
+      "type": "Currency",
+      "label": "Estimated cost",
+      "min": 0,
+      "inListView": true,
+      "section": "Training",
+      "column": 2
+    },
+    {
+      "name": "justification",
+      "type": "Text",
+      "label": "Business justification",
+      "requiredWhen": "true",
+      "section": "Notes"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Employee",
+      "actions": [
+        "read",
+        "create",
+        "write"
+      ],
+      "scope": "match:employee=employee"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read",
+        "write"
+      ],
+      "scope": "match:approver=employee"
+    },
+    {
+      "role": "HR-Talent",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Admin",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "training_title",
+    "searchFields": [
+      "employee",
+      "employee_name",
+      "training_title"
+    ],
+    "filters": [
+      "training_type",
+      "workflow_state",
+      "preferred_date"
+    ],
+    "defaultSort": [
+      {
+        "field": "modified",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

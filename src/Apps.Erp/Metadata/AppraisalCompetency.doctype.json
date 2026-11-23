@@ -1,0 +1,53 @@
+{
+  "name": "AppraisalCompetency",
+  "version": 1,
+  "title": "Appraisal Competency",
+  "module": "HR",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "competency",
+      "type": "Link",
+      "label": "Competency",
+      "linkTo": "Competency",
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "competency_name",
+      "type": "Data",
+      "label": "Name",
+      "fetchFrom": "competency.competency_name",
+      "inListView": true
+    },
+    {
+      "name": "required_level",
+      "type": "Int",
+      "label": "Target (1–5)",
+      "min": 1,
+      "max": 5,
+      "inListView": true
+    },
+    {
+      "name": "self_score",
+      "type": "Int",
+      "label": "Self score (1–5)",
+      "min": 1,
+      "max": 5,
+      "inListView": true
+    },
+    {
+      "name": "manager_score",
+      "type": "Int",
+      "label": "Manager score (1–5)",
+      "min": 1,
+      "max": 5,
+      "inListView": true
+    },
+    {
+      "name": "comments",
+      "type": "Data",
+      "label": "Comments"
+    }
+  ]
+}

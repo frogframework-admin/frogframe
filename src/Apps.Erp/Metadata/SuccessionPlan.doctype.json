@@ -1,0 +1,182 @@
+{
+  "name": "SuccessionPlan",
+  "version": 1,
+  "title": "Succession Plan",
+  "module": "HR",
+  "description": "Succession plan for a key Position with ranked replacement candidates and readiness.",
+  "naming": {
+    "pattern": "SUC-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "position",
+      "type": "Link",
+      "label": "Key position",
+      "linkTo": "Position",
+      "requiredWhen": "true",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Position"
+    },
+    {
+      "name": "position_title",
+      "type": "Data",
+      "label": "Position title",
+      "fetchFrom": "position.position_title",
+      "inListView": true,
+      "section": "Position"
+    },
+    {
+      "name": "organization_unit",
+      "type": "Data",
+      "label": "Unit",
+      "fetchFrom": "position.organization_unit",
+      "section": "Position"
+    },
+    {
+      "name": "job_profile",
+      "type": "Data",
+      "label": "Job profile",
+      "fetchFrom": "position.job_profile",
+      "section": "Position"
+    },
+    {
+      "name": "incumbent_employee",
+      "type": "Link",
+      "label": "Current incumbent",
+      "linkTo": "Employee",
+      "lookupDialog": true,
+      "section": "Position",
+      "column": 2
+    },
+    {
+      "name": "criticality",
+      "type": "Select",
+      "label": "Criticality",
+      "requiredWhen": "true",
+      "options": [
+        "Medium",
+        "High",
+        "Mission Critical"
+      ],
+      "default": "High",
+      "inListView": true,
+      "section": "Position",
+      "column": 2
+    },
+    {
+      "name": "status",
+      "type": "Select",
+      "label": "Status",
+      "requiredWhen": "true",
+      "options": [
+        "Active",
+        "On Hold",
+        "Archived"
+      ],
+      "default": "Active",
+      "inListView": true,
+      "section": "Position",
+      "column": 2
+    },
+    {
+      "name": "candidates",
+      "type": "Table",
+      "label": "Succession candidates",
+      "childDocType": "SuccessionCandidate",
+      "requiredWhen": "true",
+      "section": "Successors"
+    },
+    {
+      "name": "notes",
+      "type": "Text",
+      "label": "Notes",
+      "section": "Notes"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR-Talent",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Admin",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Employee-Management",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "position_title",
+    "searchFields": [
+      "position",
+      "position_title"
+    ],
+    "filters": [
+      "criticality",
+      "status"
+    ],
+    "defaultSort": [
+      {
+        "field": "modified",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

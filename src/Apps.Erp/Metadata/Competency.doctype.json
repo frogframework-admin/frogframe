@@ -1,0 +1,159 @@
+{
+  "name": "Competency",
+  "version": 1,
+  "title": "Competency",
+  "module": "HR",
+  "description": "Master competency or skill definition used across job profiles, employee skill profiles, appraisals, and development plans.",
+  "naming": {
+    "pattern": "field:competency_code"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "competency_code",
+      "type": "Data",
+      "label": "Code",
+      "requiredWhen": "true",
+      "maxLength": 30,
+      "inListView": true
+    },
+    {
+      "name": "competency_name",
+      "type": "Data",
+      "label": "Competency name",
+      "requiredWhen": "true",
+      "maxLength": 120,
+      "inListView": true
+    },
+    {
+      "name": "category",
+      "type": "Select",
+      "label": "Category",
+      "requiredWhen": "true",
+      "options": [
+        "Core Value",
+        "Leadership",
+        "Functional",
+        "Technical"
+      ],
+      "default": "Functional",
+      "inListView": true,
+      "column": 2
+    },
+    {
+      "name": "is_active",
+      "type": "Check",
+      "label": "Active",
+      "default": true,
+      "inListView": true,
+      "column": 2
+    },
+    {
+      "name": "description",
+      "type": "Text",
+      "label": "Description & proficiency criteria"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR-Admin",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Talent",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Recruitment",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Employee-Management",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Time-Attendance",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "competency_name",
+    "searchFields": [
+      "competency_code",
+      "competency_name"
+    ],
+    "filters": [
+      "category",
+      "is_active"
+    ],
+    "defaultSort": [
+      {
+        "field": "competency_code",
+        "direction": "asc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

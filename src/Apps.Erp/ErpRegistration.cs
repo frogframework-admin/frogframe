@@ -209,8 +209,12 @@ public static class ErpRegistration
         // Careers portal: Job Posting + public API /api/careers/v1/{tenant} (docs/guides/careers-portal-api.md)
         services.AddErpCareers();
 
-        // KINERJA & PELATIHAN
+        // KINERJA & TALENT MANAGEMENT
         services.AddDocHook<Appraisal, AppraisalHook>();
+        services.AddDocHook<TalentReview, TalentReviewHook>();
+        services.AddDocHook<SuccessionPlan, SuccessionPlanHook>();
+        services.AddDocHook<DevelopmentPlan, DevelopmentPlanHook>();
+        services.AddDocHook<TrainingRequest, TrainingRequestHook>();
         services.AddDocHook<TrainingEvent, TrainingEventHook>();
 
         // PAYROLL

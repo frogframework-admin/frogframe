@@ -1,0 +1,181 @@
+{
+  "name": "TrainingProgram",
+  "version": 1,
+  "title": "Training Program",
+  "module": "HR",
+  "description": "Reusable training course catalog linked to competencies, providers, and estimated cost.",
+  "naming": {
+    "pattern": "field:program_code"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "program_code",
+      "type": "Data",
+      "label": "Program code",
+      "requiredWhen": "true",
+      "maxLength": 30,
+      "inListView": true,
+      "section": "Program"
+    },
+    {
+      "name": "program_name",
+      "type": "Data",
+      "label": "Program name",
+      "requiredWhen": "true",
+      "maxLength": 140,
+      "inListView": true,
+      "section": "Program"
+    },
+    {
+      "name": "training_type",
+      "type": "Select",
+      "label": "Type",
+      "requiredWhen": "true",
+      "options": [
+        "Classroom",
+        "Online",
+        "On the job",
+        "External seminar",
+        "Certification"
+      ],
+      "default": "Classroom",
+      "inListView": true,
+      "section": "Program"
+    },
+    {
+      "name": "target_competency",
+      "type": "Link",
+      "label": "Target competency",
+      "linkTo": "Competency",
+      "inListView": true,
+      "section": "Program",
+      "column": 2
+    },
+    {
+      "name": "provider",
+      "type": "Data",
+      "label": "Trainer / provider",
+      "inListView": true,
+      "section": "Program",
+      "column": 2
+    },
+    {
+      "name": "duration_hours",
+      "type": "Float",
+      "label": "Duration (hours)",
+      "min": 0,
+      "section": "Program",
+      "column": 2
+    },
+    {
+      "name": "estimated_cost",
+      "type": "Currency",
+      "label": "Estimated cost",
+      "min": 0,
+      "section": "Program",
+      "column": 2
+    },
+    {
+      "name": "is_active",
+      "type": "Check",
+      "label": "Active",
+      "default": true,
+      "inListView": true,
+      "section": "Program",
+      "column": 2
+    },
+    {
+      "name": "syllabus",
+      "type": "TextEditor",
+      "label": "Syllabus & objectives",
+      "section": "Syllabus"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR-Talent",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Admin",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "program_name",
+    "searchFields": [
+      "program_code",
+      "program_name",
+      "provider"
+    ],
+    "filters": [
+      "training_type",
+      "target_competency",
+      "is_active"
+    ],
+    "defaultSort": [
+      {
+        "field": "program_code",
+        "direction": "asc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

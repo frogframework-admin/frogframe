@@ -16,6 +16,20 @@
   },
   "fields": [
     {
+      "name": "training_program",
+      "type": "Link",
+      "label": "Training program",
+      "linkTo": "TrainingProgram",
+      "linkFilters": [
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "section": "Training"
+    },
+    {
       "name": "event_name",
       "type": "Data",
       "label": "Training",

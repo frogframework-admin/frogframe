@@ -1,0 +1,212 @@
+{
+  "name": "DevelopmentPlan",
+  "version": 1,
+  "title": "Development Plan",
+  "module": "HR",
+  "description": "Individual Development Plan (IDP) tracking 70-20-10 learning goals, mentoring, and target role readiness.",
+  "naming": {
+    "pattern": "IDP-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "employee",
+      "type": "Link",
+      "label": "Employee",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "default": "$employee",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Plan"
+    },
+    {
+      "name": "employee_name",
+      "type": "Data",
+      "label": "Employee name",
+      "fetchFrom": "employee.full_name",
+      "inListView": true,
+      "section": "Plan"
+    },
+    {
+      "name": "appraisal_cycle",
+      "type": "Link",
+      "label": "Appraisal cycle",
+      "linkTo": "AppraisalCycle",
+      "inListView": true,
+      "section": "Plan"
+    },
+    {
+      "name": "mentor",
+      "type": "Link",
+      "label": "Mentor / coach",
+      "linkTo": "Employee",
+      "lookupDialog": true,
+      "section": "Plan",
+      "column": 2
+    },
+    {
+      "name": "target_job_profile",
+      "type": "Link",
+      "label": "Target job profile",
+      "linkTo": "JobProfile",
+      "lookupDialog": true,
+      "section": "Plan",
+      "column": 2
+    },
+    {
+      "name": "start_date",
+      "type": "Date",
+      "label": "Start date",
+      "requiredWhen": "true",
+      "section": "Schedule"
+    },
+    {
+      "name": "target_completion_date",
+      "type": "Date",
+      "label": "Target completion",
+      "requiredWhen": "true",
+      "section": "Schedule"
+    },
+    {
+      "name": "status",
+      "type": "Select",
+      "label": "Status",
+      "requiredWhen": "true",
+      "options": [
+        "Draft",
+        "Active",
+        "Completed",
+        "Cancelled"
+      ],
+      "default": "Draft",
+      "inListView": true,
+      "section": "Schedule",
+      "column": 2
+    },
+    {
+      "name": "overall_progress",
+      "type": "Percent",
+      "label": "Overall progress (%)",
+      "readOnlyWhen": "true",
+      "inListView": true,
+      "section": "Schedule",
+      "column": 2,
+      "description": "Average goal progress (hook)"
+    },
+    {
+      "name": "goals",
+      "type": "Table",
+      "label": "Development goals (70-20-10)",
+      "childDocType": "DevelopmentGoal",
+      "requiredWhen": "true",
+      "section": "Goals"
+    },
+    {
+      "name": "summary",
+      "type": "Text",
+      "label": "Summary & notes",
+      "section": "Notes"
+    }
+  ],
+  "rules": [
+    {
+      "name": "valid_period",
+      "expr": "target_completion_date >= start_date",
+      "message": "Target completion date must be on or after start date",
+      "field": "target_completion_date"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Employee",
+      "actions": [
+        "read",
+        "create",
+        "write"
+      ],
+      "scope": "match:employee=employee"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read",
+        "write"
+      ],
+      "scope": "match:mentor=employee"
+    },
+    {
+      "role": "HR-Talent",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Admin",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "employee_name",
+    "searchFields": [
+      "employee",
+      "employee_name"
+    ],
+    "filters": [
+      "status",
+      "appraisal_cycle"
+    ],
+    "defaultSort": [
+      {
+        "field": "modified",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

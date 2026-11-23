@@ -1,0 +1,69 @@
+{
+  "name": "SuccessionCandidate",
+  "version": 1,
+  "title": "Succession Candidate",
+  "module": "HR",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "employee",
+      "type": "Link",
+      "label": "Candidate",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "employee_name",
+      "type": "Data",
+      "label": "Name",
+      "fetchFrom": "employee.full_name",
+      "inListView": true
+    },
+    {
+      "name": "readiness",
+      "type": "Select",
+      "label": "Readiness",
+      "requiredWhen": "true",
+      "options": [
+        "Ready Now",
+        "1-2 Years",
+        "3+ Years",
+        "Emergency"
+      ],
+      "default": "1-2 Years",
+      "inListView": true
+    },
+    {
+      "name": "ranking",
+      "type": "Int",
+      "label": "Rank",
+      "requiredWhen": "true",
+      "min": 1,
+      "max": 10,
+      "default": 1,
+      "inListView": true
+    },
+    {
+      "name": "latest_rating",
+      "type": "Data",
+      "label": "Latest rating",
+      "readOnlyWhen": "true",
+      "inListView": true,
+      "description": "Set by hook from latest completed Appraisal"
+    },
+    {
+      "name": "nine_box_position",
+      "type": "Data",
+      "label": "9-Box",
+      "readOnlyWhen": "true",
+      "inListView": true,
+      "description": "Set by hook from latest submitted Talent Review"
+    },
+    {
+      "name": "development_actions",
+      "type": "Data",
+      "label": "Development actions"
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "name": "JobProfileCompetency",
+  "version": 1,
+  "title": "Job Profile Competency",
+  "module": "HR",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "competency",
+      "type": "Link",
+      "label": "Competency",
+      "linkTo": "Competency",
+      "requiredWhen": "true",
+      "linkFilters": [
+        {
+          "field": "is_active",
+          "op": "=",
+          "value": true
+        }
+      ],
+      "inListView": true
+    },
+    {
+      "name": "competency_name",
+      "type": "Data",
+      "label": "Name",
+      "fetchFrom": "competency.competency_name",
+      "inListView": true
+    },
+    {
+      "name": "category",
+      "type": "Data",
+      "label": "Category",
+      "fetchFrom": "competency.category",
+      "inListView": true
+    },
+    {
+      "name": "required_level",
+      "type": "Int",
+      "label": "Required level (1–5)",
+      "requiredWhen": "true",
+      "min": 1,
+      "max": 5,
+      "default": 3,
+      "inListView": true
+    },
+    {
+      "name": "is_mandatory",
+      "type": "Check",
+      "label": "Mandatory",
+      "default": true,
+      "inListView": true
+    }
+  ]
+}

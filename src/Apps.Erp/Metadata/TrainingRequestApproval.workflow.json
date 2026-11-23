@@ -1,0 +1,106 @@
+{
+  "name": "TrainingRequestApproval",
+  "docType": "TrainingRequest",
+  "version": 1,
+  "initialState": "Draft",
+  "states": [
+    {
+      "name": "Draft",
+      "docStatus": 0,
+      "tone": "neutral"
+    },
+    {
+      "name": "Pending Manager",
+      "docStatus": 1,
+      "tone": "pending"
+    },
+    {
+      "name": "Pending HR",
+      "docStatus": 1,
+      "tone": "pending"
+    },
+    {
+      "name": "Approved",
+      "docStatus": 1,
+      "tone": "positive"
+    },
+    {
+      "name": "Rejected",
+      "docStatus": 2,
+      "tone": "negative"
+    },
+    {
+      "name": "Cancelled",
+      "docStatus": 2,
+      "tone": "negative"
+    }
+  ],
+  "transitions": [
+    {
+      "from": "Draft",
+      "to": "Pending Manager",
+      "action": "Submit for approval",
+      "allowedRoles": [
+        "Employee",
+        "HR-Talent"
+      ],
+      "condition": "employee == user.employee || has_role('HR-Talent')"
+    },
+    {
+      "from": "Pending Manager",
+      "to": "Pending HR",
+      "action": "Approve (Manager)",
+      "allowedRoles": [
+        "Employee"
+      ],
+      "condition": "approver == user.employee && employee != user.employee"
+    },
+    {
+      "from": "Pending Manager",
+      "to": "Rejected",
+      "action": "Reject",
+      "allowedRoles": [
+        "Employee"
+      ],
+      "condition": "approver == user.employee && employee != user.employee",
+      "requireComment": true
+    },
+    {
+      "from": "Pending HR",
+      "to": "Approved",
+      "action": "Approve (HR)",
+      "allowedRoles": [
+        "HR-Talent"
+      ],
+      "condition": "employee != user.employee"
+    },
+    {
+      "from": "Pending HR",
+      "to": "Rejected",
+      "action": "Reject (HR)",
+      "allowedRoles": [
+        "HR-Talent"
+      ],
+      "condition": "employee != user.employee",
+      "requireComment": true
+    },
+    {
+      "from": "Pending Manager",
+      "to": "Cancelled",
+      "action": "Withdraw",
+      "allowedRoles": [
+        "Employee"
+      ],
+      "condition": "employee == user.employee"
+    },
+    {
+      "from": "Approved",
+      "to": "Cancelled",
+      "action": "Cancel",
+      "allowedRoles": [
+        "HR-Talent"
+      ],
+      "requireComment": true
+    }
+  ]
+}

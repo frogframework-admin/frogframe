@@ -1,0 +1,70 @@
+{
+  "name": "DevelopmentGoal",
+  "version": 1,
+  "title": "Development Goal",
+  "module": "HR",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "development_area",
+      "type": "Data",
+      "label": "Development area",
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "competency",
+      "type": "Link",
+      "label": "Competency",
+      "linkTo": "Competency",
+      "inListView": true
+    },
+    {
+      "name": "learning_type",
+      "type": "Select",
+      "label": "70-20-10 method",
+      "requiredWhen": "true",
+      "options": [
+        "70% On-the-Job / Project",
+        "20% Coaching / Mentoring",
+        "10% Formal Training"
+      ],
+      "default": "70% On-the-Job / Project",
+      "inListView": true
+    },
+    {
+      "name": "action_plan",
+      "type": "Data",
+      "label": "Action plan",
+      "requiredWhen": "true"
+    },
+    {
+      "name": "target_date",
+      "type": "Date",
+      "label": "Target date",
+      "inListView": true
+    },
+    {
+      "name": "progress_percent",
+      "type": "Percent",
+      "label": "Progress (%)",
+      "min": 0,
+      "max": 100,
+      "default": 0,
+      "inListView": true
+    },
+    {
+      "name": "status",
+      "type": "Select",
+      "label": "Status",
+      "requiredWhen": "true",
+      "options": [
+        "Not Started",
+        "In Progress",
+        "Completed"
+      ],
+      "default": "Not Started",
+      "inListView": true
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "name": "EmployeeCompetency",
+  "version": 1,
+  "title": "Employee Competency",
+  "module": "HR",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "competency",
+      "type": "Link",
+      "label": "Competency",
+      "linkTo": "Competency",
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "competency_name",
+      "type": "Data",
+      "label": "Name",
+      "fetchFrom": "competency.competency_name",
+      "inListView": true
+    },
+    {
+      "name": "proficiency_level",
+      "type": "Int",
+      "label": "Proficiency (1–5)",
+      "requiredWhen": "true",
+      "min": 1,
+      "max": 5,
+      "inListView": true
+    },
+    {
+      "name": "last_assessed_on",
+      "type": "Date",
+      "label": "Assessed on",
+      "inListView": true
+    },
+    {
+      "name": "notes",
+      "type": "Data",
+      "label": "Notes"
+    }
+  ]
+}

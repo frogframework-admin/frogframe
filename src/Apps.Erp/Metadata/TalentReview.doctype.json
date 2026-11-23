@@ -1,0 +1,283 @@
+{
+  "name": "TalentReview",
+  "version": 1,
+  "title": "Talent Review",
+  "module": "HR",
+  "description": "9-Box Talent Review (Performance vs Potential), flight risk, impact of loss, and talent pool placement per cycle.",
+  "naming": {
+    "pattern": "TRV-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "employee",
+      "type": "Link",
+      "label": "Employee",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Employee"
+    },
+    {
+      "name": "employee_name",
+      "type": "Data",
+      "label": "Employee name",
+      "fetchFrom": "employee.full_name",
+      "inListView": true,
+      "section": "Employee"
+    },
+    {
+      "name": "organization_unit",
+      "type": "Data",
+      "label": "Unit",
+      "fetchFrom": "employee.organization_unit",
+      "section": "Employee"
+    },
+    {
+      "name": "position",
+      "type": "Data",
+      "label": "Position",
+      "fetchFrom": "employee.position",
+      "section": "Employee"
+    },
+    {
+      "name": "appraisal_cycle",
+      "type": "Link",
+      "label": "Appraisal cycle",
+      "linkTo": "AppraisalCycle",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Cycle",
+      "column": 2
+    },
+    {
+      "name": "appraisal",
+      "type": "Link",
+      "label": "Appraisal",
+      "linkTo": "Appraisal",
+      "linkFilters": [
+        {
+          "field": "docstatus",
+          "op": "=",
+          "value": 1
+        }
+      ],
+      "section": "Cycle",
+      "column": 2
+    },
+    {
+      "name": "appraisal_score",
+      "type": "Float",
+      "label": "Appraisal score",
+      "fetchFrom": "appraisal.final_score",
+      "readOnlyWhen": "true",
+      "section": "Cycle",
+      "column": 2
+    },
+    {
+      "name": "appraisal_rating",
+      "type": "Data",
+      "label": "Appraisal rating",
+      "fetchFrom": "appraisal.rating",
+      "readOnlyWhen": "true",
+      "section": "Cycle",
+      "column": 2
+    },
+    {
+      "name": "performance_level",
+      "type": "Select",
+      "label": "Performance",
+      "requiredWhen": "true",
+      "options": [
+        "Low",
+        "Moderate",
+        "High"
+      ],
+      "default": "Moderate",
+      "inListView": true,
+      "section": "9-Box Assessment"
+    },
+    {
+      "name": "potential_level",
+      "type": "Select",
+      "label": "Potential",
+      "requiredWhen": "true",
+      "options": [
+        "Low",
+        "Moderate",
+        "High"
+      ],
+      "default": "Moderate",
+      "inListView": true,
+      "section": "9-Box Assessment"
+    },
+    {
+      "name": "nine_box_position",
+      "type": "Data",
+      "label": "9-Box position",
+      "readOnlyWhen": "true",
+      "inListView": true,
+      "section": "9-Box Assessment",
+      "column": 2,
+      "description": "Computed automatically from Performance and Potential (hook)"
+    },
+    {
+      "name": "talent_pool",
+      "type": "Select",
+      "label": "Talent pool",
+      "options": [
+        "Executive Track",
+        "High Potential (HiPo)",
+        "Technical Key Person",
+        "Core Contributor",
+        "Development Needed"
+      ],
+      "default": "Core Contributor",
+      "inListView": true,
+      "section": "9-Box Assessment",
+      "column": 2
+    },
+    {
+      "name": "risk_of_loss",
+      "type": "Select",
+      "label": "Risk of loss (Flight risk)",
+      "requiredWhen": "true",
+      "options": [
+        "Low",
+        "Medium",
+        "High"
+      ],
+      "default": "Low",
+      "section": "Retention & Readiness"
+    },
+    {
+      "name": "impact_of_loss",
+      "type": "Select",
+      "label": "Impact of loss",
+      "requiredWhen": "true",
+      "options": [
+        "Low",
+        "Medium",
+        "High",
+        "Critical"
+      ],
+      "default": "Medium",
+      "section": "Retention & Readiness"
+    },
+    {
+      "name": "readiness",
+      "type": "Select",
+      "label": "Promotion readiness",
+      "options": [
+        "Ready Now",
+        "1-2 Years",
+        "3+ Years",
+        "Not Ready"
+      ],
+      "default": "1-2 Years",
+      "section": "Retention & Readiness",
+      "column": 2
+    },
+    {
+      "name": "notes",
+      "type": "Text",
+      "label": "Calibration notes",
+      "section": "Retention & Readiness",
+      "column": 2
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR-Talent",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Admin",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Employee-Management",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read",
+        "report"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "employee_name",
+    "searchFields": [
+      "employee",
+      "employee_name",
+      "nine_box_position"
+    ],
+    "filters": [
+      "appraisal_cycle",
+      "nine_box_position",
+      "talent_pool",
+      "risk_of_loss"
+    ],
+    "defaultSort": [
+      {
+        "field": "modified",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

@@ -569,6 +569,14 @@
       "childDocType": "EmployeeWorkHistory",
       "tab": "Family & History",
       "section": "Work history"
+    },
+    {
+      "name": "competencies",
+      "type": "Table",
+      "label": "Competencies & skills",
+      "childDocType": "EmployeeCompetency",
+      "tab": "Family & History",
+      "section": "Competencies"
     }
   ],
   "permissions": [

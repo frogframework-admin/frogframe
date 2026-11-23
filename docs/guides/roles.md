@@ -159,6 +159,12 @@ Generated from the ERP metadata. *Own rows* means a row scope, for example a sal
 |---|---|---|---|
 | `Appraisal` | Employee (own rows): create/write<br>Employee (own rows): write<br>HR-Talent: create/write | other HR roles | - |
 | `AppraisalCycle` | HR-Talent: create/write | other HR roles, Employee | - |
+| `Competency` | HR-Admin: create/write<br>HR-Talent: create/write | other HR roles, Employee | - |
+| `DevelopmentPlan` | Employee (own rows): create/write<br>Employee (mentor): write<br>HR-Talent: create/write | HR-Admin, Manager | - |
+| `SuccessionPlan` | HR-Talent: create/write | HR-Admin, HR-Employee-Management, Manager | - |
+| `TalentReview` | HR-Talent: create/write/submit | HR-Admin, HR-Employee-Management, Manager | - |
+| `TrainingProgram` | HR-Talent: create/write<br>HR-Admin: create/write | Manager, Employee | - |
+| `TrainingRequest` | Employee (own rows): create/write<br>Employee (approver): write<br>HR-Talent: create/write/submit | HR-Admin | - |
 | `Attendance` | HR-Time-Attendance: create/write | other HR roles, Employee (own rows), Manager (own rows) | - |
 | `Employee` | HR-Employee-Management: create/write | other HR roles, Employee (own rows), Manager (own rows) | HR-Employee-Management (write), Employee (own rows) (read) |
 | `EmployeeAssignment` | HR-Employee-Management: create/write | other HR roles, Employee (own rows), Manager | - |

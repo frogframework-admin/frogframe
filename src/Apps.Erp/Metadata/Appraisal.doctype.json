@@ -78,6 +78,23 @@
       "section": "Goals"
     },
     {
+      "name": "competencies",
+      "type": "Table",
+      "label": "Competencies",
+      "childDocType": "AppraisalCompetency",
+      "section": "Competencies",
+      "description": "Optional behavioral and technical competency evaluation (1–5)"
+    },
+    {
+      "name": "competency_score",
+      "type": "Float",
+      "label": "Competency score (1–5)",
+      "readOnlyWhen": "true",
+      "section": "Result",
+      "column": 2,
+      "description": "Average manager competency score (hook)"
+    },
+    {
       "name": "final_score",
       "type": "Float",
       "label": "Final score (1–5)",

@@ -103,6 +103,14 @@
       "label": "Qualification",
       "tab": "Description",
       "section": "Qualification"
+    },
+    {
+      "name": "competencies",
+      "type": "Table",
+      "label": "Competencies",
+      "childDocType": "JobProfileCompetency",
+      "tab": "Competencies",
+      "section": "Required competencies"
     }
   ],
   "permissions": [
