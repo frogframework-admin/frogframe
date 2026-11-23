@@ -38,6 +38,22 @@ public static class ErpRegistration
     }
 
     /// <summary>
+    /// Careers portal: Job Posting (what applicants see of a requisition), the public API mapped by
+    /// <see cref="Careers.CareersEndpoints.MapCareersApi"/>, its per-IP rate limit policy and the optional captcha check
+    /// (<c>Careers:Captcha:VerifyUrl</c>, <c>Careers:Captcha:Secret</c>). See docs/guides/careers-portal-api.md.
+    /// </summary>
+    public static IServiceCollection AddErpCareers(this IServiceCollection services)
+    {
+        services.AddDocHook<Careers.JobPosting, Careers.JobPostingHook>();
+        services.AddHttpClient(Careers.SiteVerifyHumanCheck.HttpClientName, c => c.Timeout = TimeSpan.FromSeconds(10));
+        services.TryAddSingleton<Careers.ICareersHumanCheck, Careers.SiteVerifyHumanCheck>();
+        services.TryAddSingleton<Careers.CareersService>();
+        services.Configure<Microsoft.AspNetCore.RateLimiting.RateLimiterOptions>(o =>
+            o.AddPolicy(Careers.CareersEndpoints.RateLimitPolicy, Careers.CareersEndpoints.Partition));
+        return services;
+    }
+
+    /// <summary>
     /// Home page contributions: the employee's day and requests ("Personal" slot, only for accounts linked to an
     /// employee), company information (side column), the first-run checklist for administrators (top) and quick
     /// actions, each shown only to users allowed to create that DocType. See docs/guides/home-page.md.
@@ -189,6 +205,9 @@ public static class ErpRegistration
         services.AddDocHook<JobApplicant, JobApplicantHook>();
         services.AddDocHook<JobOffer, JobOfferHook>();
         services.AddFormAction<JobOffer, JobOfferCreateEmployeeAction>();
+
+        // Careers portal: Job Posting + public API /api/careers/v1/{tenant} (docs/guides/careers-portal-api.md)
+        services.AddErpCareers();
 
         // KINERJA & PELATIHAN
         services.AddDocHook<Appraisal, AppraisalHook>();

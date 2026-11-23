@@ -770,6 +770,64 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
             if (await moveShiftItemsCmd.ExecuteNonQueryAsync(ct) > 0) added = true;
         }
 
+        // 14. Split 'Talent & Recruitment' into 'Recruitment' and 'Talent Management'
+        await using (var renameRecGrpCmd = db.CreateCommand(
+            "UPDATE frogframe_navigation_menu_groups SET name = 'Recruitment', updated_at = $3 " +
+            "WHERE tenant_id = $1 AND id = $2 AND is_system = true AND name = 'Talent & Recruitment'"))
+        {
+            renameRecGrpCmd.Parameters.AddWithValue(tenantId);
+            renameRecGrpCmd.Parameters.AddWithValue(NavigationMenuDefaults.GroupHrRecruitmentId(tenantId));
+            renameRecGrpCmd.Parameters.AddWithValue(now);
+            if (await renameRecGrpCmd.ExecuteNonQueryAsync(ct) > 0) added = true;
+        }
+
+        await using (var moveRecItemsCmd = db.CreateCommand(
+            "UPDATE frogframe_navigation_menus " +
+            "SET group_id = $2, group_name = 'Recruitment', updated_at = $3, sort_order = CASE href " +
+            "  WHEN 'app/JobRequisition' THEN 10 " +
+            "  WHEN 'app/JobPosting' THEN 20 " +
+            "  WHEN 'app/JobApplicant' THEN 30 " +
+            "  WHEN 'app/Interview' THEN 40 " +
+            "  WHEN 'app/JobOffer' THEN 50 " +
+            "  ELSE sort_order END " +
+            "WHERE tenant_id = $1 AND is_system = true " +
+            "AND href IN ('app/JobRequisition', 'app/JobPosting', 'app/JobApplicant', 'app/Interview', 'app/JobOffer') " +
+            "AND (group_id IS DISTINCT FROM $2 OR group_name <> 'Recruitment' OR sort_order IS DISTINCT FROM CASE href " +
+            "  WHEN 'app/JobRequisition' THEN 10 " +
+            "  WHEN 'app/JobPosting' THEN 20 " +
+            "  WHEN 'app/JobApplicant' THEN 30 " +
+            "  WHEN 'app/Interview' THEN 40 " +
+            "  WHEN 'app/JobOffer' THEN 50 " +
+            "  ELSE sort_order END)"))
+        {
+            moveRecItemsCmd.Parameters.AddWithValue(tenantId);
+            moveRecItemsCmd.Parameters.AddWithValue(NavigationMenuDefaults.GroupHrRecruitmentId(tenantId));
+            moveRecItemsCmd.Parameters.AddWithValue(now);
+            if (await moveRecItemsCmd.ExecuteNonQueryAsync(ct) > 0) added = true;
+        }
+
+        await using (var moveTalentItemsCmd = db.CreateCommand(
+            "UPDATE frogframe_navigation_menus " +
+            "SET group_id = $2, group_name = 'Talent Management', updated_at = $3 " +
+            "WHERE tenant_id = $1 AND is_system = true " +
+            "AND href IN ('app/Appraisal', 'app/AppraisalCycle', 'app/TrainingEvent') " +
+            "AND (group_id IS DISTINCT FROM $2 OR group_name <> 'Talent Management')"))
+        {
+            moveTalentItemsCmd.Parameters.AddWithValue(tenantId);
+            moveTalentItemsCmd.Parameters.AddWithValue(NavigationMenuDefaults.GroupHrTalentId(tenantId));
+            moveTalentItemsCmd.Parameters.AddWithValue(now);
+            if (await moveTalentItemsCmd.ExecuteNonQueryAsync(ct) > 0) added = true;
+        }
+
+        // 15. HR Settings is placed under Documents (remove explicit menu item so DeskLayout renders it in Documents)
+        await using (var delHrSettingsCmd = db.CreateCommand(
+            "DELETE FROM frogframe_navigation_menus WHERE tenant_id = $1 AND is_system = true AND (href = 'app/HRSettings' OR id = $2)"))
+        {
+            delHrSettingsCmd.Parameters.AddWithValue(tenantId);
+            delHrSettingsCmd.Parameters.AddWithValue($"menu_{tenantId}_hr_settings");
+            if (await delHrSettingsCmd.ExecuteNonQueryAsync(ct) > 0) added = true;
+        }
+
         seededTenants[tenantId] = true;
         if (added) Changed?.Invoke();
     }

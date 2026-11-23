@@ -117,13 +117,6 @@
   ],
   "permissions": [
     {
-      "role": "Employee",
-      "actions": [
-        "read"
-      ],
-      "scope": "match:employee=employee"
-    },
-    {
       "role": "HR-Payroll",
       "actions": [
         "read",

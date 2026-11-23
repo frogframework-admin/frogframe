@@ -246,6 +246,37 @@
       "section": "Attendance codes",
       "column": 2,
       "description": "End day of the monthly attendance recap period (1–31, clamped to the month's last day)"
+    },
+    {
+      "name": "careers_enabled",
+      "type": "Check",
+      "label": "Accept applications from the careers portal",
+      "default": false,
+      "section": "Careers portal",
+      "description": "Turns on the public API /api/careers/v1/{tenant}. Only Job Postings that are published and open are shown"
+    },
+    {
+      "name": "careers_portal_url",
+      "type": "Data",
+      "label": "Careers portal address",
+      "maxLength": 200,
+      "section": "Careers portal",
+      "column": 2,
+      "description": "Public address of the careers site, for example https://karir.acme.co.id. Links in e-mails to applicants point here"
+    },
+    {
+      "name": "careers_privacy_notice",
+      "type": "Text",
+      "label": "Privacy notice for applicants",
+      "section": "Careers portal",
+      "description": "Shown before applying; the applicant must agree. The text agreed to is stored on the applicant"
+    },
+    {
+      "name": "careers_reply_to",
+      "type": "Email",
+      "label": "Reply-to address for applicant e-mails",
+      "section": "Careers portal",
+      "column": 2
     }
   ],
   "permissions": [
@@ -308,5 +339,19 @@
       "read",
       "update"
     ]
-  }
+  },
+  "rules": [
+    {
+      "name": "careers_portal_url_required",
+      "expr": "!careers_enabled || !empty(careers_portal_url)",
+      "message": "Fill the careers portal address before turning on the careers portal",
+      "field": "careers_portal_url"
+    },
+    {
+      "name": "careers_privacy_notice_required",
+      "expr": "!careers_enabled || !empty(careers_privacy_notice)",
+      "message": "Fill the privacy notice before turning on the careers portal",
+      "field": "careers_privacy_notice"
+    }
+  ]
 }

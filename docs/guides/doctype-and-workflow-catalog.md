@@ -75,6 +75,7 @@ Comprehensive human capital management covering employee profiles, organizationa
 | `JobFamily` | Job Family | Document | No | - | Job Family entity. |
 | `JobFamilyGroup` | Job Family Group | Document | No | - | Job Family Group entity. |
 | `JobOffer` | Job Offer | Document | No | `JobOfferLifecycle` | Offer to a candidate (Workday Offer). Workflow: Draft → Sent → Accepted/Declined/Expired. 'Create employee' turns an accepted offer into an Employee. |
+| `JobPosting` | Job Posting | Document | No | - | Public advertisement of an approved requisition on the careers portal (Workday Job Posting): title, location, publication window and description. One published posting per requisition. See `careers-portal-api.md`. |
 | `JobProfile` | Job Profile | Document | No | - | Generic job definition (Workday Job Profile / SAP Job). A position is its instance. |
 | `JobRequisition` | Job Requisition | Document | No | - | Approved request to hire (Workday Job Requisition). Submit = approved and open for applicants. |
 | `FaceRegistration` | Face Registration | Document | No | `FaceRegistrationApproval` | Face enrolment for mobile attendance: photos for HR verification and the encrypted face template used by the ESS app. One active registration per employee. |

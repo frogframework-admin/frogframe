@@ -153,6 +153,7 @@ app.MapFrogFrameHealthChecks();
 app.MapFrogFrameworkApi();
 app.MapFrogFrameworkSso(); // /account/external/{provider} + callback (only providers that are configured)
 Apps.Erp.Ess.EssEndpoints.MapEssApi(app); // /api/ess/v1 (aplikasi mobile ESS)
+Apps.Erp.Careers.CareersEndpoints.MapCareersApi(app); // /api/careers/v1/{tenant} (portal karier publik, tanpa login)
 app.MapRazorComponents<App>()
    .AddInteractiveServerRenderMode()
    .AddAdditionalAssemblies(typeof(DeskLayout).Assembly);

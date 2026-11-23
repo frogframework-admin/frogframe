@@ -78,6 +78,8 @@
       href: guides/api-integrations.md
     - name: ESS Mobile API (v1)
       href: guides/ess-mobile-api.md
+    - name: Careers Portal API (v1)
+      href: guides/careers-portal-api.md
     - name: Outbound Webhooks
       href: webhooks.md
     - name: Auto Repeat (Recurring Documents)

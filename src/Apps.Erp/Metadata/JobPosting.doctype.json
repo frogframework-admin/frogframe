@@ -1,0 +1,204 @@
+{
+  "name": "JobPosting",
+  "version": 1,
+  "title": "Job Posting",
+  "module": "HR",
+  "description": "Public advertisement of an open requisition on the careers portal (Workday Job Posting). Only what is on the posting is shown to applicants; salary, reason and hiring manager stay on the requisition.",
+  "naming": {
+    "pattern": "JP-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "rules": [
+    {
+      "name": "closing_after_posting",
+      "expr": "empty(closing_date) || empty(posting_date) || closing_date >= posting_date",
+      "message": "The closing date must be on or after the posting date",
+      "field": "closing_date"
+    }
+  ],
+  "fields": [
+    {
+      "name": "job_requisition",
+      "type": "Link",
+      "label": "Job requisition",
+      "linkTo": "JobRequisition",
+      "requiredWhen": "true",
+      "linkFilters": [
+        {
+          "field": "docstatus",
+          "op": "=",
+          "value": 1
+        }
+      ],
+      "inListView": true,
+      "section": "Posting"
+    },
+    {
+      "name": "posting_title",
+      "type": "Data",
+      "label": "Title shown to applicants",
+      "maxLength": 140,
+      "inListView": true,
+      "section": "Posting",
+      "description": "Defaults to the requisition's job title"
+    },
+    {
+      "name": "company",
+      "type": "Link",
+      "label": "Company",
+      "linkTo": "Company",
+      "fetchFrom": "job_requisition.company",
+      "readOnlyWhen": "true",
+      "section": "Posting"
+    },
+    {
+      "name": "employment_type",
+      "type": "Data",
+      "label": "Employment type",
+      "fetchFrom": "job_requisition.employment_type",
+      "readOnlyWhen": "true",
+      "section": "Posting",
+      "column": 2
+    },
+    {
+      "name": "location",
+      "type": "Link",
+      "label": "Work location",
+      "linkTo": "Location",
+      "section": "Posting",
+      "column": 2
+    },
+    {
+      "name": "location_label",
+      "type": "Data",
+      "label": "Location shown to applicants",
+      "maxLength": 140,
+      "section": "Posting",
+      "column": 2,
+      "description": "Defaults to the city of the work location"
+    },
+    {
+      "name": "is_published",
+      "type": "Check",
+      "label": "Published on the careers portal",
+      "default": true,
+      "inListView": true,
+      "section": "Publication"
+    },
+    {
+      "name": "posting_date",
+      "type": "Date",
+      "label": "Show from",
+      "default": "$today",
+      "requiredWhen": "true",
+      "section": "Publication",
+      "column": 2
+    },
+    {
+      "name": "closing_date",
+      "type": "Date",
+      "label": "Closing date",
+      "inListView": true,
+      "section": "Publication",
+      "column": 2,
+      "description": "Last day applications are accepted. Empty: open until the requisition is filled or cancelled"
+    },
+    {
+      "name": "posting_status",
+      "type": "Select",
+      "label": "Status on the portal",
+      "options": [
+        "Live",
+        "Scheduled",
+        "Closed",
+        "Unpublished"
+      ],
+      "readOnlyWhen": "true",
+      "inListView": true,
+      "section": "Publication",
+      "column": 2
+    },
+    {
+      "name": "description",
+      "type": "TextEditor",
+      "label": "Job description & requirements",
+      "section": "Content",
+      "description": "Defaults to the requisition's description. Shown publicly: do not include salary or internal notes"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR-Recruitment",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Admin",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Manager",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "posting_title",
+    "searchFields": [
+      "name",
+      "posting_title"
+    ],
+    "filters": [
+      "job_requisition",
+      "is_published",
+      "company"
+    ],
+    "defaultSort": [
+      {
+        "field": "modified",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

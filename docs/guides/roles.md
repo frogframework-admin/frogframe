@@ -186,8 +186,8 @@ Generated from the ERP metadata. *Own rows* means a row scope, for example a sal
 | `PayrollSettings` | HR-Payroll: write<br>Accounting-Admin: write | other Finance & Accounting roles, other Payroll roles | - |
 | `Payslip` | HR-Payroll: create/write/submit | all Finance & Accounting roles, other Payroll roles, Employee (own rows) | - |
 | `Position` | HR-Employee-Management: create/write | other HR roles, Employee, Manager | - |
-| `SalaryAssignment` | HR-Comben: create/write | all Finance & Accounting roles, other Payroll roles, Employee (own rows) | - |
-| `SalaryComponent` | HR-Comben: create/write<br>Accounting-Admin: create/write | other Finance & Accounting roles, other Payroll roles, Employee | - |
+| `SalaryAssignment` | HR-Comben: create/write | all Finance & Accounting roles, other Payroll roles | - |
+| `SalaryComponent` | HR-Comben: create/write<br>Accounting-Admin: create/write | other Finance & Accounting roles, other Payroll roles | - |
 | `ScheduleGeneration` | HR-Time-Attendance: create/write | other HR roles, Manager | - |
 | `ScheduleOptimization` | HR-Time-Attendance: create/write<br>Manager: create/write | other HR roles | - |
 | `ShiftAssignment` | HR-Time-Attendance: create/write | other HR roles, Employee, Manager | - |

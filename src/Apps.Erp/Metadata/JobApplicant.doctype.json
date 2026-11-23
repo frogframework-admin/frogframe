@@ -56,6 +56,16 @@
       "column": 2
     },
     {
+      "name": "job_posting",
+      "type": "Link",
+      "label": "Job posting",
+      "linkTo": "JobPosting",
+      "readOnlyWhen": "true",
+      "section": "Applicant",
+      "column": 2,
+      "description": "Set when the application came through the careers portal"
+    },
+    {
       "name": "organization_unit",
       "type": "Data",
       "label": "Unit",
@@ -170,6 +180,27 @@
       "label": "Notes",
       "section": "Documents",
       "column": 2
+    },
+    {
+      "name": "consent_at",
+      "type": "Datetime",
+      "label": "Consent given at",
+      "readOnlyWhen": "true",
+      "noCopy": true,
+      "permLevel": 1,
+      "section": "Consent (PDP)",
+      "description": "When the applicant agreed to the privacy notice on the careers portal"
+    },
+    {
+      "name": "consent_text",
+      "type": "Text",
+      "label": "Privacy notice agreed to",
+      "readOnlyWhen": "true",
+      "noCopy": true,
+      "permLevel": 1,
+      "section": "Consent (PDP)",
+      "column": 2,
+      "description": "The notice as shown to the applicant when they applied"
     }
   ],
   "permissions": [
