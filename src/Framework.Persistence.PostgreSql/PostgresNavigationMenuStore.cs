@@ -848,14 +848,14 @@ public sealed class PostgresNavigationMenuStore(NpgsqlDataSource db, TimeProvide
             if (await delHrSettingsCmd.ExecuteNonQueryAsync(ct) > 0) added = true;
         }
 
-        // 16. Move OnboardingList, OffboardingList, and KpiDefinition to Documents; move Location to Organization and Job Design; reorder HR groups
+        // 16. Move OnboardingTemplate, OffboardingTemplate, and KpiDefinition to Documents; move Location to Organization and Job Design; reorder HR groups
         await using (var delDocsMenusCmd = db.CreateCommand(
             "DELETE FROM frogframe_navigation_menus WHERE tenant_id = $1 AND is_system = true " +
-            "AND (href IN ('app/OnboardingList', 'app/OffboardingList', 'app/KpiDefinition') OR id IN ($2, $3, $4))"))
+            "AND (href IN ('app/OnboardingTemplate', 'app/OffboardingTemplate', 'app/KpiDefinition') OR id IN ($2, $3, $4))"))
         {
             delDocsMenusCmd.Parameters.AddWithValue(tenantId);
-            delDocsMenusCmd.Parameters.AddWithValue($"menu_{tenantId}_onboarding_list");
-            delDocsMenusCmd.Parameters.AddWithValue($"menu_{tenantId}_offboarding_list");
+            delDocsMenusCmd.Parameters.AddWithValue($"menu_{tenantId}_onboarding_template");
+            delDocsMenusCmd.Parameters.AddWithValue($"menu_{tenantId}_offboarding_template");
             delDocsMenusCmd.Parameters.AddWithValue($"menu_{tenantId}_kpi_definition");
             if (await delDocsMenusCmd.ExecuteNonQueryAsync(ct) > 0) added = true;
         }
