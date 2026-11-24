@@ -11,6 +11,7 @@ Releases are tagged `vMAJOR.MINOR.PATCH` on `main`. Add every user-visible chang
 ## [Unreleased]
 
 ### Added
+- Home page "My team today" and "Who is away" (`docs/guides/home-page.md`): managers see their direct reports with today's status (on leave, day off, present/late with clock-in time, absent, not checked in) and their team's time off and day off today and in the next 7 days; HR roles see who is away in the whole company.
 - HRM review follow-up (24 Nov 2026):
   - **9-Box Talent Grid** report (`erp-nine-box`) per appraisal cycle, unit (with sub-units) and calibration session.
   - **Announcement acknowledgments**: "I have read this" on mandatory announcements, with who and when (`AnnouncementAcknowledgment`) and a count; HR cannot alter them by editing. Announcements reach sub-units (option), respect the target company and use the employee's current unit.
@@ -106,6 +107,7 @@ Releases are tagged `vMAJOR.MINOR.PATCH` on `main`. Add every user-visible chang
 - Outside Development the application refuses to start while a secret in use is a `change-me` placeholder, a repository default, or shorter than 12 characters.
 
 ### Fixed
+- Home page "On leave today (your team)" also listed leave requests still waiting for approval; it now lists approved leave only.
 - HRM review follow-up (24 Nov 2026):
   - Applicant retention job used fields that do not exist and stopped on the first applicant: it now anonymizes applicant, stage-history notes and interview feedback in one write, deletes the CV file, records `anonymized_at`, and counts the retention period from the date of rejection/withdrawal.
   - "Create employee" from an offer failed after the employee was created (onboarding list field `boarding_begins_on`): the onboarding list is now created with `start_date`, and a failure is reported in the message.

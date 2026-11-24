@@ -1,0 +1,121 @@
+@using System.Globalization
+@using Apps.Erp.Home
+@using Framework.Localization
+@inject TeamHomeService Team
+@inject CurrentUser Current
+@inject UiText T
+
+@* Home page, main column: the manager's direct reports with today's status, and who is away (time off / day off)
+   today and in the coming days. HR sees the away lists for the whole company. Rules: TeamHomeService. *@
+@if (data is { IsEmpty: false } d)
+{
+    if (d.DirectReports.Count > 0)
+    {
+        <section class="home-section" aria-label="@T["My team today"]">
+            <div class="section-head-row">
+                <h2>@T["My team today"]</h2>
+                <span class="home-tab-count">@d.DirectReports.Count</span>
+            </div>
+            <div class="desk-table-card">
+                @foreach (var r in d.DirectReports)
+                {
+                    <div class="home-approval-row">
+                        <div class="home-approval-main">
+                            <div class="home-approval-title">
+                                <a class="doc-code" href="/app/Employee/@Uri.EscapeDataString(r.Employee)">@r.FullName</a>
+                                @if (r.Position is { } pos)
+                                {
+                                    <span class="doc-sub">@pos</span>
+                                }
+                            </div>
+                            @if (r.Detail is { } detail)
+                            {
+                                <div class="home-approval-sub">@detail</div>
+                            }
+                        </div>
+                        <span class="desk-status-pill tone-@r.Tone">
+                            <span class="dot" aria-hidden="true"></span>
+                            <span>@T[r.Status]</span>
+                        </span>
+                    </div>
+                }
+            </div>
+        </section>
+    }
+
+    if (d.AwayToday.Count > 0 || d.DayOffCountToday > 0 || d.UpcomingTimeOff.Count > 0)
+    {
+        <section class="home-section" aria-label="@T["Who is away"]">
+            <div class="section-head-row">
+                <h2>@(d.CompanyWide ? T["Who is away (company)"] : T["Who is away (your team)"])</h2>
+            </div>
+            <div class="desk-table-card">
+                @if (d.AwayToday.Count == 0 && d.DayOffCountToday == 0)
+                {
+                    <div class="home-approval-row"><div class="home-approval-main home-empty-small">@T["Nobody is away today."]</div></div>
+                }
+                @foreach (var a in d.AwayToday)
+                {
+                    <div class="home-approval-row">
+                        <div class="home-approval-main">
+                            <div class="home-approval-title">
+                                <a class="doc-code" href="/app/Employee/@Uri.EscapeDataString(a.Employee)">@a.FullName</a>
+                                @if (a.Unit is { } unit)
+                                {
+                                    <span class="doc-sub">@unit</span>
+                                }
+                            </div>
+                            <div class="home-approval-sub">@Period(a)@(a.Detail is { } det ? " · " + det : "")</div>
+                        </div>
+                        <span class="desk-status-pill tone-@(a.Kind == "Time off" ? "pending" : "neutral")">
+                            <span class="dot" aria-hidden="true"></span>
+                            <span>@T[a.HalfDay ? "Half-day leave" : a.Kind]</span>
+                        </span>
+                    </div>
+                }
+                @if (d.DayOffCountToday > 0)
+                {
+                    <div class="home-approval-row">
+                        <div class="home-approval-main">@T.Format("{0} people have a day off today", d.DayOffCountToday)</div>
+                    </div>
+                }
+                @if (d.UpcomingTimeOff.Count > 0)
+                {
+                    <div class="home-approval-row">
+                        <div class="home-approval-main"><strong>@T.Format("Time off in the next {0} days", TeamHomeService.UpcomingDays)</strong></div>
+                    </div>
+                    foreach (var a in d.UpcomingTimeOff)
+                    {
+                        <div class="home-approval-row">
+                            <div class="home-approval-main">
+                                <div class="home-approval-title">
+                                    <a class="doc-code" href="/app/Employee/@Uri.EscapeDataString(a.Employee)">@a.FullName</a>
+                                    @if (a.Detail is { } lt)
+                                    {
+                                        <span class="doc-sub">@lt</span>
+                                    }
+                                </div>
+                                <div class="home-approval-sub">@Period(a)</div>
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
+        </section>
+    }
+}
+
+@code {
+    private TeamOverview? data;
+
+    private CultureInfo Culture => T.Language == "id" ? CultureInfo.GetCultureInfo("id-ID") : CultureInfo.GetCultureInfo("en-GB");
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Current.User is { } u) data = await Team.OverviewAsync(u);
+    }
+
+    private string Period(AwayEntry a) => a.From == a.To
+        ? a.From.ToString("ddd, d MMM", Culture)
+        : $"{a.From.ToString("d MMM", Culture)} – {a.To.ToString("d MMM", Culture)}";
+}

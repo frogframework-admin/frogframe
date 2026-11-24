@@ -43,7 +43,7 @@ sore both read "Good afternoon" (translation key `Good late afternoon`).
 
 ## ERP panels (Apps.Erp)
 
-Registered in `ErpRegistration.AddErpHome()`; data from `Apps.Erp.Home.ErpHomeService`.
+Registered in `ErpRegistration.AddErpHome()`; data from `Apps.Erp.Home.ErpHomeService` and, for the team panels, `Apps.Erp.Home.TeamHomeService`.
 
 | Panel | Slot | Visible to | Content |
 |---|---|---|---|
@@ -51,6 +51,9 @@ Registered in `ErpRegistration.AddErpHome()`; data from `Apps.Erp.Home.ErpHomeSe
 | My day | Personal | Accounts linked to an employee | Today's shift (daily schedule, else the employee's shift type), check-in and check-out times, leave balance, latest payslip with PDF link |
 | My requests | Personal | Accounts linked to an employee | Latest leave, overtime, expense claim, advance and shift swap requests with their status |
 | Company info | Side | Everyone, when there is something to show | Next holiday (employee's or company's holiday list, weekends skipped); colleagues of the same organization unit on approved leave today (names only) |
+| Announcements | Top | Everyone with a matching announcement | Published announcements in their window for the employee's company and unit (and units above it when "include sub-units" is on); mandatory ones show a "please confirm" badge |
+| My team today | Main | Accounts linked to an employee who has direct reports | Each direct report (`reports_to` = me) with today's status: on leave (approved), day off (schedule REST/HOLIDAY or public holiday; without a schedule the holiday list and weekly off), present / late with clock-in time, absent, or not checked in yet |
+| Who is away | Main | Managers (their direct reports) and HR: HR-Employee-Management, HR-Time-Attendance, HR-Admin, administrators (whole company) | Approved time off and day off today, then approved time off in the next 7 days. Pending leave is not shown. More than 15 day offs (weekend, holiday) are shown as a number |
 
 **Check-in from the browser.** The browser sends no GPS position, device id or selfie. The "Check in now" button is
 therefore shown only when the employee's attendance mode is *Anywhere*, device binding is off and no photo is

@@ -792,6 +792,20 @@
     "Time off, no deduction": "Ijin tanpa potong gaji",
     "Time off, salary deducted": "Ijin potong gaji",
     "Unit": "Unit",
-    "{0} days created, {1} recalculated, {2} skipped (payroll month locked or being edited).": "{0} hari dibuat, {1} dihitung ulang, {2} dilewati (bulan payroll terkunci atau sedang diedit)."
+    "{0} days created, {1} recalculated, {2} skipped (payroll month locked or being edited).": "{0} hari dibuat, {1} dihitung ulang, {2} dilewati (bulan payroll terkunci atau sedang diedit).",
+    "My team today": "Tim saya hari ini",
+    "Who is away": "Siapa yang tidak masuk",
+    "Who is away (company)": "Tidak masuk (seluruh perusahaan)",
+    "Who is away (your team)": "Tidak masuk (tim Anda)",
+    "Nobody is away today.": "Hari ini semua masuk.",
+    "{0} people have a day off today": "{0} orang libur hari ini",
+    "Time off in the next {0} days": "Cuti dalam {0} hari ke depan",
+    "Time off": "Cuti",
+    "Half-day leave": "Cuti setengah hari",
+    "On leave": "Cuti",
+    "Present": "Hadir",
+    "Late": "Terlambat",
+    "Not checked in": "Belum absen masuk",
+    "Please confirm you have read this": "Mohon konfirmasi sudah membaca"
   }
 }

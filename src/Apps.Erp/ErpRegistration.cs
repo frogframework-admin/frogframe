@@ -55,7 +55,8 @@ public static class ErpRegistration
 
     /// <summary>
     /// Home page contributions: the employee's day and requests ("Personal" slot, only for accounts linked to an
-    /// employee), company information (side column), the first-run checklist for administrators (top) and quick
+    /// employee), "My team today" / "Who is away" for managers and HR (main column, TeamHomeService), company
+    /// information (side column), the first-run checklist for administrators (top) and quick
     /// actions, each shown only to users allowed to create that DocType. See docs/guides/home-page.md.
     /// </summary>
     public static IServiceCollection AddErpHome(this IServiceCollection services)
@@ -67,6 +68,10 @@ public static class ErpRegistration
         services.AddHomePanel<Components.Home.EmployeeTodayPanel>("erp-today", Framework.Web.Home.HomeSlot.Personal, 10, IsEmployee);
         services.AddHomePanel<Components.Home.MyRequestsPanel>("erp-my-requests", Framework.Web.Home.HomeSlot.Personal, 20, IsEmployee);
         services.AddHomePanel<Components.Home.CompanyInfoPanel>("erp-company-info", Framework.Web.Home.HomeSlot.Side, 50);
+        // Managers: direct reports with today's status; managers and HR: who is away (time off / day off). See TeamHomeService.
+        services.TryAddSingleton<Home.TeamHomeService>();
+        services.AddHomePanel<Components.Home.TeamPanel>("erp-team", Framework.Web.Home.HomeSlot.Main, 10,
+            u => IsEmployee(u) || Home.TeamHomeService.IsHr(u));
 
         // Order: self-service first (most users), then the transactions of each department.
         services.AddHomeQuickAction("LeaveApplication", "Apply for leave", "calendar-off", 10);

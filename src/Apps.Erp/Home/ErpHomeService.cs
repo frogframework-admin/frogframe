@@ -207,7 +207,7 @@ public sealed class ErpHomeService(IDocumentStore store, IMetadataProvider metad
         {
             var onLeave = await m.QueryAsync("LeaveApplication",
                 [new("organization_unit", "=", unit), new("from_date", "<=", D.Iso(today)), new("to_date", ">=", D.Iso(today))], ct, take: 50);
-            team.AddRange(onLeave.Where(l => l.DocStatus == DocStatus.Submitted && l.Data.Str("employee") != emp.Name)
+            team.AddRange(onLeave.Where(l => l.WorkflowState == Approval.Approved && l.Data.Str("employee") != emp.Name) // not pending requests
                 .Select(l => l.Data.Str("employee_name") ?? l.Data.Str("employee") ?? "").Where(n => n.Length > 0).Distinct());
         }
         return new CompanyInfo(nextDate, nextName, team);
