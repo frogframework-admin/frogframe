@@ -49,7 +49,9 @@ sealed partial class Tests
             ["openings"] = openings, ["hiring_manager"] = "MGR-A", ["salary_min"] = 7_123_000m, ["salary_max"] = 9_456_000m,
             ["description"] = "<p>Menjual produk ke pelanggan.</p><script>alert('x')</script>",
         });
-        return await docs.RunActionAsync(sys, "JobRequisition", req.Name, DocActions.Submit, req.Version, null);
+        req = await docs.RunActionAsync(sys, "JobRequisition", req.Name, "Submit for approval", req.Version, null);
+        req = await docs.RunActionAsync(sys, "JobRequisition", req.Name, "Approve (Unit Head)", req.Version, null);
+        return await docs.RunActionAsync(sys, "JobRequisition", req.Name, "Approve (HR)", req.Version, null);
     }
 
     private static async Task CareersSetupAsync(DocumentService docs, UserContext sys) =>

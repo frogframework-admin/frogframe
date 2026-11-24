@@ -1,0 +1,50 @@
+{
+  "name": "EmployeeDocument",
+  "version": 1,
+  "title": "Employee Document",
+  "module": "HR",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "document_category",
+      "type": "Select",
+      "label": "Category",
+      "requiredWhen": "true",
+      "options": [
+        "Contract",
+        "SK / Decree",
+        "Agreement",
+        "Tax & BPJS",
+        "Medical",
+        "Other"
+      ],
+      "default": "Other",
+      "inListView": true
+    },
+    {
+      "name": "title",
+      "type": "Data",
+      "label": "Document title",
+      "requiredWhen": "true",
+      "maxLength": 140,
+      "inListView": true
+    },
+    {
+      "name": "issue_date",
+      "type": "Date",
+      "label": "Document date",
+      "inListView": true
+    },
+    {
+      "name": "attachment",
+      "type": "Attach",
+      "label": "File",
+      "requiredWhen": "true"
+    },
+    {
+      "name": "notes",
+      "type": "Data",
+      "label": "Notes"
+    }
+  ]
+}

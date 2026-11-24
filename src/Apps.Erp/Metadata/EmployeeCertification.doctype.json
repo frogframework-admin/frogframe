@@ -1,0 +1,53 @@
+{
+  "name": "EmployeeCertification",
+  "version": 1,
+  "title": "Employee Certification",
+  "module": "HR",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "certification_name",
+      "type": "Data",
+      "label": "Certification name",
+      "requiredWhen": "true",
+      "maxLength": 140,
+      "inListView": true
+    },
+    {
+      "name": "competency",
+      "type": "Link",
+      "label": "Related competency",
+      "linkTo": "Competency",
+      "inListView": true
+    },
+    {
+      "name": "issuer",
+      "type": "Data",
+      "label": "Issuing body",
+      "maxLength": 120,
+      "inListView": true
+    },
+    {
+      "name": "certificate_no",
+      "type": "Data",
+      "label": "Certificate no.",
+      "maxLength": 60
+    },
+    {
+      "name": "issue_date",
+      "type": "Date",
+      "label": "Issue date"
+    },
+    {
+      "name": "expiry_date",
+      "type": "Date",
+      "label": "Valid until",
+      "inListView": true
+    },
+    {
+      "name": "attachment",
+      "type": "Attach",
+      "label": "Certificate file"
+    }
+  ]
+}

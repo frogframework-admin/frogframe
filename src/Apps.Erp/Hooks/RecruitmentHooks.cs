@@ -1,17 +1,21 @@
 using Framework.Actions;
 using Framework.Documents;
 using Framework.Hooks;
+using Framework.Jobs;
+using Framework.Notifications;
 using Framework.Persistence;
 using Framework.Security;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Apps.Erp.Hooks;
 
 public sealed class JobRequisition { }
 public sealed class JobApplicant { }
+public sealed class Interview { }
 public sealed class JobOffer { }
 
 /// <summary>Requisition: data jabatan dari posisi (harus Vacant saat draft); status, jumlah pelamar & yang diterima dihitung saat dibuka.</summary>
-public sealed class JobRequisitionHook(IDocumentStore store) : IBeforeValidate<JobRequisition>, IOnLoad<JobRequisition>
+public sealed class JobRequisitionHook(IDocumentStore store) : IBeforeValidate<JobRequisition>, IBeforeTransition<JobRequisition>, IOnLoad<JobRequisition>
 {
     public async Task BeforeValidateAsync(HookContext c, CancellationToken ct)
     {
@@ -26,12 +30,46 @@ public sealed class JobRequisitionHook(IDocumentStore store) : IBeforeValidate<J
             d.SetIfEmpty("grade", pos.Data.Str("grade"));
             d.SetIfEmpty("company", pos.Data.Str("company"));
         }
+        if (string.IsNullOrEmpty(d.Str("unit_head")) && d.Str("organization_unit") is { } unitId)
+        {
+            var headPos = await m.StrAsync("OrganizationUnit", unitId, "manager_position", ct);
+            if (!string.IsNullOrEmpty(headPos))
+                d["unit_head"] = (await Hr.HolderAsync(m, headPos, null, ct))?.Name;
+        }
         if (await m.GetAsync("Grade", d.Str("grade"), ct) is { } grade && d.Dec("salary_max") > 0)
         {
             var max = grade.Data.Rows("pay_ranges").Where(r => r.Str("company") is null || r.Str("company") == d.Str("company")).Select(r => r.Dec("max_salary")).DefaultIfEmpty(0).Max();
             if (max > 0 && d.Dec("salary_max") > max) c.Messages.Add($"The salary range exceeds the maximum of grade {grade.Name} ({max:N0})");
         }
         if (c.Doc.DocStatus == DocStatus.Draft) d["requisition_status"] = "Draft";
+    }
+
+    public async Task BeforeTransitionAsync(HookContext c, CancellationToken ct)
+    {
+        if (c.ToState is not ("Pending Unit Head" or "Approved")) return;
+        var m = new Masters(store, c.Doc.TenantId);
+        var d = c.Doc.Data;
+        if (await m.GetAsync("Position", d.Str("position"), ct) is { } pos && pos.Data.Str("status") != "Vacant")
+            throw Errors.One("position", $"Position {pos.Name} is {pos.Data.Str("status")}, not Vacant");
+
+        if (d.Str("position") is null && d.Str("organization_unit") is { } unitId)
+        {
+            var unitDoc = await m.GetAsync("OrganizationUnit", unitId, ct);
+            if (unitDoc?.Data.Str("staffing_model") == "Position")
+            {
+                var vacantCount = (await m.QueryAsync("Position",
+                        [new FilterClause("organization_unit", "=", unitId), new FilterClause("status", "=", "Vacant")], ct, take: 5000))
+                    .Count(p => d.Str("job_profile") is null || p.Data.Str("job_profile") == d.Str("job_profile"));
+                var openReqs = (await m.QueryAsync("JobRequisition",
+                        [new FilterClause("organization_unit", "=", unitId)], ct, take: 5000))
+                    .Where(r => r.Name != c.Doc.Name && r.DocStatus == DocStatus.Submitted
+                        && (d.Str("job_profile") is null || r.Data.Str("job_profile") == d.Str("job_profile")))
+                    .Sum(r => (int)r.Data.Dec("openings"));
+                var requested = (int)d.Dec("openings");
+                if (openReqs + requested > vacantCount)
+                    throw Errors.One("openings", $"Requested openings ({requested}) exceed available Vacant positions in {unitId} ({Math.Max(0, vacantCount - openReqs)} remaining)");
+            }
+        }
     }
 
     public async Task OnLoadAsync(HookContext c, CancellationToken ct)
@@ -51,7 +89,8 @@ public sealed class JobRequisitionHook(IDocumentStore store) : IBeforeValidate<J
 }
 
 /// <summary>Pelamar: requisition harus terbuka; email unik per requisition; status Hired hanya lewat aksi 'Create employee'.</summary>
-public sealed class JobApplicantHook(IDocumentStore store) : IBeforeValidate<JobApplicant>
+public sealed class JobApplicantHook(IDocumentStore store, IServiceProvider? services = null, TimeProvider? clock = null)
+    : IBeforeValidate<JobApplicant>, IAfterSave<JobApplicant>
 {
     public async Task BeforeValidateAsync(HookContext c, CancellationToken ct)
     {
@@ -66,6 +105,88 @@ public sealed class JobApplicantHook(IDocumentStore store) : IBeforeValidate<Job
         if (dup is not null) throw Errors.One("email", $"{email} already applied to {req.Name} ({dup.Name})");
         if (d.Str("status") == "Hired" && d.Str("employee") is null && !c.User.IsAdmin)
             throw Errors.One("status", "'Hired' is set by 'Create employee' on an accepted job offer");
+
+        var stage = d.Str("status") ?? "Applied";
+        if (c.Previous is null || c.Previous.Data.Str("status") != stage)
+        {
+            var history = d.Rows("stage_history").Select(r => new Dictionary<string, object?>(r)).ToList();
+            history.Add(new Dictionary<string, object?>
+            {
+                ["stage"] = stage,
+                ["changed_at"] = (clock ?? TimeProvider.System).GetUtcNow().ToString("O"),
+                ["changed_by"] = c.User.Id,
+                ["notes"] = stage == "Rejected" ? d.Str("rejection_reason") : null,
+            });
+            d["stage_history"] = history;
+        }
+    }
+
+    public async Task AfterSaveAsync(HookContext c, CancellationToken ct)
+    {
+        if (c.Previous is not null) return;
+        var users = services?.GetService<IUserDirectory>();
+        var inbox = services?.GetService<INotificationStore>();
+        if (users is null || inbox is null) return;
+        var m = new Masters(store, c.Doc.TenantId);
+        var req = await m.GetAsync("JobRequisition", c.Doc.Data.Str("job_requisition"), ct);
+        var subject = $"New applicant: {c.Doc.Data.Str("full_name")} for {req?.Data.Str("job_title") ?? c.Doc.Data.Str("job_requisition")}";
+        var body = $"Review application {c.Doc.Name} in Recruitment.";
+        var targets = new[] { req?.Data.Str("hiring_manager"), req?.Data.Str("recruiter") }.Where(x => !string.IsNullOrEmpty(x)).Distinct().ToList();
+        if (targets.Count > 0)
+            await Notify.ToEmployeesAsync(users, inbox, c.Doc.TenantId, targets, subject, body, "JobApplicant", c.Doc.Name, $"new-app|{c.Doc.Name}", ct);
+        await Notify.ToRoleAsync(users, inbox, c.Doc.TenantId, ErpRoles.HrRecruitment, subject, body, "JobApplicant", c.Doc.Name, $"new-app|{c.Doc.Name}", ct);
+    }
+}
+
+/// <summary>Interview: prefill competency scorecard from Job Profile and notify interviewer.</summary>
+public sealed class InterviewHook(IDocumentStore store, IServiceProvider? services = null)
+    : IBeforeValidate<Interview>, IAfterSave<Interview>
+{
+    public async Task BeforeValidateAsync(HookContext c, CancellationToken ct)
+    {
+        var m = new Masters(store, c.Doc.TenantId);
+        var d = c.Doc.Data;
+        if (c.Previous is null && !d.Rows("scorecard").Any() && d.Str("job_applicant") is { } appId)
+        {
+            var reqId = await m.StrAsync("JobApplicant", appId, "job_requisition", ct);
+            var jpId = !string.IsNullOrEmpty(reqId) ? await m.StrAsync("JobRequisition", reqId, "job_profile", ct) : null;
+            if (!string.IsNullOrEmpty(jpId) && await m.GetAsync("JobProfile", jpId, ct) is { } jp)
+            {
+                var cards = new List<Dictionary<string, object?>>();
+                foreach (var jpc in jp.Data.Rows("competencies"))
+                {
+                    var code = jpc.Str("competency");
+                    if (string.IsNullOrEmpty(code)) continue;
+                    cards.Add(new Dictionary<string, object?>
+                    {
+                        ["competency"] = code,
+                        ["competency_name"] = jpc.Str("competency_name") ?? await m.StrAsync("Competency", code, "competency_name", ct),
+                    });
+                }
+                if (cards.Count > 0) d["scorecard"] = cards;
+            }
+        }
+        foreach (var row in d.Rows("scorecard"))
+        {
+            var code = row.Str("competency");
+            if (!string.IsNullOrEmpty(code))
+                row["competency_name"] = await m.StrAsync("Competency", code, "competency_name", ct);
+        }
+    }
+
+    public async Task AfterSaveAsync(HookContext c, CancellationToken ct)
+    {
+        if (c.Previous is not null) return;
+        var users = services?.GetService<IUserDirectory>();
+        var inbox = services?.GetService<INotificationStore>();
+        if (users is null || inbox is null) return;
+        if (c.Doc.Data.Str("interviewer") is { } interviewer && !string.IsNullOrEmpty(interviewer))
+        {
+            await Notify.ToEmployeesAsync(users, inbox, c.Doc.TenantId, [interviewer],
+                $"Interview scheduled: {c.Doc.Data.Str("applicant_name") ?? c.Doc.Data.Str("job_applicant")}",
+                $"Round: {c.Doc.Data.Str("round")} at {c.Doc.Data.Str("scheduled_at")}.",
+                "Interview", c.Doc.Name, $"interview|{c.Doc.Name}|{interviewer}", ct);
+        }
     }
 }
 
@@ -151,6 +272,22 @@ public sealed class JobOfferCreateEmployeeAction(IDocumentStore store) : IFormAc
             var fresh = await ctx.Docs.GetAsync(sys, "JobApplicant", applicant.Name, ct);
             await ctx.Docs.UpdateAsync(sys, "JobApplicant", applicant.Name, fresh.Version,
                 new Dictionary<string, object?> { ["status"] = "Hired", ["employee"] = emp.Name }, ct);
+
+            // Auto-create OnboardingList for the new hire if none exists.
+            try
+            {
+                var existingOnb = (await m.QueryAsync("OnboardingList", [new FilterClause("employee", "=", emp.Name)], ct, take: 1)).Count > 0;
+                if (!existingOnb)
+                {
+                    await ctx.Docs.InsertAsync(sys, "OnboardingList", new Dictionary<string, object?>
+                    {
+                        ["employee"] = emp.Name,
+                        ["boarding_begins_on"] = o.Str("proposed_start_date"),
+                    }, $"Auto-created from {ctx.Doc.Name}", ct);
+                }
+            }
+            catch (ValidationFailedException) { /* template may not exist in minimal test tenants */ }
+
             return FormActionResult.NavigateTo($"/app/Employee/{emp.Name}", $"Employee {emp.Name} created{note}");
         }
         catch (Exception ex) when (ex is ValidationFailedException or PermissionDeniedException or InvalidPayloadException)

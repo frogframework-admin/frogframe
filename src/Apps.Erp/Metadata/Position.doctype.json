@@ -66,6 +66,13 @@
       "section": "Position"
     },
     {
+      "name": "is_key_position",
+      "type": "Check",
+      "label": "Key position (Succession)",
+      "default": false,
+      "section": "Position"
+    },
+    {
       "name": "organization_path",
       "type": "Data",
       "label": "Hierarchy path",
@@ -321,5 +328,8 @@
       "create",
       "update"
     ]
+  },
+  "import": {
+    "enabled": true
   }
 }

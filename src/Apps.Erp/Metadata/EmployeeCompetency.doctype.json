@@ -17,7 +17,6 @@
       "name": "competency_name",
       "type": "Data",
       "label": "Name",
-      "fetchFrom": "competency.competency_name",
       "inListView": true
     },
     {

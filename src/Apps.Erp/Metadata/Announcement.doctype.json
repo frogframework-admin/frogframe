@@ -1,0 +1,154 @@
+{
+  "name": "Announcement",
+  "version": 1,
+  "title": "Announcement",
+  "module": "CORE",
+  "description": "Company or unit-wide announcements displayed on the Home page during the publish window.",
+  "naming": {
+    "pattern": "ANN-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "title",
+      "type": "Data",
+      "label": "Title",
+      "requiredWhen": "true",
+      "maxLength": 140,
+      "inListView": true,
+      "section": "Announcement"
+    },
+    {
+      "name": "is_published",
+      "type": "Check",
+      "label": "Published",
+      "default": true,
+      "inListView": true,
+      "section": "Announcement",
+      "column": 2
+    },
+    {
+      "name": "publish_from",
+      "type": "Date",
+      "label": "Publish from",
+      "default": "$today",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Schedule"
+    },
+    {
+      "name": "publish_to",
+      "type": "Date",
+      "label": "Publish until",
+      "inListView": true,
+      "section": "Schedule",
+      "column": 2
+    },
+    {
+      "name": "target_company",
+      "type": "Link",
+      "label": "Target company (blank = all)",
+      "linkTo": "Company",
+      "section": "Targeting"
+    },
+    {
+      "name": "target_unit",
+      "type": "Link",
+      "label": "Target unit (blank = all)",
+      "linkTo": "OrganizationUnit",
+      "section": "Targeting",
+      "column": 2
+    },
+    {
+      "name": "require_acknowledgment",
+      "type": "Check",
+      "label": "Mandatory read",
+      "default": false,
+      "section": "Targeting",
+      "column": 2
+    },
+    {
+      "name": "body",
+      "type": "Text",
+      "label": "Message",
+      "requiredWhen": "true",
+      "section": "Content"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Admin",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Employee-Management",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "title",
+    "searchFields": [
+      "title",
+      "body"
+    ],
+    "filters": [
+      "is_published",
+      "target_company"
+    ],
+    "defaultSort": [
+      {
+        "field": "publish_from",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

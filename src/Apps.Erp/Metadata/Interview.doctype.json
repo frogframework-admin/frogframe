@@ -110,6 +110,13 @@
       "requiredWhen": "result != 'Pending'",
       "section": "Feedback",
       "column": 2
+    },
+    {
+      "name": "scorecard",
+      "type": "Table",
+      "label": "Scorecard",
+      "childDocType": "InterviewScorecard",
+      "section": "Feedback"
     }
   ],
   "permissions": [

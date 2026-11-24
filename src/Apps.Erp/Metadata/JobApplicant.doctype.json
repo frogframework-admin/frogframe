@@ -141,6 +141,14 @@
       "description": "Set by 'Create employee' on the job offer"
     },
     {
+      "name": "stage_history",
+      "type": "Table",
+      "label": "Stage history",
+      "childDocType": "JobApplicantStageHistory",
+      "readOnlyWhen": "true",
+      "section": "Pipeline"
+    },
+    {
       "name": "resume",
       "type": "Attach",
       "label": "CV / resume",

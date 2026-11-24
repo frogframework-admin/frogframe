@@ -43,6 +43,7 @@ public sealed class JobChange { }
 public sealed class EmployeeSeparation { }
 public sealed class OnboardingList { }
 public sealed class OffboardingList { }
+public sealed class ProbationEvaluation { }
 public sealed class EmploymentContract { }
 public sealed class LeaveAllocation { }
 public sealed class LeaveApplication { }

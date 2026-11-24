@@ -44,6 +44,23 @@
       "name": "certificate",
       "type": "Attach",
       "label": "Certificate"
+    },
+    {
+      "name": "participant_rating",
+      "type": "Int",
+      "label": "Participant rating (1–5)",
+      "min": 1,
+      "max": 5
+    },
+    {
+      "name": "participant_feedback",
+      "type": "Data",
+      "label": "Participant feedback (L1)"
+    },
+    {
+      "name": "manager_impact_notes",
+      "type": "Data",
+      "label": "Manager impact notes (L3)"
     }
   ]
 }

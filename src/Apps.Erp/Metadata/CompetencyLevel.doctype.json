@@ -1,0 +1,38 @@
+{
+  "name": "CompetencyLevel",
+  "version": 1,
+  "title": "Competency Level",
+  "module": "HR",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "level",
+      "type": "Int",
+      "label": "Level (1–5)",
+      "requiredWhen": "true",
+      "min": 1,
+      "max": 5,
+      "inListView": true
+    },
+    {
+      "name": "level_label",
+      "type": "Data",
+      "label": "Label",
+      "requiredWhen": "true",
+      "maxLength": 60,
+      "inListView": true,
+      "description": "e.g. Awareness, Basic, Intermediate, Advanced, Expert"
+    },
+    {
+      "name": "behavioral_indicators",
+      "type": "Text",
+      "label": "Behavioral indicators",
+      "inListView": true
+    },
+    {
+      "name": "assessment_criteria",
+      "type": "Text",
+      "label": "Assessment criteria"
+    }
+  ]
+}

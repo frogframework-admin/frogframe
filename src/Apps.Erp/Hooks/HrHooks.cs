@@ -489,6 +489,14 @@ public sealed class OrganizationUnitTypeHook(IDocumentStore store)
         if (heads > 1) errors.Add("position_template", "Only one line can be the head position");
 
         errors.ThrowIfAny();
+
+        if (c.Previous is not null)
+        {
+            static string TplSig(IReadOnlyList<Dictionary<string, object?>> rows) =>
+                string.Join("|", rows.Select(r => $"{r.Str("job_profile")}:{r.Dec("quantity")}:{r.Bool("is_head")}:{r.Str("title_pattern")}"));
+            if (TplSig(c.Previous.Data.Rows("position_template")) != TplSig(lines))
+                c.Messages.Add("Position template updated. Run 'Sync positions to units' to update existing units.");
+        }
     }
 
     public Task BeforeDeleteAsync(HookContext c, CancellationToken ct)
@@ -547,6 +555,12 @@ public sealed class EmployeeHook(IDocumentStore store) : IBeforeValidate<Employe
         var oldBoss = prev?.Str("reports_to");
         if (d.Str("reports_to") is null || (positionChanged && d.Str("reports_to") == oldBoss))
             d["reports_to"] = await Hr.ManagerForAsync(m, me, d.Str("position"), d.Str("organization_unit"), ct, asOf);
+        foreach (var row in d.Rows("competencies"))
+        {
+            var code = row.Str("competency");
+            if (!string.IsNullOrEmpty(code))
+                row["competency_name"] = await m.StrAsync("Competency", code, "competency_name", ct);
+        }
         foreach (var approver in new[] { "leave_approver", "expense_approver" })
             if (d.Str(approver) is null || (oldBoss is not null && d.Str(approver) == oldBoss && d.Str("reports_to") != oldBoss))
                 d[approver] = d.Str("reports_to");
@@ -581,7 +595,15 @@ public sealed class PositionHook(IDocumentStore store) : IBeforeValidate<Positio
         var d = c.Doc.Data;
         var job = await m.RequireAsync("JobProfile", d.Str("job_profile"), "job_profile", "Job profile", ct);
         d.SetIfEmpty("grade", job.Data.Str("default_grade"));
-        d.SetIfEmpty("cost_center", await m.StrAsync("OrganizationUnit", d.Str("organization_unit"), "cost_center", ct));
+        var unitId = d.Str("organization_unit");
+        d.SetIfEmpty("cost_center", await m.StrAsync("OrganizationUnit", unitId, "cost_center", ct));
+        if (job.Data.Str("allowed_unit_types") is { } allowedStr && !string.IsNullOrWhiteSpace(allowedStr) && !string.IsNullOrEmpty(unitId))
+        {
+            var unitType = await m.StrAsync("OrganizationUnit", unitId, "unit_type", ct);
+            var allowed = allowedStr.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (!string.IsNullOrEmpty(unitType) && !allowed.Contains(unitType, StringComparer.OrdinalIgnoreCase))
+                c.Messages.Add($"Advisory: Job profile {job.Name} recommends unit type(s) '{allowedStr}', but unit {unitId} has type '{unitType}'.");
+        }
         if (c.Previous is null && job.Data.Bool("is_manager_job")) d["is_manager_position"] = true;
 
         var holder = await Hr.HolderAsync(m, c.Doc.Name, null, ct);
@@ -832,13 +854,15 @@ public sealed class OrganizationUnitTypeSyncPositionsAction(IDocumentStore store
             .Where(u => Hr.UsesPositionTemplate(u.Data))
             .ToList();
 
-        int created = 0, closed = 0;
+        int created = 0, closed = 0, manualCount = 0;
         var surplus = new List<string>();
         var failed = new List<string>();
         foreach (var unit in units)
         {
             try
             {
+                manualCount += (await m.QueryAsync("Position", [new FilterClause("organization_unit", "=", unit.Name)], ct, take: 2000))
+                    .Count(p => p.Data.Str("status") != "Closed" && !p.Data.Bool("auto_created"));
                 var r = await Hr.ApplyPositionTemplateAsync(sys, m, unit, closeSurplus: true, today, ct);
                 created += r.Created; closed += r.Closed; surplus.AddRange(r.FilledSurplus);
             }
@@ -849,6 +873,7 @@ public sealed class OrganizationUnitTypeSyncPositionsAction(IDocumentStore store
         }
 
         var message = $"{units.Count} unit(s) checked: {created} position(s) created, {closed} vacant position(s) closed.";
+        if (manualCount > 0) message += $" Note: {manualCount} existing manual position(s) detected across synced units.";
         if (surplus.Count > 0) message += $" Filled positions above the template (review manually): {string.Join("; ", surplus)}.";
         if (failed.Count > 0) message += $" Failed: {string.Join("; ", failed)}.";
         return failed.Count > 0 && created == 0 && closed == 0 ? FormActionResult.Fail(message) : FormActionResult.Ok(message);
@@ -1196,11 +1221,13 @@ public sealed class EmploymentContractHook(IDocumentStore store, TimeProvider cl
 
         if (d.Str("contract_type") == "PKWT" && start is not null && end is not null)
         {
+            var maxMonths = (int)(await m.SingleAsync("HRSettings", ct)).Dec("max_pkwt_months");
+            if (maxMonths <= 0) maxMonths = MaxPkwtMonths;
             var months = AssetBook.MonthsBetween(start.Value, end.Value.AddDays(1));
             for (var prev = await m.GetAsync(c.Doc.DocType, d.Str("renewal_of"), ct); prev is not null; prev = await m.GetAsync(c.Doc.DocType, prev.Data.Str("renewal_of"), ct))
                 if (prev.Data.Str("contract_type") == "PKWT" && prev.Data.Date("start_date") is { } ps && prev.Data.Date("end_date") is { } pe)
                     months += AssetBook.MonthsBetween(ps, pe.AddDays(1));
-            if (months > MaxPkwtMonths) throw Errors.One("end_date", $"Total fixed-term (PKWT) duration including renewals is {months} months, exceeding {MaxPkwtMonths} months");
+            if (months > maxMonths) throw Errors.One("end_date", $"Total fixed-term (PKWT) duration including renewals is {months} months, exceeding {maxMonths} months");
         }
     }
 
@@ -1371,11 +1398,33 @@ internal static class HrApply
         if (lastName == jc.Name || (lastDate is not null && eff is not null && (eff < lastDate || (eff == lastDate && string.CompareOrdinal(jc.Name, lastName) < 0))))
             return [];
         var patch = new Dictionary<string, object?> { ["last_job_change"] = jc.Name, ["last_job_change_date"] = d.Str("effective_date") };
-        foreach (var f in new[] { "organization_unit", "position", "job_profile", "grade", "location", "cost_center", "reports_to" })
+        foreach (var f in new[] { "company", "organization_unit", "position", "job_profile", "grade", "location", "cost_center", "reports_to" })
             if (d.Str($"new_{f}") is { } v) patch[f] = v;
         if (d.Str("new_employment_type") is { } et) patch["employment_type"] = et;
         var oldPosition = emp.Data.Str("position");
         var updated = await sys.UpdateAsync("Employee", empName, patch, ct);
+
+        if (d.Bool("adjust_salary") && d.Dec("new_base_salary") > 0m)
+        {
+            var effDate = d.Str("effective_date") ?? D.Iso(Hr.Today(TimeProvider.System));
+            var salPayload = new Dictionary<string, object?>
+            {
+                ["employee"] = empName,
+                ["company"] = d.Str("new_company") ?? emp.Data.Str("company"),
+                ["effective_from"] = effDate,
+                ["base_salary"] = d.Dec("new_base_salary"),
+            };
+            if (d.Str("new_salary_component") is { } comp)
+            {
+                salPayload["earnings"] = new List<Dictionary<string, object?>>
+                {
+                    new() { ["salary_component"] = comp, ["amount"] = d.Dec("new_base_salary") }
+                };
+            }
+            try { await sys.InsertAsync("SalaryAssignment", salPayload, $"Created from Job Change {jc.Name}", ct); }
+            catch (ValidationFailedException) { /* salary assignment validation error does not roll back job change */ }
+        }
+
         if (updated is null || updated.Data.Str("position") == oldPosition) return [];
         return await ReassignReportsAsync(sys, store, jc.TenantId, empName, ct);
     }
@@ -1440,6 +1489,8 @@ internal static class HrApply
             {
                 var updated = await sys.UpdateAsync("Employee", e.Name, patch, ct);
                 if (updated is not null && updated.Data.Str("reports_to") is null) problems.Add($"{e.Name} has no supervisor");
+                else if (updated?.Data.Str("reports_to") is { } newBoss && newBoss != boss)
+                    await ReassignTalentDocsAsync(sys, m, e.Name, boss, newBoss, ct);
             }
             catch (ValidationFailedException ex)
             {
@@ -1447,6 +1498,22 @@ internal static class HrApply
             }
         }
         return problems;
+    }
+
+    private static async Task ReassignTalentDocsAsync(SystemDocs sys, Masters m, string empName, string oldBoss, string newBoss, CancellationToken ct)
+    {
+        foreach (var tr in await m.QueryAsync("TrainingRequest", [new FilterClause("employee", "=", empName), new FilterClause("approver", "=", oldBoss)], ct, take: 200))
+        {
+            if (tr.WorkflowState is not ("Draft" or "Pending Manager")) continue;
+            try { await sys.UpdateAsync("TrainingRequest", tr.Name, new Dictionary<string, object?> { ["approver"] = newBoss }, ct); }
+            catch (ValidationFailedException) { /* leave for ApprovalDelegationRefreshJob */ }
+        }
+        foreach (var apr in await m.QueryAsync("Appraisal", [new FilterClause("employee", "=", empName), new FilterClause("reviewer", "=", oldBoss)], ct, take: 200))
+        {
+            if (apr.WorkflowState is not ("Draft" or "Self review done")) continue;
+            try { await sys.UpdateAsync("Appraisal", apr.Name, new Dictionary<string, object?> { ["reviewer"] = newBoss }, ct); }
+            catch (ValidationFailedException) { /* leave for ApprovalDelegationRefreshJob */ }
+        }
     }
 
     public static async Task<string?> EnsureUserAsync(IServiceProvider services, string tenant, Document emp, string email, CancellationToken ct)
@@ -1486,5 +1553,58 @@ internal static class HrApply
             await repo.CreateAsync(account, ct);
         }
         return account.Id;
+    }
+}
+
+/// <summary>Probation Evaluation: auto-fill reviewer, validate extension date, and update Employee or create draft EmployeeSeparation on submit.</summary>
+public sealed class ProbationEvaluationHook(IDocumentStore store, IServiceProvider? services = null)
+    : IBeforeValidate<ProbationEvaluation>, IAfterSave<ProbationEvaluation>
+{
+    public async Task BeforeValidateAsync(HookContext c, CancellationToken ct)
+    {
+        var m = new Masters(store, c.Doc.TenantId);
+        var d = c.Doc.Data;
+        var empId = d.Str("employee");
+        if (string.IsNullOrEmpty(d.Str("reviewer")) && !string.IsNullOrEmpty(empId))
+            d["reviewer"] = await m.StrAsync("Employee", empId, "reports_to", ct);
+
+        if (d.Str("outcome") == "Extended")
+        {
+            var end = d.Date("probation_end_date");
+            var ext = d.Date("extended_until");
+            if (ext is not null && end is not null && ext <= end)
+                throw Errors.One("extended_until", "Extended until date must be after the probation end date");
+        }
+    }
+
+    public async Task AfterSaveAsync(HookContext c, CancellationToken ct)
+    {
+        if (c.Doc.DocStatus != DocStatus.Submitted || c.Previous?.DocStatus == DocStatus.Submitted) return;
+        var docs = services?.GetService<DocumentService>();
+        var empId = c.Doc.Data.Str("employee");
+        if (docs is null || string.IsNullOrEmpty(empId)) return;
+
+        var sys = new SystemDocs(docs, c.Doc.TenantId);
+        var outcome = c.Doc.Data.Str("outcome");
+        if (outcome == "Extended" && c.Doc.Data.Str("extended_until") is { } ext)
+        {
+            await sys.UpdateAsync("Employee", empId, new Dictionary<string, object?> { ["probation_end_date"] = ext }, ct);
+        }
+        else if (outcome == "Failed")
+        {
+            var m = new Masters(store, c.Doc.TenantId);
+            var existing = (await m.QueryAsync("EmployeeSeparation", [new FilterClause("employee", "=", empId)], ct, take: 5))
+                .Any(x => x.DocStatus != DocStatus.Cancelled);
+            if (!existing)
+            {
+                await docs.InsertAsync(sys.User, "EmployeeSeparation", new Dictionary<string, object?>
+                {
+                    ["employee"] = empId,
+                    ["separation_type"] = "Termination",
+                    ["reason"] = $"Failed probation evaluation ({c.Doc.Name})",
+                    ["last_working_date"] = c.Doc.Data.Str("probation_end_date") ?? c.Doc.Data.Str("evaluation_date"),
+                }, ct);
+            }
+        }
     }
 }

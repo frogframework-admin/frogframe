@@ -1,0 +1,215 @@
+{
+  "name": "ProbationEvaluation",
+  "version": 1,
+  "title": "Probation Evaluation",
+  "module": "HR",
+  "description": "End-of-probation review with outcome Passed, Extended, or Failed (triggering separation).",
+  "naming": {
+    "pattern": "PRB-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "employee",
+      "type": "Link",
+      "label": "Employee",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Employee"
+    },
+    {
+      "name": "employee_name",
+      "type": "Data",
+      "label": "Employee name",
+      "fetchFrom": "employee.full_name",
+      "inListView": true,
+      "section": "Employee"
+    },
+    {
+      "name": "organization_unit",
+      "type": "Data",
+      "label": "Unit",
+      "fetchFrom": "employee.organization_unit",
+      "section": "Employee"
+    },
+    {
+      "name": "position",
+      "type": "Data",
+      "label": "Position",
+      "fetchFrom": "employee.position",
+      "section": "Employee"
+    },
+    {
+      "name": "hire_date",
+      "type": "Date",
+      "label": "Hire date",
+      "fetchFrom": "employee.hire_date",
+      "readOnlyWhen": "true",
+      "section": "Probation",
+      "column": 2
+    },
+    {
+      "name": "probation_end_date",
+      "type": "Date",
+      "label": "Probation end date",
+      "fetchFrom": "employee.probation_end_date",
+      "readOnlyWhen": "true",
+      "inListView": true,
+      "section": "Probation",
+      "column": 2
+    },
+    {
+      "name": "reviewer",
+      "type": "Link",
+      "label": "Reviewer",
+      "linkTo": "Employee",
+      "lookupDialog": true,
+      "section": "Probation",
+      "column": 2
+    },
+    {
+      "name": "evaluation_date",
+      "type": "Date",
+      "label": "Evaluation date",
+      "default": "$today",
+      "requiredWhen": "true",
+      "section": "Evaluation"
+    },
+    {
+      "name": "outcome",
+      "type": "Select",
+      "label": "Outcome",
+      "requiredWhen": "true",
+      "options": [
+        "Passed",
+        "Extended",
+        "Failed"
+      ],
+      "default": "Passed",
+      "inListView": true,
+      "section": "Evaluation"
+    },
+    {
+      "name": "extended_until",
+      "type": "Date",
+      "label": "Extended until",
+      "visibleWhen": "outcome == 'Extended'",
+      "requiredWhen": "outcome == 'Extended'",
+      "section": "Evaluation",
+      "column": 2
+    },
+    {
+      "name": "performance_summary",
+      "type": "Text",
+      "label": "Performance summary",
+      "section": "Evaluation",
+      "column": 2
+    },
+    {
+      "name": "remarks",
+      "type": "Text",
+      "label": "Remarks",
+      "section": "Evaluation",
+      "column": 2
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR-Admin",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Employee-Management",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "submit"
+      ],
+      "scope": "match:reviewer=employee"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "match:employee=employee"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "employee_name",
+    "searchFields": [
+      "employee",
+      "employee_name"
+    ],
+    "filters": [
+      "outcome",
+      "docstatus"
+    ],
+    "defaultSort": [
+      {
+        "field": "modified",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

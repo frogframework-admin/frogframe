@@ -1,6 +1,8 @@
+using Framework.Actions;
 using Framework.Documents;
 using Framework.Hooks;
 using Framework.Persistence;
+using Framework.Security;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Apps.Erp.Hooks;
@@ -11,6 +13,37 @@ public sealed class SuccessionPlan { }
 public sealed class DevelopmentPlan { }
 public sealed class TrainingRequest { }
 public sealed class TrainingEvent { }
+public sealed class JobProfile { }
+
+internal static class TalentAccess
+{
+    public static async Task EnforceManagerSettingAsync(IDocumentStore store, HookContext c, CancellationToken ct, bool allowSelfOrMentor = false)
+    {
+        if (c.User.IsAdmin || c.User.HasRole(ErpRoles.HrTalent) || c.User.HasRole(ErpRoles.HrAdmin)) return;
+        if (allowSelfOrMentor && c.User.Attr("employee") is { } me && (me == c.Doc.Data.Str("employee") || me == c.Doc.Data.Str("mentor"))) return;
+        var hr = await new Masters(store, c.Doc.TenantId).SingleAsync("HRSettings", ct);
+        if (hr.Bool("allow_manager_talent_access") != true)
+            throw new PermissionDeniedException("Manager access to talent records is restricted to HR-Talent in HR Settings.");
+    }
+}
+
+/// <summary>Job Profile: isi nama dan kategori kompetensi di child table JobProfileCompetency.</summary>
+public sealed class JobProfileHook(IDocumentStore store) : IBeforeValidate<JobProfile>
+{
+    public async Task BeforeValidateAsync(HookContext c, CancellationToken ct)
+    {
+        var m = new Masters(store, c.Doc.TenantId);
+        foreach (var row in c.Doc.Data.Rows("competencies"))
+        {
+            var code = row.Str("competency");
+            if (string.IsNullOrEmpty(code)) continue;
+            var comp = await m.GetAsync("Competency", code, ct);
+            if (comp is null) continue;
+            row["competency_name"] = comp.Data.Str("competency_name");
+            row["category"] = comp.Data.Str("category");
+        }
+    }
+}
 
 /// <summary>
 /// Appraisal: satu per (karyawan, siklus); karyawan hanya mengubah nilai diri, atasan hanya nilai atasan (HR boleh keduanya);
@@ -52,6 +85,34 @@ public sealed class AppraisalHook(IDocumentStore store, IServiceProvider? servic
                 throw Errors.One("competencies", "Only the reviewer fills the manager competency scores");
             if (me == d.Str("reviewer") && me != d.Str("employee") && Sig(beforeComp, "competency", "self_score") != Sig(afterComp, "competency", "self_score"))
                 throw Errors.One("competencies", "Only the employee fills the self competency scores");
+        }
+
+        if (c.Previous is null && !d.Rows("competencies").Any() && d.Str("employee") is { } empId && !string.IsNullOrEmpty(empId))
+        {
+            var jobProfileId = await m.StrAsync("Employee", empId, "job_profile", ct);
+            if (!string.IsNullOrEmpty(jobProfileId) && await m.GetAsync("JobProfile", jobProfileId, ct) is { } jp)
+            {
+                var prefill = new List<Dictionary<string, object?>>();
+                foreach (var jpc in jp.Data.Rows("competencies"))
+                {
+                    var code = jpc.Str("competency");
+                    if (string.IsNullOrEmpty(code)) continue;
+                    prefill.Add(new Dictionary<string, object?>
+                    {
+                        ["competency"] = code,
+                        ["competency_name"] = jpc.Str("competency_name") ?? await m.StrAsync("Competency", code, "competency_name", ct),
+                        ["required_level"] = (long)jpc.Dec("required_level"),
+                    });
+                }
+                if (prefill.Count > 0) d["competencies"] = prefill;
+            }
+        }
+
+        foreach (var row in d.Rows("competencies"))
+        {
+            var code = row.Str("competency");
+            if (!string.IsNullOrEmpty(code))
+                row["competency_name"] = await m.StrAsync("Competency", code, "competency_name", ct);
         }
 
         var score = d.Rows("goals").Sum(r => r.Dec("weight") * r.Dec("manager_score") / 100m);
@@ -107,9 +168,39 @@ public sealed class AppraisalHook(IDocumentStore store, IServiceProvider? servic
     }
 }
 
-/// <summary>Talent Review: satu per (karyawan, siklus); hitung posisi 9-Box Grid dari Performance vs Potential.</summary>
-public sealed class TalentReviewHook(IDocumentStore store) : IBeforeValidate<TalentReview>
+/// <summary>Appraisal → Job Change: create a draft promotion/merit Job Change from a completed Appraisal.</summary>
+public sealed class AppraisalCreateJobChangeAction(TimeProvider clock) : IFormAction<Appraisal>
 {
+    public string ActionId => "erp.appraisal.create_job_change";
+    public string Label => "Propose Job Change";
+    public string Icon => "arrow-up-right";
+
+    public bool IsVisible(UserContext user, Document doc) =>
+        doc.WorkflowState == "Completed"
+        && (user.IsAdmin || user.HasRole(ErpRoles.HrTalent) || user.HasRole(ErpRoles.HrEmployeeManagement));
+
+    public async Task<FormActionResult> ExecuteAsync(FormActionContext ctx, CancellationToken ct)
+    {
+        var d = ctx.Doc.Data;
+        var empId = d.Str("employee");
+        if (string.IsNullOrEmpty(empId)) return FormActionResult.Fail("Employee is required.");
+        var jc = await ctx.Docs.InsertAsync(ctx.User, "JobChange", new Dictionary<string, object?>
+        {
+            ["employee"] = empId,
+            ["change_reason"] = "Promotion",
+            ["effective_date"] = D.Iso(Hr.Today(clock)),
+            ["remarks"] = $"Proposed from Appraisal {ctx.Doc.Name} (Rating: {d.Str("rating") ?? "N/A"})",
+        }, ct);
+        return FormActionResult.NavigateTo($"/app/JobChange/{jc.Name}", $"Created Job Change {jc.Name}.");
+    }
+}
+
+/// <summary>Talent Review: satu per (karyawan, siklus); hitung posisi 9-Box Grid dari Performance vs Potential.</summary>
+public sealed class TalentReviewHook(IDocumentStore store) : IBeforeValidate<TalentReview>, IOnLoad<TalentReview>
+{
+    public Task OnLoadAsync(HookContext c, CancellationToken ct) =>
+        TalentAccess.EnforceManagerSettingAsync(store, c, ct);
+
     public static string NineBox(string? performance, string? potential) => (performance, potential) switch
     {
         ("High", "High") => "1A - Star / Future Leader",
@@ -128,9 +219,13 @@ public sealed class TalentReviewHook(IDocumentStore store) : IBeforeValidate<Tal
     {
         var m = new Masters(store, c.Doc.TenantId);
         var d = c.Doc.Data;
-        var dup = (await m.QueryAsync("TalentReview", [new FilterClause("employee", "=", d.Str("employee")), new FilterClause("appraisal_cycle", "=", d.Str("appraisal_cycle"))], ct, take: 10))
+        var empId = d.Str("employee");
+        if (!string.IsNullOrEmpty(empId))
+            d["reports_to"] = await m.StrAsync("Employee", empId, "reports_to", ct);
+
+        var dup = (await m.QueryAsync("TalentReview", [new FilterClause("employee", "=", empId), new FilterClause("appraisal_cycle", "=", d.Str("appraisal_cycle"))], ct, take: 10))
             .FirstOrDefault(x => x.Name != c.Doc.Name && x.DocStatus != DocStatus.Cancelled && x.Name != d.Str("amended_from"));
-        if (dup is not null) throw Errors.One("appraisal_cycle", $"{d.Str("employee")} already has talent review {dup.Name} in this cycle");
+        if (dup is not null) throw Errors.One("appraisal_cycle", $"{empId} already has talent review {dup.Name} in this cycle");
 
         var appraisalId = d.Str("appraisal");
         if (!string.IsNullOrEmpty(appraisalId) && (c.Previous is null || c.Previous.Data.Str("appraisal") != appraisalId))
@@ -138,14 +233,39 @@ public sealed class TalentReviewHook(IDocumentStore store) : IBeforeValidate<Tal
             var apr = await m.GetAsync("Appraisal", appraisalId, ct);
             if (apr is not null)
             {
-                if (apr.Data.Str("employee") != d.Str("employee"))
+                if (apr.Data.Str("employee") != empId)
                     throw Errors.One("appraisal", $"Appraisal {appraisalId} belongs to a different employee");
+                if (apr.WorkflowState != "Completed" && apr.DocStatus != DocStatus.Submitted)
+                    throw Errors.One("appraisal", $"Appraisal {appraisalId} must be Completed before linking to a Talent Review");
+                if (apr.Data.Str("appraisal_cycle") != d.Str("appraisal_cycle"))
+                    throw Errors.One("appraisal", $"Appraisal {appraisalId} belongs to a different appraisal cycle");
                 if (apr.Data.Str("rating") is not null)
                 {
+                    var hr = await m.SingleAsync("HRSettings", ct);
+                    var highThresh = hr.Dec("talent_high_perf_threshold");
+                    if (highThresh <= 0m) highThresh = 3.75m;
+                    var modThresh = hr.Dec("talent_mod_perf_threshold");
+                    if (modThresh <= 0m) modThresh = 2.5m;
                     var score = apr.Data.Dec("final_score");
-                    d["performance_level"] = score >= 3.75m ? "High" : score >= 2.5m ? "Moderate" : "Low";
+                    d["performance_level"] = score >= highThresh ? "High" : score >= modThresh ? "Moderate" : "Low";
                 }
             }
+        }
+
+        if (!string.IsNullOrEmpty(d.Str("calibration_session")))
+        {
+            var cal = await m.GetAsync("CalibrationSession", d.Str("calibration_session"), ct);
+            if (cal?.DocStatus == DocStatus.Submitted && c.Previous is not null
+                && (c.Previous.Data.Str("performance_level") != d.Str("performance_level")
+                    || c.Previous.Data.Str("potential_level") != d.Str("potential_level")))
+                throw Errors.One("calibration_session", $"Calibration session {cal.Name} is finalized; 9-box levels are locked");
+        }
+
+        var potScores = new[] { d.Dec("aspiration_score"), d.Dec("learning_agility_score"), d.Dec("leadership_score") }.Where(s => s > 0m).ToList();
+        if (potScores.Count > 0)
+        {
+            var avgPot = potScores.Average();
+            d["potential_level"] = avgPot >= 3.75m ? "High" : avgPot >= 2.5m ? "Moderate" : "Low";
         }
 
         d["nine_box_position"] = NineBox(d.Str("performance_level"), d.Str("potential_level"));
@@ -153,8 +273,25 @@ public sealed class TalentReviewHook(IDocumentStore store) : IBeforeValidate<Tal
 }
 
 /// <summary>Succession Plan: satu rencana aktif per posisi; kandidat unik dan bukan pemegang jabatan saat ini.</summary>
-public sealed class SuccessionPlanHook(IDocumentStore store) : IBeforeValidate<SuccessionPlan>
+public sealed class SuccessionPlanHook(IDocumentStore store) : IBeforeValidate<SuccessionPlan>, IOnLoad<SuccessionPlan>
 {
+    public async Task OnLoadAsync(HookContext c, CancellationToken ct)
+    {
+        await TalentAccess.EnforceManagerSettingAsync(store, c, ct);
+        var m = new Masters(store, c.Doc.TenantId);
+        foreach (var r in c.Doc.Data.Rows("candidates"))
+        {
+            var emp = r.Str("employee");
+            if (string.IsNullOrEmpty(emp)) continue;
+            var latestApr = (await m.QueryAsync("Appraisal", [new FilterClause("employee", "=", emp)], ct, "modified", "desc", 5))
+                .FirstOrDefault(x => x.DocStatus == DocStatus.Submitted);
+            r["latest_rating"] = latestApr?.Data.Str("rating");
+            var latestReview = (await m.QueryAsync("TalentReview", [new FilterClause("employee", "=", emp)], ct, "modified", "desc", 5))
+                .FirstOrDefault(x => x.DocStatus == DocStatus.Submitted);
+            r["nine_box_position"] = latestReview?.Data.Str("nine_box_position");
+        }
+    }
+
     public async Task BeforeValidateAsync(HookContext c, CancellationToken ct)
     {
         var m = new Masters(store, c.Doc.TenantId);
@@ -167,7 +304,12 @@ public sealed class SuccessionPlanHook(IDocumentStore store) : IBeforeValidate<S
             if (dup is not null) throw Errors.One("position", $"Position {pos} already has active succession plan {dup.Name}");
         }
 
+        if (string.IsNullOrEmpty(d.Str("incumbent_employee")) && !string.IsNullOrEmpty(pos))
+            d["incumbent_employee"] = (await Hr.HolderAsync(m, pos, null, ct))?.Name;
+
         var incumbent = d.Str("incumbent_employee");
+        d["reports_to"] = !string.IsNullOrEmpty(incumbent) ? await m.StrAsync("Employee", incumbent, "reports_to", ct) : null;
+
         var rows = d.Rows("candidates");
         foreach (var g in rows.GroupBy(r => r.Str("employee")).Where(g => g.Key is not null && g.Count() > 1))
             throw Errors.One("candidates", $"{g.Key} is listed more than once");
@@ -178,6 +320,10 @@ public sealed class SuccessionPlanHook(IDocumentStore store) : IBeforeValidate<S
             if (string.IsNullOrEmpty(emp)) continue;
             if (emp == incumbent)
                 throw Errors.One("candidates", $"Current incumbent {emp} cannot be listed as a succession candidate");
+            var empDoc = await m.GetAsync("Employee", emp, ct);
+            if (empDoc?.Data.Str("status") == Hr.Left)
+                throw Errors.One("candidates", $"Candidate {emp} has already left the company");
+            r["employee_name"] = empDoc?.Data.Str("full_name");
 
             var latestApr = (await m.QueryAsync("Appraisal", [new FilterClause("employee", "=", emp)], ct, "modified", "desc", 5))
                 .FirstOrDefault(x => x.DocStatus == DocStatus.Submitted);
@@ -191,27 +337,43 @@ public sealed class SuccessionPlanHook(IDocumentStore store) : IBeforeValidate<S
 }
 
 /// <summary>Development Plan (IDP): hitung progres rata-rata sasaran 70-20-10 dan validasi kelengkapan saat Completed.</summary>
-public sealed class DevelopmentPlanHook : IBeforeValidate<DevelopmentPlan>
+public sealed class DevelopmentPlanHook(IDocumentStore store) : IBeforeValidate<DevelopmentPlan>, IOnLoad<DevelopmentPlan>
 {
-    public Task BeforeValidateAsync(HookContext c, CancellationToken ct)
+    public Task OnLoadAsync(HookContext c, CancellationToken ct) =>
+        TalentAccess.EnforceManagerSettingAsync(store, c, ct, allowSelfOrMentor: true);
+
+    public async Task BeforeValidateAsync(HookContext c, CancellationToken ct)
     {
         var d = c.Doc.Data;
+        if (d.Str("employee") is { } empId && !string.IsNullOrEmpty(empId))
+            d["reports_to"] = await new Masters(store, c.Doc.TenantId).StrAsync("Employee", empId, "reports_to", ct);
+        var isHrOrAdmin = c.User.IsAdmin || c.User.HasRole(ErpRoles.HrTalent);
+        if (c.Previous?.Data.Str("status") == "Completed" && !isHrOrAdmin)
+            throw Errors.One("status", "Completed development plans are locked and can only be modified by HR-Talent");
+
         var goals = d.Rows("goals").ToList();
         d["overall_progress"] = goals.Count > 0 ? Math.Round(goals.Average(g => g.Dec("progress_percent")), 1) : 0m;
 
         if (d.Str("status") == "Completed")
         {
+            if (!isHrOrAdmin)
+            {
+                var me = c.User.Attr("employee");
+                var isApprover = !string.IsNullOrEmpty(me) && (me == d.Str("mentor") || me == d.Str("reports_to"));
+                if (!isApprover)
+                    throw Errors.One("status", "Only the mentor, manager, or HR-Talent can mark a development plan Completed");
+            }
             if (goals.Count == 0)
                 throw Errors.One("goals", "Add at least one development goal before completing");
             if (goals.Any(g => g.Str("status") != "Completed" && g.Dec("progress_percent") < 100m))
                 throw Errors.One("status", "All development goals must be Completed before marking the plan Completed");
         }
-        return Task.CompletedTask;
     }
 }
 
-/// <summary>Training Request: isi approver dari atasan langsung dan lengkapi detail dari katalog Training Program.</summary>
-public sealed class TrainingRequestHook(IDocumentStore store) : IBeforeValidate<TrainingRequest>
+/// <summary>Training Request: isi approver dari atasan langsung, cek anggaran, dan daftarkan ke Training Event saat Approved.</summary>
+public sealed class TrainingRequestHook(IDocumentStore store, IServiceProvider? services = null, TimeProvider? clock = null)
+    : IBeforeValidate<TrainingRequest>, IBeforeTransition<TrainingRequest>, IAfterSave<TrainingRequest>
 {
     public async Task BeforeValidateAsync(HookContext c, CancellationToken ct)
     {
@@ -237,10 +399,79 @@ public sealed class TrainingRequestHook(IDocumentStore store) : IBeforeValidate<
             }
         }
     }
+
+    public async Task BeforeTransitionAsync(HookContext c, CancellationToken ct)
+    {
+        if (c.ToState != "Approved") return;
+        var m = new Masters(store, c.Doc.TenantId);
+        var budget = (await m.SingleAsync("HRSettings", ct)).Dec("annual_training_budget_per_unit");
+        if (budget <= 0m) return;
+
+        var empId = c.Doc.Data.Str("employee");
+        var unit = !string.IsNullOrEmpty(empId) ? await m.StrAsync("Employee", empId, "organization_unit", ct) : null;
+        if (string.IsNullOrEmpty(unit)) return;
+
+        var year = Hr.Today(clock ?? TimeProvider.System).Year;
+        var unitEmps = (await m.QueryAsync("Employee", [new FilterClause("organization_unit", "=", unit)], ct, take: 5000))
+            .Select(e => e.Name).ToHashSet(StringComparer.Ordinal);
+        var spent = (await m.QueryAsync("TrainingRequest", [], ct, take: 5000))
+            .Where(r => r.Name != c.Doc.Name && r.WorkflowState == "Approved" && r.Created.Year == year
+                && r.Data.Str("employee") is { } re && unitEmps.Contains(re))
+            .Sum(r => r.Data.Dec("estimated_cost"));
+        var requested = c.Doc.Data.Dec("estimated_cost");
+        if (spent + requested > budget)
+            throw Errors.One("estimated_cost", $"Annual training budget for {unit} exceeded ({spent + requested:N0} > {budget:N0})");
+    }
+
+    public async Task AfterSaveAsync(HookContext c, CancellationToken ct)
+    {
+        if (c.Doc.WorkflowState != "Approved" || c.Previous?.WorkflowState == "Approved") return;
+        var docs = services?.GetService<DocumentService>();
+        var progId = c.Doc.Data.Str("training_program");
+        var empId = c.Doc.Data.Str("employee");
+        if (docs is null || string.IsNullOrEmpty(progId) || string.IsNullOrEmpty(empId)) return;
+
+        var m = new Masters(store, c.Doc.TenantId);
+        var sys = new SystemDocs(docs, c.Doc.TenantId);
+        var openEvent = (await m.QueryAsync("TrainingEvent", [new FilterClause("training_program", "=", progId)], ct, "modified", "desc", 10))
+            .FirstOrDefault(e => e.DocStatus == DocStatus.Draft);
+
+        if (openEvent is not null)
+        {
+            var attendees = openEvent.Data.Rows("attendees").Select(r => new Dictionary<string, object?>(r)).ToList();
+            if (attendees.All(a => a.Str("employee") != empId))
+            {
+                attendees.Add(new Dictionary<string, object?> { ["employee"] = empId, ["attendance"] = "Invited" });
+                await docs.UpdateAsync(sys.User, "TrainingEvent", openEvent.Name, openEvent.Version,
+                    new Dictionary<string, object?> { ["attendees"] = attendees }, ct);
+            }
+        }
+        else
+        {
+            var start = (c.Doc.Data.Date("preferred_date") ?? Hr.Today(clock ?? TimeProvider.System).AddDays(7));
+            var company = await m.StrAsync("Employee", empId, "company", ct);
+            var payload = new Dictionary<string, object?>
+            {
+                ["training_program"] = progId,
+                ["event_name"] = c.Doc.Data.Str("training_title") ?? progId,
+                ["start_at"] = $"{D.Iso(start)}T09:00:00",
+                ["end_at"] = $"{D.Iso(start)}T17:00:00",
+                ["cost"] = c.Doc.Data.Dec("estimated_cost"),
+                ["attendees"] = new List<Dictionary<string, object?>>
+                {
+                    new() { ["employee"] = empId, ["attendance"] = "Invited" },
+                },
+            };
+            if (!string.IsNullOrEmpty(company)) payload["company"] = company;
+            try { await docs.InsertAsync(sys.User, "TrainingEvent", payload, ct); }
+            catch (ValidationFailedException) { /* skip auto-event if required master is absent */ }
+        }
+    }
 }
 
-/// <summary>Pelatihan: peserta unik, nama peserta, jumlah hadir, dan auto-fill dari Training Program.</summary>
-public sealed class TrainingEventHook(IDocumentStore store) : IBeforeValidate<TrainingEvent>
+/// <summary>Pelatihan: peserta unik, nama peserta, jumlah hadir, auto-fill dari Training Program, dan sinkron kompetensi saat selesai.</summary>
+public sealed class TrainingEventHook(IDocumentStore store, IServiceProvider? services = null, TimeProvider? clock = null)
+    : IBeforeValidate<TrainingEvent>, IAfterSave<TrainingEvent>
 {
     public async Task BeforeValidateAsync(HookContext c, CancellationToken ct)
     {
@@ -263,5 +494,53 @@ public sealed class TrainingEventHook(IDocumentStore store) : IBeforeValidate<Tr
             throw Errors.One("attendees", $"{g.Key} is listed more than once");
         foreach (var r in rows) r["employee_name"] = await m.StrAsync("Employee", r.Str("employee"), "full_name", ct);
         d["attended_count"] = (long)rows.Count(r => r.Str("attendance") == "Attended");
+    }
+
+    public async Task AfterSaveAsync(HookContext c, CancellationToken ct)
+    {
+        if (c.Doc.DocStatus != DocStatus.Submitted || c.Previous?.DocStatus == DocStatus.Submitted) return;
+        var docs = services?.GetService<DocumentService>();
+        var progId = c.Doc.Data.Str("training_program");
+        if (docs is null || string.IsNullOrEmpty(progId)) return;
+
+        var m = new Masters(store, c.Doc.TenantId);
+        var targetComp = await m.StrAsync("TrainingProgram", progId, "target_competency", ct);
+        if (string.IsNullOrEmpty(targetComp)) return;
+        var compName = await m.StrAsync("Competency", targetComp, "competency_name", ct);
+        var sys = new SystemDocs(docs, c.Doc.TenantId);
+        var today = D.Iso(Hr.Today(clock ?? TimeProvider.System));
+
+        foreach (var row in c.Doc.Data.Rows("attendees"))
+        {
+            if (row.Str("attendance") != "Attended") continue;
+            var score = row.Dec("score");
+            if (score > 0m && score < 70m) continue;
+            var empId = row.Str("employee");
+            if (string.IsNullOrEmpty(empId)) continue;
+            var emp = await sys.TryGetAsync("Employee", empId, ct);
+            if (emp is null) continue;
+
+            var comps = emp.Data.Rows("competencies").Select(r => new Dictionary<string, object?>(r)).ToList();
+            var existing = comps.FirstOrDefault(r => r.Str("competency") == targetComp);
+            if (existing is null)
+            {
+                comps.Add(new Dictionary<string, object?>
+                {
+                    ["competency"] = targetComp,
+                    ["competency_name"] = compName,
+                    ["proficiency_level"] = 3L,
+                    ["last_assessed_on"] = today,
+                    ["notes"] = $"Completed training {c.Doc.Name}",
+                });
+            }
+            else
+            {
+                var cur = (long)existing.Dec("proficiency_level");
+                existing["proficiency_level"] = Math.Max(cur, 3L);
+                existing["last_assessed_on"] = today;
+            }
+            await docs.UpdateAsync(sys.User, "Employee", empId, emp.Version,
+                new Dictionary<string, object?> { ["competencies"] = comps }, ct);
+        }
     }
 }

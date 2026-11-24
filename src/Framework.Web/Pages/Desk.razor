@@ -3,7 +3,6 @@
 @using Framework.Navigation
 @using Framework.Notifications
 @using Framework.Preferences
-@using Framework.Social
 @using Framework.Tasks
 @using Framework.Web.Home
 @using Framework.Web.Identity
@@ -184,59 +183,6 @@
                 @RenderPersonal()
             }
 
-            <section class="home-section" aria-label="@T["My Tasks"]">
-                <div class="section-head-row">
-                    <h2>@T["My Tasks"]</h2>
-                    <div class="home-task-pills">
-                        <a class="my-tasks-pill" href="/tasks"><span>@T["Open"]</span> <strong>@taskCounts.Open</strong></a>
-                        <a class="my-tasks-pill" href="/tasks"><span>@T["Due Today"]</span> <strong>@taskCounts.DueToday</strong></a>
-                        <a class="my-tasks-pill @(taskCounts.Overdue > 0 ? "overdue" : "")" href="/tasks"><span>@T["Overdue"]</span> <strong>@taskCounts.Overdue</strong></a>
-                    </div>
-                </div>
-
-                @if (myTasks is null)
-                {
-                    <div class="stack"><BbSkeleton Height="3rem" /><BbSkeleton Height="3rem" /></div>
-                }
-                else if (myTasks.Count == 0)
-                {
-                    <div class="desk-table-card desk-empty-box">
-                        <div>@T["You're all caught up — no pending tasks assigned to you."]</div>
-                        <a class="section-link" href="/tasks">@T["Open the task list"]</a>
-                    </div>
-                }
-                else
-                {
-                    <div class="desk-table-card">
-                        @foreach (var item in myTasks)
-                        {
-                            var a = item.Assignment;
-                            var today = AssignmentsSvc.Today;
-                            var docHref = $"/app/{a.DocType}/{a.DocName}";
-                            <div class="my-task-row">
-                                <div class="my-task-main">
-                                    <div class="my-task-title">
-                                        <a class="doc-code" href="@docHref">@a.DocName</a>
-                                        <span class="doc-sub">@T[item.DocTypeTitle]@(!string.IsNullOrWhiteSpace(item.DocTitle) && !string.Equals(item.DocTitle, a.DocName, StringComparison.OrdinalIgnoreCase) ? $" · {item.DocTitle}" : "")</span>
-                                        <BbBadge Variant="@PriorityBadge(a.Priority)">@T[a.Priority.ToString()]</BbBadge>
-                                    </div>
-                                    @if (!string.IsNullOrWhiteSpace(a.Description))
-                                    {
-                                        <div class="my-task-note">@a.Description</div>
-                                    }
-                                </div>
-                                <div class="my-task-meta">
-                                    <span class="my-task-due @DueClass(a, today)">@DueLabel(a, today)</span>
-                                    <button type="button" class="desk-act-btn outline" disabled="@completingTask" @onclick="() => CompleteTaskAsync(a.Id)">
-                                        <LucideIcon Name="check" Size="14" /> <span style="margin-left:.25rem">@T["Done"]</span>
-                                    </button>
-                                </div>
-                            </div>
-                        }
-                    </div>
-                }
-            </section>
-
             <section class="home-section" aria-label="@T["My recent documents"]">
                 <div class="section-head-row">
                     <h2>@T["My recent documents"]</h2>
@@ -335,32 +281,6 @@
                 </section>
             }
 
-            <section class="home-card" aria-label="@T["Bookmarks & following"]">
-                <div class="section-head-row">
-                    <h2>@T["Bookmarks & following"]</h2>
-                    @if (saved.Count > 0)
-                    {
-                        <a class="section-link" href="/bookmarks">@T["View all"]</a>
-                    }
-                </div>
-                @if (saved.Count == 0)
-                {
-                    <div class="home-empty-small">@T["Star a document or follow it to keep it here."]</div>
-                }
-                else
-                {
-                    <ul class="home-list">
-                        @foreach (var s in saved)
-                        {
-                            <li>
-                                <a href="/app/@Uri.EscapeDataString(s.DocType)/@Uri.EscapeDataString(s.Name)">@(string.IsNullOrWhiteSpace(s.Title) ? s.Name : s.Title)</a>
-                                <span class="muted small">@T[s.DocTypeTitle]</span>
-                            </li>
-                        }
-                    </ul>
-                }
-            </section>
-
             @if (Current.User is { } sideUser)
             {
                 @foreach (var p in Registry.PanelsFor(sideUser, HomeSlot.Side))
@@ -376,16 +296,13 @@
     private IReadOnlyList<HomeApprovalItem>? queue;
     private readonly List<(string Name, string Label)> doneItems = [];
     private IReadOnlyList<(CompiledDocType Meta, Document Doc, IReadOnlyList<string> Actions)>? recentDocs;
-    private IReadOnlyList<TaskItem>? myTasks;
     private AssignmentCounts taskCounts = new(0, 0, 0);
     private IReadOnlyList<HomeQuickAction> quickActions = [];
     private IReadOnlyList<HomeKpi> kpis = [];
     private IReadOnlyList<BackgroundTask> jobs = [];
-    private IReadOnlyList<SavedDocument> saved = [];
     private HashSet<string> dismissed = new(StringComparer.Ordinal);
     private bool showTwoFactorNudge;
     private bool loaded;
-    private bool completingTask;
     private bool busy;
     private bool showAllApprovals;
     private string? activeGroup;
@@ -404,7 +321,7 @@
         {
             liveSub = LiveNotifications.Subscribe(u.TenantId, u.Id, _ => InvokeAsync(async () =>
             {
-                await RefreshTasksAsync();
+                await RefreshTaskCountsAsync();
                 queue = await Feed.ApprovalQueueAsync(u);
                 StateHasChanged();
             }));
@@ -423,10 +340,9 @@
         quickActions = Registry.QuickActionsFor(u);
 
         var module = EnsureActiveModuleAsync(u);
-        var tasks = RefreshTasksAsync();
+        var tasks = RefreshTaskCountsAsync();
         var queueTask = Feed.ApprovalQueueAsync(u);
         var recentTask = Docs.RecentDocumentsAsync(u, limit: 6);
-        var savedTask = Feed.SavedAsync(u);
         var jobsTask = Feed.ActiveJobsAsync(u);
         var kpiTask = Feed.KpisAsync(u);
         var nudgeTask = TwoFactorNudgeAsync(u);
@@ -438,7 +354,6 @@
         StateHasChanged();
         recentDocs = await recentTask;
         StateHasChanged();
-        saved = await savedTask;
         jobs = await jobsTask;
         showTwoFactorNudge = await nudgeTask;
         StateHasChanged();
@@ -585,55 +500,11 @@
         _ => doc.DocStatus == 0 ? "tone-warning" : "tone-neutral"
     };
 
-    private async Task RefreshTasksAsync()
+    private async Task RefreshTaskCountsAsync()
     {
         if (Current.User is not { } u) return;
-        var countsTask = AssignmentsSvc.CountMyTasksAsync(u);
-        var listTask = AssignmentsSvc.ListMyTasksAsync(u, AssignmentStatus.Open, take: 5);
-        await Task.WhenAll(countsTask, listTask);
-        taskCounts = await countsTask;
-        myTasks = await listTask;
+        taskCounts = await AssignmentsSvc.CountMyTasksAsync(u);
     }
-
-    private async Task CompleteTaskAsync(Guid id)
-    {
-        if (completingTask || Current.User is not { } u) return;
-        completingTask = true;
-        try
-        {
-            await AssignmentsSvc.CompleteAsync(u, id);
-            Toasts.Success(T["Task marked as complete."], T["Completed"]);
-            await RefreshTasksAsync();
-        }
-        catch (Exception ex)
-        {
-            Toasts.Error(T.Message(ex.Message), T["Error"]);
-        }
-        finally
-        {
-            completingTask = false;
-        }
-    }
-
-    private string DueLabel(Assignment a, DateOnly today)
-    {
-        if (a.DueDate is not { } d) return T["No due date"];
-        var diff = d.DayNumber - today.DayNumber;
-        if (diff < 0) return -diff == 1 ? T["1 day overdue"] : T.Format("{0} days overdue", -diff);
-        if (diff == 0) return T["Today"];
-        if (diff == 1) return T["Tomorrow"];
-        return T.Format("In {0} days", diff);
-    }
-
-    private static string DueClass(Assignment a, DateOnly today) =>
-        a.IsOverdue(today) ? "overdue" : a.IsDueToday(today) ? "today" : "";
-
-    private static BadgeVariant PriorityBadge(AssignmentPriority p) => p switch
-    {
-        AssignmentPriority.High => BadgeVariant.Destructive,
-        AssignmentPriority.Low => BadgeVariant.Outline,
-        _ => BadgeVariant.Secondary
-    };
 
     public void Dispose()
     {

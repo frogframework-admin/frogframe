@@ -1,0 +1,78 @@
+{
+  "name": "JobChangeApproval",
+  "docType": "JobChange",
+  "version": 1,
+  "initialState": "Draft",
+  "states": [
+    {
+      "name": "Draft",
+      "docStatus": 0,
+      "tone": "neutral"
+    },
+    {
+      "name": "Pending HR",
+      "docStatus": 0,
+      "tone": "pending"
+    },
+    {
+      "name": "Approved",
+      "docStatus": 1,
+      "tone": "positive"
+    },
+    {
+      "name": "Rejected",
+      "docStatus": 2,
+      "tone": "negative"
+    },
+    {
+      "name": "Cancelled",
+      "docStatus": 2,
+      "tone": "negative"
+    }
+  ],
+  "transitions": [
+    {
+      "from": "Draft",
+      "to": "Pending HR",
+      "action": "Submit for approval",
+      "allowedRoles": [
+        "HR-Employee-Management",
+        "HR-Admin",
+        "Manager",
+        "System Manager"
+      ]
+    },
+    {
+      "from": "Pending HR",
+      "to": "Approved",
+      "action": "Approve",
+      "allowedRoles": [
+        "HR-Employee-Management",
+        "HR-Admin",
+        "System Manager"
+      ]
+    },
+    {
+      "from": "Pending HR",
+      "to": "Rejected",
+      "action": "Reject",
+      "allowedRoles": [
+        "HR-Employee-Management",
+        "HR-Admin",
+        "System Manager"
+      ],
+      "requireComment": true
+    },
+    {
+      "from": "Approved",
+      "to": "Cancelled",
+      "action": "Cancel",
+      "allowedRoles": [
+        "HR-Employee-Management",
+        "HR-Admin",
+        "System Manager"
+      ],
+      "requireComment": true
+    }
+  ]
+}

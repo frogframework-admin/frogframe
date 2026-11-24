@@ -1,0 +1,199 @@
+{
+  "name": "DisciplinaryAction",
+  "version": 1,
+  "title": "Disciplinary Action",
+  "module": "HR",
+  "description": "Employee warning letters (SP1/SP2/SP3) and disciplinary records with validity period.",
+  "naming": {
+    "pattern": "SP-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "employee",
+      "type": "Link",
+      "label": "Employee",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Employee"
+    },
+    {
+      "name": "employee_name",
+      "type": "Data",
+      "label": "Employee name",
+      "fetchFrom": "employee.full_name",
+      "inListView": true,
+      "section": "Employee"
+    },
+    {
+      "name": "organization_unit",
+      "type": "Data",
+      "label": "Unit",
+      "fetchFrom": "employee.organization_unit",
+      "section": "Employee"
+    },
+    {
+      "name": "warning_level",
+      "type": "Select",
+      "label": "Warning level",
+      "requiredWhen": "true",
+      "options": [
+        "Verbal Warning",
+        "SP1",
+        "SP2",
+        "SP3",
+        "Suspension"
+      ],
+      "default": "SP1",
+      "inListView": true,
+      "section": "Disciplinary Details",
+      "column": 2
+    },
+    {
+      "name": "violation_category",
+      "type": "Select",
+      "label": "Category",
+      "options": [
+        "Attendance",
+        "Performance",
+        "Conduct",
+        "Policy Violation",
+        "Safety",
+        "Other"
+      ],
+      "default": "Conduct",
+      "inListView": true,
+      "section": "Disciplinary Details",
+      "column": 2
+    },
+    {
+      "name": "issued_date",
+      "type": "Date",
+      "label": "Issued date",
+      "default": "$today",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Validity"
+    },
+    {
+      "name": "valid_until",
+      "type": "Date",
+      "label": "Valid until",
+      "inListView": true,
+      "section": "Validity",
+      "column": 2
+    },
+    {
+      "name": "description",
+      "type": "Text",
+      "label": "Incident & violation description",
+      "requiredWhen": "true",
+      "section": "Details"
+    },
+    {
+      "name": "action_plan",
+      "type": "Text",
+      "label": "Corrective action plan",
+      "section": "Details",
+      "column": 2
+    },
+    {
+      "name": "attachment",
+      "type": "Attach",
+      "label": "Signed warning letter",
+      "section": "Details",
+      "column": 2
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR-Admin",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Employee-Management",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "match:employee=employee"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "employee_name",
+    "searchFields": [
+      "employee",
+      "employee_name",
+      "warning_level"
+    ],
+    "filters": [
+      "warning_level",
+      "violation_category",
+      "docstatus"
+    ],
+    "defaultSort": [
+      {
+        "field": "issued_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

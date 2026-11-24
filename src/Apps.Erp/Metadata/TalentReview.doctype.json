@@ -48,6 +48,15 @@
       "section": "Employee"
     },
     {
+      "name": "reports_to",
+      "type": "Link",
+      "label": "Reports to",
+      "linkTo": "Employee",
+      "fetchFrom": "employee.reports_to",
+      "readOnlyWhen": "true",
+      "section": "Employee"
+    },
+    {
       "name": "appraisal_cycle",
       "type": "Link",
       "label": "Appraisal cycle",
@@ -88,6 +97,41 @@
       "fetchFrom": "appraisal.rating",
       "readOnlyWhen": "true",
       "section": "Cycle",
+      "column": 2
+    },
+    {
+      "name": "calibration_session",
+      "type": "Link",
+      "label": "Calibration session",
+      "linkTo": "CalibrationSession",
+      "section": "Cycle",
+      "column": 2
+    },
+    {
+      "name": "aspiration_score",
+      "type": "Int",
+      "label": "Aspiration (1–5)",
+      "min": 1,
+      "max": 5,
+      "section": "9-Box Assessment",
+      "column": 2
+    },
+    {
+      "name": "learning_agility_score",
+      "type": "Int",
+      "label": "Learning agility (1–5)",
+      "min": 1,
+      "max": 5,
+      "section": "9-Box Assessment",
+      "column": 2
+    },
+    {
+      "name": "leadership_score",
+      "type": "Int",
+      "label": "Leadership potential (1–5)",
+      "min": 1,
+      "max": 5,
+      "section": "9-Box Assessment",
       "column": 2
     },
     {
@@ -218,21 +262,12 @@
       "scope": "all"
     },
     {
-      "role": "HR-Employee-Management",
-      "actions": [
-        "read",
-        "report",
-        "export"
-      ],
-      "scope": "all"
-    },
-    {
       "role": "Manager",
       "actions": [
         "read",
         "report"
       ],
-      "scope": "all"
+      "scope": "match:reports_to=employee"
     },
     {
       "role": "System Manager",

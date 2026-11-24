@@ -54,7 +54,24 @@ public sealed class ErpEventHandler(IServiceProvider services, IDocumentStore st
 
             case ErpEvents.OrgPositionTemplate:
                 if (await m.GetAsync("OrganizationUnit", name, ct) is { } unit && !await Hr.IsReorganizedVersionAsync(m, unit, ct))
-                    await Hr.ApplyPositionTemplateAsync(sys, m, unit, closeSurplus: false, Hr.Today(services.GetService<TimeProvider>() ?? TimeProvider.System), ct);
+                {
+                    var res = await Hr.ApplyPositionTemplateAsync(sys, m, unit, closeSurplus: false, Hr.Today(services.GetService<TimeProvider>() ?? TimeProvider.System), ct);
+                    if (res.Created > 0 && unit.Data.Str("parent_org_unit") is { } parentId)
+                    {
+                        var parentHead = await m.StrAsync("OrganizationUnit", parentId, "manager_position", ct);
+                        var unitType = await m.GetAsync("OrganizationUnitType", unit.Data.Str("unit_type"), ct);
+                        var hasHeadRow = unitType?.Data.Rows("position_template").Any(r => r.Bool("is_head")) == true;
+                        if (hasHeadRow && string.IsNullOrEmpty(parentHead)
+                            && services.GetService<IUserDirectory>() is { } dir
+                            && services.GetService<INotificationStore>() is { } inbox)
+                        {
+                            await Notify.ToRoleAsync(dir, inbox, tenant, ErpRoles.HrEmployeeManagement,
+                                $"Unit {unit.Name} head position has no parent head",
+                                $"Parent unit {parentId} has no head position (manager_position), so {unit.Name}'s head reports_to_position was left empty.",
+                                "OrganizationUnit", unit.Name, $"org-parent-head-gap|{unit.Name}|{parentId}", ct);
+                        }
+                    }
+                }
                 break;
 
             case ErpEvents.PaymentRunExecute:
@@ -292,6 +309,121 @@ public sealed class ContractExpiryReminderJob : IScheduledJob
             const string body = "Decide on renewal (create a new contract with 'Renewal of') or process a separation.";
             await Notify.ToRoleAsync(users, inbox, context.TenantId, ErpRoles.HrEmployeeManagement, subject, body, "EmploymentContract", k.Name, $"contract-expiry|{k.Name}", ct);
             await Notify.ToEmployeesAsync(users, inbox, context.TenantId, [emp.Data.Str("reports_to")], subject, body, "EmploymentContract", k.Name, $"contract-expiry|{k.Name}", ct);
+        }
+    }
+}
+
+/// <summary>Daily: notify employee and HR 30 and 7 days before an identity document expires.</summary>
+public sealed class IdentityDocumentExpiryReminderJob : IScheduledJob
+{
+    public string Name => "Erp.IdentityDocumentExpiryReminder";
+    public string Schedule => "@daily";
+
+    public async Task ExecuteAsync(ScheduledJobContext context, CancellationToken ct)
+    {
+        var m = new Masters(context.Services.GetRequiredService<IDocumentStore>(), context.TenantId);
+        var users = context.Services.GetRequiredService<IUserDirectory>();
+        var inbox = context.Services.GetRequiredService<INotificationStore>();
+        var today = DateOnly.FromDateTime(context.ScheduledTime.Date);
+
+        foreach (var emp in await m.QueryAsync("Employee", [], ct, take: 50000))
+        {
+            if (emp.Data.Str("status") == Hr.Left) continue;
+            foreach (var doc in emp.Data.Rows("identity_documents"))
+            {
+                if (doc.Date("expiry_date") is not { } exp || exp < today) continue;
+                var daysLeft = exp.DayNumber - today.DayNumber;
+                if (daysLeft > 30) continue;
+                var bucket = daysLeft <= 7 ? "7d" : "30d";
+                var docType = doc.Str("document_type") ?? "Identity Document";
+                var docNo = doc.Str("document_no") ?? "";
+                var subject = $"{docType} ({docNo}) of {emp.Data.Str("full_name")} expires on {D.Iso(exp)}";
+                var body = $"Renew {docType} and update the expiry date on the employee record.";
+                var dedup = $"id-expiry-{bucket}|{emp.Name}|{docType}|{docNo}|{D.Iso(exp)}";
+                await Notify.ToEmployeesAsync(users, inbox, context.TenantId, [emp.Name], subject, body, "Employee", emp.Name, dedup, ct);
+                await Notify.ToRoleAsync(users, inbox, context.TenantId, ErpRoles.HrEmployeeManagement, subject, body, "Employee", emp.Name, dedup, ct);
+            }
+            foreach (var cert in emp.Data.Rows("certifications"))
+            {
+                if (cert.Date("expiry_date") is not { } exp || exp < today) continue;
+                var daysLeft = exp.DayNumber - today.DayNumber;
+                if (daysLeft > 30) continue;
+                var bucket = daysLeft <= 7 ? "7d" : "30d";
+                var certName = cert.Str("certification_name") ?? "Certification";
+                var certNo = cert.Str("certificate_no") ?? "";
+                var subject = $"Certification {certName} of {emp.Data.Str("full_name")} expires on {D.Iso(exp)}";
+                var body = $"Renew {certName} and update the expiry date on the employee record.";
+                var dedup = $"cert-expiry-{bucket}|{emp.Name}|{certName}|{certNo}|{D.Iso(exp)}";
+                await Notify.ToEmployeesAsync(users, inbox, context.TenantId, [emp.Name], subject, body, "Employee", emp.Name, dedup, ct);
+                await Notify.ToRoleAsync(users, inbox, context.TenantId, ErpRoles.HrEmployeeManagement, subject, body, "Employee", emp.Name, dedup, ct);
+            }
+        }
+    }
+}
+
+/// <summary>Daily: remind supervisor and HR 14 days before an employee's probation ends if no ProbationEvaluation exists.</summary>
+public sealed class ProbationReminderJob : IScheduledJob
+{
+    public string Name => "Erp.ProbationReminder";
+    public string Schedule => "@daily";
+
+    public async Task ExecuteAsync(ScheduledJobContext context, CancellationToken ct)
+    {
+        var m = new Masters(context.Services.GetRequiredService<IDocumentStore>(), context.TenantId);
+        var users = context.Services.GetRequiredService<IUserDirectory>();
+        var inbox = context.Services.GetRequiredService<INotificationStore>();
+        var today = DateOnly.FromDateTime(context.ScheduledTime.Date);
+        var horizon = today.AddDays(14);
+        var evaluated = (await m.QueryAsync("ProbationEvaluation", [], ct, take: 50000))
+            .Where(x => x.DocStatus != DocStatus.Cancelled)
+            .Select(x => x.Data.Str("employee"))
+            .OfType<string>()
+            .ToHashSet(StringComparer.Ordinal);
+
+        foreach (var emp in await m.QueryAsync("Employee", [], ct, take: 50000))
+        {
+            if (emp.Data.Str("status") == Hr.Left) continue;
+            if (evaluated.Contains(emp.Name)) continue;
+            if (emp.Data.Date("probation_end_date") is not { } pe || pe < today || pe > horizon) continue;
+
+            var subject = $"Probation of {emp.Data.Str("full_name")} ends on {D.Iso(pe)}";
+            const string body = "Create and submit a Probation Evaluation (Passed, Extended, or Failed).";
+            var dedup = $"probation-due|{emp.Name}|{D.Iso(pe)}";
+            await Notify.ToEmployeesAsync(users, inbox, context.TenantId, [emp.Data.Str("reports_to")], subject, body, "Employee", emp.Name, dedup, ct);
+            await Notify.ToRoleAsync(users, inbox, context.TenantId, ErpRoles.HrEmployeeManagement, subject, body, "Employee", emp.Name, dedup, ct);
+        }
+    }
+}
+
+/// <summary>Daily: anonymize rejected or withdrawn JobApplicants past HRSettings.applicant_retention_months (UU PDP).</summary>
+public sealed class ApplicantRetentionJob : IScheduledJob
+{
+    public string Name => "Erp.ApplicantRetention";
+    public string Schedule => "@daily";
+
+    public async Task ExecuteAsync(ScheduledJobContext context, CancellationToken ct)
+    {
+        var m = new Masters(context.Services.GetRequiredService<IDocumentStore>(), context.TenantId);
+        var months = (int)(await m.SingleAsync("HRSettings", ct)).Dec("applicant_retention_months");
+        if (months <= 0) months = 12;
+        var cutoff = context.ScheduledTime.AddMonths(-months);
+        var sys = new SystemDocs(context.Docs, context.TenantId);
+
+        foreach (var app in await m.QueryAsync("JobApplicant", [], ct, take: 50000))
+        {
+            if (app.Data.Str("status") is not ("Rejected" or "Withdrawn")) continue;
+            if (app.Modified >= cutoff) continue;
+            if (app.Data.Str("full_name") == "Anonymized Applicant") continue;
+
+            await sys.UpdateAsync("JobApplicant", app.Name, new Dictionary<string, object?>
+            {
+                ["full_name"] = "Anonymized Applicant",
+                ["email"] = $"anonymized-{app.Name.ToLowerInvariant()}@redacted.local",
+                ["phone"] = null,
+                ["resume"] = null,
+                ["national_id"] = null,
+                ["address"] = null,
+            }, ct);
         }
     }
 }

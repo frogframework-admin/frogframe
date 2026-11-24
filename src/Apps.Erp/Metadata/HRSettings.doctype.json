@@ -66,6 +66,16 @@
       "column": 2
     },
     {
+      "name": "max_pkwt_months",
+      "type": "Int",
+      "label": "Max PKWT duration including renewals (months)",
+      "default": 60,
+      "min": 1,
+      "max": 120,
+      "section": "Terms",
+      "column": 2
+    },
+    {
       "name": "leave_year_start",
       "type": "Select",
       "label": "Leave period based on",
@@ -277,6 +287,55 @@
       "label": "Reply-to address for applicant e-mails",
       "section": "Careers portal",
       "column": 2
+    },
+    {
+      "name": "applicant_retention_months",
+      "type": "Int",
+      "label": "Applicant data retention (months)",
+      "default": 12,
+      "min": 1,
+      "max": 120,
+      "section": "Careers portal",
+      "column": 2,
+      "description": "Rejected or withdrawn applicants older than this are anonymized automatically (UU PDP)."
+    },
+    {
+      "name": "allow_manager_talent_access",
+      "type": "Check",
+      "label": "Allow managers to view talent records of direct reports",
+      "default": false,
+      "section": "Talent Management",
+      "description": "Off (default) = restricted to HR-Talent. On = Managers can also read Talent Review, Succession Plan, and Development Plan for their direct reports."
+    },
+    {
+      "name": "talent_high_perf_threshold",
+      "type": "Float",
+      "label": "Talent Review High performance threshold",
+      "default": 3.75,
+      "min": 1,
+      "max": 5,
+      "section": "Talent Management",
+      "column": 2,
+      "description": "Appraisal final score >= this value maps to High performance (default 3.75)"
+    },
+    {
+      "name": "talent_mod_perf_threshold",
+      "type": "Float",
+      "label": "Talent Review Moderate performance threshold",
+      "default": 2.5,
+      "min": 1,
+      "max": 5,
+      "section": "Talent Management",
+      "column": 2,
+      "description": "Appraisal final score >= this value maps to Moderate performance (default 2.5)"
+    },
+    {
+      "name": "annual_training_budget_per_unit",
+      "type": "Currency",
+      "label": "Annual training budget per unit (0 = unlimited)",
+      "default": 0,
+      "min": 0,
+      "section": "Talent Management"
     }
   ],
   "permissions": [

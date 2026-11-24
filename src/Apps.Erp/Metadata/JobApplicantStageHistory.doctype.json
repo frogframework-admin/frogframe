@@ -1,0 +1,34 @@
+{
+  "name": "JobApplicantStageHistory",
+  "version": 1,
+  "title": "Applicant Stage History",
+  "module": "HR",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "stage",
+      "type": "Data",
+      "label": "Stage",
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "changed_at",
+      "type": "Datetime",
+      "label": "Changed at",
+      "inListView": true
+    },
+    {
+      "name": "changed_by",
+      "type": "Data",
+      "label": "Changed by",
+      "inListView": true
+    },
+    {
+      "name": "notes",
+      "type": "Data",
+      "label": "Notes",
+      "inListView": true
+    }
+  ]
+}

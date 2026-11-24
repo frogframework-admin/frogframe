@@ -17,7 +17,6 @@
       "name": "employee_name",
       "type": "Data",
       "label": "Name",
-      "fetchFrom": "employee.full_name",
       "inListView": true
     },
     {
@@ -29,7 +28,8 @@
         "Ready Now",
         "1-2 Years",
         "3+ Years",
-        "Emergency"
+        "Emergency",
+        "Not Ready"
       ],
       "default": "1-2 Years",
       "inListView": true

@@ -58,6 +58,13 @@
       "name": "description",
       "type": "Text",
       "label": "Description & proficiency criteria"
+    },
+    {
+      "name": "proficiency_levels",
+      "type": "Table",
+      "label": "Proficiency levels (1–5)",
+      "childDocType": "CompetencyLevel",
+      "section": "Proficiency levels"
     }
   ],
   "permissions": [

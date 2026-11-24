@@ -63,6 +63,7 @@ public static class ErpRegistration
         services.TryAddSingleton<Home.ErpHomeService>();
         static bool IsEmployee(Framework.Security.UserContext u) => Home.ErpHomeService.EmployeeOf(u) is not null;
         services.AddHomePanel<Components.Home.SetupChecklistPanel>("erp-setup", Framework.Web.Home.HomeSlot.Top, 10, u => u.IsAdmin);
+        services.AddHomePanel<Components.Home.AnnouncementPanel>("erp-announcements", Framework.Web.Home.HomeSlot.Top, 5);
         services.AddHomePanel<Components.Home.EmployeeTodayPanel>("erp-today", Framework.Web.Home.HomeSlot.Personal, 10, IsEmployee);
         services.AddHomePanel<Components.Home.MyRequestsPanel>("erp-my-requests", Framework.Web.Home.HomeSlot.Personal, 20, IsEmployee);
         services.AddHomePanel<Components.Home.CompanyInfoPanel>("erp-company-info", Framework.Web.Home.HomeSlot.Side, 50);
@@ -164,6 +165,7 @@ public static class ErpRegistration
         services.AddDocHook<EmployeeSeparation, EmployeeSeparationHook>();
         services.AddDocHook<OnboardingList, OnboardingListHook>();
         services.AddDocHook<OffboardingList, OffboardingListHook>();
+        services.AddDocHook<ProbationEvaluation, ProbationEvaluationHook>();
         services.AddDocHook<EmploymentContract, EmploymentContractHook>();
         services.AddDocHook<LeaveAllocation, LeaveAllocationHook>();
         services.AddDocHook<LeaveApplication, LeaveApplicationHook>();
@@ -203,6 +205,7 @@ public static class ErpRegistration
         // RECRUITMENT
         services.AddDocHook<JobRequisition, JobRequisitionHook>();
         services.AddDocHook<JobApplicant, JobApplicantHook>();
+        services.AddDocHook<Interview, InterviewHook>();
         services.AddDocHook<JobOffer, JobOfferHook>();
         services.AddFormAction<JobOffer, JobOfferCreateEmployeeAction>();
 
@@ -210,7 +213,9 @@ public static class ErpRegistration
         services.AddErpCareers();
 
         // KINERJA & TALENT MANAGEMENT
+        services.AddDocHook<JobProfile, JobProfileHook>();
         services.AddDocHook<Appraisal, AppraisalHook>();
+        services.AddFormAction<Appraisal, AppraisalCreateJobChangeAction>();
         services.AddDocHook<TalentReview, TalentReviewHook>();
         services.AddDocHook<SuccessionPlan, SuccessionPlanHook>();
         services.AddDocHook<DevelopmentPlan, DevelopmentPlanHook>();
@@ -249,6 +254,9 @@ public static class ErpRegistration
         services.AddScheduledJob<ApprovalDelegationRefreshJob>();
         services.AddScheduledJob<LeaveAllocationJob>();
         services.AddScheduledJob<ContractExpiryReminderJob>();
+        services.AddScheduledJob<IdentityDocumentExpiryReminderJob>();
+        services.AddScheduledJob<ProbationReminderJob>();
+        services.AddScheduledJob<ApplicantRetentionJob>();
         services.AddScheduledJob<CrmDailyJob>();
 
         // ESS mobile (absen GPS, cuti, slip gaji, persetujuan): docs/guides/ess-mobile-api.md
@@ -266,6 +274,8 @@ public static class ErpRegistration
         services.AddReport<VatRegisterReport>();
         services.AddReport<WithholdingRegisterReport>();
         services.AddReport<LeaveBalanceReport>();
+        services.AddReport<CompetencyGapReport>();
+        services.AddReport<RecruitmentMetricsReport>();
         services.AddReport<SalesPipelineReport>();
         services.AddReport<PayrollRegisterReport>();
         services.AddReport<Pph21AnnualReport>();

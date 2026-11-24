@@ -529,6 +529,15 @@
       "section": "Document"
     },
     {
+      "name": "documents_archive",
+      "type": "Table",
+      "label": "Document archive",
+      "childDocType": "EmployeeDocument",
+      "permLevel": 1,
+      "tab": "Identity & Tax",
+      "section": "Document Archive"
+    },
+    {
       "name": "bank_accounts",
       "type": "Table",
       "label": "Payroll bank account",
@@ -577,6 +586,14 @@
       "childDocType": "EmployeeCompetency",
       "tab": "Family & History",
       "section": "Competencies"
+    },
+    {
+      "name": "certifications",
+      "type": "Table",
+      "label": "Certifications & licenses",
+      "childDocType": "EmployeeCertification",
+      "tab": "Family & History",
+      "section": "Certifications"
     }
   ],
   "permissions": [

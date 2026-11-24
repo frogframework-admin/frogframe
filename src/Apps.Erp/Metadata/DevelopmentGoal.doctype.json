@@ -20,6 +20,18 @@
       "inListView": true
     },
     {
+      "name": "training_program",
+      "type": "Link",
+      "label": "Training program",
+      "linkTo": "TrainingProgram"
+    },
+    {
+      "name": "training_request",
+      "type": "Link",
+      "label": "Training request",
+      "linkTo": "TrainingRequest"
+    },
+    {
       "name": "learning_type",
       "type": "Select",
       "label": "70-20-10 method",

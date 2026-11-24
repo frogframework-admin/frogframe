@@ -61,6 +61,16 @@
       "column": 2
     },
     {
+      "name": "reports_to",
+      "type": "Link",
+      "label": "Reports to",
+      "linkTo": "Employee",
+      "fetchFrom": "employee.reports_to",
+      "readOnlyWhen": "true",
+      "section": "Plan",
+      "column": 2
+    },
+    {
       "name": "start_date",
       "type": "Date",
       "label": "Start date",
@@ -168,7 +178,7 @@
         "read",
         "report"
       ],
-      "scope": "all"
+      "scope": "match:reports_to=employee"
     },
     {
       "role": "System Manager",

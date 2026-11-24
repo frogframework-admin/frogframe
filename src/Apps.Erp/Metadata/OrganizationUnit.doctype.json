@@ -348,5 +348,8 @@
       "create",
       "update"
     ]
+  },
+  "import": {
+    "enabled": true
   }
 }

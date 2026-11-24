@@ -266,4 +266,54 @@ sealed partial class Tests
         var approved = await docs.GetAsync(sys, "TrainingRequest", req.Name);
         Assert.Equal("Approved", approved!.WorkflowState, "training request reaches Approved after manager and HR approval");
     }
+
+    [Test]
+    public async Task Talent_access_control_and_completed_appraisal_guard()
+    {
+        await using var provider = BuildErpProvider();
+        var docs = provider.GetRequiredService<DocumentService>();
+        var sys = UserContext.System("acme");
+        var (mgr, dev, _, cycle) = await TalentSetupAsync(docs, sys);
+
+        var hrTalent = new UserContext("hr-talent", "HR Talent", "acme", new HashSet<string> { ErpRoles.HrTalent }, new Dictionary<string, string>());
+        var mgrUser = new UserContext("budi-mgr", "Budi Santoso", "acme", new HashSet<string> { "Manager" }, new Dictionary<string, string> { ["employee"] = mgr });
+        var otherMgr = new UserContext("other-mgr", "Other Manager", "acme", new HashSet<string> { "Manager" }, new Dictionary<string, string> { ["employee"] = "EMP-OTHER" });
+
+        // Draft appraisal cannot be linked to TalentReview
+        var draftApr = await docs.InsertAsync(hrTalent, "Appraisal", new Dictionary<string, object?>
+        {
+            ["employee"] = dev,
+            ["appraisal_cycle"] = cycle,
+            ["reviewer"] = mgr,
+            ["goals"] = new List<Dictionary<string, object?>>
+            {
+                new() { ["goal"] = "Delivery", ["weight"] = 100m, ["self_score"] = 4, ["manager_score"] = 4 },
+            },
+        });
+        await Assert.Throws<ValidationFailedException>(() => docs.InsertAsync(hrTalent, "TalentReview", new Dictionary<string, object?>
+        {
+            ["employee"] = dev,
+            ["appraisal_cycle"] = cycle,
+            ["appraisal"] = draftApr.Name,
+            ["potential_level"] = "High",
+        }), "draft appraisal rejected by TalentReview");
+
+        // Create TalentReview without appraisal
+        var review = await docs.InsertAsync(hrTalent, "TalentReview", new Dictionary<string, object?>
+        {
+            ["employee"] = dev,
+            ["appraisal_cycle"] = cycle,
+            ["performance_level"] = "High",
+            ["potential_level"] = "High",
+        });
+
+        // Default HRSettings: Manager cannot read TalentReview (IOnLoad throws PermissionDeniedException, wrapped in DocumentHookException)
+        await Assert.Throws<Framework.Hooks.DocumentHookException>(() => docs.GetAsync(mgrUser, "TalentReview", review.Name), "manager blocked by default");
+
+        // Enable allow_manager_talent_access: direct manager can read, other manager still blocked
+        await docs.SetSingleAsync(sys, "HRSettings", new Dictionary<string, object?> { ["allow_manager_talent_access"] = true });
+        var loaded = await docs.GetAsync(mgrUser, "TalentReview", review.Name);
+        Assert.Equal(review.Name, loaded?.Name, "direct manager can read when enabled");
+        await Assert.Throws<DocumentNotFoundException>(() => docs.GetAsync(otherMgr, "TalentReview", review.Name), "other manager still blocked");
+    }
 }

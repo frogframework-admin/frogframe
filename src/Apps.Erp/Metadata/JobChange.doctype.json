@@ -14,6 +14,7 @@
     "allowAmend": true,
     "allowDelete": true
   },
+  "workflow": "JobChangeApproval",
   "fields": [
     {
       "name": "employee",
@@ -66,6 +67,20 @@
       "label": "Decree no.",
       "section": "Change",
       "column": 2
+    },
+    {
+      "name": "current_company",
+      "type": "Data",
+      "label": "Current company",
+      "fetchFrom": "employee.company",
+      "section": "Before"
+    },
+    {
+      "name": "new_company",
+      "type": "Link",
+      "label": "New company",
+      "linkTo": "Company",
+      "section": "After"
     },
     {
       "name": "current_organization_unit",
@@ -187,6 +202,33 @@
         "Outsourced"
       ],
       "section": "After"
+    },
+    {
+      "name": "adjust_salary",
+      "type": "Check",
+      "label": "Create salary adjustment",
+      "default": false,
+      "section": "Compensation"
+    },
+    {
+      "name": "new_base_salary",
+      "type": "Currency",
+      "label": "New base salary",
+      "min": 0,
+      "permLevel": 1,
+      "visibleWhen": "adjust_salary == true",
+      "requiredWhen": "adjust_salary == true",
+      "section": "Compensation"
+    },
+    {
+      "name": "new_salary_component",
+      "type": "Link",
+      "label": "Salary component",
+      "linkTo": "SalaryComponent",
+      "permLevel": 1,
+      "visibleWhen": "adjust_salary == true",
+      "section": "Compensation",
+      "column": 2
     },
     {
       "name": "remarks",

@@ -1,0 +1,48 @@
+@using Apps.Erp.Hooks
+@using Framework.Documents
+@using Framework.Localization
+@using Framework.Persistence
+@using Framework.Security
+@inject IDocumentStore Store
+@inject CurrentUser Current
+@inject TimeProvider Clock
+@inject UiText T
+
+@if (items.Count > 0)
+{
+    <section class="home-card" aria-label="@T["Announcements"]">
+        <div class="section-head-row">
+            <h2>@T["Announcements"]</h2>
+        </div>
+        <ul class="home-list">
+            @foreach (var a in items)
+            {
+                <li>
+                    <div>
+                        <strong><a href="/app/Announcement/@a.Name">@a.Data.Str("title")</a></strong>
+                        <div class="muted small">@a.Data.Str("body")</div>
+                    </div>
+                </li>
+            }
+        </ul>
+    </section>
+}
+
+@code {
+    private IReadOnlyList<Document> items = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Current.User is not { } u) return;
+        var today = DateOnly.FromDateTime(Clock.GetLocalNow().DateTime);
+        var all = await new Masters(Store, u.TenantId).QueryAsync("Announcement", [], CancellationToken.None, "publish_from", "desc", 20);
+        var unit = u.Attr("department");
+        items = all
+            .Where(a => a.Data.Bool("is_published")
+                && (a.Data.Date("publish_from") is not { } pf || pf <= today)
+                && (a.Data.Date("publish_to") is not { } pt || pt >= today)
+                && (string.IsNullOrEmpty(a.Data.Str("target_unit")) || string.Equals(a.Data.Str("target_unit"), unit, StringComparison.OrdinalIgnoreCase)))
+            .Take(5)
+            .ToList();
+    }
+}

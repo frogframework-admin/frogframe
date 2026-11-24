@@ -14,6 +14,7 @@
     "allowAmend": true,
     "allowDelete": true
   },
+  "workflow": "JobRequisitionApproval",
   "fields": [
     {
       "name": "job_title",
@@ -146,6 +147,15 @@
       "label": "Recruiter",
       "linkTo": "Employee",
       "lookupDialog": true,
+      "section": "Team",
+      "column": 2
+    },
+    {
+      "name": "unit_head",
+      "type": "Link",
+      "label": "Unit head",
+      "linkTo": "Employee",
+      "readOnlyWhen": "true",
       "section": "Team",
       "column": 2
     },

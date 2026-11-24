@@ -1,0 +1,110 @@
+{
+  "name": "JobRequisitionApproval",
+  "docType": "JobRequisition",
+  "version": 1,
+  "initialState": "Draft",
+  "states": [
+    {
+      "name": "Draft",
+      "docStatus": 0,
+      "tone": "neutral"
+    },
+    {
+      "name": "Pending Unit Head",
+      "docStatus": 0,
+      "tone": "pending"
+    },
+    {
+      "name": "Pending HR",
+      "docStatus": 0,
+      "tone": "pending"
+    },
+    {
+      "name": "Approved",
+      "docStatus": 1,
+      "tone": "positive"
+    },
+    {
+      "name": "Rejected",
+      "docStatus": 2,
+      "tone": "negative"
+    },
+    {
+      "name": "Cancelled",
+      "docStatus": 2,
+      "tone": "negative"
+    }
+  ],
+  "transitions": [
+    {
+      "from": "Draft",
+      "to": "Pending Unit Head",
+      "action": "Submit for approval",
+      "allowedRoles": [
+        "HR-Recruitment",
+        "HR-Admin",
+        "Employee",
+        "System Manager"
+      ],
+      "condition": "hiring_manager == user.employee || has_role('HR-Recruitment') || has_role('HR-Admin') || has_role('System Manager')"
+    },
+    {
+      "from": "Pending Unit Head",
+      "to": "Pending HR",
+      "action": "Approve (Unit Head)",
+      "allowedRoles": [
+        "Employee",
+        "Manager",
+        "HR-Recruitment",
+        "HR-Admin",
+        "System Manager"
+      ],
+      "condition": "unit_head == user.employee || empty(unit_head) || has_role('HR-Admin') || has_role('System Manager')"
+    },
+    {
+      "from": "Pending Unit Head",
+      "to": "Rejected",
+      "action": "Reject",
+      "allowedRoles": [
+        "Employee",
+        "Manager",
+        "HR-Recruitment",
+        "HR-Admin",
+        "System Manager"
+      ],
+      "requireComment": true
+    },
+    {
+      "from": "Pending HR",
+      "to": "Approved",
+      "action": "Approve (HR)",
+      "allowedRoles": [
+        "HR-Recruitment",
+        "HR-Admin",
+        "System Manager"
+      ]
+    },
+    {
+      "from": "Pending HR",
+      "to": "Rejected",
+      "action": "Reject (HR)",
+      "allowedRoles": [
+        "HR-Recruitment",
+        "HR-Admin",
+        "System Manager"
+      ],
+      "requireComment": true
+    },
+    {
+      "from": "Approved",
+      "to": "Cancelled",
+      "action": "Cancel",
+      "allowedRoles": [
+        "HR-Recruitment",
+        "HR-Admin",
+        "System Manager"
+      ],
+      "requireComment": true
+    }
+  ]
+}

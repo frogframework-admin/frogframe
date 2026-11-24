@@ -57,6 +57,16 @@
       "column": 2
     },
     {
+      "name": "reports_to",
+      "type": "Link",
+      "label": "Reports to",
+      "linkTo": "Employee",
+      "fetchFrom": "incumbent_employee.reports_to",
+      "readOnlyWhen": "true",
+      "section": "Position",
+      "column": 2
+    },
+    {
       "name": "criticality",
       "type": "Select",
       "label": "Criticality",
@@ -124,21 +134,12 @@
       "scope": "all"
     },
     {
-      "role": "HR-Employee-Management",
-      "actions": [
-        "read",
-        "report",
-        "export"
-      ],
-      "scope": "all"
-    },
-    {
       "role": "Manager",
       "actions": [
         "read",
         "report"
       ],
-      "scope": "all"
+      "scope": "match:reports_to=employee"
     },
     {
       "role": "System Manager",

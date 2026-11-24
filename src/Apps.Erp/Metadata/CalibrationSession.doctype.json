@@ -1,0 +1,137 @@
+{
+  "name": "CalibrationSession",
+  "version": 1,
+  "title": "Calibration Session",
+  "module": "HR",
+  "description": "9-Box talent calibration committee session per cycle and unit; submitting locks linked Talent Reviews.",
+  "naming": {
+    "pattern": "CAL-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": true,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "session_name",
+      "type": "Data",
+      "label": "Session title",
+      "requiredWhen": "true",
+      "maxLength": 140,
+      "inListView": true,
+      "section": "Session"
+    },
+    {
+      "name": "appraisal_cycle",
+      "type": "Link",
+      "label": "Appraisal cycle",
+      "linkTo": "AppraisalCycle",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Session"
+    },
+    {
+      "name": "organization_unit",
+      "type": "Link",
+      "label": "Organization unit",
+      "linkTo": "OrganizationUnit",
+      "inListView": true,
+      "section": "Session",
+      "column": 2
+    },
+    {
+      "name": "session_date",
+      "type": "Date",
+      "label": "Session date",
+      "default": "$today",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Session",
+      "column": 2
+    },
+    {
+      "name": "committee_members",
+      "type": "Text",
+      "label": "Committee members",
+      "section": "Notes"
+    },
+    {
+      "name": "notes",
+      "type": "Text",
+      "label": "Calibration decisions & notes",
+      "section": "Notes",
+      "column": 2
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR-Talent",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Admin",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel",
+        "amend",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "session_name",
+    "searchFields": [
+      "session_name",
+      "appraisal_cycle"
+    ],
+    "filters": [
+      "appraisal_cycle",
+      "docstatus"
+    ],
+    "defaultSort": [
+      {
+        "field": "session_date",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

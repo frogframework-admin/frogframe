@@ -91,6 +91,15 @@
       "column": 2
     },
     {
+      "name": "allowed_unit_types",
+      "type": "Data",
+      "label": "Allowed unit types",
+      "maxLength": 200,
+      "section": "Job",
+      "column": 2,
+      "description": "Optional comma-separated OrganizationUnitType codes (advisory warning if used elsewhere)"
+    },
+    {
       "name": "summary",
       "type": "TextEditor",
       "label": "Job description",

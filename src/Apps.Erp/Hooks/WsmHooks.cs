@@ -1314,6 +1314,9 @@ public sealed class ApprovalDelegationRefreshJob : IScheduledJob
         ("EmployeeAdvance", "expense_approver", "employee", "Pending Manager", "expense_approver"),
         ("PurchaseRequest", "approver", "requested_by", "Pending Approval", "expense_approver"),
         ("PurchaseRequest", "project_approver", "requested_by", "Pending Project Approval", null),
+        ("TrainingRequest", "approver", "employee", "Pending Manager", "reports_to"),
+        ("Appraisal", "reviewer", "employee", "Self review done", "reports_to"),
+        ("Appraisal", "reviewer", "employee", "Draft", "reports_to"),
     ];
 
     public async Task ExecuteAsync(ScheduledJobContext context, CancellationToken ct)
