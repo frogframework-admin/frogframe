@@ -249,8 +249,8 @@
   "rules": [
     {
       "name": "has_change",
-      "expr": "!empty(new_organization_unit) || !empty(new_position) || !empty(new_job_profile) || !empty(new_grade) || !empty(new_location) || !empty(new_cost_center) || !empty(new_reports_to) || !empty(new_employment_type)",
-      "message": "Fill at least one new value",
+      "expr": "!empty(new_company) || !empty(new_organization_unit) || !empty(new_position) || !empty(new_job_profile) || !empty(new_grade) || !empty(new_location) || !empty(new_cost_center) || !empty(new_reports_to) || !empty(new_employment_type) || adjust_salary == true",
+      "message": "Fill at least one new value or adjust the salary",
       "field": "change_reason"
     }
   ],

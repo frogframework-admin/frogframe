@@ -4,6 +4,7 @@ using Framework.Metadata;
 using Framework.Persistence;
 using Framework.Security;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Apps.Erp.Hooks;
 
@@ -374,17 +375,17 @@ public sealed class ProbationReminderJob : IScheduledJob
         var inbox = context.Services.GetRequiredService<INotificationStore>();
         var today = DateOnly.FromDateTime(context.ScheduledTime.Date);
         var horizon = today.AddDays(14);
+        // An evaluation counts for the probation end date it was made for: after "Extended" the new end date needs its own.
         var evaluated = (await m.QueryAsync("ProbationEvaluation", [], ct, take: 50000))
-            .Where(x => x.DocStatus != DocStatus.Cancelled)
-            .Select(x => x.Data.Str("employee"))
-            .OfType<string>()
+            .Where(x => x.DocStatus != DocStatus.Cancelled && x.Data.Str("employee") is not null)
+            .Select(x => $"{x.Data.Str("employee")}|{x.Data.Str("probation_end_date")}")
             .ToHashSet(StringComparer.Ordinal);
 
         foreach (var emp in await m.QueryAsync("Employee", [], ct, take: 50000))
         {
             if (emp.Data.Str("status") == Hr.Left) continue;
-            if (evaluated.Contains(emp.Name)) continue;
             if (emp.Data.Date("probation_end_date") is not { } pe || pe < today || pe > horizon) continue;
+            if (evaluated.Contains($"{emp.Name}|{D.Iso(pe)}")) continue;
 
             var subject = $"Probation of {emp.Data.Str("full_name")} ends on {D.Iso(pe)}";
             const string body = "Create and submit a Probation Evaluation (Passed, Extended, or Failed).";
@@ -395,36 +396,105 @@ public sealed class ProbationReminderJob : IScheduledJob
     }
 }
 
-/// <summary>Daily: anonymize rejected or withdrawn JobApplicants past HRSettings.applicant_retention_months (UU PDP).</summary>
+/// <summary>
+/// Daily (UU PDP): applicants that were Rejected or Withdrawn longer than HRSettings.applicant_retention_months ago
+/// (default 12) are anonymized: name, contact, personal data, notes and the privacy-notice text are cleared, the CV file
+/// is deleted, and interview feedback is removed. Stage dates stay (without notes) so recruitment metrics still work.
+/// The retention period starts when the applicant reached that status (stage history), else at the last change.
+/// One failing applicant does not stop the others.
+/// </summary>
 public sealed class ApplicantRetentionJob : IScheduledJob
 {
+    public const string AnonymizedName = "Anonymized applicant";
+
     public string Name => "Erp.ApplicantRetention";
     public string Schedule => "@daily";
 
     public async Task ExecuteAsync(ScheduledJobContext context, CancellationToken ct)
     {
-        var m = new Masters(context.Services.GetRequiredService<IDocumentStore>(), context.TenantId);
+        var store = context.Services.GetRequiredService<IDocumentStore>();
+        var files = context.Services.GetService<Framework.Files.IFileStore>();
+        var log = context.Services.GetService<Microsoft.Extensions.Logging.ILoggerFactory>()?.CreateLogger<ApplicantRetentionJob>();
+        var m = new Masters(store, context.TenantId);
         var months = (int)(await m.SingleAsync("HRSettings", ct)).Dec("applicant_retention_months");
         if (months <= 0) months = 12;
         var cutoff = context.ScheduledTime.AddMonths(-months);
-        var sys = new SystemDocs(context.Docs, context.TenantId);
 
         foreach (var app in await m.QueryAsync("JobApplicant", [], ct, take: 50000))
         {
-            if (app.Data.Str("status") is not ("Rejected" or "Withdrawn")) continue;
-            if (app.Modified >= cutoff) continue;
-            if (app.Data.Str("full_name") == "Anonymized Applicant") continue;
-
-            await sys.UpdateAsync("JobApplicant", app.Name, new Dictionary<string, object?>
+            var status = app.Data.Str("status");
+            if (status is not ("Rejected" or "Withdrawn") || app.Data.Str("anonymized_at") is not null) continue;
+            if (StageReachedAt(app, status) >= cutoff) continue;
+            try
             {
-                ["full_name"] = "Anonymized Applicant",
-                ["email"] = $"anonymized-{app.Name.ToLowerInvariant()}@redacted.local",
-                ["phone"] = null,
-                ["resume"] = null,
-                ["national_id"] = null,
-                ["address"] = null,
-            }, ct);
+                await AnonymizeAsync(store, m, files, app, context.ScheduledTime, ct);
+            }
+            catch (ConcurrencyException ex)
+            {
+                log?.LogWarning(ex, "Applicant {Applicant} could not be anonymized", app.Name);
+            }
         }
+    }
+
+    /// <summary>When the applicant reached <paramref name="status"/> (also used for metrics): the latest matching stage-history entry, else the last change.</summary>
+    public static DateTimeOffset StageReachedAt(Document app, string status)
+    {
+        var at = app.Data.Rows("stage_history")
+            .Where(r => r.Str("stage") == status)
+            .Select(r => DateTimeOffset.TryParse(r.Str("changed_at"), System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.AssumeUniversal, out var t) ? t : (DateTimeOffset?)null)
+            .Where(t => t is not null)
+            .Max();
+        return at ?? app.Modified;
+    }
+
+    /// <summary>
+    /// Written straight to the store in one unit of work (with an audit entry): several of these fields are read-only in
+    /// the form (stage history, privacy notice, anonymized_at) and the record must not run the applicant hooks again.
+    /// </summary>
+    internal static async Task AnonymizeAsync(IDocumentStore store, Masters m, Framework.Files.IFileStore? files, Document app, DateTimeOffset now, CancellationToken ct)
+    {
+        var uow = new UnitOfWork();
+        var interviews = await m.QueryAsync("Interview", [new FilterClause("job_applicant", "=", app.Name)], ct, take: 100);
+        foreach (var iv in interviews)
+        {
+            var ivClone = iv.Clone();
+            ivClone.Data["feedback"] = null;
+            ivClone.Data["applicant_name"] = AnonymizedName;
+            ivClone.Data["scorecard"] = iv.Data.Rows("scorecard").Select(r => new Dictionary<string, object?>(r) { ["notes"] = null }).ToList();
+            Stamp(ivClone, iv, now);
+            uow.Upserts.Add((ivClone, iv.Version));
+        }
+
+        var clone = app.Clone();
+        var d = clone.Data;
+        d["applicant_name"] = AnonymizedName;
+        d["email"] = $"anonymized-{app.Name.ToLowerInvariant()}@redacted.invalid";
+        foreach (var f in new[] { "mobile", "gender", "date_of_birth", "expected_salary", "notes", "resume", "consent_text" }) d[f] = null;
+        if (app.Data.Str("status") == "Rejected") d["rejection_reason"] = "Removed (data retention)";
+        d["stage_history"] = app.Data.Rows("stage_history")
+            .Select(r => new Dictionary<string, object?>(r) { ["notes"] = null, ["changed_by"] = null }).ToList();
+        d["anonymized_at"] = now.ToString(DatetimeFieldType.Format, System.Globalization.CultureInfo.InvariantCulture);
+        Stamp(clone, app, now);
+        uow.Upserts.Add((clone, app.Version));
+        uow.Audits.Add(new AuditEntry
+        {
+            TenantId = app.TenantId, DocType = app.DocType, DocName = app.Name, Action = "Anonymized", Actor = "system", At = now,
+            Changes = [], Comment = $"Personal data removed after the retention period ({interviews.Count} interview(s) cleared)",
+            SchemaVersion = app.SchemaVersion,
+        });
+        await store.CommitAsync(uow, ct);
+
+        // The CV goes last: if saving failed above, the applicant still points to an existing file.
+        if (app.Data.Str("resume") is { } fileId && files is not null)
+            await files.DeleteAsync(app.TenantId, fileId, ct);
+    }
+
+    private static void Stamp(Document clone, Document original, DateTimeOffset now)
+    {
+        clone.Version = original.Version + 1;
+        clone.Modified = now;
+        clone.ModifiedBy = "system";
     }
 }
 
@@ -485,8 +555,8 @@ internal static class HrNotices
         var inbox = services.GetService<INotificationStore>();
         if (users is null || inbox is null) return;
         await Notify.ToRoleAsync(users, inbox, tenant, ErpRoles.HrEmployeeManagement,
-            $"Supervisor review needed after {docType} {docName}",
-            $"Set the supervisor (or an Acting/Plt. assignment) for: {string.Join("; ", problems)}.",
+            $"HR follow-up needed after {docType} {docName}",
+            $"Follow up (supervisor, Acting/Plt. assignment or salary): {string.Join("; ", problems)}.",
             docType, docName, $"supervisor-gap|{docType}|{docName}", ct);
     }
 }

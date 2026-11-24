@@ -1,0 +1,32 @@
+{
+  "name": "AnnouncementAcknowledgment",
+  "version": 1,
+  "title": "Announcement Acknowledgment",
+  "module": "CORE",
+  "isChild": true,
+  "description": "Who confirmed reading a mandatory announcement, and when.",
+  "fields": [
+    {
+      "name": "employee",
+      "type": "Link",
+      "label": "Employee",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "employee_name",
+      "type": "Data",
+      "label": "Name",
+      "readOnlyWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "acknowledged_at",
+      "type": "Datetime",
+      "label": "Acknowledged at",
+      "readOnlyWhen": "true",
+      "inListView": true
+    }
+  ]
+}

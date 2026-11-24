@@ -34,6 +34,13 @@ public interface IFileStore
     Task<FileRecord?> GetInfoAsync(string tenantId, string id, CancellationToken ct = default);
     Task<(FileRecord Record, byte[] Content)?> GetAsync(string tenantId, string id, CancellationToken ct = default);
     Task AttachAsync(string tenantId, string id, string docType, string docName, string field, CancellationToken ct = default);
+
+    /// <summary>
+    /// Deletes one file of the tenant (record and content), e.g. personal data past its retention period.
+    /// Returns false when the file does not exist or the store cannot delete. Older implementations compile unchanged.
+    /// </summary>
+    Task<bool> DeleteAsync(string tenantId, string id, CancellationToken ct = default) => Task.FromResult(false);
+
     /// <summary>Menghapus file yang tidak pernah ditautkan ke dokumen dan lebih tua dari <paramref name="cutoff"/>. Mengembalikan jumlahnya.</summary>
     Task<int> PruneOrphansAsync(DateTimeOffset cutoff, CancellationToken ct = default);
 
@@ -70,6 +77,9 @@ public sealed class InMemoryFileStore : IFileStore
             _files[id] = (f.Record with { DocType = docType, DocName = docName, Field = field }, f.Content);
         return Task.CompletedTask;
     }
+
+    public Task<bool> DeleteAsync(string tenantId, string id, CancellationToken ct = default) =>
+        Task.FromResult(_files.TryGetValue(id, out var f) && f.Record.TenantId == tenantId && _files.TryRemove(id, out _));
 
     public async Task<int> PruneOrphansAsync(DateTimeOffset cutoff, CancellationToken ct = default) =>
         (await PruneOrphansReturningAsync(cutoff, ct)).Count;

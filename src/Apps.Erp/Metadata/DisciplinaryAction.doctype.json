@@ -89,6 +89,23 @@
       "label": "Valid until",
       "inListView": true,
       "section": "Validity",
+      "column": 2,
+      "description": "Defaults to the issue date plus HR Settings › 'Validity of warning letters' for SP1–SP3"
+    },
+    {
+      "name": "warning_status",
+      "type": "Select",
+      "label": "Status",
+      "options": [
+        "Draft",
+        "Active",
+        "Expired",
+        "Cancelled"
+      ],
+      "readOnlyWhen": "true",
+      "noCopy": true,
+      "inListView": true,
+      "section": "Validity",
       "column": 2
     },
     {
@@ -195,5 +212,13 @@
       "update",
       "action"
     ]
-  }
+  },
+  "rules": [
+    {
+      "name": "valid_after_issue",
+      "expr": "empty(valid_until) || valid_until >= issued_date",
+      "message": "'Valid until' must be on or after the issue date",
+      "field": "valid_until"
+    }
+  ]
 }

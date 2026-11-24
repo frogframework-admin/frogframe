@@ -22,6 +22,8 @@ Foundational master data, organization settings, locations, currencies, customer
 
 | DocType | Label / Title | Type | Submittable | Workflow | Description |
 |---|---|---|---|---|---|
+| `Announcement` | Announcement | Document | No | - | Company/unit announcement on the Home page during its publish window; optional mandatory read with an 'I have read this' action. |
+| `AnnouncementAcknowledgment` | Announcement Acknowledgment | Child | No | - | Employee and time of a confirmed read of a mandatory announcement. |
 | `Address` | Address | Document | No | - | One address can be used by several parties (Customer, Supplier, Company, Location). |
 | `Bank` | Bank | Document | No | - | Bank entity. |
 | `Company` | Company | Document | No | - | Legal entity (SAP Company Code / NetSuite Subsidiary / Workday Company). |
@@ -68,6 +70,14 @@ Comprehensive human capital management covering employee profiles, organizationa
 | `TalentReview` | Talent Review | Document | Yes | - | 9-Box Talent Review (Performance vs Potential), flight risk, impact of loss, and talent pool placement per cycle. |
 | `TrainingProgram` | Training Program | Document | No | - | Reusable training course catalog linked to competencies, providers, and estimated cost. |
 | `TrainingRequest` | Training Request | Document | Yes | `TrainingRequestApproval` | Employee or manager request for a training program or external course, routed through manager and HR Talent approval. |
+| `CalibrationSession` | Calibration Session | Document | Yes | - | Committee session that calibrates Talent Reviews of one appraisal cycle (and unit). Reviews must match its cycle and unit; once submitted, linked 9-box levels are locked and no reviews can be added. |
+| `CompetencyLevel` | Competency Level | Child | No | - | Definition of proficiency level 1–5 of a Competency, with behavioral indicators and assessment criteria. |
+| `DisciplinaryAction` | Disciplinary Action | Document | Yes | - | Warning letter (verbal, SP1–SP3, suspension). 'Valid until' defaults from HR Settings (6 months); status Active/Expired; advisory escalation check. |
+| `EmployeeCertification` | Employee Certification | Child | No | - | Certificate of an employee (issuer, number, expiry); reminders 30 and 7 days before expiry. |
+| `EmployeeDocument` | Employee Document | Child | No | - | Central archive of an employee's documents (contract, SK, agreements, tax/BPJS, medical). |
+| `InterviewScorecard` | Interview Scorecard | Child | No | - | Competency score (1–5) on an Interview, prefilled from the Job Profile. |
+| `JobApplicantStageHistory` | Applicant Stage History | Child | No | - | Date and user of each applicant status change (basis for time-to-hire). |
+| `ProbationEvaluation` | Probation Evaluation | Document | Yes | - | Probation result (Passed / Extended / Failed) by the direct manager or HR. Extended moves the probation end date; Failed creates a draft separation (PHK). |
 | `Attendance` | Attendance | Document | No | - | Daily attendance per employee (Workday Time Tracking). Locked once the payslip for its month is submitted. |
 | `Employee` | Employee | Document | No | - | Worker record (Workday Worker). Job changes go through Job Change, exits through Employee Separation. |
 | `EmployeeDependent` | Dependents | Document | No | - | Dependents entity. |

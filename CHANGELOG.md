@@ -11,6 +11,13 @@ Releases are tagged `vMAJOR.MINOR.PATCH` on `main`. Add every user-visible chang
 ## [Unreleased]
 
 ### Added
+- HRM review follow-up (24 Nov 2026):
+  - **9-Box Talent Grid** report (`erp-nine-box`) per appraisal cycle, unit (with sub-units) and calibration session.
+  - **Announcement acknowledgments**: "I have read this" on mandatory announcements, with who and when (`AnnouncementAcknowledgment`) and a count; HR cannot alter them by editing. Announcements reach sub-units (option), respect the target company and use the employee's current unit.
+  - **Disciplinary Action**: "valid until" defaults to the issue date + HR Settings `warning_validity_months` (6) for SP1–SP3, status Active/Expired, advisory escalation check (SP2 without active SP1, SP3 without active SP2).
+  - **Offer needs an interview**: a Job Offer requires a passed interview with feedback or scorecard scores, unless HR Settings `allow_offer_without_interview` is on.
+  - Menus for Announcement, Probation Evaluation, Disciplinary Action and Calibration Session.
+  - `IFileStore.DeleteAsync` (in-memory, PostgreSQL, object storage) to delete a single file.
 - Careers portal API (`docs/guides/careers-portal-api.md`): a public, sign-in-free API `/api/careers/v1/{tenant}` for a separate careers website. New DocType **Job Posting** (what applicants see of an approved requisition: title, location, publication window, sanitized description; one published posting per requisition; status Live/Scheduled/Closed/Unpublished). Applying stores the CV and e-mails a confirmation link; only a confirmed application becomes a Job Applicant (source *Company website*, linked to the posting, consent time and privacy notice text stored). Applicants check status and withdraw through a signed e-mail link, without an account; internal stages are grouped and rejection reasons are never shown. HR Settings section *Careers portal* (on/off, portal address, privacy notice, reply-to). Per-IP rate limits (`Careers:ReadPerMinute`, `Careers:SubmitPerMinute`), CORS for the portal address, a honeypot field and an optional siteverify captcha (`Careers:Captcha:*`, Turnstile/hCaptcha/reCAPTCHA). Menu *Talent & Recruitment › Job Posting*.
 - Position template per organization unit type (`docs/guides/position-templates.md`): a unit type lists job profiles and how many positions each unit gets (one head line). A new active unit with staffing model *Position* gets its positions automatically (head first, staff report to the head, the head reports to the parent unit's head, the unit's head position is set). *Sync positions to units* on the unit type adds new lines to existing units and closes vacant auto-created positions above a lowered quantity; filled positions are reported, never closed. New child DocType `OrganizationUnitTypePosition`; new Position field *Created from unit type template*.
 - ESS self-service API (`docs/guides/ess-mobile-api.md` section 12):
@@ -99,6 +106,18 @@ Releases are tagged `vMAJOR.MINOR.PATCH` on `main`. Add every user-visible chang
 - Outside Development the application refuses to start while a secret in use is a `change-me` placeholder, a repository default, or shorter than 12 characters.
 
 ### Fixed
+- HRM review follow-up (24 Nov 2026):
+  - Applicant retention job used fields that do not exist and stopped on the first applicant: it now anonymizes applicant, stage-history notes and interview feedback in one write, deletes the CV file, records `anonymized_at`, and counts the retention period from the date of rejection/withdrawal.
+  - "Create employee" from an offer failed after the employee was created (onboarding list field `boarding_begins_on`): the onboarding list is now created with `start_date`, and a failure is reported in the message.
+  - "Propose Job Change" on an appraisal always failed (no new value): it now opens a prefilled Job Change form. The `has_change` rule accepts a new company or a salary-only adjustment.
+  - Job Change salary used fields that do not exist on Salary Assignment and failures were swallowed: it now uses `from_date` and an earnings row (component from the Job Change or Payroll Settings); failures go to HR as a follow-up notice.
+  - Talent records were visible to managers in lists, reports and exports even with manager access off: the Manager permission on Talent Review and Succession Plan is now scoped to the stored `manager_viewer`; Development Plans are visible to the direct manager.
+  - Probation Evaluation: only the direct manager or HR can evaluate; a failed probation created a separation with an invalid type ("Termination" → "PHK"); the reminder now also covers an extended probation.
+  - Requisition headcount check counted filled and cancelled requisitions; it now counts openings still to fill of pending and approved requisitions.
+  - Requisition workflow: rejecting at the unit-head step needs the unit head or HR, approving with no unit head needs HR, and a pending requisition cannot be changed by the requester (HR can).
+  - Recruitment metrics used the last change date for "days to hire"; it now uses the date of the Hired stage. The new-applicant notice showed an empty name.
+  - Calibration: reviews must match the session's cycle and unit; a finalized session locks scores too and accepts no new reviews.
+  - Removed the duplicate `CompetencyCatalog` DocType (levels live in `Competency.proficiency_levels`).
 - When an employee leaves (Employee Separation) or a manager changes position (Job Change), their direct reports kept the old supervisor, so new leave and expense requests went to someone who had left or moved. Their supervisor is now recomputed from position and unit, the leave and expense approvers follow (manual overrides to other people are kept), and HR (HR-Employee-Management) gets an inbox notice for employees left without a supervisor.
 - ESS approvals list no longer misses requests whose pending state is already submitted (overtime, attendance corrections), shows shift swaps waiting for the manager, and no longer fails on project or HR steps by always sending `Approve`/`Reject`; the home *my pending requests* count includes the same requests.
 - Home page greeting, date and My Tasks "due today" / "overdue" use the application time zone instead of the server clock (UTC in a container without `TZ`), and the greeting has four periods (Indonesian "Selamat sore" between 15:00 and 18:00).

@@ -65,7 +65,6 @@
       "type": "Link",
       "label": "Reports to",
       "linkTo": "Employee",
-      "fetchFrom": "employee.reports_to",
       "readOnlyWhen": "true",
       "section": "Plan",
       "column": 2
@@ -152,6 +151,14 @@
       "scope": "match:mentor=employee"
     },
     {
+      "role": "Employee",
+      "actions": [
+        "read",
+        "write"
+      ],
+      "scope": "match:reports_to=employee"
+    },
+    {
       "role": "HR-Talent",
       "actions": [
         "read",
@@ -171,14 +178,6 @@
         "export"
       ],
       "scope": "all"
-    },
-    {
-      "role": "Manager",
-      "actions": [
-        "read",
-        "report"
-      ],
-      "scope": "match:reports_to=employee"
     },
     {
       "role": "System Manager",

@@ -1,6 +1,7 @@
 using Framework.Actions;
 using Framework.Documents;
 using Framework.Hooks;
+using Framework.Jobs;
 using Framework.Persistence;
 using Framework.Security;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,16 +16,86 @@ public sealed class TrainingRequest { }
 public sealed class TrainingEvent { }
 public sealed class JobProfile { }
 
+/// <summary>
+/// Who besides HR sees talent records (Talent Review, Succession Plan, Development Plan). The Manager permission is
+/// scoped to the stored field <c>manager_viewer</c> (match:manager_viewer=employee), so list, report, export and API
+/// follow the same rule as opening one record. <c>manager_viewer</c> = the employee's direct manager when
+/// HR Settings › <c>allow_manager_talent_access</c> is on, else empty (HR-Talent only). Hooks set it on save;
+/// <see cref="RefreshAsync"/> rewrites it on existing (also submitted) records when the setting or a reporting line
+/// changes (HR Settings save, daily job).
+/// </summary>
 internal static class TalentAccess
 {
-    public static async Task EnforceManagerSettingAsync(IDocumentStore store, HookContext c, CancellationToken ct, bool allowSelfOrMentor = false)
+    /// <summary>
+    /// DocType, the field with the employee whose manager is meant, and whether the record has <c>manager_viewer</c>
+    /// (Development Plans have not: the direct manager always reads and approves them through reports_to).
+    /// </summary>
+    public static readonly (string DocType, string EmployeeField, bool HasViewer)[] Targets =
+        [("TalentReview", "employee", true), ("SuccessionPlan", "incumbent_employee", true), ("DevelopmentPlan", "employee", false)];
+
+    public static async Task<bool> ManagerAccessAsync(Masters m, CancellationToken ct) =>
+        (await m.SingleAsync("HRSettings", ct)).Bool("allow_manager_talent_access");
+
+    /// <summary>Sets <c>reports_to</c> and <c>manager_viewer</c> on a record being saved.</summary>
+    public static async Task ApplyAsync(Masters m, IDictionary<string, object?> d, string employeeField, CancellationToken ct, bool hasViewer = true)
     {
-        if (c.User.IsAdmin || c.User.HasRole(ErpRoles.HrTalent) || c.User.HasRole(ErpRoles.HrAdmin)) return;
-        if (allowSelfOrMentor && c.User.Attr("employee") is { } me && (me == c.Doc.Data.Str("employee") || me == c.Doc.Data.Str("mentor"))) return;
-        var hr = await new Masters(store, c.Doc.TenantId).SingleAsync("HRSettings", ct);
-        if (hr.Bool("allow_manager_talent_access") != true)
-            throw new PermissionDeniedException("Manager access to talent records is restricted to HR-Talent in HR Settings.");
+        var emp = d.Str(employeeField);
+        var boss = string.IsNullOrEmpty(emp) ? null : await m.StrAsync("Employee", emp, "reports_to", ct);
+        d["reports_to"] = boss;
+        if (hasViewer) d["manager_viewer"] = boss is not null && await ManagerAccessAsync(m, ct) ? boss : null;
     }
+
+    /// <summary>Rewrites <c>reports_to</c> / <c>manager_viewer</c> where they differ from the current rule. Returns the number of records changed.</summary>
+    /// <param name="allowOverride">The setting as just saved (AfterSave runs before the HR Settings commit); null = read it.</param>
+    public static async Task<int> RefreshAsync(IDocumentStore store, string tenant, DateTimeOffset now, CancellationToken ct, bool? allowOverride = null)
+    {
+        var m = new Masters(store, tenant);
+        var allow = allowOverride ?? await ManagerAccessAsync(m, ct);
+        var changed = 0;
+        foreach (var (docType, employeeField, hasViewer) in Targets)
+        {
+            foreach (var doc in await m.QueryAsync(docType, [], ct, take: 20000))
+            {
+                var emp = doc.Data.Str(employeeField);
+                var boss = string.IsNullOrEmpty(emp) ? null : await m.StrAsync("Employee", emp, "reports_to", ct);
+                var viewer = allow ? boss : null;
+                if (doc.Data.Str("reports_to") == boss && (!hasViewer || doc.Data.Str("manager_viewer") == viewer)) continue;
+
+                var clone = doc.Clone();
+                clone.Data["reports_to"] = boss;
+                if (hasViewer) clone.Data["manager_viewer"] = viewer;
+                clone.Version = doc.Version + 1;
+                clone.Modified = now;
+                clone.ModifiedBy = "system";
+                var uow = new UnitOfWork();
+                uow.Upserts.Add((clone, doc.Version));
+                try { await store.CommitAsync(uow, ct); changed++; }
+                catch (ConcurrencyException) { /* edited meanwhile: its own save already applied the rule */ }
+            }
+        }
+        return changed;
+    }
+}
+
+/// <summary>HR Settings: turning manager access to talent records on or off updates existing records at once.</summary>
+public sealed class HRSettingsTalentAccessHook(IDocumentStore store, TimeProvider? clock = null) : IAfterSave<Ess.HRSettings>
+{
+    public async Task AfterSaveAsync(HookContext c, CancellationToken ct)
+    {
+        if (c.Previous is not null && c.Previous.Data.Bool("allow_manager_talent_access") == c.Doc.Data.Bool("allow_manager_talent_access")) return;
+        await TalentAccess.RefreshAsync(store, c.Doc.TenantId, (clock ?? TimeProvider.System).GetUtcNow(), ct,
+            c.Doc.Data.Bool("allow_manager_talent_access"));
+    }
+}
+
+/// <summary>Daily: keeps manager access to talent records in step with reporting lines (job changes, resignations).</summary>
+public sealed class TalentAccessRefreshJob : IScheduledJob
+{
+    public string Name => "Erp.TalentAccessRefresh";
+    public string Schedule => "@daily";
+
+    public Task ExecuteAsync(ScheduledJobContext context, CancellationToken ct) =>
+        TalentAccess.RefreshAsync(context.Services.GetRequiredService<IDocumentStore>(), context.TenantId, DateTimeOffset.UtcNow, ct);
 }
 
 /// <summary>Job Profile: isi nama dan kategori kompetensi di child table JobProfileCompetency.</summary>
@@ -168,7 +239,11 @@ public sealed class AppraisalHook(IDocumentStore store, IServiceProvider? servic
     }
 }
 
-/// <summary>Appraisal → Job Change: create a draft promotion/merit Job Change from a completed Appraisal.</summary>
+/// <summary>
+/// Appraisal → Job Change: opens a new Job Change form prefilled with the employee, reason Promotion, today's date and
+/// the appraisal result. HR fills the new grade/position or salary and saves; nothing is created until then, because a
+/// Job Change needs at least one change (rule has_change).
+/// </summary>
 public sealed class AppraisalCreateJobChangeAction(TimeProvider clock) : IFormAction<Appraisal>
 {
     public string ActionId => "erp.appraisal.create_job_change";
@@ -179,27 +254,28 @@ public sealed class AppraisalCreateJobChangeAction(TimeProvider clock) : IFormAc
         doc.WorkflowState == "Completed"
         && (user.IsAdmin || user.HasRole(ErpRoles.HrTalent) || user.HasRole(ErpRoles.HrEmployeeManagement));
 
-    public async Task<FormActionResult> ExecuteAsync(FormActionContext ctx, CancellationToken ct)
+    public Task<FormActionResult> ExecuteAsync(FormActionContext ctx, CancellationToken ct)
     {
         var d = ctx.Doc.Data;
-        var empId = d.Str("employee");
-        if (string.IsNullOrEmpty(empId)) return FormActionResult.Fail("Employee is required.");
-        var jc = await ctx.Docs.InsertAsync(ctx.User, "JobChange", new Dictionary<string, object?>
-        {
-            ["employee"] = empId,
-            ["change_reason"] = "Promotion",
-            ["effective_date"] = D.Iso(Hr.Today(clock)),
-            ["remarks"] = $"Proposed from Appraisal {ctx.Doc.Name} (Rating: {d.Str("rating") ?? "N/A"})",
-        }, ct);
-        return FormActionResult.NavigateTo($"/app/JobChange/{jc.Name}", $"Created Job Change {jc.Name}.");
+        if (d.Str("employee") is not { Length: > 0 } empId) return Task.FromResult(FormActionResult.Fail("Employee is required."));
+        return Task.FromResult(FormActionResult.NavigateTo(PrefillUrl(ctx.Doc, empId, Hr.Today(clock)), "Fill in the new grade, position or salary, then save."));
+    }
+
+    public static string PrefillUrl(Document appraisal, string employee, DateOnly today)
+    {
+        var d = appraisal.Data;
+        var remarks = $"Proposed from Appraisal {appraisal.Name} (rating {d.Str("rating") ?? "-"}, score {d.Dec("final_score"):0.##})";
+        static string Q(string k, string v) => $"prefill.{k}={Uri.EscapeDataString(v)}";
+        return "/app/JobChange/new?" + string.Join("&",
+            Q("employee", employee), Q("change_reason", "Promotion"), Q("effective_date", D.Iso(today)), Q("remarks", remarks));
     }
 }
 
 /// <summary>Talent Review: satu per (karyawan, siklus); hitung posisi 9-Box Grid dari Performance vs Potential.</summary>
-public sealed class TalentReviewHook(IDocumentStore store) : IBeforeValidate<TalentReview>, IOnLoad<TalentReview>
+public sealed class TalentReviewHook(IDocumentStore store) : IBeforeValidate<TalentReview>
 {
-    public Task OnLoadAsync(HookContext c, CancellationToken ct) =>
-        TalentAccess.EnforceManagerSettingAsync(store, c, ct);
+    private static bool NineBoxInputsChanged(IDictionary<string, object?> before, IDictionary<string, object?> after) =>
+        new[] { "aspiration_score", "learning_agility_score", "leadership_score" }.Any(f => before.Dec(f) != after.Dec(f));
 
     public static string NineBox(string? performance, string? potential) => (performance, potential) switch
     {
@@ -220,8 +296,7 @@ public sealed class TalentReviewHook(IDocumentStore store) : IBeforeValidate<Tal
         var m = new Masters(store, c.Doc.TenantId);
         var d = c.Doc.Data;
         var empId = d.Str("employee");
-        if (!string.IsNullOrEmpty(empId))
-            d["reports_to"] = await m.StrAsync("Employee", empId, "reports_to", ct);
+        await TalentAccess.ApplyAsync(m, d, "employee", ct);
 
         var dup = (await m.QueryAsync("TalentReview", [new FilterClause("employee", "=", empId), new FilterClause("appraisal_cycle", "=", d.Str("appraisal_cycle"))], ct, take: 10))
             .FirstOrDefault(x => x.Name != c.Doc.Name && x.DocStatus != DocStatus.Cancelled && x.Name != d.Str("amended_from"));
@@ -254,12 +329,29 @@ public sealed class TalentReviewHook(IDocumentStore store) : IBeforeValidate<Tal
 
         if (!string.IsNullOrEmpty(d.Str("calibration_session")))
         {
-            var cal = await m.GetAsync("CalibrationSession", d.Str("calibration_session"), ct);
-            if (cal?.DocStatus == DocStatus.Submitted && c.Previous is not null
-                && (c.Previous.Data.Str("performance_level") != d.Str("performance_level")
-                    || c.Previous.Data.Str("potential_level") != d.Str("potential_level")))
+            var cal = await m.RequireAsync("CalibrationSession", d.Str("calibration_session"), "calibration_session", "Calibration session", ct);
+            var linkedNow = c.Previous?.Data.Str("calibration_session") != cal.Name;
+            if (linkedNow)
+            {
+                if (cal.DocStatus == DocStatus.Cancelled)
+                    throw Errors.One("calibration_session", $"Calibration session {cal.Name} is cancelled");
+                if (cal.DocStatus == DocStatus.Submitted)
+                    throw Errors.One("calibration_session", $"Calibration session {cal.Name} is finalized; reviews cannot be added to it");
+                if (cal.Data.Str("appraisal_cycle") != d.Str("appraisal_cycle"))
+                    throw Errors.One("calibration_session", $"Calibration session {cal.Name} is for another appraisal cycle");
+                if (cal.Data.Str("organization_unit") is { } calUnit
+                    && !(await Announcements.UnitChainAsync(m, await m.StrAsync("Employee", empId, "organization_unit", ct), ct)).Contains(calUnit))
+                    throw Errors.One("calibration_session", $"{empId} is not in unit {calUnit} of calibration session {cal.Name}");
+            }
+            else if (cal.DocStatus == DocStatus.Submitted
+                && (c.Previous!.Data.Str("performance_level") != d.Str("performance_level")
+                    || c.Previous.Data.Str("potential_level") != d.Str("potential_level")
+                    || NineBoxInputsChanged(c.Previous.Data, d)))
                 throw Errors.One("calibration_session", $"Calibration session {cal.Name} is finalized; 9-box levels are locked");
         }
+        else if (c.Previous?.Data.Str("calibration_session") is { } oldCal
+            && (await m.GetAsync("CalibrationSession", oldCal, ct))?.DocStatus == DocStatus.Submitted)
+            throw Errors.One("calibration_session", $"Calibration session {oldCal} is finalized; the review cannot be removed from it");
 
         var potScores = new[] { d.Dec("aspiration_score"), d.Dec("learning_agility_score"), d.Dec("leadership_score") }.Where(s => s > 0m).ToList();
         if (potScores.Count > 0)
@@ -277,7 +369,6 @@ public sealed class SuccessionPlanHook(IDocumentStore store) : IBeforeValidate<S
 {
     public async Task OnLoadAsync(HookContext c, CancellationToken ct)
     {
-        await TalentAccess.EnforceManagerSettingAsync(store, c, ct);
         var m = new Masters(store, c.Doc.TenantId);
         foreach (var r in c.Doc.Data.Rows("candidates"))
         {
@@ -308,7 +399,7 @@ public sealed class SuccessionPlanHook(IDocumentStore store) : IBeforeValidate<S
             d["incumbent_employee"] = (await Hr.HolderAsync(m, pos, null, ct))?.Name;
 
         var incumbent = d.Str("incumbent_employee");
-        d["reports_to"] = !string.IsNullOrEmpty(incumbent) ? await m.StrAsync("Employee", incumbent, "reports_to", ct) : null;
+        await TalentAccess.ApplyAsync(m, d, "incumbent_employee", ct);
 
         var rows = d.Rows("candidates");
         foreach (var g in rows.GroupBy(r => r.Str("employee")).Where(g => g.Key is not null && g.Count() > 1))
@@ -337,16 +428,12 @@ public sealed class SuccessionPlanHook(IDocumentStore store) : IBeforeValidate<S
 }
 
 /// <summary>Development Plan (IDP): hitung progres rata-rata sasaran 70-20-10 dan validasi kelengkapan saat Completed.</summary>
-public sealed class DevelopmentPlanHook(IDocumentStore store) : IBeforeValidate<DevelopmentPlan>, IOnLoad<DevelopmentPlan>
+public sealed class DevelopmentPlanHook(IDocumentStore store) : IBeforeValidate<DevelopmentPlan>
 {
-    public Task OnLoadAsync(HookContext c, CancellationToken ct) =>
-        TalentAccess.EnforceManagerSettingAsync(store, c, ct, allowSelfOrMentor: true);
-
     public async Task BeforeValidateAsync(HookContext c, CancellationToken ct)
     {
         var d = c.Doc.Data;
-        if (d.Str("employee") is { } empId && !string.IsNullOrEmpty(empId))
-            d["reports_to"] = await new Masters(store, c.Doc.TenantId).StrAsync("Employee", empId, "reports_to", ct);
+        await TalentAccess.ApplyAsync(new Masters(store, c.Doc.TenantId), d, "employee", ct, hasViewer: false);
         var isHrOrAdmin = c.User.IsAdmin || c.User.HasRole(ErpRoles.HrTalent);
         if (c.Previous?.Data.Str("status") == "Completed" && !isHrOrAdmin)
             throw Errors.One("status", "Completed development plans are locked and can only be modified by HR-Talent");

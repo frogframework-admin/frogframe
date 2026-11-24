@@ -52,9 +52,18 @@
       "type": "Link",
       "label": "Reports to",
       "linkTo": "Employee",
-      "fetchFrom": "employee.reports_to",
       "readOnlyWhen": "true",
       "section": "Employee"
+    },
+    {
+      "name": "manager_viewer",
+      "type": "Link",
+      "label": "Visible to manager",
+      "linkTo": "Employee",
+      "readOnlyWhen": "true",
+      "noCopy": true,
+      "section": "Employee",
+      "description": "Direct manager who may read this record. Empty unless HR Settings › 'Allow managers to view talent records of direct reports' is on"
     },
     {
       "name": "appraisal_cycle",
@@ -267,7 +276,7 @@
         "read",
         "report"
       ],
-      "scope": "match:reports_to=employee"
+      "scope": "match:manager_viewer=employee"
     },
     {
       "role": "System Manager",

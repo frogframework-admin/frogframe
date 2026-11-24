@@ -61,10 +61,19 @@
       "type": "Link",
       "label": "Reports to",
       "linkTo": "Employee",
-      "fetchFrom": "incumbent_employee.reports_to",
       "readOnlyWhen": "true",
       "section": "Position",
       "column": 2
+    },
+    {
+      "name": "manager_viewer",
+      "type": "Link",
+      "label": "Visible to manager",
+      "linkTo": "Employee",
+      "readOnlyWhen": "true",
+      "noCopy": true,
+      "section": "Position",
+      "description": "Direct manager who may read this record. Empty unless HR Settings › 'Allow managers to view talent records of direct reports' is on"
     },
     {
       "name": "criticality",
@@ -139,7 +148,7 @@
         "read",
         "report"
       ],
-      "scope": "match:reports_to=employee"
+      "scope": "match:manager_viewer=employee"
     },
     {
       "role": "System Manager",

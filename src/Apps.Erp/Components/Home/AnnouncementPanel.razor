@@ -8,6 +8,7 @@
 @inject TimeProvider Clock
 @inject UiText T
 
+@* Targeting rules: Announcements.VisibleAsync (company, unit and sub-units from the Employee record, publish window). *@
 @if (items.Count > 0)
 {
     <section class="home-card" aria-label="@T["Announcements"]">
@@ -20,7 +21,11 @@
                 <li>
                     <div>
                         <strong><a href="/app/Announcement/@a.Name">@a.Data.Str("title")</a></strong>
-                        <div class="muted small">@a.Data.Str("body")</div>
+                        @if (Announcements.NeedsAcknowledgment(a, employeeId))
+                        {
+                            <BbBadge Variant="BadgeVariant.Soft">@T["Please confirm you have read this"]</BbBadge>
+                        }
+                        <div class="muted small">@Excerpt(a.Data.Str("body"))</div>
                     </div>
                 </li>
             }
@@ -30,19 +35,16 @@
 
 @code {
     private IReadOnlyList<Document> items = [];
+    private string? employeeId;
 
     protected override async Task OnInitializedAsync()
     {
         if (Current.User is not { } u) return;
-        var today = DateOnly.FromDateTime(Clock.GetLocalNow().DateTime);
-        var all = await new Masters(Store, u.TenantId).QueryAsync("Announcement", [], CancellationToken.None, "publish_from", "desc", 20);
-        var unit = u.Attr("department");
-        items = all
-            .Where(a => a.Data.Bool("is_published")
-                && (a.Data.Date("publish_from") is not { } pf || pf <= today)
-                && (a.Data.Date("publish_to") is not { } pt || pt >= today)
-                && (string.IsNullOrEmpty(a.Data.Str("target_unit")) || string.Equals(a.Data.Str("target_unit"), unit, StringComparison.OrdinalIgnoreCase)))
-            .Take(5)
-            .ToList();
+        employeeId = u.Attr("employee");
+        var today = Hr.Today(Clock);
+        items = await Announcements.VisibleAsync(new Masters(Store, u.TenantId), employeeId, today, CancellationToken.None);
     }
+
+    private static string Excerpt(string? body) =>
+        string.IsNullOrEmpty(body) ? "" : body.Length <= 200 ? body : body[..200].TrimEnd() + "…";
 }

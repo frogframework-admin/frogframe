@@ -59,7 +59,7 @@
         "HR-Admin",
         "System Manager"
       ],
-      "condition": "unit_head == user.employee || empty(unit_head) || has_role('HR-Admin') || has_role('System Manager')"
+      "condition": "unit_head == user.employee || (empty(unit_head) && has_role('HR-Recruitment')) || has_role('HR-Admin') || has_role('System Manager')"
     },
     {
       "from": "Pending Unit Head",
@@ -72,7 +72,8 @@
         "HR-Admin",
         "System Manager"
       ],
-      "requireComment": true
+      "requireComment": true,
+      "condition": "unit_head == user.employee || (empty(unit_head) && has_role('HR-Recruitment')) || has_role('HR-Admin') || has_role('System Manager')"
     },
     {
       "from": "Pending HR",

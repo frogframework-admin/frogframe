@@ -300,12 +300,30 @@
       "description": "Rejected or withdrawn applicants older than this are anonymized automatically (UU PDP)."
     },
     {
+      "name": "allow_offer_without_interview",
+      "type": "Check",
+      "label": "Allow offers without a completed interview",
+      "default": false,
+      "section": "Careers portal",
+      "description": "Off (default): an offer needs at least one interview with result Pass and feedback (text or scorecard scores)."
+    },
+    {
+      "name": "warning_validity_months",
+      "type": "Int",
+      "label": "Validity of warning letters (months)",
+      "default": 6,
+      "min": 1,
+      "max": 24,
+      "section": "Terms",
+      "description": "Default 'valid until' of a Disciplinary Action (SP1–SP3). Follow the company regulation / PKB and applicable labor law."
+    },
+    {
       "name": "allow_manager_talent_access",
       "type": "Check",
       "label": "Allow managers to view talent records of direct reports",
       "default": false,
       "section": "Talent Management",
-      "description": "Off (default) = restricted to HR-Talent. On = Managers can also read Talent Review, Succession Plan, and Development Plan for their direct reports."
+      "description": "Off (default) = Talent Review and Succession Plan are restricted to HR-Talent. On = Managers can also read them for their direct reports. Development Plans are always visible to the employee, the mentor and the direct manager."
     },
     {
       "name": "talent_high_perf_threshold",

@@ -1404,29 +1404,37 @@ internal static class HrApply
         var oldPosition = emp.Data.Str("position");
         var updated = await sys.UpdateAsync("Employee", empName, patch, ct);
 
+        var problems = new List<string>();
         if (d.Bool("adjust_salary") && d.Dec("new_base_salary") > 0m)
         {
             var effDate = d.Str("effective_date") ?? D.Iso(Hr.Today(TimeProvider.System));
+            var component = d.Str("new_salary_component")
+                ?? (await new Masters(store, jc.TenantId).SingleAsync("PayrollSettings", ct)).Str("base_salary_component");
             var salPayload = new Dictionary<string, object?>
             {
                 ["employee"] = empName,
                 ["company"] = d.Str("new_company") ?? emp.Data.Str("company"),
-                ["effective_from"] = effDate,
-                ["base_salary"] = d.Dec("new_base_salary"),
-            };
-            if (d.Str("new_salary_component") is { } comp)
-            {
-                salPayload["earnings"] = new List<Dictionary<string, object?>>
+                ["from_date"] = effDate,
+                ["is_active"] = true,
+                ["remarks"] = $"From Job Change {jc.Name}",
+                ["earnings"] = component is null ? null : new List<Dictionary<string, object?>>
                 {
-                    new() { ["salary_component"] = comp, ["amount"] = d.Dec("new_base_salary") }
-                };
+                    new() { ["salary_component"] = component, ["amount"] = d.Dec("new_base_salary") },
+                },
+            };
+            // The job change stays applied; a salary that cannot be saved is reported to HR (HrNotices) instead of lost.
+            if (component is null)
+                problems.Add($"{empName}: salary from {jc.Name} was not saved (no salary component: set 'Base salary component' in Payroll Settings)");
+            else try { await sys.InsertAsync("SalaryAssignment", salPayload, $"Created from Job Change {jc.Name}", ct); }
+            catch (Exception ex) when (ex is ValidationFailedException or InvalidPayloadException or PermissionDeniedException)
+            {
+                problems.Add($"{empName}: salary from {jc.Name} was not saved ({ex.Message}); create the Salary Assignment manually");
             }
-            try { await sys.InsertAsync("SalaryAssignment", salPayload, $"Created from Job Change {jc.Name}", ct); }
-            catch (ValidationFailedException) { /* salary assignment validation error does not roll back job change */ }
         }
 
-        if (updated is null || updated.Data.Str("position") == oldPosition) return [];
-        return await ReassignReportsAsync(sys, store, jc.TenantId, empName, ct);
+        if (updated is null || updated.Data.Str("position") == oldPosition) return problems;
+        problems.AddRange(await ReassignReportsAsync(sys, store, jc.TenantId, empName, ct));
+        return problems;
     }
 
     /// <summary>
@@ -1511,7 +1519,8 @@ internal static class HrApply
         foreach (var apr in await m.QueryAsync("Appraisal", [new FilterClause("employee", "=", empName), new FilterClause("reviewer", "=", oldBoss)], ct, take: 200))
         {
             if (apr.WorkflowState is not ("Draft" or "Self review done")) continue;
-            try { await sys.UpdateAsync("Appraisal", apr.Name, new Dictionary<string, object?> { ["reviewer"] = newBoss }, ct); }
+            // reviewer is fetched from employee.reports_to on every save: saving the draft picks up the new manager.
+            try { await sys.TouchAsync("Appraisal", apr.Name, ct); }
             catch (ValidationFailedException) { /* leave for ApprovalDelegationRefreshJob */ }
         }
     }
@@ -1565,8 +1574,19 @@ public sealed class ProbationEvaluationHook(IDocumentStore store, IServiceProvid
         var m = new Masters(store, c.Doc.TenantId);
         var d = c.Doc.Data;
         var empId = d.Str("employee");
-        if (string.IsNullOrEmpty(d.Str("reviewer")) && !string.IsNullOrEmpty(empId))
-            d["reviewer"] = await m.StrAsync("Employee", empId, "reports_to", ct);
+        var manager = string.IsNullOrEmpty(empId) ? null : await m.StrAsync("Employee", empId, "reports_to", ct);
+        if (string.IsNullOrEmpty(d.Str("reviewer"))) d["reviewer"] = manager;
+
+        // Only HR may pick another reviewer; a line manager evaluates only their own direct reports.
+        var isHr = c.User.IsAdmin || c.User.HasRole(ErpRoles.HrEmployeeManagement) || c.User.HasRole(ErpRoles.HrAdmin);
+        if (!isHr)
+        {
+            var me = c.User.Attr("employee");
+            if (string.IsNullOrEmpty(me) || me == empId)
+                throw Errors.One("employee", "You cannot evaluate your own probation");
+            if (d.Str("reviewer") != manager || me != manager)
+                throw Errors.One("reviewer", "Only the employee's direct manager (or HR) can evaluate this probation");
+        }
 
         if (d.Str("outcome") == "Extended")
         {
@@ -1600,11 +1620,63 @@ public sealed class ProbationEvaluationHook(IDocumentStore store, IServiceProvid
                 await docs.InsertAsync(sys.User, "EmployeeSeparation", new Dictionary<string, object?>
                 {
                     ["employee"] = empId,
-                    ["separation_type"] = "Termination",
+                    ["separation_type"] = "PHK",
                     ["reason"] = $"Failed probation evaluation ({c.Doc.Name})",
                     ["last_working_date"] = c.Doc.Data.Str("probation_end_date") ?? c.Doc.Data.Str("evaluation_date"),
                 }, ct);
             }
         }
     }
+}
+
+public sealed class DisciplinaryAction { }
+
+/// <summary>
+/// Disciplinary Action (SP): "valid until" defaults to the issue date plus HR Settings › warning_validity_months
+/// (default 6) for SP1–SP3; the status (Active / Expired) follows that date. Escalation is advisory only, because a
+/// company regulation or PKB may allow a direct SP2/SP3 for serious violations: SP2 without an active SP1/SP2, or SP3
+/// without an active SP2, shows a message.
+/// </summary>
+public sealed class DisciplinaryActionHook(IDocumentStore store, TimeProvider? clock = null) : IBeforeValidate<DisciplinaryAction>, IOnLoad<DisciplinaryAction>
+{
+    private static readonly string[] Letters = ["SP1", "SP2", "SP3"];
+
+    public async Task BeforeValidateAsync(HookContext c, CancellationToken ct)
+    {
+        var m = new Masters(store, c.Doc.TenantId);
+        var d = c.Doc.Data;
+        var level = d.Str("warning_level");
+        if (Letters.Contains(level) && d.Str("valid_until") is null && d.Date("issued_date") is { } issued)
+        {
+            var months = (int)(await m.SingleAsync("HRSettings", ct)).Dec("warning_validity_months");
+            d["valid_until"] = D.Iso(issued.AddMonths(months > 0 ? months : 6).AddDays(-1));
+        }
+
+        if (c.Previous is null || c.Previous.Data.Str("warning_level") != level)
+        {
+            var required = level switch { "SP2" => new[] { "SP1", "SP2" }, "SP3" => new[] { "SP2", "SP3" }, _ => null };
+            if (required is not null && d.Str("employee") is { } emp && d.Date("issued_date") is { } on)
+            {
+                var active = (await m.QueryAsync("DisciplinaryAction", [new FilterClause("employee", "=", emp)], ct, take: 200))
+                    .Any(x => x.Name != c.Doc.Name && x.DocStatus == DocStatus.Submitted && required.Contains(x.Data.Str("warning_level"))
+                        && x.Data.Date("valid_until") is { } until && until >= on);
+                if (!active)
+                    c.Messages.Add($"{emp} has no active {string.Join(" or ", required)} on {D.Iso(on)}; issue {level} directly only if the company regulation allows it for this violation");
+            }
+        }
+        d["warning_status"] = Status(c.Doc, Hr.Today(clock ?? TimeProvider.System));
+    }
+
+    public Task OnLoadAsync(HookContext c, CancellationToken ct)
+    {
+        c.Doc.Data["warning_status"] = Status(c.Doc, Hr.Today(clock ?? TimeProvider.System));
+        return Task.CompletedTask;
+    }
+
+    public static string Status(Document doc, DateOnly today) => doc.DocStatus switch
+    {
+        DocStatus.Draft => "Draft",
+        DocStatus.Cancelled => "Cancelled",
+        _ => doc.Data.Date("valid_until") is { } until && until < today ? "Expired" : "Active",
+    };
 }

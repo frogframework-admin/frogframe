@@ -307,13 +307,21 @@ sealed partial class Tests
             ["potential_level"] = "High",
         });
 
-        // Default HRSettings: Manager cannot read TalentReview (IOnLoad throws PermissionDeniedException, wrapped in DocumentHookException)
-        await Assert.Throws<Framework.Hooks.DocumentHookException>(() => docs.GetAsync(mgrUser, "TalentReview", review.Name), "manager blocked by default");
+        // Default HRSettings: the Manager scope (manager_viewer) is empty, so the record is invisible to the manager
+        // when opened and also in lists and reports.
+        Assert.Equal(null, review.Data.Str("manager_viewer"), "no manager viewer by default");
+        await Assert.Throws<DocumentNotFoundException>(() => docs.GetAsync(mgrUser, "TalentReview", review.Name), "manager blocked by default");
+        Assert.Equal(0, (await docs.QueryForReportAsync(mgrUser, "TalentReview", [])).Count, "manager sees no talent reviews in reports by default");
 
         // Enable allow_manager_talent_access: direct manager can read, other manager still blocked
         await docs.SetSingleAsync(sys, "HRSettings", new Dictionary<string, object?> { ["allow_manager_talent_access"] = true });
         var loaded = await docs.GetAsync(mgrUser, "TalentReview", review.Name);
         Assert.Equal(review.Name, loaded?.Name, "direct manager can read when enabled");
+        Assert.Equal(mgr, loaded?.Data.Str("manager_viewer"), "existing record updated when the setting was turned on");
+        Assert.Equal(1, (await docs.QueryForReportAsync(mgrUser, "TalentReview", [])).Count, "and sees it in reports");
         await Assert.Throws<DocumentNotFoundException>(() => docs.GetAsync(otherMgr, "TalentReview", review.Name), "other manager still blocked");
+
+        await docs.SetSingleAsync(sys, "HRSettings", new Dictionary<string, object?> { ["allow_manager_talent_access"] = false });
+        await Assert.Throws<DocumentNotFoundException>(() => docs.GetAsync(mgrUser, "TalentReview", review.Name), "turned off again: blocked");
     }
 }

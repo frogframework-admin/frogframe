@@ -21,9 +21,20 @@ This guide covers Competency Management, Appraisals, Talent Reviews (9-Box), Suc
 - Performance thresholds are configurable in **HR Settings → Talent Management**:
   - `talent_high_perf_threshold` (default `3.75`)
   - `talent_mod_perf_threshold` (default `2.5`)
-- **Access Control (`allow_manager_talent_access` in HR Settings)**:
-  - **Default (`false`)**: `TalentReview`, `SuccessionPlan`, and `DevelopmentPlan` are restricted to `HR-Talent`, `HR-Admin`, and `System Manager` (plus `employee`/`mentor` on their own `DevelopmentPlan`).
-  - **Enabled (`true`)**: `Manager` can also read records for their direct reports (`match:reports_to=employee`).
+- **Access control (`allow_manager_talent_access` in HR Settings)**:
+  - The `Manager` permission on `TalentReview` and `SuccessionPlan` is scoped to the stored field `manager_viewer`
+    (`match:manager_viewer=employee`). Lists, reports, exports, the API and the form all follow it.
+  - **Off (default)**: `manager_viewer` is empty, so only `HR-Talent`, `HR-Admin` and `System Manager` see these records.
+  - **On**: `manager_viewer` = the employee's direct manager (`reports_to`; for a succession plan, the incumbent's manager).
+  - Changing the setting rewrites `manager_viewer` on all existing records at once (also submitted ones); the daily job
+    `Erp.TalentAccessRefresh` follows job changes and resignations.
+- **Calibration Session** (`CalibrationSession`): reviews linked to a session must be of the same appraisal cycle and,
+  when the session has a unit, of that unit or a unit below it. After the session is submitted, linked reviews keep
+  their 9-box levels and scores, and no review can be added or removed.
+- **Potential**: when `aspiration_score`, `learning_agility_score` and `leadership_score` (1–5) are filled, their
+  average sets `potential_level`.
+- **9-Box Talent Grid report** (`erp-nine-box`): one row per box with count, share and names; filters appraisal cycle,
+  unit (with sub-units), calibration session and draft reviews.
 
 ## 4. Succession Planning & Development Plans (IDP)
 - **Succession Plan** (`SuccessionPlan`):
@@ -31,8 +42,12 @@ This guide covers Competency Management, Appraisals, Talent Reviews (9-Box), Suc
   - Auto-fills `incumbent_employee` from the position holder, rejects candidates who have `Left`, and refreshes candidate `latest_rating` and `nine_box_position` on load.
 - **Development Plan** (`DevelopmentPlan`):
   - Tracks 70-20-10 `DevelopmentGoal` items.
+  - Visible to the employee, the mentor and the direct manager (`reports_to`, permission `match:reports_to=employee`).
   - Only `HR-Talent`, `mentor`, or `reports_to` (manager) can mark a plan `Completed`; completed plans are locked for non-HR users.
 
 ## 5. Training & Approval Delegation
 - **Training Request** (`TrainingRequest`, workflow `TrainingRequestApproval`): Routed to `approver` (`reports_to`) then `HR-Talent`.
-- `ApprovalDelegationRefreshJob` and `ReassignReportsAsync` automatically reassign pending `TrainingRequest` (`approver`) and `Appraisal` (`reviewer`) records when a manager resigns or transfers.
+- `ApprovalDelegationRefreshJob` and `ReassignReportsAsync` automatically reassign pending `TrainingRequest` (`approver`) and `Appraisal` (`reviewer`) records when a manager resigns or transfers. Draft appraisals pick up the new manager because `reviewer` is fetched from `employee.reports_to` on save; Training Requests already waiting for the manager are moved by the daily job.
+- **Propose Job Change** (on a Completed Appraisal) opens a new Job Change form prefilled with the employee, reason
+  Promotion and the appraisal result; HR fills the new grade/position or salary. A Job Change with only a salary
+  adjustment is valid.

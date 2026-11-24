@@ -26,8 +26,9 @@ public sealed class RecruitmentMetricsReport : IReportProvider
             var hired = g.Where(a => a.Data.Str("status") == "Hired").ToList();
             var hiredCount = hired.Count;
             var conv = total > 0 ? Math.Round(100m * hiredCount / total, 1) : 0m;
+            // Days from application to the "Hired" stage (stage history); older records without history use the last change.
             var avgDays = hiredCount > 0
-                ? Math.Round((decimal)hired.Average(a => Math.Max(0, (a.Modified - a.Created).TotalDays)), 1)
+                ? Math.Round((decimal)hired.Average(a => Math.Max(0, (ApplicantRetentionJob.StageReachedAt(a, "Hired") - a.Created).TotalDays)), 1)
                 : 0m;
             rows.Add(Rpt.Row(
                 ("source", g.Key),

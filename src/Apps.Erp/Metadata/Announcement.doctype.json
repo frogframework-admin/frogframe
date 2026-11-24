@@ -66,6 +66,14 @@
       "column": 2
     },
     {
+      "name": "include_sub_units",
+      "type": "Check",
+      "label": "Include units below the target unit",
+      "default": true,
+      "section": "Targeting",
+      "column": 2
+    },
+    {
       "name": "require_acknowledgment",
       "type": "Check",
       "label": "Mandatory read",
@@ -79,6 +87,26 @@
       "label": "Message",
       "requiredWhen": "true",
       "section": "Content"
+    },
+    {
+      "name": "ack_count",
+      "type": "Int",
+      "label": "Acknowledged by",
+      "readOnlyWhen": "true",
+      "noCopy": true,
+      "inListView": true,
+      "section": "Acknowledgments",
+      "visibleWhen": "require_acknowledgment == true"
+    },
+    {
+      "name": "acknowledgments",
+      "type": "Table",
+      "label": "Acknowledgments",
+      "childDocType": "AnnouncementAcknowledgment",
+      "noCopy": true,
+      "section": "Acknowledgments",
+      "visibleWhen": "require_acknowledgment == true",
+      "description": "Filled when an employee presses 'I have read this'. Rows cannot be added or changed by hand"
     }
   ],
   "permissions": [
@@ -150,5 +178,13 @@
       "create",
       "update"
     ]
-  }
+  },
+  "rules": [
+    {
+      "name": "publish_window",
+      "expr": "empty(publish_to) || publish_to >= publish_from",
+      "message": "'Publish until' must be on or after 'Publish from'",
+      "field": "publish_to"
+    }
+  ]
 }

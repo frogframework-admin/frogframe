@@ -58,6 +58,13 @@ public sealed class PostgresFileStore(NpgsqlDataSource db) : IFileStore
         return removed;
     }
 
+    public async Task<bool> DeleteAsync(string tenantId, string id, CancellationToken ct = default)
+    {
+        await using var cmd = db.CreateCommand("DELETE FROM frogframe_files WHERE tenant_id = $1 AND id = $2");
+        cmd.Parameters.AddWithValue(tenantId); cmd.Parameters.AddWithValue(id);
+        return await cmd.ExecuteNonQueryAsync(ct) > 0;
+    }
+
     public async Task AttachAsync(string tenantId, string id, string docType, string docName, string field, CancellationToken ct = default)
     {
         await using var cmd = db.CreateCommand("UPDATE frogframe_files SET doctype = $3, doc_name = $4, field = $5 WHERE tenant_id = $1 AND id = $2");

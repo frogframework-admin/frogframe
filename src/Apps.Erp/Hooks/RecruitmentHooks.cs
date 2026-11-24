@@ -42,6 +42,52 @@ public sealed class JobRequisitionHook(IDocumentStore store) : IBeforeValidate<J
             if (max > 0 && d.Dec("salary_max") > max) c.Messages.Add($"The salary range exceeds the maximum of grade {grade.Name} ({max:N0})");
         }
         if (c.Doc.DocStatus == DocStatus.Draft) d["requisition_status"] = "Draft";
+
+        // While waiting for approval the request must not change under the approver; HR may still correct it.
+        if (c.Previous?.WorkflowState is PendingUnitHead or PendingHr
+            && !(c.User.IsAdmin || c.User.HasRole(ErpRoles.HrRecruitment) || c.User.HasRole(ErpRoles.HrAdmin)))
+        {
+            var changed = LockedWhilePending.FirstOrDefault(f => !SameValue(c.Previous.Data.GetValueOrDefault(f), d.GetValueOrDefault(f)));
+            if (changed is not null)
+                throw Errors.One(changed, $"The requisition is {c.Previous.WorkflowState}; it cannot be changed until it is approved or rejected");
+        }
+    }
+
+    private static bool SameValue(object? a, object? b)
+    {
+        static decimal? Num(object? v) => v switch
+        {
+            null => null,
+            string str => decimal.TryParse(str, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var x) ? x : null,
+            IConvertible conv when v is not bool => conv.ToDecimal(System.Globalization.CultureInfo.InvariantCulture),
+            _ => null,
+        };
+        if (Num(a) is { } x && Num(b) is { } y) return x == y;
+        var sa = a?.ToString(); var sb = b?.ToString();
+        return string.IsNullOrEmpty(sa) ? string.IsNullOrEmpty(sb) : sa == sb;
+    }
+
+    public const string PendingUnitHead = "Pending Unit Head", PendingHr = "Pending HR";
+    private static readonly string[] LockedWhilePending =
+        ["company", "organization_unit", "position", "job_profile", "grade", "employment_type", "openings", "salary_min", "salary_max", "hiring_manager"];
+
+    /// <summary>
+    /// Openings still to be filled by other requisitions of the unit and job profile: requisitions waiting for approval
+    /// or approved, minus their hired applicants. Filled, rejected and cancelled requisitions do not count.
+    /// </summary>
+    private static async Task<int> CommittedOpeningsAsync(Masters m, string unitId, string? jobProfile, string self, CancellationToken ct)
+    {
+        var total = 0;
+        foreach (var r in await m.QueryAsync("JobRequisition", [new FilterClause("organization_unit", "=", unitId)], ct, take: 5000))
+        {
+            if (r.Name == self || (jobProfile is not null && r.Data.Str("job_profile") != jobProfile)) continue;
+            var inFlight = r.WorkflowState is PendingUnitHead or PendingHr
+                || (r.DocStatus == DocStatus.Submitted && r.WorkflowState is null or "Approved");
+            if (!inFlight) continue;
+            var hired = (await m.QueryAsync("JobApplicant", [new FilterClause("job_requisition", "=", r.Name), new FilterClause("status", "=", "Hired")], ct, take: 5000)).Count;
+            total += Math.Max(0, (int)r.Data.Dec("openings") - hired);
+        }
+        return total;
     }
 
     public async Task BeforeTransitionAsync(HookContext c, CancellationToken ct)
@@ -60,11 +106,7 @@ public sealed class JobRequisitionHook(IDocumentStore store) : IBeforeValidate<J
                 var vacantCount = (await m.QueryAsync("Position",
                         [new FilterClause("organization_unit", "=", unitId), new FilterClause("status", "=", "Vacant")], ct, take: 5000))
                     .Count(p => d.Str("job_profile") is null || p.Data.Str("job_profile") == d.Str("job_profile"));
-                var openReqs = (await m.QueryAsync("JobRequisition",
-                        [new FilterClause("organization_unit", "=", unitId)], ct, take: 5000))
-                    .Where(r => r.Name != c.Doc.Name && r.DocStatus == DocStatus.Submitted
-                        && (d.Str("job_profile") is null || r.Data.Str("job_profile") == d.Str("job_profile")))
-                    .Sum(r => (int)r.Data.Dec("openings"));
+                var openReqs = await CommittedOpeningsAsync(m, unitId, d.Str("job_profile"), c.Doc.Name, ct);
                 var requested = (int)d.Dec("openings");
                 if (openReqs + requested > vacantCount)
                     throw Errors.One("openings", $"Requested openings ({requested}) exceed available Vacant positions in {unitId} ({Math.Max(0, vacantCount - openReqs)} remaining)");
@@ -129,7 +171,7 @@ public sealed class JobApplicantHook(IDocumentStore store, IServiceProvider? ser
         if (users is null || inbox is null) return;
         var m = new Masters(store, c.Doc.TenantId);
         var req = await m.GetAsync("JobRequisition", c.Doc.Data.Str("job_requisition"), ct);
-        var subject = $"New applicant: {c.Doc.Data.Str("full_name")} for {req?.Data.Str("job_title") ?? c.Doc.Data.Str("job_requisition")}";
+        var subject = $"New applicant: {c.Doc.Data.Str("applicant_name")} for {req?.Data.Str("job_title") ?? c.Doc.Data.Str("job_requisition")}";
         var body = $"Review application {c.Doc.Name} in Recruitment.";
         var targets = new[] { req?.Data.Str("hiring_manager"), req?.Data.Str("recruiter") }.Where(x => !string.IsNullOrEmpty(x)).Distinct().ToList();
         if (targets.Count > 0)
@@ -209,6 +251,14 @@ public sealed class JobOfferHook(IDocumentStore store) : IBeforeValidate<JobOffe
             d.SetIfEmpty("employment_type", req.Data.Str("employment_type"));
             d.SetIfEmpty("proposed_start_date", req.Data.Str("target_start_date"));
         }
+        if (c.Previous is null && !(await m.SingleAsync("HRSettings", ct)).Bool("allow_offer_without_interview"))
+        {
+            var interviews = await m.QueryAsync("Interview", [new FilterClause("job_applicant", "=", applicant.Name)], ct, take: 50);
+            var assessed = interviews.Any(i => i.Data.Str("result") == "Pass"
+                && (!string.IsNullOrWhiteSpace(i.Data.Str("feedback")) || i.Data.Rows("scorecard").Any(r => r.Dec("score") > 0)));
+            if (!assessed)
+                throw Errors.One("job_applicant", $"{applicant.Name} has no passed interview with feedback; record the interview result and feedback first");
+        }
         var other = (await m.QueryAsync("JobOffer", [new FilterClause("job_applicant", "=", applicant.Name)], ct, take: 20))
             .FirstOrDefault(o => o.Name != c.Doc.Name && o.DocStatus != DocStatus.Cancelled && o.WorkflowState is not ("Declined" or "Expired" or "Cancelled"));
         if (other is not null) throw Errors.One("job_applicant", $"{applicant.Name} already has an active offer {other.Name}");
@@ -273,20 +323,27 @@ public sealed class JobOfferCreateEmployeeAction(IDocumentStore store) : IFormAc
             await ctx.Docs.UpdateAsync(sys, "JobApplicant", applicant.Name, fresh.Version,
                 new Dictionary<string, object?> { ["status"] = "Hired", ["employee"] = emp.Name }, ct);
 
-            // Auto-create OnboardingList for the new hire if none exists.
+            // Onboarding list for the new hire (checklist from the default template); a failure here must not hide that
+            // the employee was created, so it is reported in the message instead.
             try
             {
                 var existingOnb = (await m.QueryAsync("OnboardingList", [new FilterClause("employee", "=", emp.Name)], ct, take: 1)).Count > 0;
                 if (!existingOnb)
                 {
-                    await ctx.Docs.InsertAsync(sys, "OnboardingList", new Dictionary<string, object?>
+                    var onb = await ctx.Docs.InsertAsync(sys, "OnboardingList", new Dictionary<string, object?>
                     {
                         ["employee"] = emp.Name,
-                        ["boarding_begins_on"] = o.Str("proposed_start_date"),
+                        ["start_date"] = o.Str("proposed_start_date"),
+                        ["organization_unit"] = o.Str("organization_unit"),
+                        ["position"] = o.Str("position"),
                     }, $"Auto-created from {ctx.Doc.Name}", ct);
+                    note += $", onboarding {onb.Name}";
                 }
             }
-            catch (ValidationFailedException) { /* template may not exist in minimal test tenants */ }
+            catch (Exception ex) when (ex is ValidationFailedException or InvalidPayloadException)
+            {
+                note += $" (onboarding list not created: {ex.Message})";
+            }
 
             return FormActionResult.NavigateTo($"/app/Employee/{emp.Name}", $"Employee {emp.Name} created{note}");
         }

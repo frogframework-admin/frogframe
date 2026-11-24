@@ -209,6 +209,15 @@
       "section": "Consent (PDP)",
       "column": 2,
       "description": "The notice as shown to the applicant when they applied"
+    },
+    {
+      "name": "anonymized_at",
+      "type": "Datetime",
+      "label": "Anonymized at",
+      "readOnlyWhen": "true",
+      "noCopy": true,
+      "section": "Consent (PDP)",
+      "description": "Set by the daily retention job (HR Settings › applicant retention). Personal data and the CV were removed"
     }
   ],
   "permissions": [

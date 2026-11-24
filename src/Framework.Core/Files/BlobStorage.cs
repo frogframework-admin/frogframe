@@ -99,6 +99,13 @@ public sealed class BlobBackedFileStore(IFileStore inner, IBlobStorage blobs, IL
     public Task AttachAsync(string tenantId, string id, string docType, string docName, string field, CancellationToken ct = default) =>
         inner.AttachAsync(tenantId, id, docType, docName, field, ct);
 
+    public async Task<bool> DeleteAsync(string tenantId, string id, CancellationToken ct = default)
+    {
+        var deleted = await inner.DeleteAsync(tenantId, id, ct);
+        if (deleted) await BlobCleanup.TryDelete(blobs, BlobKeys.File(tenantId, id), _log);
+        return deleted;
+    }
+
     public async Task<int> PruneOrphansAsync(DateTimeOffset cutoff, CancellationToken ct = default) =>
         (await PruneOrphansReturningAsync(cutoff, ct)).Count;
 

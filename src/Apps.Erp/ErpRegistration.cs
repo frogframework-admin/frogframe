@@ -166,6 +166,7 @@ public static class ErpRegistration
         services.AddDocHook<OnboardingList, OnboardingListHook>();
         services.AddDocHook<OffboardingList, OffboardingListHook>();
         services.AddDocHook<ProbationEvaluation, ProbationEvaluationHook>();
+        services.AddDocHook<DisciplinaryAction, DisciplinaryActionHook>();
         services.AddDocHook<EmploymentContract, EmploymentContractHook>();
         services.AddDocHook<LeaveAllocation, LeaveAllocationHook>();
         services.AddDocHook<LeaveApplication, LeaveApplicationHook>();
@@ -214,9 +215,12 @@ public static class ErpRegistration
 
         // KINERJA & TALENT MANAGEMENT
         services.AddDocHook<JobProfile, JobProfileHook>();
+        services.AddDocHook<Announcement, AnnouncementHook>();
+        services.AddFormAction<Announcement, AnnouncementAcknowledgeAction>();
         services.AddDocHook<Appraisal, AppraisalHook>();
         services.AddFormAction<Appraisal, AppraisalCreateJobChangeAction>();
         services.AddDocHook<TalentReview, TalentReviewHook>();
+        services.AddDocHook<Ess.HRSettings, HRSettingsTalentAccessHook>();
         services.AddDocHook<SuccessionPlan, SuccessionPlanHook>();
         services.AddDocHook<DevelopmentPlan, DevelopmentPlanHook>();
         services.AddDocHook<TrainingRequest, TrainingRequestHook>();
@@ -257,6 +261,7 @@ public static class ErpRegistration
         services.AddScheduledJob<IdentityDocumentExpiryReminderJob>();
         services.AddScheduledJob<ProbationReminderJob>();
         services.AddScheduledJob<ApplicantRetentionJob>();
+        services.AddScheduledJob<TalentAccessRefreshJob>();
         services.AddScheduledJob<CrmDailyJob>();
 
         // ESS mobile (absen GPS, cuti, slip gaji, persetujuan): docs/guides/ess-mobile-api.md
@@ -275,6 +280,7 @@ public static class ErpRegistration
         services.AddReport<WithholdingRegisterReport>();
         services.AddReport<LeaveBalanceReport>();
         services.AddReport<CompetencyGapReport>();
+        services.AddReport<NineBoxReport>();
         services.AddReport<RecruitmentMetricsReport>();
         services.AddReport<SalesPipelineReport>();
         services.AddReport<PayrollRegisterReport>();
