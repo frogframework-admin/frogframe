@@ -70,6 +70,10 @@ Comprehensive human capital management covering employee profiles, organizationa
 | `TalentReview` | Talent Review | Document | Yes | - | 9-Box Talent Review (Performance vs Potential), flight risk, impact of loss, and talent pool placement per cycle. |
 | `TrainingProgram` | Training Program | Document | No | - | Reusable training course catalog linked to competencies, providers, and estimated cost. |
 | `TrainingRequest` | Training Request | Document | Yes | `TrainingRequestApproval` | Employee or manager request for a training program or external course, routed through manager and HR Talent approval. |
+| `FeedbackTemplate` | Feedback Template | Master | No | - | 360 feedback questionnaire: questions (rating 1–5 or comment, optionally per competency), minimum peers/direct reports, maximum raters, anonymity threshold. |
+| `MultiRaterReview` | 360 Feedback | Document | No | - | 360 feedback for one employee and cycle: raters (self, manager, peers, direct reports, internal customers), status Nominating → Awaiting approval → In progress → Closed, results per rater group with the anonymity rule, copied to the appraisal competencies. |
+| `FeedbackResponse` | 360 Feedback Response | Document | Yes | - | One rater's answers; visible to the rater (and HR-Talent read-only) only. |
+| `FeedbackQuestion`, `MultiRaterReviewer`, `MultiRaterResult`, `FeedbackAnswer` | (child tables) | Child | No | - | Template questions, raters, results per question, answers. |
 | `CalibrationSession` | Calibration Session | Document | Yes | - | Committee session that calibrates Talent Reviews of one appraisal cycle (and unit). Reviews must match its cycle and unit; once submitted, linked 9-box levels are locked and no reviews can be added. |
 | `CompetencyLevel` | Competency Level | Child | No | - | Definition of proficiency level 1–5 of a Competency, with behavioral indicators and assessment criteria. |
 | `DisciplinaryAction` | Disciplinary Action | Document | Yes | - | Warning letter (verbal, SP1–SP3, suspension). 'Valid until' defaults from HR Settings (6 months); status Active/Expired; advisory escalation check. |
@@ -121,6 +125,8 @@ Comprehensive human capital management covering employee profiles, organizationa
 | `SalaryAssignment` | Salary Assignment | Document | No | - | Pay package per employee from a date (Workday Compensation / SAP infotype 0008). |
 | `SalaryComponent` | Salary Component | Document | No | - | Earning or deduction on a payslip (Workday Pay Component / SAP Wage Type). |
 | `SalaryDetail` | Salary Detail | Document | No | - | Salary Detail entity. |
+| `SalaryRateRow` | Salary Rate Row | Document | No | - | Salary Rate Row entity. |
+| `SalaryRateTable` | Salary Rate Table | Document | No | - | Lookup table for payroll formulas: basic salary per grade, allowance per level, length-of-service steps (Oracle user table / SAP T510). |
 | `SeparationChecklistItem` | Offboarding Checklist | Document | No | - | Offboarding Checklist entity. |
 | `ShiftType` | Shift Type | Document | No | - | Standard work schedule (Workday Work Schedule Calendar). |
 | `TaxBracket` | Tax Bracket | Document | No | - | Tax Bracket entity. |

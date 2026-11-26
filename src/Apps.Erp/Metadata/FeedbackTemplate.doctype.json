@@ -1,0 +1,162 @@
+{
+  "name": "FeedbackTemplate",
+  "version": 1,
+  "title": "Feedback Template",
+  "module": "HR",
+  "description": "Questionnaire for 360-degree (multi-rater) feedback: questions, rating scale 1–5 per competency, who must be asked and the anonymity threshold.",
+  "naming": {
+    "pattern": "field:template_name"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "template_name",
+      "type": "Data",
+      "label": "Template name",
+      "requiredWhen": "true",
+      "maxLength": 80,
+      "inListView": true,
+      "section": "Template"
+    },
+    {
+      "name": "is_active",
+      "type": "Check",
+      "label": "Active",
+      "default": true,
+      "inListView": true,
+      "section": "Template",
+      "column": 2
+    },
+    {
+      "name": "description",
+      "type": "Text",
+      "label": "Instructions for raters",
+      "section": "Template",
+      "description": "Shown at the top of every feedback form"
+    },
+    {
+      "name": "min_peers",
+      "type": "Int",
+      "label": "Minimum peers",
+      "default": 3,
+      "min": 0,
+      "max": 20,
+      "section": "Raters",
+      "description": "Peers the employee must nominate before the list goes to the manager"
+    },
+    {
+      "name": "min_direct_reports",
+      "type": "Int",
+      "label": "Minimum direct reports",
+      "default": 0,
+      "min": 0,
+      "max": 20,
+      "section": "Raters",
+      "description": "Only applies when the employee has at least this many direct reports"
+    },
+    {
+      "name": "max_raters",
+      "type": "Int",
+      "label": "Maximum raters",
+      "default": 12,
+      "min": 1,
+      "max": 50,
+      "section": "Raters",
+      "column": 2,
+      "description": "Self and manager included"
+    },
+    {
+      "name": "anonymity_threshold",
+      "type": "Int",
+      "label": "Anonymity threshold",
+      "default": 3,
+      "min": 2,
+      "max": 10,
+      "section": "Raters",
+      "column": 2,
+      "description": "Peer, direct report and internal customer answers are shown only as an average of at least this many raters; smaller groups are merged or left out"
+    },
+    {
+      "name": "questions",
+      "type": "Table",
+      "label": "Questions",
+      "childDocType": "FeedbackQuestion",
+      "requiredWhen": "true",
+      "section": "Questions"
+    }
+  ],
+  "rules": [
+    {
+      "name": "has_rating_question",
+      "expr": "!empty(questions)",
+      "message": "Add at least one question",
+      "field": "questions"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR-Talent",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Admin",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "template_name",
+    "searchFields": [
+      "template_name"
+    ],
+    "filters": [
+      "is_active"
+    ],
+    "defaultSort": [
+      {
+        "field": "modified",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

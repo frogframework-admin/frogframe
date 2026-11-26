@@ -38,9 +38,11 @@
     {
       "name": "abbreviation",
       "type": "Data",
-      "label": "Abbreviation",
-      "maxLength": 10,
-      "column": 2
+      "label": "Variable name",
+      "maxLength": 30,
+      "column": 2,
+      "requiredWhen": "calculation_type == 'Formula'",
+      "description": "Name used in formulas, e.g. GAPOK or TUNJ_ISTRI (letters, digits, _). Required for formula components and for components other formulas refer to"
     },
     {
       "name": "is_active",
@@ -51,32 +53,80 @@
       "column": 2
     },
     {
+      "name": "company",
+      "type": "Link",
+      "label": "Company",
+      "linkTo": "Company",
+      "column": 2,
+      "description": "Empty = all companies. A formula component with a company is only calculated on that company's payslips"
+    },
+    {
+      "name": "is_pay_cut",
+      "type": "Check",
+      "label": "Pay cut (reduces gross)",
+      "default": false,
+      "visibleWhen": "component_type == 'Deduction'",
+      "column": 2,
+      "description": "For deductions such as absence or lateness cuts: lowers the taxable gross / BPJS base per the ticks under Treatment instead of being a plain deduction"
+    },
+    {
+      "name": "calculation_type",
+      "type": "Select",
+      "label": "Calculation",
+      "options": [
+        "Fixed",
+        "Formula"
+      ],
+      "default": "Fixed",
+      "section": "Calculation",
+      "inListView": true,
+      "description": "Fixed: amount typed in the salary assignment or on the payslip. Formula: calculated on every new payslip (see the Payroll formulas guide)"
+    },
+    {
+      "name": "condition",
+      "type": "Data",
+      "label": "Applies when",
+      "maxLength": 1000,
+      "visibleWhen": "calculation_type == 'Formula'",
+      "section": "Calculation",
+      "description": "Empty = every employee. Example: emp.job_profile == 'SALES' or emp.marital_status == 'Married'"
+    },
+    {
+      "name": "formula",
+      "type": "Text",
+      "label": "Formula",
+      "requiredWhen": "calculation_type == 'Formula'",
+      "visibleWhen": "calculation_type == 'Formula'",
+      "section": "Calculation",
+      "description": "Examples: GAPOK * 10 / 100 · lookup_range('MASA_KERJA', emp.years_of_service) · att.present_days * lookup('BENSIN', emp.grade_level) · GAPOK / 21 * att.absent_days"
+    },
+    {
       "name": "is_taxable",
       "type": "Check",
       "label": "Taxable (PPh 21)",
       "default": true,
-      "visibleWhen": "component_type == 'Earning'",
+      "visibleWhen": "component_type == 'Earning' || is_pay_cut",
       "section": "Treatment",
-      "description": "Part of gross income for PPh 21"
+      "description": "Part of gross income for PPh 21. On a pay cut: the cut lowers the taxable gross"
     },
     {
       "name": "is_regular",
       "type": "Check",
       "label": "Regular (fixed every month)",
       "default": true,
-      "visibleWhen": "component_type == 'Earning'",
+      "visibleWhen": "component_type == 'Earning' || is_pay_cut",
       "section": "Treatment",
-      "description": "Untick for bonus, THR, overtime. Only regular earnings count toward the PPh 21 DTP salary limit"
+      "description": "Untick for bonus, THR, overtime. Only regular earnings count toward the PPh 21 DTP salary limit and are prorated. On a pay cut: lowers the regular pay"
     },
     {
       "name": "in_bpjs_base",
       "type": "Check",
       "label": "Part of BPJS wage base",
       "default": false,
-      "visibleWhen": "component_type == 'Earning'",
+      "visibleWhen": "component_type == 'Earning' || is_pay_cut",
       "section": "Treatment",
       "column": 2,
-      "description": "Basic salary + fixed allowances (BPJS wage = upah pokok + tunjangan tetap)"
+      "description": "Basic salary + fixed allowances (BPJS wage = upah pokok + tunjangan tetap). On a pay cut: lowers the BPJS wage base"
     },
     {
       "name": "account",
@@ -97,7 +147,7 @@
       ],
       "section": "Treatment",
       "column": 2,
-      "description": "Earning: expense account (empty = Payroll Settings salary expense). Deduction: the account credited, e.g. employee loan receivable"
+      "description": "Earning: expense account (empty = Payroll Settings salary expense). Deduction: the account credited, e.g. employee loan receivable. Pay cut: empty = salary expense"
     },
     {
       "name": "description",
@@ -258,7 +308,8 @@
     ],
     "filters": [
       "component_type",
-      "is_active"
+      "is_active",
+      "calculation_type"
     ],
     "defaultSort": [
       {

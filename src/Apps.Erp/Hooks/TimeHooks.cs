@@ -43,13 +43,18 @@ internal static class Overtime
     /// Monthly overtime pay for payslip: Σ approved paid overtime hours × hourly wage. Monthly base = regular earnings marked
     /// in BPJS base (basic salary + fixed allowances); if less than 75% of total regular earnings, 75% of total is used (PP 35/2021 Art. 32(4)).
     /// </summary>
-    public static async Task<(decimal WeightedHours, decimal HourlyWage, decimal Amount)> PayAsync(Masters m, string employee, string period, Document assignment, CancellationToken ct)
+    public static Task<(decimal WeightedHours, decimal HourlyWage, decimal Amount)> PayAsync(Masters m, string employee, string period, Document assignment, CancellationToken ct) =>
+        PayAsync(m, employee, period, assignment.Data.Rows("earnings"), ct);
+
+    /// <summary>Same, with the monthly earnings given directly (the payslip's full-month earnings, including formula components).</summary>
+    public static async Task<(decimal WeightedHours, decimal HourlyWage, decimal Amount)> PayAsync(Masters m, string employee, string period,
+        IEnumerable<Dictionary<string, object?>> earnings, CancellationToken ct)
     {
         var approved = (await m.QueryAsync("OvertimeRequest", [new FilterClause("employee", "=", employee), new FilterClause("period", "=", period)], ct, take: 500))
             .Where(o => o.DocStatus == DocStatus.Submitted && o.WorkflowState == Approval.Approved).ToList();
         if (approved.Count == 0) return (0, 0, 0);
         decimal fixedPay = 0, regular = 0;
-        foreach (var r in assignment.Data.Rows("earnings"))
+        foreach (var r in earnings)
         {
             var comp = await m.GetAsync("SalaryComponent", r.Str("salary_component"), ct);
             if (comp is null || !comp.Data.Bool("is_regular")) continue;

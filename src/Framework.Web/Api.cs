@@ -347,12 +347,15 @@ public static class DocApi
             return Task.FromResult(Results.Ok(sp.GetRequiredService<MetadataRegistry>().Preview(def, sp.GetRequiredService<RoleCatalog>().Scope(user.TenantId))));
         }));
 
-        api.MapPost("/admin/metadata/publish", (HttpContext http, JsonElement body, bool acknowledgeRisk) => Run(http, (user, sp) =>
+        api.MapPost("/admin/metadata/publish", (HttpContext http, JsonElement body, bool acknowledgeRisk, int? expectedCustomizationVersion) => Run(http, async (user, sp) =>
         {
             RequireRole(user, UserContext.SystemManager);
+            // Metadata is shared by all tenants: with several tenants only platform administrators may change it.
+            if (sp.GetService<Framework.Web.Tenancy.MetadataEditPolicy>() is { } policy) await policy.DemandAsync(user, http.RequestAborted);
             var def = MetadataJson.ParseDocType(body.GetRawText());
-            var v = sp.GetRequiredService<MetadataRegistry>().Publish(def, user.Id, acknowledgeRisk, sp.GetRequiredService<RoleCatalog>().Scope(user.TenantId));
-            return Task.FromResult(Results.Ok(new { v.DocType, v.Version, v.Changes }));
+            var registry = sp.GetRequiredService<MetadataRegistry>();
+            var v = registry.Publish(def, user.Id, acknowledgeRisk, sp.GetRequiredService<RoleCatalog>().Scope(user.TenantId), expectedCustomizationVersion);
+            return Results.Ok(new { v.DocType, v.Version, v.Changes, customizationVersion = registry.IsAppOwned(v.DocType) ? registry.CustomizationVersion(v.DocType) : (int?)null });
         }));
 
         // ---------- Data ----------

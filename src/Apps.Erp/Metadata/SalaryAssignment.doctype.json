@@ -108,6 +108,18 @@
       "column": 2
     },
     {
+      "name": "tax_method",
+      "type": "Select",
+      "label": "PPh 21 method",
+      "options": [
+        "Gross",
+        "Gross-up"
+      ],
+      "default": "Gross",
+      "section": "PPh 21",
+      "description": "Gross: PPh 21 is withheld from pay. Gross-up: the company pays it through the tax allowance component of Payroll Settings"
+    },
+    {
       "name": "remarks",
       "type": "Text",
       "label": "Remarks",

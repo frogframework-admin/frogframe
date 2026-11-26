@@ -8,12 +8,21 @@
 @inject NavigationManager Nav
 @inject Framework.Web.AI.AiDraftValidator AiValidator
 @inject Framework.Web.AI.AiDesignerService Ai
+@inject Framework.Web.Tenancy.MetadataEditPolicy EditPolicy
 
 <PageTitle>New DocType · FrogFrame</PageTitle>
 
 @if (!Current.Required.Roles.Contains(UserContext.SystemManager))
 {
     <ErrorState StatusCode="403" Description="This administration page is restricted to System Managers / Administrators." />
+}
+else if (canEdit is null)
+{
+    <div class="stack"><BbSkeleton Height="2rem" /><BbSkeleton Height="12rem" /></div>
+}
+else if (canEdit == false)
+{
+    <ErrorState StatusCode="403" Description="@Framework.Web.Tenancy.MetadataEditPolicy.DeniedMessage" BackHref="/admin/metadata" BackLabel="Back to DocTypes" />
 }
 else
 {
@@ -50,8 +59,8 @@ else
                     @if (kind == "document" || kind == "single")
                     {
                         <BbField>
-                            <BbFieldLabel For="nd-module">Modul (wajib, dari Master Modules)</BbFieldLabel>
-                            <BbSelect TValue="string" Value="@(module ?? "")" ValueChanged="v => module = string.IsNullOrWhiteSpace(v) ? null : v" Options="ModuleOptions(module)" AriaLabel="Modul" />
+                            <BbFieldLabel For="nd-module">Module (required, from Master Modules)</BbFieldLabel>
+                            <BbSelect TValue="string" Value="@(module ?? "")" ValueChanged="v => module = string.IsNullOrWhiteSpace(v) ? null : v" Options="ModuleOptions(module)" AriaLabel="Module" />
                         </BbField>
                     }
                     @if (kind == "document")
@@ -252,8 +261,12 @@ else
         return def;
     }
 
+    private bool? canEdit;
+    protected override async Task OnInitializedAsync() => canEdit = await EditPolicy.CanEditAsync(Current.User);
+
     private void Create()
     {
+        if (canEdit != true) { error = Framework.Web.Tenancy.MetadataEditPolicy.DeniedMessage; return; }
         error = null; busy = true;
         try
         {
@@ -332,6 +345,7 @@ else
     /// <summary>Publishes the AI draft: child DocTypes, then the main DocType, then the workflow (attached).</summary>
     private void CreateFromAi()
     {
+        if (canEdit != true) { error = Framework.Web.Tenancy.MetadataEditPolicy.DeniedMessage; return; }
         if (aiDraft?.DocType is null) return;
         error = null; busy = true;
         var user = Current.Required;

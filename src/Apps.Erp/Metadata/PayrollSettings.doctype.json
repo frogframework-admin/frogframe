@@ -218,6 +218,22 @@
       "description": "Earning used for approved overtime (taxable, not regular). Empty = overtime is not paid through payroll"
     },
     {
+      "name": "tax_allowance_component",
+      "type": "Link",
+      "label": "Tax allowance component",
+      "linkTo": "SalaryComponent",
+      "linkFilters": [
+        {
+          "field": "component_type",
+          "op": "=",
+          "value": "Earning"
+        }
+      ],
+      "tab": "PPh 21",
+      "section": "Tax allowance (gross-up)",
+      "description": "Earning (taxable, fixed calculation, not in BPJS base) used for salary assignments with PPh 21 method Gross-up"
+    },
+    {
       "name": "dtp_enabled",
       "type": "Check",
       "label": "PPh 21 borne by government (DTP)",

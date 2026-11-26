@@ -1,0 +1,63 @@
+{
+  "name": "CompensationMeritRule",
+  "version": 1,
+  "title": "Merit Guideline",
+  "module": "HR",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "rating",
+      "type": "Select",
+      "label": "Rating",
+      "options": [
+        "Outstanding",
+        "Exceeds expectations",
+        "Meets expectations",
+        "Needs improvement",
+        "Unsatisfactory",
+        "Not rated"
+      ],
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "compa_band",
+      "type": "Select",
+      "label": "Compa-ratio band",
+      "options": [
+        "Any",
+        "Below 0.90",
+        "0.90–1.10",
+        "Above 1.10"
+      ],
+      "default": "Any",
+      "requiredWhen": "true",
+      "inListView": true,
+      "description": "Position of current pay in the grade range (pay ÷ range midpoint). 'Any' applies when no band-specific row matches."
+    },
+    {
+      "name": "min_percent",
+      "type": "Percent",
+      "label": "Min increase (%)",
+      "min": 0,
+      "max": 100,
+      "inListView": true
+    },
+    {
+      "name": "target_percent",
+      "type": "Percent",
+      "label": "Target increase (%)",
+      "min": 0,
+      "max": 100,
+      "inListView": true
+    },
+    {
+      "name": "max_percent",
+      "type": "Percent",
+      "label": "Max increase (%)",
+      "min": 0,
+      "max": 100,
+      "inListView": true
+    }
+  ]
+}

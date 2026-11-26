@@ -1,0 +1,219 @@
+{
+  "name": "OkrObjective",
+  "version": 1,
+  "title": "Goal (OKR)",
+  "module": "HR",
+  "description": "Continuous goal (OKR) per period: objective with weighted key results. Progress is computed from the key results and shown in 1:1 check-ins.",
+  "naming": {
+    "pattern": "OKR-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "employee",
+      "type": "Link",
+      "label": "Employee",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "default": "$employee",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Objective"
+    },
+    {
+      "name": "employee_name",
+      "type": "Data",
+      "label": "Employee name",
+      "fetchFrom": "employee.full_name",
+      "inListView": true,
+      "section": "Objective"
+    },
+    {
+      "name": "reports_to",
+      "type": "Link",
+      "label": "Reports to",
+      "linkTo": "Employee",
+      "readOnlyWhen": "true",
+      "section": "Objective",
+      "column": 2
+    },
+    {
+      "name": "period",
+      "type": "Data",
+      "label": "Period (e.g. 2026-Q1, 2026-H1, 2026-FY)",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Objective",
+      "column": 2
+    },
+    {
+      "name": "level",
+      "type": "Select",
+      "label": "Level",
+      "requiredWhen": "true",
+      "options": [
+        "Company",
+        "Department",
+        "Individual"
+      ],
+      "default": "Individual",
+      "inListView": true,
+      "section": "Objective"
+    },
+    {
+      "name": "parent_objective",
+      "type": "Link",
+      "label": "Aligned to (parent objective)",
+      "linkTo": "OkrObjective",
+      "lookupDialog": true,
+      "section": "Objective"
+    },
+    {
+      "name": "title",
+      "type": "Data",
+      "label": "Objective",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Objective"
+    },
+    {
+      "name": "description",
+      "type": "Text",
+      "label": "Description",
+      "section": "Objective"
+    },
+    {
+      "name": "start_date",
+      "type": "Date",
+      "label": "Start date",
+      "requiredWhen": "true",
+      "section": "Schedule"
+    },
+    {
+      "name": "end_date",
+      "type": "Date",
+      "label": "End date",
+      "requiredWhen": "true",
+      "section": "Schedule",
+      "column": 2
+    },
+    {
+      "name": "status",
+      "type": "Select",
+      "label": "Status",
+      "requiredWhen": "true",
+      "options": [
+        "Draft",
+        "Active",
+        "Achieved",
+        "Missed",
+        "Cancelled"
+      ],
+      "default": "Draft",
+      "inListView": true,
+      "section": "Schedule",
+      "column": 2
+    },
+    {
+      "name": "progress_percent",
+      "type": "Percent",
+      "label": "Progress (%)",
+      "readOnlyWhen": "true",
+      "inListView": true,
+      "section": "Schedule",
+      "column": 2,
+      "description": "Weighted average of the key results (hook)"
+    },
+    {
+      "name": "key_results",
+      "type": "Table",
+      "label": "Key results",
+      "childDocType": "KeyResult",
+      "requiredWhen": "true",
+      "section": "Key results"
+    }
+  ],
+  "rules": [
+    {
+      "name": "valid_period",
+      "expr": "end_date >= start_date",
+      "message": "End date must be on or after start date",
+      "field": "end_date"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Employee",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report"
+      ],
+      "scope": "match:employee=employee"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read",
+        "write",
+        "report"
+      ],
+      "scope": "match:reports_to=employee"
+    },
+    {
+      "role": "HR-Talent",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Admin",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "title",
+    "searchFields": [
+      "employee",
+      "employee_name",
+      "title"
+    ]
+  }
+}

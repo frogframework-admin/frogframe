@@ -1047,11 +1047,29 @@ public sealed class MetadataRegistry : IMetadataProvider
         lock (_gate) return _customWarnings.TryGetValue(docType, out var w) ? w : [];
     }
 
+    /// <summary>Version of the last saved customization of a DocType (0 = never customized). Pass it back as the expected version when saving.</summary>
+    public int CustomizationVersion(string docType)
+    {
+        lock (_gate) return _customHistory.TryGetValue(docType, out var h) && h.Count > 0 ? h[^1].Version : 0;
+    }
+
+    // Optimistic concurrency for the customization layer: two administrators editing the same application DocType
+    // must not silently overwrite each other's custom fields.
+    private void EnsureCustomizationVersion(string docType, int? expected)
+    {
+        if (expected is not { } e || !IsAppOwned(docType)) return;
+        var current = _customHistory.TryGetValue(docType, out var h) && h.Count > 0 ? h[^1].Version : 0;
+        if (current != e)
+            throw new MetadataConcurrencyException(docType, e, current,
+                $"{docType} was customized by someone else (customization v{current}, you started from v{e}). Reload the editor, re-apply your changes and save again.");
+    }
+
     /// <summary>Removes all customizations of a DocType (custom field values stay in the documents).</summary>
-    public void ResetCustomization(string docType, string resetBy, MetadataScope? scope = null)
+    public void ResetCustomization(string docType, string resetBy, MetadataScope? scope = null, int? expectedCustomizationVersion = null)
     {
         lock (_gate)
         {
+            EnsureCustomizationVersion(docType, expectedCustomizationVersion);
             if (!_custom.ContainsKey(docType)) return;
             var defs = _current.DocTypes.Values.Select(c => c.Def).Where(d => d.Name != docType).Append(_base[docType]).ToList();
             var snapshot = _compiler.Compile(defs, _workflows, scope); // throws when other DocTypes depend on custom fields
@@ -1319,19 +1337,24 @@ public sealed class MetadataRegistry : IMetadataProvider
     }
 
     /// <summary>Publish versi baru secara immutable. Perubahan berisiko butuh konfirmasi eksplisit.</summary>
-    public MetadataVersion Publish(DocTypeDef draft, string publishedBy, bool acknowledgeRisk, MetadataScope? scope = null)
+    /// <param name="expectedCustomizationVersion">
+    /// Application DocTypes only: the <see cref="CustomizationVersion"/> the editor started from. When someone saved a
+    /// customization in between, <see cref="MetadataConcurrencyException"/> is thrown instead of overwriting it. Null = no check.
+    /// </param>
+    public MetadataVersion Publish(DocTypeDef draft, string publishedBy, bool acknowledgeRisk, MetadataScope? scope = null, int? expectedCustomizationVersion = null)
     {
-        if (draft.DataMigration is null) return Publish(draft, publishedBy, acknowledgeRisk, 0, scope);
+        if (draft.DataMigration is null) return Publish(draft, publishedBy, acknowledgeRisk, 0, scope, expectedCustomizationVersion);
         var dryRun = PreviewDataMigration(draft, scope: scope);
         if (!dryRun.Valid)
             throw new InvalidOperationException($"Migration dry-run failed: {dryRun.Error}");
-        return Publish(draft, publishedBy, acknowledgeRisk, dryRun.Documents, scope);
+        return Publish(draft, publishedBy, acknowledgeRisk, dryRun.Documents, scope, expectedCustomizationVersion);
     }
 
-    public MetadataVersion Publish(DocTypeDef draft, string publishedBy, bool acknowledgeRisk, int migratedDocuments, MetadataScope? scope = null)
+    public MetadataVersion Publish(DocTypeDef draft, string publishedBy, bool acknowledgeRisk, int migratedDocuments, MetadataScope? scope = null, int? expectedCustomizationVersion = null)
     {
         lock (_gate)
         {
+            EnsureCustomizationVersion(draft.Name, expectedCustomizationVersion);
             var (errors, changes) = TryCompileWith(draft, out var snapshot, out var effective, out var customization, scope);
             if (errors.Count > 0) throw new MetadataCompilationException(errors);
             if (changes.Any(c => c.Risk == ChangeRisk.Risky) && !acknowledgeRisk)

@@ -13,6 +13,7 @@
 @inject DialogService Dialogs
 @inject NavigationManager Nav
 @inject Framework.Preferences.IUserPreferenceStore UserPrefs
+@inject Framework.Web.Tenancy.MetadataEditPolicy EditPolicy
 @implements IDisposable
 
 <PageTitle>@(permRole is not null ? $"Role: {permRole.Name} · FrogFrame" : "Master Roles · FrogFrame")</PageTitle>
@@ -178,7 +179,8 @@ else
                             <LucideIcon Name="rotate-ccw" Size="15" /> Discard Changes
                         </BbButton>
                     }
-                    <BbButton Disabled="@(dirtyDocTypes.Count == 0 || busy)" Loading="@busy" LoadingText="Saving…" OnClick="SavePermissionsAsync">
+                    <BbButton Disabled="@(!canEditMetadata || dirtyDocTypes.Count == 0 || busy)" Loading="@busy" LoadingText="Saving…" OnClick="SavePermissionsAsync"
+                              Title="@(canEditMetadata ? null : Framework.Web.Tenancy.MetadataEditPolicy.DeniedMessage)">
                         <LucideIcon Name="check" Size="16" /> Save Permissions @(dirtyDocTypes.Count > 0 ? $"({dirtyDocTypes.Count} DocTypes)" : "")
                     </BbButton>
                 }
@@ -554,6 +556,8 @@ else
     {
         gridMgr = new(UserPrefs, Current, "grid:admin:roles", StateHasChanged);
         if (Current.User is null) return;
+        // DocType permissions live in the shared metadata, not in the tenant's role store.
+        canEditMetadata = await EditPolicy.CanEditAsync(Current.User);
         await gridMgr.InitializeAsync();
         await Reload();
     }
@@ -726,8 +730,11 @@ else
         dirtyDocTypes.Add(p.DocType);
     }
 
+    private bool canEditMetadata;
+
     private async Task SavePermissionsAsync()
     {
+        if (!canEditMetadata) { permError = Framework.Web.Tenancy.MetadataEditPolicy.DeniedMessage; return; }
         if (permRole is null || dirtyDocTypes.Count == 0 || busy) return;
         busy = true;
         permError = null;

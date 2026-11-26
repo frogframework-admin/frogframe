@@ -8,6 +8,7 @@
 @inject DialogService Dialogs
 @inject NavigationManager Nav
 @inject Framework.Web.AI.AiDesignerService Ai
+@inject Framework.Web.Tenancy.MetadataEditPolicy EditPolicy
 
 <PageTitle>Workflow @(wf?.Name) · FrogFrame</PageTitle>
 
@@ -36,7 +37,7 @@ else
         <div class="row">
             @if (!isNew) { <BbButton Variant="ButtonVariant.Ghost" Disabled="@(!dirty)" OnClick="Discard"><LucideIcon Name="rotate-ccw" Size="16" /> Discard changes</BbButton> }
             <BbButton Variant="ButtonVariant.Outline" Disabled="@(errors.Count > 0)" OnClick="Check"><LucideIcon Name="search" Size="16" /> Check changes</BbButton>
-            <BbButton Disabled="@(preview is not { Valid: true } || preview.Changes.Count == 0 || (preview.Risk == ChangeRisk.Risky && !ack))" OnClick="Publish">
+            <BbButton Disabled="@(!canEdit || preview is not { Valid: true } || preview.Changes.Count == 0 || (preview.Risk == ChangeRisk.Risky && !ack))" OnClick="Publish">
                 <LucideIcon Name="upload" Size="16" /> Publish
             </BbButton>
         </div>
@@ -616,8 +617,12 @@ else
 
     private void Check() => preview = Registry.PreviewWorkflow(DraftForCompile(), attach, RoleCatalogSvc.Scope(Current.Required.TenantId));
 
+    private bool canEdit;
+    protected override async Task OnInitializedAsync() => canEdit = await EditPolicy.CanEditAsync(Current.User);
+
     private void Publish()
     {
+        if (!canEdit) { Toasts.Error(Framework.Web.Tenancy.MetadataEditPolicy.DeniedMessage, "Failed to publish"); return; }
         try
         {
             var v = Registry.PublishWorkflow(DraftForCompile(), Current.Required.Id, ack, attach, RoleCatalogSvc.Scope(Current.Required.TenantId));

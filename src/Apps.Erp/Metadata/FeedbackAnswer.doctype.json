@@ -1,0 +1,56 @@
+{
+  "name": "FeedbackAnswer",
+  "version": 1,
+  "title": "Feedback Answer",
+  "module": "HR",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "question_no",
+      "type": "Int",
+      "label": "No",
+      "inListView": true,
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "competency",
+      "type": "Data",
+      "label": "Competency",
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "question",
+      "type": "Text",
+      "label": "Question",
+      "inListView": true,
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "answer_type",
+      "type": "Data",
+      "label": "Answer type",
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "is_required",
+      "type": "Check",
+      "label": "Required",
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "score",
+      "type": "Int",
+      "label": "Score (1–5)",
+      "min": 1,
+      "max": 5,
+      "inListView": true,
+      "description": "1 = rarely shows this, 3 = shows it as expected, 5 = a role model"
+    },
+    {
+      "name": "comment",
+      "type": "Text",
+      "label": "Comment",
+      "inListView": true
+    }
+  ]
+}

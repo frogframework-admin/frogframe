@@ -226,6 +226,15 @@
       "column": 2
     },
     {
+      "name": "att_present_days",
+      "type": "Float",
+      "label": "Days present",
+      "readOnlyWhen": "true",
+      "tab": "Pay",
+      "section": "Attendance summary",
+      "description": "Days with at least one punch: ONT + LI + EO + LI/EO + NCIN + NCOUT (att.present_days in formulas)"
+    },
+    {
       "name": "earnings",
       "type": "Table",
       "label": "Earnings",
@@ -453,6 +462,25 @@
       "tab": "PPh 21",
       "section": "Monthly",
       "column": 2
+    },
+    {
+      "name": "tax_method",
+      "type": "Data",
+      "label": "Tax method",
+      "readOnlyWhen": "true",
+      "tab": "PPh 21",
+      "section": "Monthly",
+      "description": "From the salary assignment. Gross-up: the company pays the PPh 21 as a tax allowance"
+    },
+    {
+      "name": "tax_allowance",
+      "type": "Currency",
+      "label": "Tax allowance (gross-up)",
+      "readOnlyWhen": "true",
+      "tab": "PPh 21",
+      "section": "Monthly",
+      "column": 2,
+      "description": "Recalculated on every save so that it equals the PPh 21 it carries"
     },
     {
       "name": "is_last_period",

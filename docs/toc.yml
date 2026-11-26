@@ -52,6 +52,8 @@
       href: guides/admin-and-user-onboarding.md
     - name: Attendance Codes & Monthly Recap
       href: guides/attendance-codes.md
+    - name: Payroll Formulas & Rate Tables
+      href: guides/payroll-formulas.md
     - name: Background Jobs
       href: guides/background-jobs.md
     - name: Roles

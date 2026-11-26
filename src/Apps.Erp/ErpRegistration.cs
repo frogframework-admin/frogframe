@@ -29,6 +29,7 @@ public static class ErpRegistration
             : new Ess.InMemoryEssPunchStore());
         services.TryAddSingleton<Ess.EssAttendanceService>();
         services.TryAddSingleton<Ess.EssRequestService>();
+        services.TryAddSingleton<Ess.EssFeedbackService>();
         services.AddDocHook<Employee, Ess.EssCacheInvalidationHook>();
         services.AddDocHook<Ess.Location, Ess.EssCacheInvalidationHook>();
         services.AddDocHook<Ess.ShiftType, Ess.EssCacheInvalidationHook>();
@@ -70,6 +71,7 @@ public static class ErpRegistration
         services.AddHomePanel<Components.Home.CompanyInfoPanel>("erp-company-info", Framework.Web.Home.HomeSlot.Side, 50);
         // Managers: direct reports with today's status; managers and HR: who is away (time off / day off). See TeamHomeService.
         services.TryAddSingleton<Home.TeamHomeService>();
+        services.TryAddSingleton<Home.CheckInDueService>();
         services.AddHomePanel<Components.Home.TeamPanel>("erp-team", Framework.Web.Home.HomeSlot.Main, 10,
             u => IsEmployee(u) || Home.TeamHomeService.IsHr(u));
 
@@ -224,16 +226,36 @@ public static class ErpRegistration
         services.AddFormAction<Announcement, AnnouncementAcknowledgeAction>();
         services.AddDocHook<Appraisal, AppraisalHook>();
         services.AddFormAction<Appraisal, AppraisalCreateJobChangeAction>();
+        // 360 feedback (docs/guides/360-feedback.md)
+        services.AddDocHook<FeedbackTemplate, FeedbackTemplateHook>();
+        services.AddDocHook<MultiRaterReview, MultiRaterReviewHook>();
+        services.AddDocHook<FeedbackResponse, FeedbackResponseHook>();
+        services.AddFormAction<MultiRaterReview, MultiRaterSubmitNominationsAction>();
+        services.AddFormAction<MultiRaterReview, MultiRaterSendRequestsAction>();
+        services.AddFormAction<MultiRaterReview, MultiRaterCloseAction>();
+        services.AddFormAction<MultiRaterReview, MultiRaterCancelAction>();
+        services.AddFormAction<AppraisalCycle, AppraisalCycleLaunch360Action>();
+        services.AddScheduledJob<FeedbackReminderJob>();
+        services.AddScheduledJob<OneOnOneReminderJob>();
         services.AddDocHook<TalentReview, TalentReviewHook>();
         services.AddDocHook<Ess.HRSettings, HRSettingsTalentAccessHook>();
         services.AddDocHook<SuccessionPlan, SuccessionPlanHook>();
         services.AddDocHook<DevelopmentPlan, DevelopmentPlanHook>();
+        services.AddDocHook<OkrObjective, OkrObjectiveHook>();
+        services.AddDocHook<OneOnOne, OneOnOneHook>();
+        services.AddDocHook<CompensationCycle, CompensationCycleHook>();
+        services.AddDocHook<CompensationWorksheet, CompensationWorksheetHook>();
+        services.AddFormAction<CompensationCycle, CompensationGenerateAction>();
+        services.AddFormAction<CompensationCycle, CompensationApplyAction>();
+        services.AddFormAction<CompensationCycle, CompensationCancelAction>();
         services.AddDocHook<TrainingRequest, TrainingRequestHook>();
         services.AddDocHook<TrainingEvent, TrainingEventHook>();
 
         // PAYROLL
         services.AddDocHook<PayrollSettings, PayrollSettingsHook>();
         services.AddDocHook<SalaryAssignment, SalaryAssignmentHook>();
+        services.AddDocHook<SalaryComponent, SalaryComponentHook>();
+        services.AddDocHook<SalaryRateTable, SalaryRateTableHook>();
         services.AddDocHook<Payslip, PayslipHook>();
         services.AddDocHook<PayrollRun, PayrollRunHook>();
         services.AddFormAction<PayrollRun, PayrollRunCreatePayslipsAction>();
@@ -286,6 +308,10 @@ public static class ErpRegistration
         services.AddReport<LeaveBalanceReport>();
         services.AddReport<CompetencyGapReport>();
         services.AddReport<NineBoxReport>();
+        services.AddReport<FeedbackSummaryReport>();
+        services.AddReport<GoalCheckInReport>();
+        services.AddReport<CompensationBudgetReport>();
+        services.AddReport<CompensationAwardsReport>();
         services.AddReport<RecruitmentMetricsReport>();
         services.AddReport<SalesPipelineReport>();
         services.AddReport<PayrollRegisterReport>();

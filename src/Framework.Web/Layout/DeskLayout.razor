@@ -320,6 +320,11 @@
                                             <LucideIcon Name="building-2" Size="15" />
                                             <span>@T["Manage tenants"]</span>
                                         </a>
+                                        <a href="/account/switch-tenant" class="header-logout-btn" style="color:var(--popover-foreground, #0f172a);text-decoration:none;justify-content:flex-start;padding:0.45rem 0.6rem;width:100%;font-weight:400;"
+                                           data-enhance-nav="false" @onclick="CloseUserDropdown">
+                                            <LucideIcon Name="arrow-left-right" Size="15" />
+                                            <span>@T["Switch tenant"]</span>
+                                        </a>
                                     }
                                     <div style="height:1px;background:var(--border, #e2e8f0);margin:0.2rem 0;"></div>
                                     <button type="button" class="header-logout-btn" style="color:var(--destructive, #ef4444);justify-content:flex-start;padding:0.45rem 0.6rem;width:100%;font-weight:500;"
@@ -448,6 +453,16 @@
         }
         <div class="bottom-full-wave" aria-hidden="true"></div>
         <main class="app-main" id="content">
+            @if (Framework.Web.Tenancy.TenantSwitch.IsActing(Current.User))
+            {
+                <BbAlert Variant="AlertVariant.Warning" Class="mb-3">
+                    <BbAlertDescription>
+                        <LucideIcon Name="arrow-left-right" Size="14" />
+                        @T.Format("You are working in tenant {0} as platform administrator.", Current.User!.TenantId)
+                        <a href="/account/switch-tenant" data-enhance-nav="false" style="margin-left:.5rem;font-weight:600;">@T["Switch / back to my tenant"]</a>
+                    </BbAlertDescription>
+                </BbAlert>
+            }
             @if (Current.User is null && !IsPublicErrorRoute())
             {
                 <div class="stack"><BbSkeleton Height="2rem" /><BbSkeleton Height="12rem" /></div>

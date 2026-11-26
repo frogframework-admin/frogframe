@@ -9,6 +9,7 @@ company is a **tenant**:
 
 A user account belongs to exactly one tenant, and user names are unique across the installation. Signing in with an
 account opens its tenant; there is no tenant picker. A person who works for two companies needs two accounts.
+The exception is a group administrator, who can switch to any active tenant (see *Switching tenant* below).
 
 ## Group administrators
 
@@ -23,6 +24,46 @@ FROGFRAME_PLATFORM_ADMINS=admin,group.it
 This list is configuration on purpose: a System Manager of one company cannot make themselves administrator of the
 other companies from inside the application. Keep the list short and require two-factor authentication for these
 accounts (`FROGFRAME_2FA_REQUIRED_ROLES` or the tenant setting below).
+
+## Switching tenant
+
+A group administrator (a user id in `Platform:Administrators`) can work in any active tenant with their own account:
+profile menu › **Switch tenant** (`/account/switch-tenant`), choose the tenant, *Switch*. While switched:
+
+- the user acts as **System Manager** of that tenant: their own roles, employee record and department are not carried
+  over (they belong to the home tenant), so employee-only pages such as self-service show nothing;
+- a yellow bar on every page names the tenant, with a link back; *Back to my tenant* (or closing the browser) ends it;
+- every switch is written to the application log (warning level: user, home tenant, target tenant);
+- documents created or changed record the administrator's own user id, as usual.
+
+How it works and what stays safe:
+
+| Rule | Effect |
+|---|---|
+| Separate cookie | The choice is kept in an encrypted, HTTP-only session cookie (`frogframe.acting_tenant`) bound to the user id. The sign-in cookie is not changed; copying the cookie to another account does nothing. |
+| Checked on every request | The tenant is applied only while the user is still in `Platform:Administrators` and the target tenant is active. Removing someone from the list or suspending the tenant ends it on the next request; open pages end within a minute (Blazor revalidation). |
+| Browser only | API bearer tokens and API keys always act in their own tenant. |
+| Form POST with antiforgery | Another site cannot switch the tenant for you. |
+| Two-factor | The target tenant's "roles that must use two-factor authentication" apply to System Manager while switched. |
+
+## Who can change metadata
+
+Metadata (DocTypes, customizations, workflows and the DocType permissions in *Roles & Permissions*) is shared by every
+tenant. With **one** registered tenant every System Manager can change it, as before. With **more than one** tenant only
+group administrators can publish metadata changes, customize or reset application DocTypes, create DocTypes, publish
+workflows and save DocType permissions; other System Managers see these pages read-only (they can still review a draft
+and see the changes). A group administrator usually does this after switching to the tenant they are working for.
+
+Installations where all tenants trust each other's administrators can switch this off:
+
+```bash
+# .env (Docker Compose)
+FROGFRAME_TENANT_ADMINS_EDIT_METADATA=true   # = Platform:TenantAdminsCanEditMetadata
+```
+
+The same rule applies to `POST /api/admin/metadata/publish` (403). Saving a customization also checks that nobody saved
+another customization of the same DocType since the editor was opened (`expectedCustomizationVersion`); otherwise the
+save is refused (409) instead of overwriting the other person's custom fields.
 
 ## What a group administrator can do
 
@@ -45,7 +86,7 @@ accounts (`FROGFRAME_2FA_REQUIRED_ROLES` or the tenant setting below).
 
 Settings that apply to the whole installation and cannot differ per tenant yet: time zone
 (`FieldTypeSettings.DefaultTimeZone`, Asia/Jakarta), metadata and customizations, e-mail sending defaults, single
-sign-on providers.
+sign-on providers. Metadata is edited by group administrators when there is more than one tenant (see above).
 
 ## A new company step by step
 

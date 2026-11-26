@@ -7,6 +7,7 @@
 @inject DialogService Dialogs
 @inject NavigationManager Nav
 @inject Framework.Web.AI.AiDesignerService Ai
+@inject Framework.Web.Tenancy.MetadataEditPolicy EditPolicy
 
 <PageTitle>@DocTypeName Editor · FrogFrame</PageTitle>
 
@@ -20,6 +21,8 @@ else if (design is null)
 }
 else
 {
+    @* Unpublished draft: ask before leaving the editor (internal links) or closing/reloading the tab. *@
+    <NavigationLock ConfirmExternalNavigation="@(dirty && canEdit)" OnBeforeInternalNavigation="ConfirmLeaveAsync" />
     <header class="page-head">
         <div>
             <h1>@design.Def.Title <span class="muted" style="font-weight:500">@(isApp ? "· customizing" : $"· draft v{version}")</span></h1>
@@ -40,11 +43,19 @@ else
         <div class="row">
             <BbButton Variant="ButtonVariant.Ghost" Disabled="@(!dirty)" OnClick="Discard"><LucideIcon Name="rotate-ccw" Size="16" /> Discard changes</BbButton>
             <BbButton Variant="ButtonVariant.Outline" Disabled="@(errors.Count > 0)" OnClick="Check"><LucideIcon Name="search" Size="16" /> Review changes</BbButton>
-            <BbButton Disabled="@(preview is not { Valid: true } || preview.Changes.Count == 0 || (preview.Risk == ChangeRisk.Risky && !ack) || (design.Def.DataMigration is not null && migrationPreview is not { Valid: true }))" OnClick="Publish">
+            <BbButton Disabled="@(!canEdit || preview is not { Valid: true } || preview.Changes.Count == 0 || (preview.Risk == ChangeRisk.Risky && !ack) || (design.Def.DataMigration is not null && migrationPreview is not { Valid: true }))" OnClick="Publish">
                 <LucideIcon Name="upload" Size="16" /> @(isApp ? "Save customization" : $"Publish v{version}")
             </BbButton>
         </div>
     </header>
+
+    @if (!canEdit)
+    {
+        <BbAlert Variant="AlertVariant.Warning" Class="props-block">
+            <BbAlertTitle>Read-only</BbAlertTitle>
+            <BbAlertDescription>@Framework.Web.Tenancy.MetadataEditPolicy.DeniedMessage You can explore and review changes here, but not publish them.</BbAlertDescription>
+        </BbAlert>
+    }
 
     <AiAssistPanel Title="Modify with AI"
                    Description="Describe the change. The AI rewrites the draft below; nothing is published until you review the changes and press Publish."
@@ -110,7 +121,7 @@ else
             <BbAlertDescription>
                 Your changes are saved as a <strong>customization</strong> on top of the application's definition, so they stay when the application is updated.
                 New fields are named <code>@Framework.Metadata.Customizations.CustomFieldPrefix…</code>. Application fields cannot be removed or change type; hide them instead.
-                @if (customization is not null)
+                @if (customization is not null && canEdit)
                 {
                     <div style="margin-top:.5rem">
                         <BbButton Variant="ButtonVariant.Outline" Size="ButtonSize.Small" OnClick="ResetCustomization">
@@ -827,6 +838,21 @@ else
     // Blazor triggers OnParametersSet whenever the parent layout re-renders (e.g. notification count changes).
     // Reload only when the route parameter actually changes, so user inputs/drafts are not lost.
     private string? loadedKey;
+    private bool canEdit;
+    // Customization version the editor started from; sent back on save so a concurrent save is detected instead of overwritten.
+    private int customVersionAtLoad;
+
+    protected override async Task OnInitializedAsync() => canEdit = await EditPolicy.CanEditAsync(Current.User);
+
+    private async Task ConfirmLeaveAsync(LocationChangingContext context)
+    {
+        if (!dirty || !canEdit) return;
+        var ok = await Dialogs.ConfirmAsync("Leave without publishing?",
+            isApp ? "Your unsaved customization changes will be lost." : "Your unpublished changes to this draft will be lost.",
+            new ConfirmDialogOptions { ConfirmText = "Leave", CancelText = "Stay" });
+        if (!ok.Confirmed) context.PreventNavigation();
+    }
+
     protected override void OnParametersSet()
     {
         if (DocTypeName == loadedKey) return;
@@ -844,6 +870,7 @@ else
         activeInner.Clear();
         isApp = Registry.IsAppOwned(DocTypeName);
         customization = isApp ? Registry.Customization(DocTypeName) : null;
+        customVersionAtLoad = isApp ? Registry.CustomizationVersion(DocTypeName) : 0;
         baseFieldNames = isApp && Registry.BaseDefinition(DocTypeName) is { } baseDef
             ? baseDef.Fields.Select(f => f.Name).ToHashSet(StringComparer.Ordinal)
             : [];
@@ -1259,18 +1286,25 @@ else
 
     private void Publish()
     {
+        if (!canEdit) { Toasts.Error(Framework.Web.Tenancy.MetadataEditPolicy.DeniedMessage, "Failed to publish"); return; }
         try
         {
             var draft = design!.ToDef(version);
             var migratedDocuments = draft.DataMigration is null ? 0 : migrationPreview is { Valid: true } result
                 ? result.Documents
                 : throw new InvalidOperationException("Run a successful migration dry-run before publishing.");
-            var v = Registry.Publish(draft, Current.Required.Id, ack, migratedDocuments, RoleCatalogSvc.Scope(Current.Required.TenantId));
+            var v = Registry.Publish(draft, Current.Required.Id, ack, migratedDocuments, RoleCatalogSvc.Scope(Current.Required.TenantId),
+                isApp ? customVersionAtLoad : null);
             if (isApp)
                 Toasts.Success("Saved separately from the application's definition; it stays when the application is updated.", $"{v.DocType} customization saved");
             else
                 Toasts.Success("Forms, lists, and APIs will immediately use this version.", $"{v.DocType} v{v.Version} published");
             Load();
+        }
+        catch (MetadataConcurrencyException ex)
+        {
+            // Keep the draft on screen so the administrator can copy their changes before reloading.
+            Toasts.Error(ex.Message, "Changed by someone else");
         }
         catch (Exception ex) when (ex is MetadataCompilationException or InvalidOperationException)
         {
@@ -1288,16 +1322,20 @@ else
         var ok = await Dialogs.ConfirmAsync("Reset to the application default?",
             "All customizations of this DocType are removed: custom fields disappear from forms and lists (their values stay in the documents and come back if you add the same field again), and changed labels, rules and settings return to the application's definition.",
             new ConfirmDialogOptions { ConfirmText = "Reset customization", CancelText = "Cancel" });
-        if (!ok.Confirmed) return;
+        if (!ok.Confirmed || !canEdit) return;
         try
         {
-            Registry.ResetCustomization(DocTypeName, Current.Required.Id, RoleCatalogSvc.Scope(Current.Required.TenantId));
+            Registry.ResetCustomization(DocTypeName, Current.Required.Id, RoleCatalogSvc.Scope(Current.Required.TenantId), customVersionAtLoad);
             Toasts.Success("The application's definition is active again.", $"{DocTypeName} customization reset");
             Load();
         }
         catch (MetadataCompilationException ex)
         {
             Toasts.Error(string.Join("; ", ex.Errors.Take(3).Select(e => e.ToString())), "Cannot reset: other metadata uses the custom fields");
+        }
+        catch (MetadataConcurrencyException ex)
+        {
+            Toasts.Error(ex.Message, "Changed by someone else");
         }
     }
 

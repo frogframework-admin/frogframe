@@ -21,6 +21,8 @@ public static class FrogFrameClaims
     public const string Employee = "frogframe:employee";
     public const string Avatar = "frogframe:avatar";
     public const string Email = "frogframe:email";
+    /// <summary>Set only while a platform administrator acts in another tenant (see Tenancy.TenantSwitch): their own tenant.</summary>
+    public const string HomeTenant = "frogframe:home_tenant";
 
     /// <summary>Atribut UserContext ↔ klaim. Tambah baris di sini untuk atribut baru (mis. cost center).</summary>
     public static readonly IReadOnlyDictionary<string, string> AttributeClaims = new Dictionary<string, string>
@@ -29,6 +31,7 @@ public static class FrogFrameClaims
         ["employee"] = Employee,
         ["avatar"] = Avatar,
         ["email"] = Email,
+        ["home_tenant"] = HomeTenant,
     };
 }
 
@@ -252,6 +255,14 @@ public sealed class IdentityRevalidatingAuthenticationStateProvider(ILoggerFacto
         if (user is null || !user.IsActive) return false;
         // A suspended tenant ends open Blazor sessions within the revalidation interval.
         if (scope.ServiceProvider.GetService<Framework.Tenancy.TenantDirectory>() is { } tenants && !await tenants.IsActiveAsync(user.TenantId, ct)) return false;
+        // Acting in another tenant (platform administrator): that tenant must stay active and the user must stay a platform administrator.
+        if (state.User.FindFirstValue(FrogFrameClaims.HomeTenant) is { Length: > 0 }
+            && state.User.FindFirstValue(FrogFrameClaims.Tenant) is { Length: > 0 } acting && acting != user.TenantId)
+        {
+            var admins = scope.ServiceProvider.GetService<Framework.Web.Tenancy.PlatformAdmins>();
+            if (admins is null || !admins.IsPlatformAdmin(ClaimsUserMapper.ToUserContext(state.User))) return false;
+            if (scope.ServiceProvider.GetService<Framework.Tenancy.TenantDirectory>() is { } t && !await t.IsActiveAsync(acting, ct)) return false;
+        }
         var stamp = state.User.FindFirstValue(options.Value.ClaimsIdentity.SecurityStampClaimType);
         return stamp == user.SecurityStamp;
     }

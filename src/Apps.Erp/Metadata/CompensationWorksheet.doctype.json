@@ -1,0 +1,205 @@
+{
+  "name": "CompensationWorksheet",
+  "version": 1,
+  "title": "Compensation Worksheet",
+  "module": "HR",
+  "description": "One manager's merit and bonus proposals for their direct reports within the unit budget. Generated from the Compensation Cycle.",
+  "naming": {
+    "pattern": "CW-{YYYY}-{#####}"
+  },
+  "workflow": "CompensationWorksheetApproval",
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": true,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "compensation_cycle",
+      "type": "Link",
+      "label": "Compensation cycle",
+      "linkTo": "CompensationCycle",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Worksheet",
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "manager",
+      "type": "Link",
+      "label": "Manager",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "section": "Worksheet",
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "manager_name",
+      "type": "Data",
+      "label": "Manager name",
+      "fetchFrom": "manager.full_name",
+      "inListView": true,
+      "section": "Worksheet"
+    },
+    {
+      "name": "organization_unit",
+      "type": "Link",
+      "label": "Unit",
+      "linkTo": "OrganizationUnit",
+      "inListView": true,
+      "section": "Worksheet",
+      "column": 2,
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "effective_date",
+      "type": "Date",
+      "label": "Effective date",
+      "section": "Worksheet",
+      "column": 2,
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "total_base",
+      "type": "Currency",
+      "label": "Total monthly base",
+      "section": "Budget",
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "merit_budget_percent",
+      "type": "Percent",
+      "label": "Merit budget (%)",
+      "section": "Budget",
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "merit_budget",
+      "type": "Currency",
+      "label": "Merit budget (monthly)",
+      "section": "Budget",
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "merit_planned",
+      "type": "Currency",
+      "label": "Merit planned",
+      "inListView": true,
+      "section": "Budget",
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "merit_remaining",
+      "type": "Currency",
+      "label": "Merit remaining",
+      "inListView": true,
+      "section": "Budget",
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "bonus_budget_percent",
+      "type": "Percent",
+      "label": "Bonus budget (% of annual base)",
+      "section": "Budget",
+      "column": 2,
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "bonus_budget",
+      "type": "Currency",
+      "label": "Bonus budget",
+      "section": "Budget",
+      "column": 2,
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "bonus_planned",
+      "type": "Currency",
+      "label": "Bonus planned",
+      "section": "Budget",
+      "column": 2,
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "bonus_remaining",
+      "type": "Currency",
+      "label": "Bonus remaining",
+      "section": "Budget",
+      "column": 2,
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "lines",
+      "type": "Table",
+      "label": "Employees",
+      "childDocType": "CompensationWorksheetLine",
+      "section": "Employees"
+    },
+    {
+      "name": "manager_comments",
+      "type": "Text",
+      "label": "Manager comments",
+      "section": "Comments"
+    },
+    {
+      "name": "hr_comments",
+      "type": "Text",
+      "label": "HR comments",
+      "section": "Comments",
+      "description": "Required when HR approves a worksheet over budget"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Employee",
+      "actions": [
+        "read",
+        "write",
+        "report"
+      ],
+      "scope": "match:manager=employee"
+    },
+    {
+      "role": "HR-Comben",
+      "actions": [
+        "read",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Payroll",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "manager_name",
+    "searchFields": [
+      "manager",
+      "manager_name",
+      "compensation_cycle"
+    ]
+  }
+}

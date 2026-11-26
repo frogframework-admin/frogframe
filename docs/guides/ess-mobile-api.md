@@ -588,3 +588,27 @@ other fields are refused. When HR approves, the employee record is updated.
 `{ "fileId": "f_…", "fileName": "…", "size": 12345 }`. Allowed: `LeaveApplication/attachment`,
 `AttendanceCorrection/attachment`, `BiodataChangeRequest/attachment`. Send the `fileId` in the request; the file is
 visible only to the uploader until the request is saved.
+
+## 13. 360 Feedback
+
+Requests the employee has to answer as a rater, and the result of their own closed 360 feedback
+([360-degree feedback](360-feedback.md)). A rater only ever reaches their own responses.
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /feedback/requests` | `{ items: [ { name, employee, relationship, dueDate, submitted, submittedAt } ] }`, oldest due first |
+| `GET /feedback/requests/{name}` | The questions: `{ …, instructions, overallComment, answers: [ { questionNo, question, competency, answerType: "Rating"\|"Comment", required, score, comment } ] }` |
+| `PUT /feedback/requests/{name}` | Save answers; `"submit": true` also submits (required questions must be answered, 422 otherwise) |
+| `GET /feedback/results` | The employee's own closed 360 feedback: overall and per question self / manager / peers / directReports / internalCustomers / others / gap, `notes`, `comments` |
+
+```json
+PUT /api/ess/v1/feedback/requests/FBR-2026-00031
+{ "answers": [ { "questionNo": 1, "score": 4, "comment": "Explains decisions clearly" },
+               { "questionNo": 2, "comment": "Keep sharing what you learn" } ],
+  "overallComment": null, "submit": true }
+```
+
+Only questions sent are changed. A submitted response cannot be changed; after the 360 feedback is closed or cancelled
+the open request disappears from the list. Show the employee that their answers are combined with others and are not
+shown with their name (except self and manager answers).
+

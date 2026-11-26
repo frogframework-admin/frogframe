@@ -459,6 +459,19 @@ public static class EssEndpoints
                 return Results.Ok(new { doctype, name, state = doc.WorkflowState, docstatus = (int)doc.DocStatus });
             }));
 
+        // ---------------- 360 feedback ----------------
+        g.MapGet("/feedback/requests", (Func<HttpContext, Task<IResult>>)(http => Ess(http, async (user, emp, sp, ct) =>
+            Results.Ok(new { items = (await sp.GetRequiredService<EssFeedbackService>().RequestsAsync(user, emp, ct)).Select(d => EssFeedbackService.RequestDto(d, false)) }))));
+
+        g.MapGet("/feedback/requests/{name}", (HttpContext http, string name) => Ess(http, async (user, emp, sp, ct) =>
+            Results.Ok(EssFeedbackService.RequestDto(await sp.GetRequiredService<EssFeedbackService>().GetAsync(user, emp, name, ct), true))));
+
+        g.MapPut("/feedback/requests/{name}", (HttpContext http, string name, EssFeedbackSave body) => Ess(http, async (user, emp, sp, ct) =>
+            Results.Ok(EssFeedbackService.RequestDto(await sp.GetRequiredService<EssFeedbackService>().SaveAsync(user, emp, name, body, ct), true))));
+
+        g.MapGet("/feedback/results", (Func<HttpContext, Task<IResult>>)(http => Ess(http, async (user, emp, sp, ct) =>
+            Results.Ok(new { items = (await sp.GetRequiredService<EssFeedbackService>().ResultsAsync(user, emp, ct)).Select(EssFeedbackService.ResultDto) }))));
+
         return app;
     }
 

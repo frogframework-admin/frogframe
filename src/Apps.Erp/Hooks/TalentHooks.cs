@@ -132,6 +132,7 @@ public sealed class AppraisalHook(IDocumentStore store, IServiceProvider? servic
     {
         var m = new Masters(store, c.Doc.TenantId);
         var d = c.Doc.Data;
+        AppraisalFeedback.Protect(c); // "360 (others)" comes from the closed 360 feedback only
         var dup = (await m.QueryAsync("Appraisal", [new FilterClause("employee", "=", d.Str("employee")), new FilterClause("appraisal_cycle", "=", d.Str("appraisal_cycle"))], ct, take: 10))
             .FirstOrDefault(x => x.Name != c.Doc.Name && x.DocStatus != DocStatus.Cancelled && x.Name != d.Str("amended_from"));
         if (dup is not null) throw Errors.One("appraisal_cycle", $"{d.Str("employee")} already has appraisal {dup.Name} in this cycle");

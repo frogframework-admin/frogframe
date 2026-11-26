@@ -1040,6 +1040,7 @@ public sealed class DocumentService(
         // Masuk ke status submitted → dokumen harus valid penuh dan hook submit dijalankan.
         if (current.DocStatus == DocStatus.Draft && doc.DocStatus == DocStatus.Submitted)
         {
+            await hooks.RunAsync(DocHookStage.BeforeValidate, CreateHookContext(ctx), ct);
             await RunPipelineAsync(ctx, ct);
             foreach (var h in handlers.For<IBeforeSubmit>(docType)) await h.BeforeSubmitAsync(ctx, ct);
         }

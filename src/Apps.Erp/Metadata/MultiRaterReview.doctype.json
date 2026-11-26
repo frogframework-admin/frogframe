@@ -1,0 +1,253 @@
+{
+  "name": "MultiRaterReview",
+  "version": 1,
+  "title": "360 Feedback",
+  "module": "HR",
+  "description": "360-degree feedback for one employee: the employee nominates raters, the manager approves them, raters answer anonymously, HR closes the review and the results are shown per rater group.",
+  "naming": {
+    "pattern": "MRR-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "employee",
+      "type": "Link",
+      "label": "Employee",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "360 Feedback"
+    },
+    {
+      "name": "employee_name",
+      "type": "Data",
+      "label": "Employee name",
+      "fetchFrom": "employee.full_name",
+      "inListView": true,
+      "section": "360 Feedback"
+    },
+    {
+      "name": "organization_unit",
+      "type": "Data",
+      "label": "Unit",
+      "fetchFrom": "employee.organization_unit",
+      "section": "360 Feedback"
+    },
+    {
+      "name": "manager",
+      "type": "Data",
+      "label": "Manager",
+      "fetchFrom": "employee.reports_to",
+      "section": "360 Feedback",
+      "description": "The employee's direct manager: approves the raters and sees the results"
+    },
+    {
+      "name": "appraisal_cycle",
+      "type": "Link",
+      "label": "Cycle",
+      "linkTo": "AppraisalCycle",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "360 Feedback",
+      "column": 2
+    },
+    {
+      "name": "template",
+      "type": "Link",
+      "label": "Template",
+      "linkTo": "FeedbackTemplate",
+      "requiredWhen": "true",
+      "section": "360 Feedback",
+      "column": 2
+    },
+    {
+      "name": "due_date",
+      "type": "Date",
+      "label": "Feedback due",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "360 Feedback",
+      "column": 2
+    },
+    {
+      "name": "status",
+      "type": "Select",
+      "label": "Status",
+      "options": [
+        "Nominating",
+        "Awaiting approval",
+        "In progress",
+        "Closed",
+        "Cancelled"
+      ],
+      "default": "Nominating",
+      "inListView": true,
+      "section": "360 Feedback",
+      "column": 2,
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "reviewers",
+      "type": "Table",
+      "label": "Raters",
+      "childDocType": "MultiRaterReviewer",
+      "section": "Raters",
+      "description": "Self and the manager are added automatically. The employee nominates while Nominating, the manager may change the list while Awaiting approval, HR at any time before the review is closed"
+    },
+    {
+      "name": "responses_requested",
+      "type": "Int",
+      "label": "Requested",
+      "section": "Raters",
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "responses_submitted",
+      "type": "Int",
+      "label": "Submitted",
+      "section": "Raters",
+      "column": 2,
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "overall_self",
+      "type": "Float",
+      "label": "Self (average)",
+      "section": "Result",
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "overall_manager",
+      "type": "Float",
+      "label": "Manager (average)",
+      "section": "Result",
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "overall_others",
+      "type": "Float",
+      "label": "All others (average)",
+      "section": "Result",
+      "column": 2,
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "closed_at",
+      "type": "Datetime",
+      "label": "Closed at",
+      "section": "Result",
+      "column": 2,
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "results",
+      "type": "Table",
+      "label": "Results per question",
+      "childDocType": "MultiRaterResult",
+      "noCopy": true,
+      "section": "Result",
+      "description": "Filled when the review is closed. Peer, direct report and internal customer scores are averages of at least the template's anonymity threshold"
+    },
+    {
+      "name": "result_notes",
+      "type": "Text",
+      "label": "How to read",
+      "section": "Result",
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "comments_summary",
+      "type": "Text",
+      "label": "Comments",
+      "section": "Result",
+      "readOnlyWhen": "true",
+      "description": "Self and manager comments are labelled; other comments are anonymous and sorted, not in answer order"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Employee",
+      "actions": [
+        "read",
+        "write"
+      ],
+      "scope": "match:employee=employee"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read",
+        "write",
+        "report"
+      ],
+      "scope": "match:manager=employee"
+    },
+    {
+      "role": "HR-Talent",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Admin",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "employee_name",
+    "searchFields": [
+      "employee",
+      "employee_name"
+    ],
+    "filters": [
+      "appraisal_cycle",
+      "status"
+    ],
+    "defaultSort": [
+      {
+        "field": "modified",
+        "direction": "desc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

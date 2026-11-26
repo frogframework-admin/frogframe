@@ -1,0 +1,40 @@
+{
+  "name": "CompensationBonusRule",
+  "version": 1,
+  "title": "Bonus Guideline",
+  "module": "HR",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "rating",
+      "type": "Select",
+      "label": "Rating",
+      "options": [
+        "Outstanding",
+        "Exceeds expectations",
+        "Meets expectations",
+        "Needs improvement",
+        "Unsatisfactory",
+        "Not rated"
+      ],
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "target_percent",
+      "type": "Percent",
+      "label": "Target bonus (% of annual base)",
+      "min": 0,
+      "max": 100,
+      "inListView": true
+    },
+    {
+      "name": "max_percent",
+      "type": "Percent",
+      "label": "Max bonus (% of annual base)",
+      "min": 0,
+      "max": 100,
+      "inListView": true
+    }
+  ]
+}

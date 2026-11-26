@@ -258,6 +258,10 @@ public static class TenancyServiceCollectionExtensions
             sp.GetService<Framework.Cluster.IClusterBus>()));
         services.TryAddSingleton(sp => new PlatformAdmins(sp.GetService<IConfiguration>()));
         services.TryAddSingleton<TenantAdminService>();
+        services.AddHttpContextAccessor();
+        services.TryAddSingleton<TenantSwitch>();
+        services.TryAddSingleton(sp => new MetadataEditPolicy(sp.GetRequiredService<PlatformAdmins>(), sp.GetRequiredService<ITenantStore>(), sp.GetService<IConfiguration>()));
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<Microsoft.AspNetCore.Authentication.IClaimsTransformation, ActingTenantClaimsTransformation>());
         return services;
     }
 

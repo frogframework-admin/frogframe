@@ -806,6 +806,23 @@
     "Present": "Hadir",
     "Late": "Terlambat",
     "Not checked in": "Belum absen masuk",
-    "Please confirm you have read this": "Mohon konfirmasi sudah membaca"
+    "Please confirm you have read this": "Mohon konfirmasi sudah membaca",
+    "Switch tenant": "Pindah tenant",
+    "You are working in tenant {0} as platform administrator.": "Anda sedang bekerja di tenant {0} sebagai administrator platform.",
+    "Switch / back to my tenant": "Pindah / kembali ke tenant saya",
+    "360 Feedback": "Umpan Balik 360",
+    "My Feedback Requests": "Permintaan Umpan Balik Saya",
+    "Feedback Template": "Templat Umpan Balik",
+    "Send raters for approval": "Kirim penilai untuk disetujui",
+    "Send feedback requests": "Kirim permintaan umpan balik",
+    "Close and show results": "Tutup dan tampilkan hasil",
+    "Cancel 360 feedback": "Batalkan umpan balik 360",
+    "Launch 360 feedback": "Luncurkan umpan balik 360",
+    "360 Feedback Summary": "Ringkasan Umpan Balik 360",
+    "1:1 check-ins due": "1:1 yang perlu dijadwalkan",
+    "No 1:1 yet": "Belum pernah ada 1:1",
+    "Last 1:1 {0} days ago": "1:1 terakhir {0} hari lalu",
+    "{0} overdue action items": "{0} tindak lanjut terlambat",
+    "{0} open goals": "{0} goal aktif"
   }
 }

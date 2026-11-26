@@ -1,0 +1,58 @@
+{
+  "name": "MultiRaterReviewer",
+  "version": 1,
+  "title": "360 Rater",
+  "module": "HR",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "rater",
+      "type": "Link",
+      "label": "Rater",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "lookupDialog": true,
+      "inListView": true
+    },
+    {
+      "name": "rater_name",
+      "type": "Data",
+      "label": "Name",
+      "inListView": true,
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "relationship",
+      "type": "Select",
+      "label": "Relationship",
+      "options": [
+        "Self",
+        "Manager",
+        "Peer",
+        "Direct report",
+        "Internal customer"
+      ],
+      "requiredWhen": "true",
+      "default": "Peer",
+      "inListView": true
+    },
+    {
+      "name": "status",
+      "type": "Select",
+      "label": "Status",
+      "options": [
+        "Nominated",
+        "Requested",
+        "Submitted"
+      ],
+      "inListView": true,
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "response",
+      "type": "Data",
+      "label": "Response",
+      "readOnlyWhen": "true"
+    }
+  ]
+}

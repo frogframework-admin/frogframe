@@ -59,6 +59,21 @@
       "inListView": true,
       "column": 2,
       "description": "Appraisals can only be completed while the cycle is In progress"
+    },
+    {
+      "name": "feedback_template",
+      "type": "Link",
+      "label": "360 feedback template",
+      "linkTo": "FeedbackTemplate",
+      "section": "360 Feedback",
+      "description": "Used by 'Launch 360 feedback': one 360 review per employee with an appraisal in this cycle"
+    },
+    {
+      "name": "feedback_due_date",
+      "type": "Date",
+      "label": "360 feedback due",
+      "section": "360 Feedback",
+      "column": 2
     }
   ],
   "rules": [

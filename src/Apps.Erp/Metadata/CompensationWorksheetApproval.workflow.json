@@ -1,0 +1,52 @@
+{
+  "name": "CompensationWorksheetApproval",
+  "docType": "CompensationWorksheet",
+  "version": 1,
+  "initialState": "Draft",
+  "states": [
+    {
+      "name": "Draft",
+      "docStatus": 0,
+      "tone": "neutral"
+    },
+    {
+      "name": "Submitted",
+      "docStatus": 0,
+      "tone": "pending"
+    },
+    {
+      "name": "Approved",
+      "docStatus": 1,
+      "tone": "positive"
+    }
+  ],
+  "transitions": [
+    {
+      "from": "Draft",
+      "to": "Submitted",
+      "action": "Submit to HR",
+      "allowedRoles": [
+        "Employee",
+        "HR-Comben"
+      ],
+      "condition": "manager == user.employee || has_role('HR-Comben')"
+    },
+    {
+      "from": "Submitted",
+      "to": "Draft",
+      "action": "Return to manager",
+      "allowedRoles": [
+        "HR-Comben"
+      ],
+      "requireComment": true
+    },
+    {
+      "from": "Submitted",
+      "to": "Approved",
+      "action": "Approve",
+      "allowedRoles": [
+        "HR-Comben"
+      ]
+    }
+  ]
+}

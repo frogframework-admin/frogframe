@@ -1,0 +1,175 @@
+{
+  "name": "OneOnOne",
+  "version": 1,
+  "title": "1:1 Check-in",
+  "module": "HR",
+  "description": "Regular 1:1 between an employee and their manager: shared agenda, separate notes per side, linked goals and action items. Locked once completed (HR-Talent can correct).",
+  "naming": {
+    "pattern": "1ON1-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "employee",
+      "type": "Link",
+      "label": "Employee",
+      "linkTo": "Employee",
+      "requiredWhen": "true",
+      "lookupDialog": true,
+      "inListView": true,
+      "section": "Meeting"
+    },
+    {
+      "name": "employee_name",
+      "type": "Data",
+      "label": "Employee name",
+      "fetchFrom": "employee.full_name",
+      "inListView": true,
+      "section": "Meeting"
+    },
+    {
+      "name": "manager",
+      "type": "Link",
+      "label": "Manager",
+      "linkTo": "Employee",
+      "readOnlyWhen": "true",
+      "inListView": true,
+      "section": "Meeting",
+      "column": 2,
+      "description": "Filled from the employee's reports_to (hook)"
+    },
+    {
+      "name": "meeting_at",
+      "type": "Datetime",
+      "label": "Meeting date and time",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Meeting",
+      "column": 2
+    },
+    {
+      "name": "status",
+      "type": "Select",
+      "label": "Status",
+      "requiredWhen": "true",
+      "options": [
+        "Scheduled",
+        "Completed",
+        "Cancelled"
+      ],
+      "default": "Scheduled",
+      "inListView": true,
+      "section": "Meeting",
+      "column": 2
+    },
+    {
+      "name": "completed_at",
+      "type": "Datetime",
+      "label": "Completed at",
+      "readOnlyWhen": "true",
+      "section": "Meeting",
+      "column": 2
+    },
+    {
+      "name": "agenda",
+      "type": "Text",
+      "label": "Agenda (shared, both can edit)",
+      "section": "Notes"
+    },
+    {
+      "name": "employee_notes",
+      "type": "Text",
+      "label": "Employee notes (only the employee writes)",
+      "section": "Notes"
+    },
+    {
+      "name": "manager_notes",
+      "type": "Text",
+      "label": "Manager notes (only the manager writes)",
+      "section": "Notes"
+    },
+    {
+      "name": "objectives",
+      "type": "Table",
+      "label": "Goals discussed",
+      "childDocType": "OneOnOneObjective",
+      "section": "Goals"
+    },
+    {
+      "name": "action_items",
+      "type": "Table",
+      "label": "Action items",
+      "childDocType": "OneOnOneAction",
+      "section": "Actions"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Employee",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report"
+      ],
+      "scope": "match:employee=employee"
+    },
+    {
+      "role": "Employee",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report"
+      ],
+      "scope": "match:manager=employee"
+    },
+    {
+      "role": "HR-Talent",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Admin",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "employee_name",
+    "searchFields": [
+      "employee",
+      "employee_name",
+      "manager"
+    ]
+  }
+}

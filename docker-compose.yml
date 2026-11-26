@@ -70,6 +70,7 @@ services:
       - Security__TwoFactor__RequiredForRoles__0=${FROGFRAME_2FA_REQUIRED_ROLES:-}
       # Group (platform) administrators: user ids that may manage tenants at /platform/tenants, comma separated.
       - Platform__Administrators=${FROGFRAME_PLATFORM_ADMINS:-}
+      - Platform__TenantAdminsCanEditMetadata=${FROGFRAME_TENANT_ADMINS_EDIT_METADATA:-false}
       - Authentication__AllowedEmailDomains__0=${FROGFRAME_SSO_ALLOWED_DOMAIN:-}
       - Authentication__Google__ClientId=${FROGFRAME_SSO_GOOGLE_CLIENT_ID:-}
       - Authentication__Google__ClientSecret=${FROGFRAME_SSO_GOOGLE_CLIENT_SECRET:-}

@@ -1,0 +1,34 @@
+{
+  "name": "CompensationUnitBudget",
+  "version": 1,
+  "title": "Unit Compensation Budget",
+  "module": "HR",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "organization_unit",
+      "type": "Link",
+      "label": "Organization unit",
+      "linkTo": "OrganizationUnit",
+      "requiredWhen": "true",
+      "inListView": true,
+      "description": "Applies to worksheets of managers in this unit and the units below it (nearest unit wins)"
+    },
+    {
+      "name": "merit_budget_percent",
+      "type": "Percent",
+      "label": "Merit budget (% of base)",
+      "min": 0,
+      "max": 100,
+      "inListView": true
+    },
+    {
+      "name": "bonus_budget_percent",
+      "type": "Percent",
+      "label": "Bonus budget (% of annual base)",
+      "min": 0,
+      "max": 100,
+      "inListView": true
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "name": "SalaryRateRow",
+  "version": 1,
+  "title": "Salary Rate Row",
+  "module": "HR",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "key1",
+      "type": "Data",
+      "label": "Key",
+      "maxLength": 140,
+      "inListView": true,
+      "description": "Matched with the 2nd argument of lookup(), e.g. a grade, level, or job profile. Empty = any (default row)"
+    },
+    {
+      "name": "key2",
+      "type": "Data",
+      "label": "Key 2",
+      "maxLength": 140,
+      "inListView": true,
+      "description": "Optional second key, e.g. location. Empty = any"
+    },
+    {
+      "name": "from_value",
+      "type": "Float",
+      "label": "From (≥)",
+      "inListView": true,
+      "description": "For lookup_range(): lower bound, inclusive. Empty = no lower bound"
+    },
+    {
+      "name": "to_value",
+      "type": "Float",
+      "label": "Up to (<)",
+      "inListView": true,
+      "description": "For lookup_range(): upper bound, exclusive. Empty = no upper bound"
+    },
+    {
+      "name": "amount",
+      "type": "Float",
+      "label": "Amount / rate",
+      "requiredWhen": "true",
+      "inListView": true,
+      "description": "Amount (e.g. 25000 per day) or rate (e.g. 10 for 10%)"
+    },
+    {
+      "name": "valid_from",
+      "type": "Date",
+      "label": "Valid from",
+      "inListView": true,
+      "description": "Rows with the latest date on or before the payroll period end are used together; empty = from the start"
+    }
+  ]
+}

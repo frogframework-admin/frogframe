@@ -24,30 +24,41 @@ public sealed class Pph21AnnualReport(IDocumentStore store, TimeProvider clock) 
         var year = (Rpt.DateOf(f, "year_of") ?? Rpt.Today(clock)).Year.ToString("0000");
         var m = new Masters(store, user.TenantId);
         var comps = (await m.QueryAsync("SalaryComponent", [], ct, take: 2000)).ToDictionary(x => x.Name, StringComparer.Ordinal);
+        var taxAllowanceComponent = (await m.SingleAsync("PayrollSettings", ct)).Str("tax_allowance_component");
         var rows = new List<Dictionary<string, object?>>();
         foreach (var g in (await documents.QueryForReportAsync(user, DocType, [], ct: ct))
                  .Where(p => p.DocStatus == DocStatus.Submitted && p.Data.Str("period") is { } per && per.StartsWith(year, StringComparison.Ordinal))
                  .GroupBy(p => p.Data.Str("employee") ?? "").OrderBy(g => g.Key, StringComparer.Ordinal))
         {
-            decimal salary = 0, allowances = 0, bonus = 0, premiums = 0;
+            decimal salary = 0, taxAllowance = 0, allowances = 0, bonus = 0, premiums = 0;
             foreach (var p in g)
             {
                 premiums += p.Data.Dec("jkk") + p.Data.Dec("jkm") + p.Data.Dec("kes_employer");
                 foreach (var e in p.Data.Rows("earnings"))
                 {
+                    if (taxAllowanceComponent is not null && e.Str("salary_component") == taxAllowanceComponent) { taxAllowance += e.Dec("amount"); continue; }
                     var c = comps.GetValueOrDefault(e.Str("salary_component") ?? "");
                     if (c is null || !c.Data.Bool("is_taxable")) continue;
                     if (!c.Data.Bool("is_regular")) bonus += e.Dec("amount");
                     else if (c.Data.Bool("in_bpjs_base")) salary += e.Dec("amount");
                     else allowances += e.Dec("amount");
                 }
+                // Pay cuts (e.g. absence deduction) lower the line they were cut from, as on the payslip's taxable gross.
+                foreach (var x in p.Data.Rows("deductions"))
+                {
+                    var c = comps.GetValueOrDefault(x.Str("salary_component") ?? "");
+                    if (c is null || !c.Data.Bool("is_pay_cut") || !c.Data.Bool("is_taxable")) continue;
+                    if (!c.Data.Bool("is_regular")) bonus -= x.Dec("amount");
+                    else if (c.Data.Bool("in_bpjs_base")) salary -= x.Dec("amount");
+                    else allowances -= x.Dec("amount");
+                }
             }
             var last = g.FirstOrDefault(p => p.Data.Bool("is_last_period"));
             var periods = g.Select(p => p.Data.Str("period")!).OrderBy(x => x, StringComparer.Ordinal).ToList();
-            var gross = salary + allowances + premiums + bonus;
+            var gross = salary + taxAllowance + allowances + premiums + bonus;
             var row = Rpt.Row(("employee", g.Key), ("employee_name", g.First().Data.Str("employee_name")), ("ptkp_status", (last ?? g.Last()).Data.Str("ptkp_status")),
                 ("months", $"{periods.First()[5..]}–{periods.Last()[5..]}"), ("status", last is null ? "In progress" : "Final"),
-                ("l1_salary", salary), ("l3_allowances", allowances), ("l5_insurance", premiums), ("l7_bonus", bonus), ("l8_gross", gross),
+                ("l1_salary", salary), ("l2_tax_allowance", taxAllowance), ("l3_allowances", allowances), ("l5_insurance", premiums), ("l7_bonus", bonus), ("l8_gross", gross),
                 ("l20_withheld", g.Sum(p => p.Data.Dec("pph21"))), ("dtp", g.Sum(p => p.Data.Dec("pph21_dtp"))));
             if (last is not null)
             {
@@ -61,7 +72,8 @@ public sealed class Pph21AnnualReport(IDocumentStore store, TimeProvider clock) 
         return new ReportResult(
         [
             new("employee", "Employee"), new("employee_name", "Name"), new("ptkp_status", "PTKP"), new("months", "Months"), new("status", "Status"),
-            new("l1_salary", "1 Salary", "Currency"), new("l3_allowances", "3 Other allowances & overtime", "Currency"),
+            new("l1_salary", "1 Salary", "Currency"), new("l2_tax_allowance", "2 PPh 21 allowance", "Currency"),
+            new("l3_allowances", "3 Other allowances & overtime", "Currency"),
             new("l5_insurance", "5 Insurance paid by employer", "Currency"), new("l7_bonus", "7 Bonus/THR", "Currency"), new("l8_gross", "8 Gross", "Currency"),
             new("l9_position_cost", "9 Position cost", "Currency"), new("l10_pension", "10 Pension/JHT contributions", "Currency"),
             new("l14_net", "14 Net income", "Currency"), new("l15_ptkp", "15 PTKP", "Currency"), new("l16_pkp", "16 PKP", "Currency"),

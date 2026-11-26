@@ -44,6 +44,13 @@
       "inListView": true
     },
     {
+      "name": "feedback_360_score",
+      "type": "Float",
+      "label": "360 (others)",
+      "inListView": true,
+      "description": "Average of the other raters in the closed 360 feedback of this cycle (filled automatically; for development, not part of the final score)"
+    },
+    {
       "name": "comments",
       "type": "Data",
       "label": "Comments"

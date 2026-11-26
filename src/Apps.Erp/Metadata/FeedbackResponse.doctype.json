@@ -1,0 +1,158 @@
+{
+  "name": "FeedbackResponse",
+  "version": 1,
+  "title": "360 Feedback Response",
+  "module": "HR",
+  "description": "One rater's answers in a 360 feedback. Only the rater (and HR-Talent for support) can open it; the employee and the manager see only the closed review's averages.",
+  "naming": {
+    "pattern": "FBR-{YYYY}-{#####}"
+  },
+  "document": {
+    "trackChanges": false,
+    "allowSubmit": true,
+    "allowCancel": true,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "employee_name",
+      "type": "Data",
+      "label": "Feedback for",
+      "inListView": true,
+      "section": "Feedback",
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "relationship",
+      "type": "Data",
+      "label": "You are their",
+      "inListView": true,
+      "section": "Feedback",
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "due_date",
+      "type": "Date",
+      "label": "Due",
+      "inListView": true,
+      "section": "Feedback",
+      "column": 2,
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "instructions",
+      "type": "Text",
+      "label": "Instructions",
+      "section": "Feedback",
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "answers",
+      "type": "Table",
+      "label": "Questions",
+      "childDocType": "FeedbackAnswer",
+      "section": "Answers"
+    },
+    {
+      "name": "overall_comment",
+      "type": "Text",
+      "label": "Anything else you want to share",
+      "section": "Answers"
+    },
+    {
+      "name": "submitted_at",
+      "type": "Datetime",
+      "label": "Submitted at",
+      "section": "Answers",
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "review",
+      "type": "Data",
+      "label": "360 Feedback",
+      "section": "Details",
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "employee",
+      "type": "Data",
+      "label": "Employee",
+      "section": "Details",
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "rater",
+      "type": "Link",
+      "label": "Rater",
+      "linkTo": "Employee",
+      "section": "Details",
+      "column": 2,
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "appraisal_cycle",
+      "type": "Data",
+      "label": "Cycle",
+      "section": "Details",
+      "column": 2,
+      "readOnlyWhen": "true"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "Employee",
+      "actions": [
+        "read",
+        "write",
+        "submit"
+      ],
+      "scope": "match:rater=employee"
+    },
+    {
+      "role": "HR-Talent",
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "submit",
+        "cancel"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "employee_name",
+    "searchFields": [
+      "employee_name"
+    ],
+    "filters": [
+      "appraisal_cycle",
+      "relationship"
+    ],
+    "defaultSort": [
+      {
+        "field": "due_date",
+        "direction": "asc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update",
+      "action"
+    ]
+  }
+}

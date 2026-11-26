@@ -1,4 +1,4 @@
-#!/bin/sh
+﻿#!/bin/sh
 # Snapshot of the FrogFrame database before migrations (docker compose service "db-backup").
 # Environment: PGHOST, PGPORT, PGDATABASE, PGUSER, PGPASSWORD, BACKUP_DIR (default /backups),
 # BACKUP_KEEP (newest dumps to keep, default 5), BACKUP_ENABLED (default true).

@@ -2,11 +2,41 @@
 @using Apps.Erp.Home
 @using Framework.Localization
 @inject TeamHomeService Team
+@inject CheckInDueService CheckIns
 @inject CurrentUser Current
 @inject UiText T
 
 @* Home page, main column: the manager's direct reports with today's status, and who is away (time off / day off)
    today and in the coming days. HR sees the away lists for the whole company. Rules: TeamHomeService. *@
+@if (dueCheckIns.Count > 0)
+{
+    <section class="home-section" aria-label="@T["1:1 check-ins due"]">
+        <div class="section-head-row">
+            <h2>@T["1:1 check-ins due"]</h2>
+            <span class="home-tab-count">@dueCheckIns.Count</span>
+        </div>
+        <div class="desk-table-card">
+            @foreach (var c in dueCheckIns)
+            {
+                <div class="home-approval-row">
+                    <div class="home-approval-main">
+                        <div class="home-approval-title">
+                            <a class="doc-code" href="/app/Employee/@Uri.EscapeDataString(c.Employee)">@c.FullName</a>
+                        </div>
+                        <div class="home-approval-sub">
+                            @(c.DaysSinceCheckIn is { } days ? T.Format("Last 1:1 {0} days ago", days) : T["No 1:1 yet"])@(c.OverdueActions > 0 ? " · " + T.Format("{0} overdue action items", c.OverdueActions) : "")
+                        </div>
+                    </div>
+                    <span class="desk-status-pill tone-pending">
+                        <span class="dot" aria-hidden="true"></span>
+                        <span>@T.Format("{0} open goals", c.OpenGoals)</span>
+                    </span>
+                </div>
+            }
+        </div>
+    </section>
+}
+
 @if (data is { IsEmpty: false } d)
 {
     if (d.DirectReports.Count > 0)
@@ -107,12 +137,17 @@
 
 @code {
     private TeamOverview? data;
+    private List<CheckInDue> dueCheckIns = [];
 
     private CultureInfo Culture => T.Language == "id" ? CultureInfo.GetCultureInfo("id-ID") : CultureInfo.GetCultureInfo("en-GB");
 
     protected override async Task OnInitializedAsync()
     {
-        if (Current.User is { } u) data = await Team.OverviewAsync(u);
+        if (Current.User is { } u)
+        {
+            data = await Team.OverviewAsync(u);
+            dueCheckIns = (await CheckIns.DueAsync(u)).ToList();
+        }
     }
 
     private string Period(AwayEntry a) => a.From == a.To

@@ -1,0 +1,228 @@
+{
+  "name": "SalaryRateTable",
+  "version": 1,
+  "title": "Salary Rate Table",
+  "module": "HR",
+  "description": "Lookup table for payroll formulas: basic salary per grade, allowance per level, length-of-service steps (Oracle user table / SAP T510).",
+  "naming": {
+    "pattern": "field:table_code"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "table_code",
+      "type": "Data",
+      "label": "Table code",
+      "requiredWhen": "true",
+      "maxLength": 60,
+      "inListView": true,
+      "description": "Used in formulas, e.g. lookup('BENSIN', emp.grade_level)"
+    },
+    {
+      "name": "company",
+      "type": "Link",
+      "label": "Company",
+      "linkTo": "Company",
+      "inListView": true,
+      "column": 2,
+      "description": "Empty = all companies. With a company, only that company's payslips can use the table"
+    },
+    {
+      "name": "is_active",
+      "type": "Check",
+      "label": "Active",
+      "default": true,
+      "inListView": true,
+      "column": 2
+    },
+    {
+      "name": "description",
+      "type": "Text",
+      "label": "Description"
+    },
+    {
+      "name": "rows",
+      "type": "Table",
+      "label": "Rows",
+      "childDocType": "SalaryRateRow",
+      "section": "Rates",
+      "description": "lookup(table, key[, key2]) matches the keys; lookup_range(table, number[, key[, key2]]) also needs From ≤ number < Up to. The most specific row wins"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR-Payroll",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Comben",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Finance-Admin",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Finance-Cashier",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Finance-Receivable",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Finance-Payable",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Finance-Treasury",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Finance-Tax",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Accounting-Admin",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Accounting-General-Ledger",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Accounting-Fixed-Assets",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Accounting-Budget-Costing",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Accounting-Closing",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "Accounting-Audit",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "table_code",
+    "searchFields": [
+      "table_code",
+      "description"
+    ],
+    "filters": [
+      "company",
+      "is_active"
+    ],
+    "defaultSort": [
+      {
+        "field": "table_code",
+        "direction": "asc"
+      }
+    ]
+  },
+  "api": {
+    "enabled": true,
+    "operations": [
+      "list",
+      "read",
+      "create",
+      "update"
+    ]
+  }
+}

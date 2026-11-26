@@ -234,3 +234,12 @@ public static class Customizations
         }
     }
 }
+
+/// <summary>A customization was saved by someone else after the editor loaded it (optimistic concurrency).</summary>
+public sealed class MetadataConcurrencyException(string docType, int expectedVersion, int currentVersion, string message)
+    : InvalidOperationException(message)
+{
+    public string DocType { get; } = docType;
+    public int ExpectedVersion { get; } = expectedVersion;
+    public int CurrentVersion { get; } = currentVersion;
+}

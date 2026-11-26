@@ -53,6 +53,13 @@
       "label": "Account",
       "linkTo": "Account",
       "readOnlyWhen": "true"
+    },
+    {
+      "name": "calculation_note",
+      "type": "Text",
+      "label": "Calculation",
+      "readOnlyWhen": "true",
+      "description": "Formula and the values it used, recorded when the payslip was created"
     }
   ]
 }

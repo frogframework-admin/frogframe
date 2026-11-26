@@ -1,0 +1,102 @@
+@page "/account/switch-tenant"
+@attribute [ExcludeFromInteractiveRouting]
+@layout AuthCardLayout
+@using Microsoft.AspNetCore.Http
+@using Framework.Tenancy
+@using Framework.Web.Identity
+@using Framework.Web.Tenancy
+@inject TenantSwitch Switch
+@inject ITenantStore TenantStore
+@inject NavigationManager Nav
+
+<PageTitle>Switch tenant · FrogFrame</PageTitle>
+
+<h1 class="auth-title">Switch tenant</h1>
+
+@if (user is null || !Switch.IsPlatformAdmin(user))
+{
+    <div class="auth-alert" role="alert">Only platform administrators can switch tenants.</div>
+    <a class="auth-link" href="/">Back</a>
+}
+else
+{
+    <p class="auth-sub">
+        You are working in <strong>@CurrentName</strong>@(TenantSwitch.IsActing(user) ? $" (your own tenant is {home})" : "").
+        In another tenant you act as System Manager; your employee record and department are not carried over.
+        Every switch is logged. Closing the browser returns you to your own tenant.
+    </p>
+    @if (error is not null) { <div class="auth-alert" role="alert">@error</div> }
+
+    @* POST + antiforgery so another site cannot switch the tenant for you. *@
+    <EditForm Model="Input" method="post" OnSubmit="SwitchAsync" FormName="switch-tenant" class="auth-form">
+        <div class="auth-field">
+            <label for="tenant">Tenant</label>
+            <InputSelect id="tenant" class="auth-input" @bind-Value="Input.Tenant">
+                @foreach (var t in tenants)
+                {
+                    <option value="@t.Id">@t.Name (@t.Id)@(t.Id == home ? " — own tenant" : "")</option>
+                }
+            </InputSelect>
+        </div>
+        <button type="submit" class="auth-button">Switch</button>
+        @if (TenantSwitch.IsActing(user))
+        {
+            <button type="submit" class="auth-button-secondary" name="Input.Back" value="1">Back to my tenant (@home)</button>
+        }
+        <a class="auth-link" href="/">Cancel</a>
+    </EditForm>
+}
+
+@code {
+    [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
+    [SupplyParameterFromForm] private SwitchModel Input { get; set; } = default!;
+    [SupplyParameterFromQuery(Name = "returnUrl")] private string? ReturnUrl { get; set; }
+
+    private UserContext? user;
+    private string home = "";
+    private List<Tenant> tenants = [];
+    private string? error;
+
+    private string CurrentName => tenants.FirstOrDefault(t => t.Id == user?.TenantId)?.Name ?? user?.TenantId ?? "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        Input ??= new();
+        user = ClaimsUserMapper.ToUserContext(HttpContext.User);
+        if (user is null)
+        {
+            Nav.NavigateTo("/account/login?returnUrl=%2Faccount%2Fswitch-tenant", forceLoad: true);
+            return;
+        }
+        if (!Switch.IsPlatformAdmin(user)) return;
+        home = TenantSwitch.HomeTenant(user);
+        tenants = (await TenantStore.ListAsync(HttpContext.RequestAborted))
+            .Where(t => t.IsActive || t.Id == home)
+            .OrderBy(t => t.Id == home ? 0 : 1).ThenBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (string.IsNullOrEmpty(Input.Tenant)) Input.Tenant = user.TenantId;
+    }
+
+    private async Task SwitchAsync()
+    {
+        if (user is null) return;
+        try
+        {
+            await Switch.SwitchAsync(HttpContext, user, Input.Back == "1" ? null : Input.Tenant, HttpContext.RequestAborted);
+        }
+        catch (PermissionDeniedException ex)
+        {
+            error = ex.Message;
+            return;
+        }
+        // Full reload: the open Blazor session keeps its old principal, the next request builds the new one.
+        Nav.NavigateTo(SafeReturnUrl(), forceLoad: true);
+    }
+
+    // Only local paths, never back into /account (avoids open redirects and loops).
+    private string SafeReturnUrl() =>
+        ReturnUrl is { Length: > 1 } r && r.StartsWith('/') && !r.StartsWith("//") && !r.StartsWith("/\\") && !r.StartsWith("/account", StringComparison.OrdinalIgnoreCase)
+            ? r : "/";
+
+    private sealed class SwitchModel { public string? Tenant { get; set; } public string? Back { get; set; } }
+}

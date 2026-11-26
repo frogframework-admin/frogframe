@@ -1,0 +1,232 @@
+{
+  "name": "CompensationCycle",
+  "version": 1,
+  "title": "Compensation Cycle",
+  "module": "HR",
+  "description": "Annual merit and bonus cycle: guidelines by appraisal rating and compa-ratio, budgets per unit, manager worksheets, and salary changes applied to Salary Assignments.",
+  "naming": {
+    "pattern": "field:cycle_name"
+  },
+  "document": {
+    "trackChanges": true,
+    "allowSubmit": false,
+    "allowCancel": false,
+    "allowAmend": false,
+    "allowDelete": true
+  },
+  "fields": [
+    {
+      "name": "cycle_name",
+      "type": "Data",
+      "label": "Cycle name",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Cycle"
+    },
+    {
+      "name": "company",
+      "type": "Link",
+      "label": "Company",
+      "linkTo": "Company",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Cycle"
+    },
+    {
+      "name": "appraisal_cycle",
+      "type": "Link",
+      "label": "Appraisal cycle (source of ratings)",
+      "linkTo": "AppraisalCycle",
+      "section": "Cycle",
+      "description": "Rating of the completed appraisal in this cycle. Without one the employee is 'Not rated'."
+    },
+    {
+      "name": "effective_date",
+      "type": "Date",
+      "label": "Effective date of new salaries",
+      "requiredWhen": "true",
+      "inListView": true,
+      "section": "Cycle",
+      "column": 2
+    },
+    {
+      "name": "eligibility_hire_date",
+      "type": "Date",
+      "label": "Eligible if hired on or before",
+      "section": "Cycle",
+      "column": 2
+    },
+    {
+      "name": "status",
+      "type": "Select",
+      "label": "Status",
+      "options": [
+        "Draft",
+        "Planning",
+        "Applied",
+        "Cancelled"
+      ],
+      "default": "Draft",
+      "inListView": true,
+      "section": "Cycle",
+      "column": 2,
+      "description": "Changed by the actions Generate worksheets, Apply salary changes and Cancel cycle",
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "merit_budget_percent",
+      "type": "Percent",
+      "label": "Merit budget (% of base salary)",
+      "min": 0,
+      "max": 100,
+      "requiredWhen": "true",
+      "section": "Budget"
+    },
+    {
+      "name": "bonus_budget_percent",
+      "type": "Percent",
+      "label": "Bonus budget (% of annual base salary)",
+      "min": 0,
+      "max": 100,
+      "section": "Budget",
+      "column": 2
+    },
+    {
+      "name": "unit_budgets",
+      "type": "Table",
+      "label": "Budget per unit (overrides the defaults)",
+      "childDocType": "CompensationUnitBudget",
+      "section": "Budget"
+    },
+    {
+      "name": "merit_rules",
+      "type": "Table",
+      "label": "Merit matrix",
+      "childDocType": "CompensationMeritRule",
+      "requiredWhen": "true",
+      "section": "Guidelines"
+    },
+    {
+      "name": "bonus_rules",
+      "type": "Table",
+      "label": "Bonus guideline",
+      "childDocType": "CompensationBonusRule",
+      "section": "Guidelines"
+    },
+    {
+      "name": "worksheets",
+      "type": "Int",
+      "label": "Worksheets",
+      "section": "Progress",
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "worksheets_approved",
+      "type": "Int",
+      "label": "Approved",
+      "section": "Progress",
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "eligible_employees",
+      "type": "Int",
+      "label": "Employees",
+      "section": "Progress",
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "total_base",
+      "type": "Currency",
+      "label": "Total monthly base",
+      "section": "Progress",
+      "column": 2,
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "merit_budget",
+      "type": "Currency",
+      "label": "Merit budget (monthly)",
+      "section": "Progress",
+      "column": 2,
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "merit_planned",
+      "type": "Currency",
+      "label": "Merit planned (monthly)",
+      "section": "Progress",
+      "column": 2,
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "bonus_budget",
+      "type": "Currency",
+      "label": "Bonus budget",
+      "section": "Progress",
+      "column": 2,
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "bonus_planned",
+      "type": "Currency",
+      "label": "Bonus planned",
+      "section": "Progress",
+      "column": 2,
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "applied_at",
+      "type": "Datetime",
+      "label": "Applied at",
+      "section": "Progress",
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "notes",
+      "type": "Text",
+      "label": "Notes",
+      "section": "Notes"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "HR-Comben",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "HR-Payroll",
+      "actions": [
+        "read",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    },
+    {
+      "role": "System Manager",
+      "actions": [
+        "read",
+        "create",
+        "write",
+        "delete",
+        "report",
+        "export"
+      ],
+      "scope": "all"
+    }
+  ],
+  "listView": {
+    "titleField": "cycle_name",
+    "searchFields": [
+      "cycle_name",
+      "company"
+    ]
+  }
+}

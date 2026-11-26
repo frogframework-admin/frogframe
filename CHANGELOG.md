@@ -11,6 +11,24 @@ Releases are tagged `vMAJOR.MINOR.PATCH` on `main`. Add every user-visible chang
 ## [Unreleased]
 
 ### Added
+- Payroll formulas (`docs/guides/payroll-formulas.md`): salary components can be calculated by **formula** instead of a fixed amount, so each company configures its own pay rules without code.
+  - Salary Component: *Calculation* (Fixed / Formula), *Applies when* condition (eligibility, e.g. only sales job profiles), *Formula*, *Company*, and *Variable name* (abbreviation widened to 30 characters) to refer to other components (`GAPOK * 10 / 100`). Formulas read `emp.*` (Employee fields plus grade level, job level, manager flag, years/months of service, age, children), `att.*` (attendance summary, including the new *Days present*), and `period.*`, with `if`, `min`, `max`, `floor`, `ceil`, `div`, `lookup`, `lookup_range`. Syntax, unknown names and loops are checked when the component is saved; payslip rows record the formula and the values used.
+  - New DocType **Salary Rate Table** (child **Salary Rate Row**): keyed and ranged rates with *valid from* versions, e.g. basic salary per grade, allowance per level, length-of-service steps. Menu *Payroll › Salary Rate Table*.
+  - **Pay cut** deductions (e.g. absence or lateness cuts) lower the taxable gross, regular pay and BPJS base according to their flags; their GL account defaults to the salary expense account.
+  - **Tax allowance (gross-up)**: *PPh 21 method* on the salary assignment and *Tax allowance component* in Payroll Settings; the payslip solves the allowance that equals the PPh 21 it carries (TER and last-period Article 17), shown on 1721-A1 line 2.
+  - Overtime hourly wage now uses the payslip's full-month earnings (including formula components) instead of only the salary assignment rows.
+- **360-degree feedback** (`docs/guides/360-feedback.md`): Feedback Template (questions per competency, rating 1–5 or comment, minimum peers/direct reports, anonymity threshold), 360 Feedback per employee and cycle (employee nominates raters, manager approves, raters answer, HR closes), *Launch 360 feedback* on the Appraisal Cycle, reminders, results per rater group (self, manager, peers, direct reports, internal customers, all others, gap) that never show a group smaller than the anonymity threshold, comments without names, *360 (others)* on the appraisal's competencies, report *360 Feedback Summary* (`erp-360-feedback`) and ESS endpoints `/api/ess/v1/feedback/…`. Single responses are visible only to the rater (and HR-Talent read-only).
+- **Switch tenant** for group administrators (`docs/guides/tenants.md`): a user in `Platform:Administrators` can work in any active tenant of the group with their own account (profile menu › *Switch tenant*), as System Manager of that tenant, with a bar on every page and *Back to my tenant*. The choice lives in an encrypted session cookie bound to the user id; it is checked on every request (still a platform administrator, tenant still active), logged, and never applies to API tokens or API keys.
+- Metadata list (`/admin/metadata`): column *Source / Status* shows Application or Custom, *Customized vN* and *Needs attention* (customization partly switched off after an update). The detail panel of an application DocType shows the customization history and points to the visual editor instead of a full-JSON draft.
+- DocType Editor asks before leaving with unpublished changes (links, reload, closing the tab).
+
+### Security
+- With more than one tenant, only group administrators can change the shared metadata (publish or customize DocTypes, reset customizations, create DocTypes, publish workflows, save DocType permissions in *Roles & Permissions*, `POST /api/admin/metadata/publish`). Other System Managers see these pages read-only. `Platform:TenantAdminsCanEditMetadata=true` keeps the old behaviour.
+
+### Fixed
+- Two administrators customizing the same application DocType no longer overwrite each other: saving or resetting checks the customization version the editor started from and is refused with a clear message (API: `expectedCustomizationVersion`, 409).
+- Metadata detail panel: a JSON draft being typed is no longer reset when any DocType is published elsewhere; the version shown for application DocTypes is the application definition plus the customization version.
+- New DocType form: "Module" label in English like the rest of the page.
 - Home page "My team today" and "Who is away" (`docs/guides/home-page.md`): managers see their direct reports with today's status (on leave, day off, present/late with clock-in time, absent, not checked in) and their team's time off and day off today and in the next 7 days; HR roles see who is away in the whole company.
 - HRM review follow-up (24 Nov 2026):
   - **9-Box Talent Grid** report (`erp-nine-box`) per appraisal cycle, unit (with sub-units) and calibration session.

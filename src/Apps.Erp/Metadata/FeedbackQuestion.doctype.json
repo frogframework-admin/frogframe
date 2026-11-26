@@ -1,0 +1,44 @@
+{
+  "name": "FeedbackQuestion",
+  "version": 1,
+  "title": "Feedback Question",
+  "module": "HR",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "competency",
+      "type": "Link",
+      "label": "Competency",
+      "linkTo": "Competency",
+      "inListView": true,
+      "description": "Optional: the competency this question measures (used for the per-competency 360 score)"
+    },
+    {
+      "name": "question",
+      "type": "Text",
+      "label": "Question",
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "answer_type",
+      "type": "Select",
+      "label": "Answer",
+      "options": [
+        "Rating",
+        "Comment"
+      ],
+      "default": "Rating",
+      "requiredWhen": "true",
+      "inListView": true,
+      "description": "Rating: 1–5 with an optional comment. Comment: free text only"
+    },
+    {
+      "name": "is_required",
+      "type": "Check",
+      "label": "Required",
+      "default": true,
+      "inListView": true
+    }
+  ]
+}

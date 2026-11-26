@@ -1,0 +1,42 @@
+{
+  "name": "OneOnOneAction",
+  "version": 1,
+  "title": "1:1 Action Item",
+  "module": "HR",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "action",
+      "type": "Data",
+      "label": "Action",
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "assignee",
+      "type": "Link",
+      "label": "Assignee",
+      "linkTo": "Employee",
+      "lookupDialog": true,
+      "inListView": true,
+      "description": "Defaults to the employee (hook)"
+    },
+    {
+      "name": "due_date",
+      "type": "Date",
+      "label": "Due date",
+      "inListView": true
+    },
+    {
+      "name": "status",
+      "type": "Select",
+      "label": "Status",
+      "options": [
+        "Open",
+        "Done"
+      ],
+      "default": "Open",
+      "inListView": true
+    }
+  ]
+}

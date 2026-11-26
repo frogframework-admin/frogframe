@@ -1,0 +1,154 @@
+{
+  "name": "CompensationWorksheetLine",
+  "version": 1,
+  "title": "Compensation Worksheet Line",
+  "module": "HR",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "employee",
+      "type": "Link",
+      "label": "Employee",
+      "linkTo": "Employee",
+      "inListView": true,
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "employee_name",
+      "type": "Data",
+      "label": "Name",
+      "inListView": true,
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "grade",
+      "type": "Data",
+      "label": "Grade",
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "rating",
+      "type": "Data",
+      "label": "Rating",
+      "inListView": true,
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "current_base",
+      "type": "Currency",
+      "label": "Current base",
+      "inListView": true,
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "range_min",
+      "type": "Currency",
+      "label": "Range min",
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "range_mid",
+      "type": "Currency",
+      "label": "Range mid",
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "range_max",
+      "type": "Currency",
+      "label": "Range max",
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "compa_ratio",
+      "type": "Float",
+      "label": "Compa-ratio",
+      "inListView": true,
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "guideline_min",
+      "type": "Percent",
+      "label": "Guideline min (%)",
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "guideline_target",
+      "type": "Percent",
+      "label": "Guideline target (%)",
+      "inListView": true,
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "guideline_max",
+      "type": "Percent",
+      "label": "Guideline max (%)",
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "merit_percent",
+      "type": "Percent",
+      "label": "Merit increase (%)",
+      "min": 0,
+      "max": 100,
+      "inListView": true,
+      "description": "Filled by the manager"
+    },
+    {
+      "name": "merit_amount",
+      "type": "Currency",
+      "label": "Increase amount",
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "new_base",
+      "type": "Currency",
+      "label": "New base",
+      "inListView": true,
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "new_compa_ratio",
+      "type": "Float",
+      "label": "New compa-ratio",
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "bonus_target",
+      "type": "Currency",
+      "label": "Bonus guideline",
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "bonus_max",
+      "type": "Currency",
+      "label": "Bonus max",
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "bonus_amount",
+      "type": "Currency",
+      "label": "Bonus",
+      "inListView": true,
+      "description": "Filled by the manager"
+    },
+    {
+      "name": "outside_guideline",
+      "type": "Check",
+      "label": "Outside guideline",
+      "inListView": true,
+      "readOnlyWhen": "true"
+    },
+    {
+      "name": "justification",
+      "type": "Data",
+      "label": "Justification (required outside the guideline)"
+    },
+    {
+      "name": "salary_assignment",
+      "type": "Link",
+      "label": "Salary assignment created",
+      "linkTo": "SalaryAssignment",
+      "readOnlyWhen": "true"
+    }
+  ]
+}

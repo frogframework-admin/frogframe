@@ -8,6 +8,7 @@
 @inject ToastService Toasts
 @inject NavigationManager Nav
 @inject Framework.Preferences.IUserPreferenceStore UserPrefs
+@inject Framework.Web.Tenancy.MetadataEditPolicy EditPolicy
 
 <PageTitle>Metadata · FrogFrame</PageTitle>
 
@@ -22,8 +23,19 @@ else
             <h1>DocType Metadata</h1>
             <p>Manage DocType definitions, schema versions, workflows, and application form structures.</p>
         </div>
-        <BbButton Href="/admin/metadata/new" OnClick="@(() => Nav.NavigateTo("/admin/metadata/new"))"><LucideIcon Name="plus" Size="16" /> New DocType</BbButton>
+        @if (canEdit)
+        {
+            <BbButton Href="/admin/metadata/new" OnClick="@(() => Nav.NavigateTo("/admin/metadata/new"))"><LucideIcon Name="plus" Size="16" /> New DocType</BbButton>
+        }
     </header>
+
+    @if (!canEdit)
+    {
+        <BbAlert Variant="AlertVariant.Warning" Class="props-block">
+            <BbAlertTitle>Read-only</BbAlertTitle>
+            <BbAlertDescription>@Framework.Web.Tenancy.MetadataEditPolicy.DeniedMessage</BbAlertDescription>
+        </BbAlert>
+    }
 
     <BbDataGrid @key="gridMgr.RenderKey"
                 TData="DocTypeRow"
@@ -68,17 +80,20 @@ else
                 </CellTemplate>
             </BbDataGridPropertyColumn>
 
-            <BbDataGridTemplateColumn TData="DocTypeRow" Id="status" Title="Status"
-                                      Width="@gridMgr.GetWidth("status", "7.5rem")" Visible="@gridMgr.IsVisible("status")" Resizable="true" Sortable="true" SortBy="d => (int)d.Status">
+            <BbDataGridTemplateColumn TData="DocTypeRow" Id="status" Title="Source / Status"
+                                      Width="@gridMgr.GetWidth("status", "11rem")" Visible="@gridMgr.IsVisible("status")" Resizable="true" Sortable="true" SortBy="d => d.StatusLabel">
                 <ChildContent Context="item">
-                    @if (item.Status == MetadataStatus.Published)
-                    {
-                        <BbBadge Variant="BadgeVariant.SoftSuccess">Active</BbBadge>
-                    }
-                    else
-                    {
-                        <BbBadge Variant="BadgeVariant.Outline">@item.Status</BbBadge>
-                    }
+                    <div style="display:flex;flex-wrap:wrap;gap:.25rem" title="@item.StatusHint">
+                        <BbBadge Variant="BadgeVariant.Outline">@(item.IsApp ? "Application" : "Custom")</BbBadge>
+                        @if (item.CustomizationWarnings > 0)
+                        {
+                            <BbBadge Variant="BadgeVariant.SoftDestructive">Needs attention</BbBadge>
+                        }
+                        else if (item.CustomizationVersion is { } cv)
+                        {
+                            <BbBadge Variant="BadgeVariant.Warning">Customized v@(cv)</BbBadge>
+                        }
+                    </div>
                 </ChildContent>
             </BbDataGridTemplateColumn>
 
@@ -138,7 +153,7 @@ else
                  OpenChanged="@OnDrawerOpenChanged"
                  WidthScale="2.0"
                  Title="@(selectedMeta is null ? "" : $"{selectedMeta.Title} ({selectedMeta.Name})")"
-                 Description="@(selectedMeta is null ? null : $"Active version v{selectedMeta.Version} · {(selectedMeta.Def.IsChild ? "Child table" : "Standard DocType")}")">
+                 Description="@(selectedMeta is null ? null : DrawerDescription(selectedMeta))">
         <ChildContent>
             @if (selectedMeta is not null)
             {
@@ -148,8 +163,53 @@ else
                     </BbButton>
                 </div>
 
+                @if (selectedIsApp)
+                {
+                    foreach (var w in Registry.CustomizationWarnings(selectedMeta.Name))
+                    {
+                        <BbAlert Variant="AlertVariant.Warning" Class="props-block"><BbAlertDescription>Customization: @w</BbAlertDescription></BbAlert>
+                    }
+                    <BbCard>
+                        <BbCardHeader>
+                            <BbCardTitle Class="card-title">Customization History</BbCardTitle>
+                            <BbCardDescription>Changes administrators made on top of the application's definition. They stay when the application is updated.</BbCardDescription>
+                        </BbCardHeader>
+                        <BbCardContent>
+                            @{ var customHistory = Registry.CustomizationHistory(selectedMeta.Name); }
+                            @if (customHistory.Count == 0)
+                            {
+                                <p class="muted small">Not customized: the application's definition is used as deployed.</p>
+                            }
+                            else
+                            {
+                                <div class="table-wrap">
+                                    <table class="data">
+                                        <thead><tr><th>Version</th><th>Saved</th><th>Content</th></tr></thead>
+                                        <tbody>
+                                            @foreach (var c in customHistory.OrderByDescending(c => c.Version))
+                                            {
+                                                <tr>
+                                                    <td>
+                                                        v@(c.Version)
+                                                        @if (c.Version == customHistory[^1].Version)
+                                                        {
+                                                            <BbBadge Variant="BadgeVariant.SoftSuccess">Active</BbBadge>
+                                                        }
+                                                    </td>
+                                                    <td class="nowrap">@c.ModifiedBy, @Fmt.When(c.Modified)</td>
+                                                    <td>@(c.IsEmpty ? "Reset to application default" : $"{c.CustomFields.Count} custom field(s), {c.PropertySetters.Count} change(s){(c.FieldOrder is null ? "" : ", field order")}")</td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                        </BbCardContent>
+                    </BbCard>
+                }
+
                 <BbCard>
-                    <BbCardHeader><BbCardTitle Class="card-title">Version History</BbCardTitle></BbCardHeader>
+                    <BbCardHeader><BbCardTitle Class="card-title">@(selectedIsApp ? "Application Versions" : "Version History")</BbCardTitle></BbCardHeader>
                     <BbCardContent>
                         <div class="table-wrap">
                             <table class="data">
@@ -195,6 +255,17 @@ else
                     </BbCard>
                 }
 
+                @if (selectedIsApp)
+                {
+                    <BbAlert Variant="AlertVariant.Info" Class="props-block">
+                        <BbAlertDescription>
+                            This DocType comes from the application: change it in the <strong>Visual Editor</strong>, which saves a customization on top of the application's definition.
+                            Editing the full JSON is only available for DocTypes created here.
+                        </BbAlertDescription>
+                    </BbAlert>
+                }
+                else if (canEdit)
+                {
                 <BbCard>
                     <BbCardHeader>
                         <BbCardTitle Class="card-title">Draft v@(selectedMeta.Version + 1) (JSON)</BbCardTitle>
@@ -238,6 +309,7 @@ else
                         </div>
                     </BbCardContent>
                 </BbCard>
+                }
             }
         </ChildContent>
     </AdminDrawer>
@@ -252,7 +324,13 @@ else
         public string Title { get; set; } = "";
         public int Version { get; set; }
         public bool IsChild { get; set; }
-        public MetadataStatus Status { get; set; } = MetadataStatus.Published;
+        public bool IsApp { get; set; }
+        public int? CustomizationVersion { get; set; }
+        public int CustomizationWarnings { get; set; }
+        public string StatusLabel => IsApp ? CustomizationWarnings > 0 ? "Application · needs attention" : CustomizationVersion is { } v ? $"Application · customized v{v}" : "Application" : "Custom";
+        public string StatusHint => CustomizationWarnings > 0
+            ? "Part of the customization could not be applied after an application update. Open the editor to review it."
+            : IsApp ? "Shipped with the application; administrators can add a customization on top." : "Created by administrators in this installation.";
         public DateTimeOffset? PublishedAt { get; set; }
         public string? PublishedBy { get; set; }
         public string? CreatedBy { get; set; }
@@ -266,6 +344,9 @@ else
     private PublishPreview? preview;
     private bool ack;
     private string? message;
+    private bool canEdit;
+    private string draftOriginal = "";
+    private bool selectedIsApp => selectedMeta is not null && Registry.IsAppOwned(selectedMeta.Name);
     private Framework.Web.Services.DataGridPreferenceManager<DocTypeRow> gridMgr = default!;
 
     private static readonly IReadOnlyList<GridExportColumn<DocTypeRow>> ExportColumns =
@@ -274,7 +355,7 @@ else
         new("name", "DocType Name", d => d.Name),
         new("name", "Is Child", d => d.IsChild),
         new("version", "Version", d => d.Version),
-        new("status", "Status", d => d.Status == MetadataStatus.Published ? "Active" : d.Status.ToString()),
+        new("status", "Source / Status", d => d.StatusLabel),
         new("published", "Published At", d => d.PublishedAt),
         new("created_by", "Created By", d => d.CreatedBy),
         new("workflow", "Workflow", d => d.Workflow)
@@ -284,6 +365,7 @@ else
     {
         gridMgr = new(UserPrefs, Current, "grid:admin:metadata", StateHasChanged);
         await gridMgr.InitializeAsync();
+        canEdit = await EditPolicy.CanEditAsync(Current.User);
     }
 
     protected override void OnInitialized()
@@ -303,10 +385,13 @@ else
         InvokeAsync(() =>
         {
             LoadRows();
-            if (selectedMeta is not null && Registry.Current.TryGet(selectedMeta.Name, out var updated))
+            if (selectedMeta is not null && Registry.Current.TryGet(selectedMeta.Name, out var updated) && !ReferenceEquals(updated, selectedMeta))
             {
+                var changed = updated.Version != selectedMeta.Version;
                 selectedMeta = updated;
-                ResetDraft();
+                // Keep a JSON draft the administrator is typing; only refresh an untouched one.
+                if (draft == draftOriginal) ResetDraft();
+                else if (changed) message = $"{updated.Name} v{updated.Version} was just published by someone else. Your draft is based on an older version: copy your changes, then close and reopen this panel.";
             }
             StateHasChanged();
         });
@@ -345,7 +430,9 @@ else
                 Title = d.Title,
                 Version = d.Version,
                 IsChild = d.Def.IsChild,
-                Status = active?.Status ?? MetadataStatus.Published,
+                IsApp = Registry.IsAppOwned(d.Name),
+                CustomizationVersion = Registry.Customization(d.Name)?.Version,
+                CustomizationWarnings = Registry.CustomizationWarnings(d.Name).Count,
                 PublishedAt = publishedAt,
                 PublishedBy = publishedBy,
                 CreatedBy = createdBy,
@@ -388,6 +475,7 @@ else
             var copy = JsonSerializer.Deserialize<DocTypeDef>(MetadataJson.Serialize(selectedMeta.Def), MetadataJson.Options)!;
             copy.Version = selectedMeta.Version + 1;
             draft = MetadataJson.Serialize(copy);
+            draftOriginal = draft;
         }
     }
 
@@ -408,8 +496,19 @@ else
         if (Parse() is { } def) preview = Registry.Preview(def, RoleCatalogSvc.Scope(Current.Required.TenantId));
     }
 
+    private string DrawerDescription(CompiledDocType m)
+    {
+        var kind = m.Def.IsChild ? "Child table" : "Standard DocType";
+        if (!Registry.IsAppOwned(m.Name)) return $"Active version v{m.Version} · {kind}";
+        return Registry.Customization(m.Name) is { } c
+            ? $"Application definition v{m.Version} + customization v{c.Version} · {kind}"
+            : $"Application definition v{m.Version} · not customized · {kind}";
+    }
+
     private void Publish()
     {
+        if (!canEdit) { message = Framework.Web.Tenancy.MetadataEditPolicy.DeniedMessage; return; }
+        if (selectedIsApp) { message = "Application DocTypes are changed in the Visual Editor."; return; }
         if (Parse() is not { } def) return;
         try
         {

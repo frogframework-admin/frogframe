@@ -14,6 +14,8 @@ This guide covers Competency Management, Appraisals, Talent Reviews (9-Box), Suc
   - On creation, competencies are prefilled from the employee's `JobProfile` if empty.
   - Employees fill `self_score`; reviewers (`reports_to`) fill `manager_score`.
   - Completing an appraisal syncs competency scores (`manager_score`) to the employee's profile.
+  - Competencies show **360 (others)** from the employee's closed 360 feedback of the same cycle (development input, not part of the final score).
+- **360 Feedback** (`MultiRaterReview`, `FeedbackResponse`, `FeedbackTemplate`): multi-rater feedback from self, manager, peers, direct reports and internal customers with an anonymity threshold. See [360-degree feedback](360-feedback.md).
 
 ## 3. Talent Review (9-Box) & Access Control
 - **Talent Review** (`TalentReview`): One per `(employee, appraisal_cycle)`.

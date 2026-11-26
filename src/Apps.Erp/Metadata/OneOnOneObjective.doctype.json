@@ -1,0 +1,26 @@
+{
+  "name": "OneOnOneObjective",
+  "version": 1,
+  "title": "1:1 Goal",
+  "module": "HR",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "objective",
+      "type": "Link",
+      "label": "Goal (OKR)",
+      "linkTo": "OkrObjective",
+      "requiredWhen": "true",
+      "lookupDialog": true,
+      "inListView": true
+    },
+    {
+      "name": "progress_snapshot",
+      "type": "Percent",
+      "label": "Progress at meeting (%)",
+      "readOnlyWhen": "true",
+      "inListView": true,
+      "description": "Copied from the goal when the check-in is saved (hook)"
+    }
+  ]
+}

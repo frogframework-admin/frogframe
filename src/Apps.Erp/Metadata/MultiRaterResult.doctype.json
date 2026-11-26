@@ -1,0 +1,75 @@
+{
+  "name": "MultiRaterResult",
+  "version": 1,
+  "title": "360 Result",
+  "module": "HR",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "question_no",
+      "type": "Int",
+      "label": "No",
+      "inListView": true
+    },
+    {
+      "name": "competency",
+      "type": "Data",
+      "label": "Competency",
+      "inListView": true
+    },
+    {
+      "name": "question",
+      "type": "Data",
+      "label": "Question",
+      "inListView": true
+    },
+    {
+      "name": "self_score",
+      "type": "Float",
+      "label": "Self",
+      "inListView": true
+    },
+    {
+      "name": "manager_score",
+      "type": "Float",
+      "label": "Manager",
+      "inListView": true
+    },
+    {
+      "name": "peer_score",
+      "type": "Float",
+      "label": "Peers",
+      "inListView": true
+    },
+    {
+      "name": "direct_report_score",
+      "type": "Float",
+      "label": "Direct reports",
+      "inListView": true
+    },
+    {
+      "name": "internal_customer_score",
+      "type": "Float",
+      "label": "Internal customers",
+      "inListView": true
+    },
+    {
+      "name": "others_score",
+      "type": "Float",
+      "label": "All others",
+      "inListView": true
+    },
+    {
+      "name": "gap",
+      "type": "Float",
+      "label": "Others − self",
+      "inListView": true
+    },
+    {
+      "name": "responses",
+      "type": "Int",
+      "label": "Ratings used",
+      "inListView": true
+    }
+  ]
+}

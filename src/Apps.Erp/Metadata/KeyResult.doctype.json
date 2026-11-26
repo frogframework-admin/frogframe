@@ -1,0 +1,92 @@
+{
+  "name": "KeyResult",
+  "version": 1,
+  "title": "Key Result",
+  "module": "HR",
+  "isChild": true,
+  "fields": [
+    {
+      "name": "description",
+      "type": "Data",
+      "label": "Key result",
+      "requiredWhen": "true",
+      "inListView": true
+    },
+    {
+      "name": "direction",
+      "type": "Select",
+      "label": "Measure",
+      "requiredWhen": "true",
+      "options": [
+        "Increase",
+        "Decrease",
+        "Milestone"
+      ],
+      "default": "Increase",
+      "inListView": true,
+      "description": "Increase/Decrease: numeric from start to target. Milestone: done or not (checkbox)."
+    },
+    {
+      "name": "start_value",
+      "type": "Float",
+      "label": "Start value"
+    },
+    {
+      "name": "target_value",
+      "type": "Float",
+      "label": "Target value"
+    },
+    {
+      "name": "current_value",
+      "type": "Float",
+      "label": "Current value",
+      "inListView": true
+    },
+    {
+      "name": "uom",
+      "type": "Data",
+      "label": "Unit (e.g. %, IDR, tickets)"
+    },
+    {
+      "name": "is_done",
+      "type": "Check",
+      "label": "Milestone achieved"
+    },
+    {
+      "name": "weight",
+      "type": "Percent",
+      "label": "Weight (%)",
+      "requiredWhen": "true",
+      "min": 0,
+      "max": 100,
+      "default": 100,
+      "inListView": true,
+      "description": "All key results of an objective must add up to 100 before the objective is Active"
+    },
+    {
+      "name": "progress_percent",
+      "type": "Percent",
+      "label": "Progress (%)",
+      "readOnlyWhen": "true",
+      "inListView": true,
+      "description": "Computed by the hook"
+    },
+    {
+      "name": "confidence",
+      "type": "Select",
+      "label": "Confidence",
+      "options": [
+        "On track",
+        "At risk",
+        "Off track"
+      ],
+      "default": "On track",
+      "inListView": true
+    },
+    {
+      "name": "latest_update",
+      "type": "Data",
+      "label": "Latest update"
+    }
+  ]
+}
